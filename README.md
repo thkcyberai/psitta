@@ -36,7 +36,7 @@ source .venv/bin/activate
 uvicorn psitta.main:create_app --factory --reload
 
 # 5. Start the Flutter app (separate terminal)
-cd apps/mobile
+cd apps/desktop
 flutter run
 ```
 
@@ -46,7 +46,7 @@ API docs available at: http://localhost:8000/docs
 ```
 psitta/
 ├── core/backend/     # FastAPI backend (Apache 2.0)
-├── apps/mobile/      # Flutter cross-platform app (Apache 2.0)
+├── apps/desktop/      # Flutter cross-platform app (Apache 2.0)
 ├── extensions/       # Commercial add-ons (Proprietary)
 ├── docs/             # Documentation (CC BY 4.0)
 ├── scripts/          # Developer tooling
@@ -63,7 +63,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system design and [OPEN_CORE
 | `./scripts/bootstrap.sh` | Full developer setup |
 | `./scripts/reset-db.sh` | Reset database |
 | `cd core/backend && pytest` | Run backend tests |
-| `cd apps/mobile && flutter test` | Run mobile tests |
+| `cd apps/desktop && flutter test` | Run mobile tests |
 | `pre-commit run --all-files` | Run all linters |
 
 ## Documentation

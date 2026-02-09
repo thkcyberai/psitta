@@ -31,6 +31,6 @@ You will receive a response within 48 hours. We will work with you to understand
 
 This security policy covers:
 - `core/backend/` — API server and worker
-- `apps/mobile/` — Flutter application
+- `apps/desktop/` — Flutter application
 - `.github/workflows/` — CI/CD pipelines
 - `docker-compose.yml` — Infrastructure configuration

@@ -1,8 +1,19 @@
+# Default owners for everything
 *                       @psitta/maintainers
+
+# Backend
 /core/backend/          @psitta/backend
-/apps/mobile/           @psitta/mobile
+
+# Desktop app
+/apps/desktop/          @psitta/desktop
+
+# Infrastructure
 /docker-compose.yml     @psitta/infra
 /.github/workflows/     @psitta/infra
+
+# Extensions (restricted)
 /extensions/            @psitta/extensions-team
+
+# Security-sensitive
 /SECURITY.md            @psitta/security
 /.env.example           @psitta/security

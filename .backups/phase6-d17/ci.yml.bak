@@ -65,13 +65,13 @@ jobs:
           cache: true
 
       - name: Dart analyze
-        working-directory: apps/desktop
+        working-directory: apps/mobile
         run: |
           flutter pub get
           dart analyze --fatal-infos
 
       - name: Dart format check
-        working-directory: apps/desktop
+        working-directory: apps/mobile
         run: dart format --set-exit-if-changed lib/
 
   # ── Stage 2: Test ──────────────────────────────────────────────────
@@ -190,11 +190,11 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        working-directory: apps/desktop
+        working-directory: apps/mobile
         run: flutter pub get
 
       - name: Run tests
-        working-directory: apps/desktop
+        working-directory: apps/mobile
         run: flutter test --coverage
 
       - name: Upload coverage
@@ -202,7 +202,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: flutter-coverage
-          path: apps/desktop/coverage/
+          path: apps/mobile/coverage/
 
   # ── Stage 3: Security Scan ─────────────────────────────────────────
   security:
