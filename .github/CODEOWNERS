@@ -1,0 +1,8 @@
+*                       @psitta/maintainers
+/core/backend/          @psitta/backend
+/apps/mobile/           @psitta/mobile
+/docker-compose.yml     @psitta/infra
+/.github/workflows/     @psitta/infra
+/extensions/            @psitta/extensions-team
+/SECURITY.md            @psitta/security
+/.env.example           @psitta/security

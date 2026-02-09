@@ -1,0 +1,95 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "psitta"
+version = "0.1.0"
+description = "Ultra-natural document narration platform"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0,<1.0",
+    "uvicorn[standard]>=0.30.0,<1.0",
+    "pydantic>=2.9.0,<3.0",
+    "pydantic-settings>=2.5.0,<3.0",
+    "sqlalchemy[asyncio]>=2.0.35,<3.0",
+    "asyncpg>=0.30.0,<1.0",
+    "alembic>=1.14.0,<2.0",
+    "redis>=5.2.0,<6.0",
+    "boto3>=1.35.0,<2.0",
+    "aioboto3>=13.0.0,<14.0",
+    "httpx>=0.27.0,<1.0",
+    "python-multipart>=0.0.12",
+    "python-jose[cryptography]>=3.3.0,<4.0",
+    "passlib[bcrypt]>=1.7.4,<2.0",
+    "structlog>=24.4.0,<25.0",
+    "opentelemetry-api>=1.28.0,<2.0",
+    "opentelemetry-sdk>=1.28.0,<2.0",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-instrumentation-sqlalchemy>=0.49b0",
+    "opentelemetry-instrumentation-redis>=0.49b0",
+    "opentelemetry-exporter-otlp>=1.28.0,<2.0",
+    "pymupdf>=1.24.0,<2.0",
+    "python-docx>=1.1.0,<2.0",
+    "beautifulsoup4>=4.12.0,<5.0",
+    "readability-lxml>=0.8.1,<1.0",
+    "markdown>=3.7,<4.0",
+    "Pillow>=10.4.0,<11.0",
+    "pytesseract>=0.3.13,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0,<9.0",
+    "pytest-asyncio>=0.24.0,<1.0",
+    "pytest-cov>=5.0.0,<6.0",
+    "pytest-mock>=3.14.0,<4.0",
+    "httpx>=0.27.0,<1.0",
+    "factory-boy>=3.3.0,<4.0",
+    "faker>=30.0.0,<31.0",
+    "ruff>=0.7.0,<1.0",
+    "mypy>=1.13.0,<2.0",
+    "pre-commit>=4.0.0,<5.0",
+    "types-redis>=4.6.0",
+    "types-boto3>=1.35.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/psitta"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",     # pycodestyle
+    "F",           # pyflakes
+    "I",           # isort
+    "N",           # pep8-naming
+    "UP",          # pyupgrade
+    "S",           # bandit (security)
+    "B",           # bugbear
+    "A",           # builtins
+    "T20",         # print statements
+    "SIM",         # simplify
+    "RUF",         # ruff-specific
+]
+ignore = ["S101"]  # Allow assert in tests
+
+[tool.ruff.lint.isort]
+known-first-party = ["psitta"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["migrations"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "--cov=psitta --cov-report=term-missing --cov-fail-under=80"

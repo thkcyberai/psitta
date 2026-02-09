@@ -1,0 +1,22 @@
+name: Bug Report
+description: Report a bug in Psitta
+labels: [bug, triage]
+body:
+  - type: textarea
+    id: description
+    attributes: { label: Describe the bug }
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes: { label: Steps to Reproduce }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected Behavior }
+    validations: { required: true }
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [Backend API, Document Processing, Playback, Flutter App, Docker/Infrastructure, CI/CD, Other]
+    validations: { required: true }
