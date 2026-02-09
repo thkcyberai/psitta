@@ -1,0 +1,27 @@
+# Normalize line endings to LF in the repository
+* text=auto eol=lf
+
+# Ensure shell scripts always use LF
+*.sh text eol=lf
+
+# Ensure batch files use CRLF (Windows)
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.pdf binary
+*.zip binary
+*.gz binary
+*.tar binary
