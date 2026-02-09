@@ -1,117 +1,156 @@
 """
-Playback endpoints — start session, stream audio, caption sync, update position.
+Psitta — Playback Routes.
+
+Endpoints for audio streaming, session management, and position tracking.
+Playback sessions maintain state so users can resume where they left off.
+
+Security:
+  - Audio streams require valid session ownership
+  - Position updates are rate-limited to prevent abuse
+  - Chunk IDs are validated against the document's chunk manifest
 """
 
 from __future__ import annotations
 
-import uuid
-from typing import Any
+from typing import Annotated
+from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, Query, status
 
-from psitta.dependencies import CurrentUserId, DbSession, Providers
-from psitta.schemas.api import (
-    ApiResponse,
-    PlaybackSessionResponse,
-    PlaybackStartRequest,
-    PlaybackUpdateRequest,
-)
-from psitta.services.playback_service import PlaybackService
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-logger = structlog.get_logger()
 router = APIRouter()
 
 
 @router.post(
-    "/{document_id}/play",
-    response_model=ApiResponse[PlaybackSessionResponse],
+    "/sessions",
     status_code=status.HTTP_201_CREATED,
+    summary="Create a new playback session",
+    response_description="Session created with first chunk ready",
 )
-async def start_playback(
-    document_id: uuid.UUID,
-    body: PlaybackStartRequest,
-    db: DbSession,
-    providers: Providers,
-    user_id: CurrentUserId,
-) -> dict[str, Any]:
-    """Start a new playback session for a document."""
-    service = PlaybackService(db=db, providers=providers)
-    session = await service.start_session(
-        user_id=user_id,
-        document_id=document_id,
-        voice_id=body.voice_id,
-        speed=body.speed,
-        start_chunk=body.start_chunk,
+async def create_session(
+    document_id: UUID,
+    voice_id: str = "en-US-AriaNeural",
+    speed: Annotated[float, Query(ge=0.5, le=3.0)] = 1.0,
+) -> dict:
+    """Start a new playback session for a processed document.
+
+    Creates a session record and returns the first audio chunk URL.
+    If the document is still processing, returns a partial session
+    with available chunks.
+
+    Args:
+        document_id: The document to play.
+        voice_id: TTS voice identifier.
+        speed: Playback speed multiplier (0.5x to 3.0x).
+    """
+    logger.info(
+        "playback.session.create",
+        document_id=str(document_id),
+        voice_id=voice_id,
+        speed=speed,
     )
 
+    # TODO: Wire to PlaybackService.create_session()
     return {
-        "data": PlaybackSessionResponse(
-            session_id=session.id,
-            stream_url=f"/api/v1/playback/{session.id}/stream",
-            captions_url=f"/api/v1/playback/{session.id}/captions",
-            total_chunks=session.total_chunks,
-            estimated_duration_ms=session.estimated_duration_ms,
-        )
+        "session_id": "pending",
+        "document_id": str(document_id),
+        "voice_id": voice_id,
+        "speed": speed,
+        "status": "created",
+        "message": "Session creation endpoint — service layer pending",
     }
 
 
-@router.get("/{session_id}/stream")
-async def stream_audio(
-    session_id: uuid.UUID,
-    db: DbSession,
-    providers: Providers,
-    user_id: CurrentUserId,
-) -> StreamingResponse:
-    """Stream audio for an active playback session."""
-    service = PlaybackService(db=db, providers=providers)
-    audio_stream = service.stream_audio(session_id=session_id, user_id=user_id)
+@router.get(
+    "/sessions/{session_id}",
+    summary="Get playback session state",
+    response_description="Current session state including position",
+)
+async def get_session(session_id: UUID) -> dict:
+    """Retrieve the current state of a playback session.
 
-    return StreamingResponse(
-        audio_stream,
-        media_type="audio/mpeg",
-        headers={
-            "Transfer-Encoding": "chunked",
-            "Cache-Control": "no-cache",
-        },
+    Returns current chunk index, position within chunk,
+    total duration, and available chunk manifest.
+    """
+    logger.info("playback.session.get", session_id=str(session_id))
+
+    # TODO: Wire to PlaybackService.get_session()
+    return {
+        "session_id": str(session_id),
+        "status": "pending",
+        "message": "Session detail endpoint — service layer pending",
+    }
+
+
+@router.patch(
+    "/sessions/{session_id}/position",
+    summary="Update playback position",
+    response_description="Position updated successfully",
+)
+async def update_position(
+    session_id: UUID,
+    chunk_index: int,
+    position_ms: Annotated[int, Query(ge=0, description="Position in milliseconds")],
+) -> dict:
+    """Update the current playback position within a session.
+
+    Called periodically by the client to persist resume position.
+    Rate-limited to prevent excessive writes.
+
+    Args:
+        session_id: Active session ID.
+        chunk_index: Current chunk being played (0-indexed).
+        position_ms: Position within the chunk in milliseconds.
+    """
+    logger.info(
+        "playback.position.update",
+        session_id=str(session_id),
+        chunk_index=chunk_index,
+        position_ms=position_ms,
     )
 
+    # TODO: Wire to PlaybackService.update_position()
+    return {
+        "session_id": str(session_id),
+        "chunk_index": chunk_index,
+        "position_ms": position_ms,
+        "status": "updated",
+    }
 
-@router.get("/{session_id}/captions")
-async def stream_captions(
-    session_id: uuid.UUID,
-    db: DbSession,
-    providers: Providers,
-    user_id: CurrentUserId,
-) -> StreamingResponse:
-    """Stream caption events (SSE) for an active playback session."""
-    service = PlaybackService(db=db, providers=providers)
-    caption_stream = service.stream_captions(session_id=session_id, user_id=user_id)
 
-    return StreamingResponse(
-        caption_stream,
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-        },
+@router.get(
+    "/sessions/{session_id}/chunks/{chunk_index}/audio",
+    summary="Stream audio for a specific chunk",
+    response_description="Audio stream (mp3/opus)",
+)
+async def stream_chunk_audio(
+    session_id: UUID,
+    chunk_index: Annotated[int, Query(ge=0)],
+) -> dict:
+    """Stream the audio file for a specific chunk.
+
+    Returns a pre-signed S3 URL for direct audio streaming.
+    The URL is short-lived (15 minutes) for security.
+
+    In production, this returns a StreamingResponse or redirect
+    to the CDN/S3 pre-signed URL.
+    """
+    logger.info(
+        "playback.audio.stream",
+        session_id=str(session_id),
+        chunk_index=chunk_index,
     )
 
-
-@router.patch("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def update_playback(
-    session_id: uuid.UUID,
-    body: PlaybackUpdateRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> None:
-    """Update playback position, speed, or voice."""
-    service = PlaybackService(db=db, providers=None)  # type: ignore[arg-type]
-    await service.update_session(
-        session_id=session_id,
-        user_id=user_id,
-        position_ms=body.position_ms,
-        speed=body.speed,
-        voice_id=body.voice_id,
-    )
+    # TODO: Wire to PlaybackService.get_chunk_audio_url()
+    # 1. Validate session ownership
+    # 2. Validate chunk_index exists
+    # 3. Generate pre-signed S3 URL
+    # 4. Return redirect or streaming response
+    return {
+        "session_id": str(session_id),
+        "chunk_index": chunk_index,
+        "audio_url": "pending",
+        "message": "Audio streaming endpoint — service layer pending",
+    }

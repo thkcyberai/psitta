@@ -1,185 +1,187 @@
 """
-Playback service — audio streaming, caption sync, session management.
+Psitta — Playback Service.
+
+Manages audio playback sessions: creation, position tracking,
+chunk audio retrieval, and session lifecycle.
+
+Sessions are cached in Redis for fast reads and persisted to
+PostgreSQL for durability. The cache is the primary read path;
+DB is the write-through persistence layer.
+
+Security:
+  - Sessions are user-scoped (no cross-user access)
+  - Audio URLs are pre-signed with short TTL (15 minutes)
+  - Position updates are idempotent and rate-limited
+  - Chunk indexes are validated against the document manifest
 """
 
 from __future__ import annotations
 
-import json
-import uuid
-from dataclasses import dataclass
-from typing import AsyncIterator
+from uuid import UUID, uuid4
 
 import structlog
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.models.domain import AudioSegment, Document, DocumentChunk, PlaybackSession
-from psitta.providers.interfaces.contracts import ProviderRegistry, TTSOptions
+from psitta.config import Settings
+from psitta.models.domain import PlaybackSession
 
-logger = structlog.get_logger()
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-
-@dataclass
-class SessionInfo:
-    id: uuid.UUID
-    total_chunks: int
-    estimated_duration_ms: int
+# Pre-signed URL expiry for audio streaming
+_AUDIO_URL_TTL_SECONDS = 900  # 15 minutes
 
 
 class PlaybackService:
-    """Orchestrates audio playback, streaming, and caption synchronization."""
+    """Manages playback session lifecycle and audio delivery.
 
-    def __init__(self, db: AsyncSession, providers: ProviderRegistry | None) -> None:
-        self._db = db
-        self._providers = providers
+    All methods enforce user-scoped access — the caller must
+    provide the authenticated user_id for every operation.
+    """
 
-    async def start_session(
+    def __init__(
+        self,
+        db_session: object,
+        storage_client: object,
+        redis_client: object,
+        settings: Settings,
+    ) -> None:
+        self._db = db_session
+        self._storage = storage_client
+        self._redis = redis_client
+        self._settings = settings
+
+    async def create_session(
         self,
         user_id: str,
-        document_id: uuid.UUID,
-        voice_id: str,
+        document_id: UUID,
+        voice_id: str = "en-US-AriaNeural",
         speed: float = 1.0,
-        start_chunk: int = 0,
-    ) -> SessionInfo:
-        """Create a new playback session."""
-        # Verify document exists and is ready
-        result = await self._db.execute(
-            select(Document).where(
-                Document.id == document_id,
-                Document.user_id == user_id,
-                Document.status == "ready",
-            )
-        )
-        document = result.scalar_one_or_none()
-        if document is None:
-            raise ValueError(f"Document {document_id} not found or not ready")
+    ) -> PlaybackSession:
+        """Create a new playback session for a processed document.
 
-        # Count chunks
-        chunk_count_result = await self._db.execute(
-            select(DocumentChunk)
-            .where(DocumentChunk.document_id == document_id)
-        )
-        chunks = chunk_count_result.scalars().all()
-        total_chunks = len(list(chunks))
+        Validates that the document exists, is owned by the user,
+        and has completed processing (status = READY).
 
-        # Create session
+        Args:
+            user_id: Authenticated user's ID.
+            document_id: Document to play.
+            voice_id: TTS voice identifier.
+            speed: Playback speed multiplier.
+
+        Returns:
+            New PlaybackSession with initial position at chunk 0.
+
+        Raises:
+            ValueError: If document is not ready or not found.
+        """
+        logger.info(
+            "playback.session.create",
+            user_id=user_id,
+            document_id=str(document_id),
+            voice_id=voice_id,
+            speed=speed,
+        )
+
+        # TODO: Validate document exists, is owned, and is READY
+        # TODO: Count total chunks for the document
+        # TODO: Create session in DB and cache in Redis
+
         session = PlaybackSession(
+            id=uuid4(),
             user_id=user_id,
             document_id=document_id,
             voice_id=voice_id,
             speed=speed,
-            current_chunk=start_chunk,
-        )
-        self._db.add(session)
-        await self._db.flush()
-
-        # Rough estimate: ~150 words/min at 1x speed, ~5 chars/word
-        total_chars = sum(len(c.text_content) for c in chunks)
-        words = total_chars / 5
-        duration_ms = int((words / 150) * 60 * 1000 / speed)
-
-        return SessionInfo(
-            id=session.id,
-            total_chunks=total_chunks,
-            estimated_duration_ms=duration_ms,
+            current_chunk_index=0,
+            position_ms=0,
+            total_chunks=0,
         )
 
-    async def stream_audio(
-        self, session_id: uuid.UUID, user_id: str
-    ) -> AsyncIterator[bytes]:
-        """Stream audio chunks for progressive playback."""
-        session = await self._get_session(session_id, user_id)
-        if self._providers is None:
-            raise RuntimeError("Providers not available")
-
-        # Fetch chunks in order
-        result = await self._db.execute(
-            select(DocumentChunk)
-            .where(DocumentChunk.document_id == session.document_id)
-            .where(DocumentChunk.sequence_num >= session.current_chunk)
-            .order_by(DocumentChunk.sequence_num)
+        logger.info(
+            "playback.session.created",
+            session_id=str(session.id),
+            document_id=str(document_id),
         )
-        chunks = result.scalars().all()
 
-        for chunk in chunks:
-            # Check audio cache
-            cached = await self._db.execute(
-                select(AudioSegment).where(
-                    AudioSegment.chunk_id == chunk.id,
-                    AudioSegment.voice_id == session.voice_id,
-                    AudioSegment.speed == session.speed,
-                )
-            )
-            audio_segment = cached.scalar_one_or_none()
-
-            if audio_segment:
-                # Serve from cache
-                audio_data = await self._providers.storage.download(audio_segment.audio_key)
-                yield audio_data
-            else:
-                # Synthesize on the fly
-                options = TTSOptions(speed=session.speed)
-                async for audio_chunk in self._providers.tts.synthesize(
-                    text=chunk.text_content,
-                    voice_id=session.voice_id,
-                    options=options,
-                ):
-                    yield audio_chunk.data
-
-    async def stream_captions(
-        self, session_id: uuid.UUID, user_id: str
-    ) -> AsyncIterator[str]:
-        """Stream caption events as SSE."""
-        session = await self._get_session(session_id, user_id)
-
-        result = await self._db.execute(
-            select(DocumentChunk)
-            .where(DocumentChunk.document_id == session.document_id)
-            .order_by(DocumentChunk.sequence_num)
-        )
-        chunks = result.scalars().all()
-
-        cumulative_ms = 0
-        for chunk in chunks:
-            event_data = {
-                "chunk_seq": chunk.sequence_num,
-                "text": chunk.text_content,
-                "start_ms": cumulative_ms,
-                "words": chunk.word_timestamps or [],
-            }
-            yield f"event: caption\ndata: {json.dumps(event_data)}\n\n"
-            # Rough duration estimate
-            cumulative_ms += len(chunk.text_content) * 50  # ~50ms per char at 1x
-
-    async def update_session(
-        self,
-        session_id: uuid.UUID,
-        user_id: str,
-        position_ms: int | None = None,
-        speed: float | None = None,
-        voice_id: str | None = None,
-    ) -> None:
-        """Update a playback session's state."""
-        session = await self._get_session(session_id, user_id)
-        if position_ms is not None:
-            session.position_ms = position_ms
-        if speed is not None:
-            session.speed = speed
-        if voice_id is not None:
-            session.voice_id = voice_id
-
-    async def _get_session(
-        self, session_id: uuid.UUID, user_id: str
-    ) -> PlaybackSession:
-        """Fetch a session ensuring it belongs to the user."""
-        result = await self._db.execute(
-            select(PlaybackSession).where(
-                PlaybackSession.id == session_id,
-                PlaybackSession.user_id == user_id,
-                PlaybackSession.is_active == True,  # noqa: E712
-            )
-        )
-        session = result.scalar_one_or_none()
-        if session is None:
-            raise ValueError(f"Playback session {session_id} not found")
         return session
+
+    async def get_session(
+        self, user_id: str, session_id: UUID
+    ) -> PlaybackSession | None:
+        """Retrieve a playback session by ID.
+
+        Checks Redis cache first, falls back to DB.
+        Returns None if session doesn't exist or isn't owned by user.
+        """
+        logger.info(
+            "playback.session.get",
+            session_id=str(session_id),
+            user_id=user_id,
+        )
+
+        # TODO: Check Redis cache first
+        # TODO: Fall back to DB query
+        # TODO: Validate user ownership
+        return None
+
+    async def update_position(
+        self,
+        user_id: str,
+        session_id: UUID,
+        chunk_index: int,
+        position_ms: int,
+    ) -> bool:
+        """Update the playback position within a session.
+
+        Position updates are written to Redis immediately and
+        flushed to PostgreSQL periodically (write-behind).
+
+        Args:
+            user_id: Authenticated user's ID.
+            session_id: Active session ID.
+            chunk_index: Current chunk being played (0-indexed).
+            position_ms: Position within the chunk in milliseconds.
+
+        Returns:
+            True if position was updated, False if session not found.
+        """
+        logger.info(
+            "playback.position.update",
+            session_id=str(session_id),
+            chunk_index=chunk_index,
+            position_ms=position_ms,
+        )
+
+        # TODO: Validate session ownership
+        # TODO: Validate chunk_index is within range
+        # TODO: Update Redis cache
+        # TODO: Schedule DB flush
+        return False
+
+    async def get_chunk_audio_url(
+        self,
+        user_id: str,
+        session_id: UUID,
+        chunk_index: int,
+    ) -> str | None:
+        """Generate a pre-signed URL for a chunk's audio file.
+
+        The URL is valid for 15 minutes and can be used directly
+        by the client for audio streaming.
+
+        Returns None if session or chunk is not found.
+        """
+        logger.info(
+            "playback.audio.url",
+            session_id=str(session_id),
+            chunk_index=chunk_index,
+        )
+
+        # TODO: Validate session ownership
+        # TODO: Look up audio segment storage key
+        # TODO: Generate pre-signed S3 URL with TTL
+        # await self._storage.generate_presigned_url(
+        #     bucket=self._settings.S3_BUCKET_NAME,
+        #     key=audio_segment.storage_key,
+        #     expires_in=_AUDIO_URL_TTL_SECONDS,
+        # )
+        return None

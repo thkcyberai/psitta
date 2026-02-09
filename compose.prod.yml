@@ -1,80 +1,95 @@
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  Psitta — Production Overrides                                   ║
-# ║  Usage: docker compose -f docker-compose.yml -f compose.prod.yml up ║
-# ╚══════════════════════════════════════════════════════════════════════╝
+# ══════════════════════════════════════════════════════════════════════
+# Psitta — Production Docker Compose Overrides
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f compose.prod.yml up -d
+#
+# This file overrides development defaults with production settings:
+#   - No source volume mounts (baked into image)
+#   - No --reload flag
+#   - Resource limits enforced
+#   - Restart policies hardened
+#   - Debug logging disabled
+#   - Health check intervals tightened
+# ══════════════════════════════════════════════════════════════════════
 
 services:
   postgres:
+    restart: always
     environment:
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --data-checksums"
-    ports: !reset []                  # No external port exposure
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     deploy:
       resources:
         limits:
-          memory: 2G
           cpus: "2.0"
+          memory: 2G
         reservations:
-          memory: 1G
+          cpus: "0.5"
+          memory: 512M
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis:
-    ports: !reset []
-    command: >-
+    restart: always
+    command: >
       redis-server
-        --appendonly yes
-        --maxmemory 1gb
-        --maxmemory-policy allkeys-lru
-        --tcp-backlog 511
-        --save 300 100
-        --loglevel notice
-        --requirepass ${REDIS_PASSWORD}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
     deploy:
       resources:
         limits:
-          memory: 1536M
           cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
 
   minio:
-    ports: !reset []                  # No external MinIO in prod (use real S3)
-
-  minio-init:
-    profiles:
-      - never                         # Disabled in production
-
-  api:
-    volumes: []                       # No source mounts in prod
-    command: >
-      uvicorn psitta.main:create_app --factory
-      --host 0.0.0.0 --port 8000
-      --workers ${API_WORKERS:-4}
-      --log-level ${LOG_LEVEL:-warning}
-      --limit-concurrency 100
-      --timeout-keep-alive 30
+    restart: always
     deploy:
       resources:
         limits:
-          memory: 2G
-          cpus: "2.0"
-        reservations:
-          memory: 512M
-      restart_policy:
-        condition: on-failure
-        delay: 5s
-        max_attempts: 5
-        window: 120s
-    read_only: true
+          cpus: "1.0"
+          memory: 1G
 
-  worker:
+  api:
+    restart: always
+    command: >
+      uvicorn psitta.main:create_app
+      --factory
+      --host 0.0.0.0
+      --port 8000
+      --workers 4
+      --log-level warning
+      --access-log
     volumes: []
     deploy:
       resources:
         limits:
-          memory: 4G
-          cpus: "4.0"
-        reservations:
+          cpus: "2.0"
           memory: 1G
-      restart_policy:
-        condition: on-failure
-        delay: 10s
-        max_attempts: 3
-        window: 300s
-    read_only: true
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+      replicas: 2
+    healthcheck:
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    restart: always
+    volumes: []
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+      replicas: 2

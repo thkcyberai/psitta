@@ -1,129 +1,147 @@
 """
-Psitta API — Main application entry point.
+Psitta — FastAPI Application Factory.
 
-Production-ready FastAPI application with:
-- Structured logging
-- OpenTelemetry instrumentation
-- CORS middleware
-- Health checks
-- Graceful shutdown
+Entry point for the backend API. Uses the factory pattern so that
+test fixtures and CLI tools can create isolated app instances.
+
+Usage:
+    uvicorn psitta.main:create_app --factory --reload --host 0.0.0.0 --port 8000
 """
 
 from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncGenerator
 
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-from psitta.api.v1.router import api_router
+from psitta import __version__
 from psitta.config import get_settings
-from psitta.db.session import engine, sessionmanager
-from psitta.dependencies import setup_providers
-from psitta.middleware.rate_limit import RateLimitMiddleware
 from psitta.middleware.request_id import RequestIDMiddleware
 
 
-def configure_logging(log_level: str) -> None:
-    """Configure structlog with JSON output for production, console for dev."""
-    structlog.configure(
-        processors=[
-            structlog.contextvars.merge_contextvars,
-            structlog.processors.add_log_level,
-            structlog.processors.StackInfoRenderer(),
-            structlog.dev.set_exc_info,
-            structlog.processors.TimeStamper(fmt="iso"),
-            (
-                structlog.dev.ConsoleRenderer()
-                if not get_settings().is_production
-                else structlog.processors.JSONRenderer()
-            ),
-        ],
-        wrapper_class=structlog.make_filtering_bound_logger(
-            logging.getLevelName(log_level.upper())
-        ),
-        context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(),
-        cache_logger_on_first_use=True,
-    )
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
+# ── Lifespan (startup / shutdown) ─────────────────────────────────────
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Manage application lifecycle: startup and shutdown."""
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage application lifecycle resources.
+
+    Startup: Initialize DB pool, Redis connection, S3 client.
+    Shutdown: Drain connections gracefully.
+    """
     settings = get_settings()
-    logger = structlog.get_logger()
-
-    # Initialize database connection pool
-    sessionmanager.init(str(settings.database_url))
-    logger.info("database_connected", pool_size=settings.database_pool_size)
-
-    # Initialize provider registry
-    await setup_providers(settings)
-    logger.info("providers_initialized")
 
     logger.info(
-        "application_started",
-        environment=settings.environment,
-        version=settings.app_version,
+        "psitta.startup",
+        version=__version__,
+        environment=settings.ENVIRONMENT,
     )
 
-    yield
+    # ── Startup ────────────────────────────────────────────────────────
+    # Database engine (lazy — created on first request if not here)
+    # Redis pool and S3 client follow the same pattern.
+    # These will be wired in dependencies.py via FastAPI's dependency injection.
 
-    # Graceful shutdown
-    await sessionmanager.close()
-    if engine:
-        await engine.dispose()
-    logger.info("application_stopped")
+    yield  # ← Application serves requests here
+
+    # ── Shutdown ───────────────────────────────────────────────────────
+    logger.info("psitta.shutdown", version=__version__)
 
 
+# ── App Factory ────────────────────────────────────────────────────────
 def create_app() -> FastAPI:
-    """Application factory."""
+    """Create and configure the FastAPI application.
+
+    Returns:
+        Fully configured FastAPI instance with all routes,
+        middleware, and lifecycle hooks registered.
+    """
     settings = get_settings()
-    configure_logging(settings.log_level)
 
     app = FastAPI(
         title="Psitta API",
-        version=settings.app_version,
-        docs_url="/api/docs" if not settings.is_production else None,
-        redoc_url="/api/redoc" if not settings.is_production else None,
-        openapi_url="/api/openapi.json" if not settings.is_production else None,
+        description="Ultra-natural document narration — backend service",
+        version=__version__,
+        docs_url="/docs" if settings.ENVIRONMENT != "production" else None,
+        redoc_url="/redoc" if settings.ENVIRONMENT != "production" else None,
+        openapi_url="/openapi.json" if settings.ENVIRONMENT != "production" else None,
         lifespan=lifespan,
     )
 
-    # ── Middleware (order matters: first added = outermost) ───────
+    # ── Middleware (outermost first) ───────────────────────────────────
+    # 1. Request ID — adds X-Request-ID to every request/response
     app.add_middleware(RequestIDMiddleware)
-    app.add_middleware(RateLimitMiddleware, settings=settings)
+
+    # 2. CORS — configured from settings
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.allowed_origins,
+        allow_origins=settings.allowed_origins_list,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
-        expose_headers=[
-            "X-Request-ID",
-            "X-RateLimit-Limit",
-            "X-RateLimit-Remaining",
-            "X-RateLimit-Reset",
-        ],
+        expose_headers=["X-Request-ID"],
     )
 
-    # ── OpenTelemetry ────────────────────────────────────────────
-    FastAPIInstrumentor.instrument_app(app)
+    # ── Routes ─────────────────────────────────────────────────────────
+    _register_routes(app)
 
-    # ── Routes ───────────────────────────────────────────────────
-    app.include_router(api_router, prefix="/api/v1")
-
-    # ── Health check (outside /api/v1) ───────────────────────────
-    @app.get("/health", tags=["health"])
-    async def health_check() -> dict[str, str]:
-        return {"status": "healthy", "version": settings.app_version}
+    # ── Structured Logging ─────────────────────────────────────────────
+    _configure_logging(settings.LOG_LEVEL)
 
     return app
 
 
-app = create_app()
+# ── Route Registration ─────────────────────────────────────────────────
+def _register_routes(app: FastAPI) -> None:
+    """Mount all API version routers and health endpoints."""
+
+    @app.get("/health", tags=["system"], include_in_schema=False)
+    async def health_check() -> dict[str, str]:
+        """Liveness probe — returns 200 if the process is running."""
+        return {"status": "ok", "version": __version__}
+
+    @app.get("/ready", tags=["system"], include_in_schema=False)
+    async def readiness_check() -> dict[str, str]:
+        """Readiness probe — returns 200 when all dependencies are reachable.
+
+        TODO: Check DB, Redis, S3 connectivity before returning 200.
+        """
+        return {"status": "ready", "version": __version__}
+
+    # Mount v1 API router
+    from psitta.api.v1.router import v1_router
+
+    app.include_router(v1_router, prefix="/api/v1")
+
+
+# ── Logging Configuration ─────────────────────────────────────────────
+def _configure_logging(log_level: str) -> None:
+    """Configure structlog with JSON output for production, pretty for dev."""
+
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            structlog.stdlib.filter_by_level,
+            structlog.stdlib.add_logger_name,
+            structlog.stdlib.add_log_level,
+            structlog.stdlib.PositionalArgumentsFormatter(),
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.StackInfoRenderer(),
+            structlog.processors.UnicodeDecoder(),
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.stdlib.BoundLogger,
+        context_class=dict,
+        logger_factory=structlog.stdlib.LoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+    logging.basicConfig(
+        format="%(message)s",
+        level=getattr(logging, log_level.upper(), logging.INFO),
+    )

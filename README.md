@@ -1,110 +1,85 @@
 # Psitta
 
-**Ultra-natural document narration for creators.**
+**Turn reading time into listening time.** Psitta transforms any document into ultra-natural narration — upload a PDF, pick a voice, and listen.
 
-Psitta reads your documents aloud using human-quality voices — PDFs, DOCX, Markdown, web pages — with layout-aware parsing, image descriptions, synchronized captions, and emotional prosody.
-
-Built for creators who consume long-form content and care about quality.
-
----
-
-## Features
-
-- **Document Ingestion** — PDF (native + scanned), DOCX, TXT, Markdown, Web URLs
-- **Layout-Aware Parsing** — Tables, charts, images detected and described
-- **Premium Voices** — Neural TTS with voice browsing by language, gender, style
-- **Emotional Prosody** — Subtle tone classification for natural delivery
-- **Streaming Playback** — Progressive audio with speed control and voice selection
-- **Synchronized Captions** — Closed-caption style text synchronized to audio
-- **Accessibility First** — Spoken image descriptions, screen reader support, WCAG 2.1 AA
-- **Custom Voice Profiles** — Record, store, and (v2) clone voices with consent workflows
+[![CI](https://github.com/psitta/psitta/actions/workflows/ci.yml/badge.svg)](https://github.com/psitta/psitta/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
 ## Architecture
 
-Psitta follows an **open-core model**:
-
-| Layer | License | Contents |
-|-------|---------|----------|
-| `core/` | Apache 2.0 | Ingestion, parsing, OCR, chunking, captions, player, all interfaces |
-| `extensions/` | Commercial | Premium voices, advanced emotion, enterprise auth, analytics |
-| `apps/` | Apache 2.0 | Flutter client, admin dashboard |
-
-Core is fully functional without extensions. Extensions plug in via defined interfaces only.
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for full system design.
-See [OPEN_CORE_BOUNDARY.md](./docs/OPEN_CORE_BOUNDARY.md) for boundary rules.
-
-## Tech Stack
-
-| Component | Technology | Rationale |
-|-----------|------------|-----------|
-| Client | Flutter 3.x | Single codebase: iOS, Android, macOS, Windows, Linux, Web |
-| Backend | Python 3.12 + FastAPI | Async-native, strong ML/NLP ecosystem, type hints |
-| Database | PostgreSQL 16 | JSONB, full-text search, proven at scale |
-| Cache / Queue | Redis 7 + Redis Streams | Sub-ms cache, reliable task queue without extra infra |
-| Object Storage | S3-compatible (MinIO local) | Industry standard, provider-agnostic |
-| Search | PostgreSQL FTS (MVP) → Meilisearch (v2) | Minimize infra in MVP |
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| **API** | FastAPI + Uvicorn | Async REST API with OpenAPI docs |
+| **Database** | PostgreSQL 16 | Document metadata, user data, sessions |
+| **Queue** | Redis 7 Streams | Async document processing pipeline |
+| **Storage** | S3 / MinIO | Document and audio file storage |
+| **TTS** | Azure Cognitive TTS | Neural voice synthesis |
+| **Vision** | Anthropic Claude | Image descriptions for narration |
+| **Mobile** | Flutter 3.24+ | Cross-platform iOS/Android app |
 
 ## Quick Start
-
-### Prerequisites
-
-- Docker & Docker Compose v2
-- Flutter SDK 3.x
-- Python 3.12+
-- Node.js 20+ (for tooling)
-
-### Backend
-
 ```bash
+# 1. Clone and setup environment
+git clone https://github.com/psitta/psitta.git
+cd psitta
+cp .env.example .env   # Edit secrets
+
+# 2. Start infrastructure
+docker compose up -d postgres redis minio
+
+# 3. Run the bootstrap script
+./scripts/bootstrap.sh
+
+# 4. Start the API server
 cd core/backend
-cp .env.example .env          # Configure secrets
-docker compose up -d           # Postgres, Redis, MinIO
-pip install -e ".[dev]"        # Install with dev dependencies
-alembic upgrade head           # Run migrations
-uvicorn psitta.main:app --reload
-```
+source .venv/bin/activate
+uvicorn psitta.main:create_app --factory --reload
 
-### Client
-
-```bash
-cd apps/client
-flutter pub get
+# 5. Start the Flutter app (separate terminal)
+cd apps/mobile
 flutter run
 ```
 
-### Workers
+API docs available at: http://localhost:8000/docs
 
-```bash
-cd core/backend
-python -m psitta.workers.orchestrator
+## Repository Structure
 ```
+psitta/
+├── core/backend/     # FastAPI backend (Apache 2.0)
+├── apps/mobile/      # Flutter cross-platform app (Apache 2.0)
+├── extensions/       # Commercial add-ons (Proprietary)
+├── docs/             # Documentation (CC BY 4.0)
+├── scripts/          # Developer tooling
+└── .github/          # CI/CD workflows
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full system design and [OPEN_CORE_BOUNDARY.md](OPEN_CORE_BOUNDARY.md) for licensing details.
 
 ## Development
 
-```bash
-pre-commit install             # Install git hooks
-pytest                         # Run tests
-ruff check .                   # Lint
-ruff format .                  # Format
-```
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for full development guide.
+| Command | Purpose |
+|---------|---------|
+| `docker compose up -d` | Start infrastructure |
+| `./scripts/bootstrap.sh` | Full developer setup |
+| `./scripts/reset-db.sh` | Reset database |
+| `cd core/backend && pytest` | Run backend tests |
+| `cd apps/mobile && flutter test` | Run mobile tests |
+| `pre-commit run --all-files` | Run all linters |
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, module breakdown, data flow |
-| [SECURITY.md](./SECURITY.md) | Threat model, encryption, auth, audit |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | Dev setup, commit conventions, PR process |
-| [docs/PRD.md](./docs/PRD.md) | Product requirements (MVP + roadmap) |
-| [docs/API.md](./docs/API.md) | REST API specification |
-| [docs/TESTING.md](./docs/TESTING.md) | Testing strategy and coverage targets |
-| [docs/OBSERVABILITY.md](./docs/OBSERVABILITY.md) | Metrics, logging, tracing |
-| [docs/ADRs/](./docs/ADRs/) | Architecture Decision Records |
+| [PRD](docs/PRD.md) | Product requirements |
+| [Architecture](ARCHITECTURE.md) | System design |
+| [API Spec](docs/API.md) | OpenAPI specification |
+| [Security](SECURITY.md) | Vulnerability disclosure |
+| [Testing](docs/TESTING.md) | Test strategy |
+| [Contributing](CONTRIBUTING.md) | Contributor guide |
+| [ADRs](docs/adr/) | Architecture decisions |
 
 ## License
 
-Core platform: [Apache License 2.0](./LICENSE)
-Extensions: Commercial license — see `extensions/LICENSE`
+- **Core** (`core/`, `apps/`): [Apache License 2.0](LICENSE)
+- **Extensions** (`extensions/`): [Proprietary](LICENSE-EXTENSIONS)
+- **Documentation** (`docs/`): CC BY 4.0
