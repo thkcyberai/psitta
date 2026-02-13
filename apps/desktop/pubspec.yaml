@@ -27,7 +27,7 @@ dependencies:
 
   # Desktop-specific
   desktop_drop: ^0.4.4            # Drag & drop file upload
-  window_manager: ^0.4.2          # Window size, title bar, positioning
+  window_manager: ^0.5.1          # Window size, title bar, positioning
   hotkey_manager: ^0.2.3          # Global keyboard shortcuts
 
   # Code generation annotations
