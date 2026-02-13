@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import '../../../core/keyboard/shortcuts.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/colors.dart';
 
 /// Sidebar navigation — collapsible, persistent.
 ///
-/// Shows navigation items with icons and labels.
-/// When collapsed, only icons are visible (tooltip on hover).
-/// Active route is highlighted.
+/// Uses [LayoutBuilder] to decide between icon-only and full-label
+/// rendering based on the *actual* available width, not just the
+/// [isCollapsed] flag.  This prevents layout crashes during the
+/// [AnimatedContainer] width transition in [DesktopShell].
 class SidebarNav extends StatelessWidget {
   final bool isCollapsed;
 
@@ -18,75 +20,86 @@ class SidebarNav extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final currentPath = GoRouterState.of(context).uri.toString();
 
-    return Container(
-      color: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
-      child: Column(
-        children: [
-          // ── App header ─────────────────────────────────────
-          SizedBox(
-            height: 56,
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isCollapsed ? 12 : 20,
-                vertical: 12,
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.headphones,
-                    color: AppColors.primary,
-                    size: isCollapsed ? 28 : 24,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Treat as collapsed whenever the actual width is too narrow
+        // for text labels, regardless of the boolean flag.
+        final narrow = isCollapsed || constraints.maxWidth < 150;
+
+        return Container(
+          color: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
+          child: Column(
+            children: [
+              // ── App header ─────────────────────────────────
+              SizedBox(
+                height: 56,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: narrow ? 12 : 20,
+                    vertical: 12,
                   ),
-                  if (!isCollapsed) ...[
-                    const SizedBox(width: 12),
-                    Text(
-                      'Psitta',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.headphones,
                         color: AppColors.primary,
+                        size: narrow ? 28 : 24,
                       ),
-                    ),
-                  ],
-                ],
+                      if (!narrow) ...[
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            'Psitta',
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
-          const Divider(height: 1),
+              const Divider(height: 1),
 
-          // ── Navigation items ───────────────────────────────
-          const SizedBox(height: 8),
-          _NavItem(
-            icon: Icons.library_books_outlined,
-            activeIcon: Icons.library_books,
-            label: 'Library',
-            path: '/library',
-            currentPath: currentPath,
-            isCollapsed: isCollapsed,
-          ),
-          _NavItem(
-            icon: Icons.record_voice_over_outlined,
-            activeIcon: Icons.record_voice_over,
-            label: 'Voices',
-            path: '/voices',
-            currentPath: currentPath,
-            isCollapsed: isCollapsed,
-          ),
-          _NavItem(
-            icon: Icons.settings_outlined,
-            activeIcon: Icons.settings,
-            label: 'Settings',
-            path: '/settings',
-            currentPath: currentPath,
-            isCollapsed: isCollapsed,
-          ),
+              // ── Navigation items ───────────────────────────
+              const SizedBox(height: 8),
+              _NavItem(
+                icon: Icons.library_books_outlined,
+                activeIcon: Icons.library_books,
+                label: 'Library',
+                path: '/library',
+                currentPath: currentPath,
+                narrow: narrow,
+              ),
+              _NavItem(
+                icon: Icons.record_voice_over_outlined,
+                activeIcon: Icons.record_voice_over,
+                label: 'Voices',
+                path: '/voices',
+                currentPath: currentPath,
+                narrow: narrow,
+              ),
+              _NavItem(
+                icon: Icons.settings_outlined,
+                activeIcon: Icons.settings,
+                label: 'Settings',
+                path: '/settings',
+                currentPath: currentPath,
+                narrow: narrow,
+              ),
 
-          const Spacer(),
+              const Spacer(),
 
-          // ── Collapse toggle ────────────────────────────────
-          const Divider(height: 1),
-          _CollapseButton(isCollapsed: isCollapsed),
-        ],
-      ),
+              // ── Collapse toggle ────────────────────────────
+              const Divider(height: 1),
+              _CollapseButton(isCollapsed: isCollapsed),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -97,7 +110,7 @@ class _NavItem extends StatelessWidget {
   final String label;
   final String path;
   final String currentPath;
-  final bool isCollapsed;
+  final bool narrow;
 
   const _NavItem({
     required this.icon,
@@ -105,7 +118,7 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.path,
     required this.currentPath,
-    required this.isCollapsed,
+    required this.narrow,
   });
 
   bool get _isActive => currentPath.startsWith(path);
@@ -113,38 +126,61 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final color = _isActive ? AppColors.primary : theme.iconTheme.color;
 
-    final tile = ListTile(
-      leading: Icon(
-        _isActive ? activeIcon : icon,
-        color: _isActive ? AppColors.primary : theme.iconTheme.color,
-        size: 22,
-      ),
-      title: isCollapsed
-          ? null
-          : Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: _isActive ? FontWeight.w600 : FontWeight.w400,
-                color: _isActive ? AppColors.primary : null,
+    // ── Collapsed / narrow: simple icon, no ListTile ──────────
+    if (narrow) {
+      return Tooltip(
+        message: label,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: InkWell(
+            onTap: () => context.go(path),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              height: 44,
+              decoration: _isActive
+                  ? BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    )
+                  : null,
+              child: Center(
+                child: Icon(
+                  _isActive ? activeIcon : icon,
+                  color: color,
+                  size: 22,
+                ),
               ),
             ),
-      selected: _isActive,
-      selectedTileColor: AppColors.primary.withOpacity(0.08),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      contentPadding: EdgeInsets.symmetric(
-        horizontal: isCollapsed ? 20 : 16,
-        vertical: 0,
-      ),
-      onTap: () => context.go(path),
-    );
-
-    if (isCollapsed) {
-      return Tooltip(message: label, child: tile);
+          ),
+        ),
+      );
     }
+
+    // ── Expanded: full ListTile with label ─────────────────────
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
-      child: tile,
+      child: ListTile(
+        leading: Icon(
+          _isActive ? activeIcon : icon,
+          color: color,
+          size: 22,
+        ),
+        title: Text(
+          label,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: _isActive ? FontWeight.w600 : FontWeight.w400,
+            color: _isActive ? AppColors.primary : null,
+          ),
+        ),
+        selected: _isActive,
+        selectedTileColor: AppColors.primary.withOpacity(0.08),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+        onTap: () => context.go(path),
+      ),
     );
   }
 }
@@ -165,8 +201,6 @@ class _CollapseButton extends StatelessWidget {
         ),
         tooltip: isCollapsed ? 'Expand sidebar' : 'Collapse sidebar',
         onPressed: () {
-          // Handled by ToggleSidebarIntent in desktop_shell.dart
-          // but also support direct click
           Actions.maybeInvoke(context, const ToggleSidebarIntent());
         },
       ),
