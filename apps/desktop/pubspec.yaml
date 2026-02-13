@@ -23,7 +23,7 @@ dependencies:
   dio: ^5.4.0
 
   # Audio playback
-  just_audio: ^0.9.39
+  just_audio: ^0.10.5
 
   # Desktop-specific
   desktop_drop: ^0.4.4            # Drag & drop file upload
