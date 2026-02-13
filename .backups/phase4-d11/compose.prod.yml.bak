@@ -1,0 +1,80 @@
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Psitta — Production Overrides                                   ║
+# ║  Usage: docker compose -f docker-compose.yml -f compose.prod.yml up ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
+services:
+  postgres:
+    environment:
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --data-checksums"
+    ports: !reset []                  # No external port exposure
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 1G
+
+  redis:
+    ports: !reset []
+    command: >-
+      redis-server
+        --appendonly yes
+        --maxmemory 1gb
+        --maxmemory-policy allkeys-lru
+        --tcp-backlog 511
+        --save 300 100
+        --loglevel notice
+        --requirepass ${REDIS_PASSWORD}
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+          cpus: "1.0"
+
+  minio:
+    ports: !reset []                  # No external MinIO in prod (use real S3)
+
+  minio-init:
+    profiles:
+      - never                         # Disabled in production
+
+  api:
+    volumes: []                       # No source mounts in prod
+    command: >
+      uvicorn psitta.main:create_app --factory
+      --host 0.0.0.0 --port 8000
+      --workers ${API_WORKERS:-4}
+      --log-level ${LOG_LEVEL:-warning}
+      --limit-concurrency 100
+      --timeout-keep-alive 30
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 5
+        window: 120s
+    read_only: true
+
+  worker:
+    volumes: []
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: "4.0"
+        reservations:
+          memory: 1G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 300s
+    read_only: true

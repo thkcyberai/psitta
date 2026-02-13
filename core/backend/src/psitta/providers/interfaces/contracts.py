@@ -1,447 +1,223 @@
 """
-Provider interfaces — the architectural contracts.
+Psitta — Provider Interface Contracts.
 
-All external dependencies are abstracted behind these protocols.
-Core code depends ONLY on these interfaces, never on concrete implementations.
-Extensions provide implementations; core provides defaults.
+Protocol classes defining the boundaries between Psitta's core logic
+and external services (TTS engines, object storage, vision APIs, etc.).
 
-This is the open-core boundary enforcement layer.
+Using Python Protocols (structural subtyping) so implementations
+don't need to inherit from a base class — they just need to match
+the method signatures. This enables clean plugin boundaries for
+the open-core extension model.
+
+Design:
+  - All methods are async (non-blocking I/O)
+  - All methods include explicit error handling contracts
+  - Return types are domain objects, not provider-specific types
+  - Providers are stateless — configuration via __init__
 """
 
 from __future__ import annotations
 
-import uuid
-from abc import abstractmethod
-from dataclasses import dataclass, field
-from enum import StrEnum
-from typing import AsyncIterator, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
+
+from psitta.models.domain import ToneCategory, VoiceProfile
 
 
-# ══════════════════════════════════════════════════════════════════════
-# Shared Value Objects
-# ══════════════════════════════════════════════════════════════════════
-
-
-class AudioFormat(StrEnum):
-    MP3 = "mp3"
-    WAV = "wav"
-    OGG = "ogg"
-    OPUS = "opus"
-
-
-@dataclass(frozen=True, slots=True)
-class AudioChunk:
-    """A single chunk of synthesized audio."""
-
-    data: bytes
-    format: AudioFormat
-    duration_ms: int
-    sequence_num: int
-    is_last: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class TTSOptions:
-    """Options for text-to-speech synthesis."""
-
-    speed: float = 1.0
-    pitch: float = 0.0
-    volume: float = 1.0
-    emotion: str = "neutral"
-    ssml_enabled: bool = True
-    output_format: AudioFormat = AudioFormat.MP3
-
-
-@dataclass(frozen=True, slots=True)
-class VoiceFilter:
-    """Filters for voice catalog queries."""
-
-    language: str | None = None
-    gender: str | None = None
-    style: str | None = None
-    provider: str | None = None
-    is_premium: bool | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class VoiceMeta:
-    """Metadata for a single voice in the catalog."""
-
-    id: str
-    name: str
-    language: str
-    gender: str
-    style: str
-    provider: str
-    preview_url: str
-    is_premium: bool
-    quality_score: float
-    description: str = ""
-    supported_emotions: list[str] = field(default_factory=lambda: ["neutral"])
-
-
-@dataclass(frozen=True, slots=True)
-class CostEstimate:
-    """Estimated cost for a TTS synthesis job."""
-
-    character_count: int
-    estimated_cost_usd: float
-    provider: str
-    voice_id: str
-
-
-@dataclass(frozen=True, slots=True)
-class ParsedDocument:
-    """Result of parsing a document."""
-
-    title: str
-    text_blocks: list[TextBlock]
-    visual_elements: list[DetectedVisual]
-    page_count: int
-    metadata: dict[str, str]
-
-
-@dataclass(frozen=True, slots=True)
-class TextBlock:
-    """A semantic block of text extracted from a document."""
-
-    content: str
-    block_type: str  # heading, paragraph, list_item, table_cell, etc.
-    page_number: int
-    sequence_num: int
-    metadata: dict[str, str] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class DetectedVisual:
-    """A visual element detected in a document."""
-
-    element_type: str  # image, chart, table, diagram
-    page_number: int
-    bounding_box: dict[str, float] | None = None
-    image_data: bytes | None = None
-    image_format: str = "png"
-
-
-@dataclass(frozen=True, slots=True)
-class VisualDescription:
-    """Generated description of a visual element."""
-
-    element_id: str
-    description: str
-    confidence: float
-    alt_text: str
-
-
-@dataclass(frozen=True, slots=True)
-class ToneClassification:
-    """Result of tone classification for a text chunk."""
-
-    tone: str  # neutral, formal, conversational, somber, excited
-    confidence: float
-    suggested_ssml_params: dict[str, float]  # rate, pitch, volume adjustments
-
-
-# ══════════════════════════════════════════════════════════════════════
-# Provider Protocols
-# ══════════════════════════════════════════════════════════════════════
-
+# ── Text-to-Speech ─────────────────────────────────────────────────────
 
 @runtime_checkable
 class TTSProvider(Protocol):
-    """Contract for text-to-speech synthesis providers."""
+    """Contract for text-to-speech synthesis providers.
 
-    @abstractmethod
+    Implementations: Azure Cognitive TTS (core), ElevenLabs (extension),
+    Google Cloud TTS (extension), Amazon Polly (extension).
+    """
+
     async def synthesize(
-        self, text: str, voice_id: str, options: TTSOptions
-    ) -> AsyncIterator[AudioChunk]:
-        """Synthesize text to audio, yielding chunks for progressive streaming."""
+        self,
+        text: str,
+        voice_id: str,
+        speed: float = 1.0,
+        tone: ToneCategory = ToneCategory.NEUTRAL,
+        output_format: str = "mp3",
+    ) -> bytes:
+        """Synthesize text into audio bytes.
+
+        Args:
+            text: Plain text to synthesize (max 5000 characters).
+            voice_id: Provider-specific voice identifier.
+            speed: Playback speed multiplier (0.5 to 3.0).
+            tone: Prosody tone hint for expressive synthesis.
+            output_format: Audio format ('mp3', 'opus', 'wav').
+
+        Returns:
+            Raw audio bytes in the requested format.
+
+        Raises:
+            ProviderError: On API failure, rate limit, or timeout.
+            ValueError: If text exceeds max length or voice_id invalid.
+        """
         ...
 
-    @abstractmethod
-    async def synthesize_ssml(
-        self, ssml: str, voice_id: str, options: TTSOptions
-    ) -> AsyncIterator[AudioChunk]:
-        """Synthesize SSML-formatted text to audio."""
+    async def get_supported_voices(self) -> list[str]:
+        """Return list of voice IDs supported by this provider."""
         ...
 
-    @abstractmethod
-    async def estimate_cost(self, char_count: int, voice_id: str) -> CostEstimate:
-        """Estimate synthesis cost before committing."""
-        ...
-
-    @abstractmethod
     async def health_check(self) -> bool:
-        """Verify provider is reachable and operational."""
+        """Return True if the provider is reachable and functional."""
         ...
 
 
-@runtime_checkable
-class VoiceCatalogProvider(Protocol):
-    """Contract for voice catalog management."""
-
-    @abstractmethod
-    async def list_voices(self, filters: VoiceFilter) -> list[VoiceMeta]:
-        """List available voices with optional filtering."""
-        ...
-
-    @abstractmethod
-    async def get_voice(self, voice_id: str) -> VoiceMeta | None:
-        """Get metadata for a specific voice."""
-        ...
-
-    @abstractmethod
-    async def get_preview_audio(self, voice_id: str) -> bytes:
-        """Get a preview audio sample for a voice."""
-        ...
-
-
-@runtime_checkable
-class DocumentSourceProvider(Protocol):
-    """Contract for document source ingestion."""
-
-    @abstractmethod
-    async def fetch(self, source: str) -> tuple[bytes, str]:
-        """Fetch document content. Returns (bytes, detected_mime_type)."""
-        ...
-
-    @abstractmethod
-    def supports(self, source_type: str) -> bool:
-        """Check if this provider handles the given source type."""
-        ...
-
-
-@runtime_checkable
-class DocumentParser(Protocol):
-    """Contract for document parsing and text extraction."""
-
-    @abstractmethod
-    async def parse(self, content: bytes, mime_type: str) -> ParsedDocument:
-        """Parse a document and extract structured text + visual elements."""
-        ...
-
-    @abstractmethod
-    def supported_types(self) -> list[str]:
-        """List of MIME types this parser can handle."""
-        ...
-
-
-@runtime_checkable
-class OCRProvider(Protocol):
-    """Contract for optical character recognition."""
-
-    @abstractmethod
-    async def extract_text(self, image_data: bytes, language: str = "eng") -> str:
-        """Extract text from a single image."""
-        ...
-
-    @abstractmethod
-    async def extract_text_with_positions(
-        self, image_data: bytes, language: str = "eng"
-    ) -> list[dict[str, object]]:
-        """Extract text with bounding box positions."""
-        ...
-
-
-@runtime_checkable
-class VisionDescriptionProvider(Protocol):
-    """Contract for generating descriptions of visual elements."""
-
-    @abstractmethod
-    async def describe(
-        self, image_data: bytes, context: str = ""
-    ) -> VisualDescription:
-        """Generate a natural-language description of a visual element."""
-        ...
-
-    @abstractmethod
-    async def describe_chart(
-        self, image_data: bytes, context: str = ""
-    ) -> VisualDescription:
-        """Generate a description specifically for charts and graphs."""
-        ...
-
-    @abstractmethod
-    async def describe_table(
-        self, image_data: bytes, context: str = ""
-    ) -> VisualDescription:
-        """Generate a structured description of a table."""
-        ...
-
-
-@runtime_checkable
-class ToneClassifier(Protocol):
-    """Contract for emotional tone classification."""
-
-    @abstractmethod
-    async def classify(self, text: str, document_type: str = "") -> ToneClassification:
-        """Classify the emotional tone of a text passage."""
-        ...
-
+# ── Object Storage ─────────────────────────────────────────────────────
 
 @runtime_checkable
 class StorageProvider(Protocol):
-    """Contract for object storage operations."""
+    """Contract for object storage providers.
 
-    @abstractmethod
-    async def upload(
-        self, key: str, data: bytes, content_type: str = "application/octet-stream"
+    Implementations: S3/MinIO (core), Azure Blob (extension).
+    """
+
+    async def put_object(
+        self,
+        bucket: str,
+        key: str,
+        body: bytes,
+        content_type: str = "application/octet-stream",
     ) -> str:
-        """Upload data and return the storage key."""
+        """Store an object and return its storage key.
+
+        Args:
+            bucket: Target bucket name.
+            key: Object key (path within bucket).
+            body: Raw bytes to store.
+            content_type: MIME type for the object.
+
+        Returns:
+            The storage key for later retrieval.
+
+        Raises:
+            ProviderError: On storage failure.
+        """
         ...
 
-    @abstractmethod
-    async def upload_stream(
-        self, key: str, stream: AsyncIterator[bytes], content_type: str = "application/octet-stream"
+    async def get_object(self, bucket: str, key: str) -> bytes:
+        """Retrieve an object's bytes by key.
+
+        Raises:
+            ProviderError: If object not found or storage unavailable.
+        """
+        ...
+
+    async def delete_object(self, bucket: str, key: str) -> bool:
+        """Delete an object by key. Returns True if deleted."""
+        ...
+
+    async def generate_presigned_url(
+        self,
+        bucket: str,
+        key: str,
+        expires_in: int = 900,
     ) -> str:
-        """Upload from a stream for large files."""
+        """Generate a time-limited URL for direct client access.
+
+        Args:
+            bucket: Bucket containing the object.
+            key: Object key.
+            expires_in: URL validity in seconds (default 15 min).
+
+        Returns:
+            Pre-signed URL string.
+        """
         ...
 
-    @abstractmethod
-    async def download(self, key: str) -> bytes:
-        """Download data by key."""
+    async def health_check(self) -> bool:
+        """Return True if storage is reachable."""
         ...
 
-    @abstractmethod
-    async def download_stream(self, key: str) -> AsyncIterator[bytes]:
-        """Download as a stream for large files."""
-        ...
 
-    @abstractmethod
-    async def delete(self, key: str) -> None:
-        """Delete an object by key."""
-        ...
-
-    @abstractmethod
-    async def delete_prefix(self, prefix: str) -> int:
-        """Delete all objects with the given prefix. Returns count deleted."""
-        ...
-
-    @abstractmethod
-    async def exists(self, key: str) -> bool:
-        """Check if an object exists."""
-        ...
-
-    @abstractmethod
-    async def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
-        """Generate a time-limited download URL."""
-        ...
-
+# ── Vision Description ─────────────────────────────────────────────────
 
 @runtime_checkable
-class AuthProvider(Protocol):
-    """Contract for authentication and token verification."""
+class VisionDescriptionProvider(Protocol):
+    """Contract for image-to-text description providers.
 
-    @abstractmethod
-    async def verify_token(self, token: str) -> dict[str, object]:
-        """Verify a JWT and return decoded claims."""
-        ...
+    Used to generate alt-text descriptions for images embedded
+    in documents, which are then narrated as part of the audio.
 
-    @abstractmethod
-    async def get_user_info(self, token: str) -> dict[str, str]:
-        """Get user profile info from the auth provider."""
-        ...
-
-
-# ══════════════════════════════════════════════════════════════════════
-# Provider Registry
-# ══════════════════════════════════════════════════════════════════════
-
-
-class ProviderRegistry:
-    """
-    Central registry for all provider implementations.
-
-    Enforces single-responsibility: each provider type has exactly one active
-    implementation at runtime. Extensions register their implementations at startup.
+    Implementations: Anthropic Claude (core), OpenAI GPT-4V (extension).
     """
 
-    def __init__(self) -> None:
-        self._tts: TTSProvider | None = None
-        self._voice_catalog: VoiceCatalogProvider | None = None
-        self._document_parsers: dict[str, DocumentParser] = {}
-        self._ocr: OCRProvider | None = None
-        self._vision: VisionDescriptionProvider | None = None
-        self._tone_classifier: ToneClassifier | None = None
-        self._storage: StorageProvider | None = None
-        self._auth: AuthProvider | None = None
+    async def describe_image(
+        self,
+        image_bytes: bytes,
+        context: str = "",
+        max_words: int = 100,
+    ) -> str:
+        """Generate a natural language description of an image.
 
-    # ── Registration ─────────────────────────────────────────────
+        Args:
+            image_bytes: Raw image data (PNG, JPEG, WebP).
+            context: Surrounding document text for better descriptions.
+            max_words: Approximate maximum words in description.
 
-    def register_tts(self, provider: TTSProvider) -> None:
-        self._tts = provider
+        Returns:
+            Natural language description suitable for narration.
+        """
+        ...
 
-    def register_voice_catalog(self, provider: VoiceCatalogProvider) -> None:
-        self._voice_catalog = provider
-
-    def register_document_parser(self, mime_type: str, parser: DocumentParser) -> None:
-        self._document_parsers[mime_type] = parser
-
-    def register_ocr(self, provider: OCRProvider) -> None:
-        self._ocr = provider
-
-    def register_vision(self, provider: VisionDescriptionProvider) -> None:
-        self._vision = provider
-
-    def register_tone_classifier(self, provider: ToneClassifier) -> None:
-        self._tone_classifier = provider
-
-    def register_storage(self, provider: StorageProvider) -> None:
-        self._storage = provider
-
-    def register_auth(self, provider: AuthProvider) -> None:
-        self._auth = provider
-
-    # ── Access ───────────────────────────────────────────────────
-
-    @property
-    def tts(self) -> TTSProvider:
-        if self._tts is None:
-            raise RuntimeError("No TTSProvider registered")
-        return self._tts
-
-    @property
-    def voice_catalog(self) -> VoiceCatalogProvider:
-        if self._voice_catalog is None:
-            raise RuntimeError("No VoiceCatalogProvider registered")
-        return self._voice_catalog
-
-    def document_parser(self, mime_type: str) -> DocumentParser:
-        parser = self._document_parsers.get(mime_type)
-        if parser is None:
-            raise ValueError(f"No DocumentParser registered for MIME type: {mime_type}")
-        return parser
-
-    @property
-    def ocr(self) -> OCRProvider:
-        if self._ocr is None:
-            raise RuntimeError("No OCRProvider registered")
-        return self._ocr
-
-    @property
-    def vision(self) -> VisionDescriptionProvider:
-        if self._vision is None:
-            raise RuntimeError("No VisionDescriptionProvider registered")
-        return self._vision
-
-    @property
-    def tone_classifier(self) -> ToneClassifier:
-        if self._tone_classifier is None:
-            raise RuntimeError("No ToneClassifier registered")
-        return self._tone_classifier
-
-    @property
-    def storage(self) -> StorageProvider:
-        if self._storage is None:
-            raise RuntimeError("No StorageProvider registered")
-        return self._storage
-
-    @property
-    def auth(self) -> AuthProvider:
-        if self._auth is None:
-            raise RuntimeError("No AuthProvider registered")
-        return self._auth
+    async def health_check(self) -> bool:
+        """Return True if the vision API is reachable."""
+        ...
 
 
-# Singleton registry
-registry = ProviderRegistry()
+# ── Voice Catalog ──────────────────────────────────────────────────────
+
+@runtime_checkable
+class VoiceCatalogProvider(Protocol):
+    """Contract for voice catalog providers.
+
+    Manages the list of available voices, their metadata,
+    and preview audio samples.
+
+    Implementations: Static JSON (core), Dynamic API (extension).
+    """
+
+    async def list_voices(
+        self,
+        language: str | None = None,
+        tier: str | None = None,
+    ) -> list[VoiceProfile]:
+        """Return available voices, optionally filtered."""
+        ...
+
+    async def get_voice(self, voice_id: str) -> VoiceProfile | None:
+        """Get a specific voice by ID. Returns None if not found."""
+        ...
+
+    async def get_preview_url(self, voice_id: str) -> str | None:
+        """Return a URL to a preview audio sample for the voice."""
+        ...
+
+
+# ── Tone Classification ───────────────────────────────────────────────
+
+@runtime_checkable
+class ToneClassifier(Protocol):
+    """Contract for text tone classification.
+
+    Analyzes text chunks to determine appropriate prosody
+    for more expressive TTS synthesis.
+
+    Implementations: Rule-based (core), LLM-based (extension).
+    """
+
+    async def classify(self, text: str) -> ToneCategory:
+        """Classify the tone of a text passage.
+
+        Args:
+            text: Text to analyze.
+
+        Returns:
+            ToneCategory enum value.
+        """
+        ...

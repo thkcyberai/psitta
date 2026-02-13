@@ -1,95 +1,237 @@
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║  Psitta — Backend Service                                          ║
+# ║  Build: Hatchling  |  Runtime: Python 3.12+  |  License: Apache 2  ║
+# ╚══════════════════════════════════════════════════════════════════════╝
+
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.21.0"]
 build-backend = "hatchling.build"
 
 [project]
 name = "psitta"
 version = "0.1.0"
-description = "Ultra-natural document narration platform"
+description = "Ultra-natural document narration — backend API and workers"
 readme = "README.md"
 license = { text = "Apache-2.0" }
 requires-python = ">=3.12"
+authors = [{ name = "Psitta Contributors" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+
 dependencies = [
+    # ── Web Framework ──────────────────────────────────────────────────
     "fastapi>=0.115.0,<1.0",
-    "uvicorn[standard]>=0.30.0,<1.0",
+    "uvicorn[standard]>=0.32.0",
     "pydantic>=2.9.0,<3.0",
-    "pydantic-settings>=2.5.0,<3.0",
-    "sqlalchemy[asyncio]>=2.0.35,<3.0",
-    "asyncpg>=0.30.0,<1.0",
-    "alembic>=1.14.0,<2.0",
-    "redis>=5.2.0,<6.0",
-    "boto3>=1.35.0,<2.0",
-    "aioboto3>=13.0.0,<14.0",
-    "httpx>=0.27.0,<1.0",
-    "python-multipart>=0.0.12",
-    "python-jose[cryptography]>=3.3.0,<4.0",
-    "passlib[bcrypt]>=1.7.4,<2.0",
-    "structlog>=24.4.0,<25.0",
-    "opentelemetry-api>=1.28.0,<2.0",
-    "opentelemetry-sdk>=1.28.0,<2.0",
+    "pydantic-settings>=2.6.0",
+
+    # ── Database ───────────────────────────────────────────────────────
+    "sqlalchemy[asyncio]>=2.0.35",
+    "asyncpg>=0.30.0",
+    "alembic>=1.14.0",
+
+    # ── Redis (cache + job queue) ──────────────────────────────────────
+    "redis[hiredis]>=5.2.0",
+
+    # ── Object Storage ─────────────────────────────────────────────────
+    "boto3>=1.35.0",
+    "aioboto3>=13.0.0",
+
+    # ── HTTP Client (provider calls) ───────────────────────────────────
+    "httpx>=0.27.0",
+
+    # ── Observability ──────────────────────────────────────────────────
+    "structlog>=24.4.0",
+    "opentelemetry-api>=1.28.0",
+    "opentelemetry-sdk>=1.28.0",
     "opentelemetry-instrumentation-fastapi>=0.49b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.49b0",
-    "opentelemetry-instrumentation-redis>=0.49b0",
-    "opentelemetry-exporter-otlp>=1.28.0,<2.0",
-    "pymupdf>=1.24.0,<2.0",
-    "python-docx>=1.1.0,<2.0",
-    "beautifulsoup4>=4.12.0,<5.0",
-    "readability-lxml>=0.8.1,<1.0",
-    "markdown>=3.7,<4.0",
-    "Pillow>=10.4.0,<11.0",
-    "pytesseract>=0.3.13,<1.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.28.0",
+
+    # ── Security ───────────────────────────────────────────────────────
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.12",
+
+    # ── Document Processing ────────────────────────────────────────────
+    "pypdf>=5.1.0",
+    "python-docx>=1.1.0",
+    "Pillow>=11.0.0",
+    "pytesseract>=0.3.13",
+
+    # ── Utilities ──────────────────────────────────────────────────────
+    "tenacity>=9.0.0",
+    "orjson>=3.10.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.3.0,<9.0",
-    "pytest-asyncio>=0.24.0,<1.0",
-    "pytest-cov>=5.0.0,<6.0",
-    "pytest-mock>=3.14.0,<4.0",
-    "httpx>=0.27.0,<1.0",
-    "factory-boy>=3.3.0,<4.0",
-    "faker>=30.0.0,<31.0",
-    "ruff>=0.7.0,<1.0",
-    "mypy>=1.13.0,<2.0",
-    "pre-commit>=4.0.0,<5.0",
+    # ── Testing ────────────────────────────────────────────────────────
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0.0",
+    "pytest-xdist>=3.5.0",
+    "pytest-timeout>=2.3.0",
+    "httpx>=0.27.0",
+    "factory-boy>=3.3.0",
+    "faker>=30.0.0",
+    "respx>=0.21.0",
+
+    # ── Code Quality ──────────────────────────────────────────────────
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+
+    # ── Type Stubs ─────────────────────────────────────────────────────
     "types-redis>=4.6.0",
-    "types-boto3>=1.35.0",
+    "types-passlib>=1.7.7",
+    "types-python-jose>=3.3.4",
+    "boto3-stubs[s3]>=1.35.0",
+
+    # ── Security Scanning ──────────────────────────────────────────────
+    "bandit[toml]>=1.8.0",
+    "safety>=3.2.0",
+    "pip-audit>=2.7.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/thkcyberai/psitta"
+Repository = "https://github.com/thkcyberai/psitta"
+Issues = "https://github.com/thkcyberai/psitta/issues"
+Documentation = "https://github.com/thkcyberai/psitta/tree/main/docs"
+
+# ── Hatch Build Configuration ─────────────────────────────────────────
 [tool.hatch.build.targets.wheel]
 packages = ["src/psitta"]
 
+# ── Ruff (Linter + Formatter) ─────────────────────────────────────────
 [tool.ruff]
 target-version = "py312"
-line-length = 100
+line-length = 99
 src = ["src"]
 
 [tool.ruff.lint]
 select = [
-    "E", "W",     # pycodestyle
-    "F",           # pyflakes
-    "I",           # isort
-    "N",           # pep8-naming
-    "UP",          # pyupgrade
-    "S",           # bandit (security)
-    "B",           # bugbear
-    "A",           # builtins
-    "T20",         # print statements
-    "SIM",         # simplify
-    "RUF",         # ruff-specific
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "S",    # flake8-bandit (security)
+    "A",    # flake8-builtins
+    "C4",   # flake8-comprehensions
+    "DTZ",  # flake8-datetimez
+    "T20",  # flake8-print
+    "RET",  # flake8-return
+    "PTH",  # flake8-use-pathlib
+    "ERA",  # eradicate (commented-out code)
+    "PL",   # pylint subset
+    "RUF",  # ruff-specific rules
+    "ASYNC", # flake8-async
 ]
-ignore = ["S101"]  # Allow assert in tests
+ignore = [
+    "S101",   # assert used (fine in tests)
+    "B008",   # function call in default arg (FastAPI Depends)
+    "RUF012", # mutable class variable (SQLAlchemy models)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S106", "PLR2004", "ERA001"]
+"src/psitta/db/migrations/**/*.py" = ["ERA001"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["psitta"]
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+# ── MyPy (Static Type Checking) ───────────────────────────────────────
 [tool.mypy]
 python_version = "3.12"
 strict = true
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
 plugins = ["pydantic.mypy"]
-exclude = ["migrations"]
 
+[[tool.mypy.overrides]]
+module = [
+    "uvicorn.*",
+    "aioboto3.*",
+    "pytesseract.*",
+]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ── Pytest ─────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]
-asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "--cov=psitta --cov-report=term-missing --cov-fail-under=80"
+asyncio_mode = "auto"
+timeout = 30
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "-q",
+    "--tb=short",
+    "--cov=src/psitta",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-fail-under=80",
+]
+markers = [
+    "unit: Unit tests (no external dependencies)",
+    "integration: Integration tests (requires services)",
+    "e2e: End-to-end tests (requires full stack)",
+    "slow: Tests that take >5s",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:passlib.*",
+]
+
+# ── Coverage ───────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["src/psitta"]
+branch = true
+omit = [
+    "*/migrations/*",
+    "*/tests/*",
+    "*/__pycache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+    "@overload",
+    "raise NotImplementedError",
+    "pass",
+    "\\.\\.\\.",
+]
+
+# ── Bandit (Security Scanner) ──────────────────────────────────────────
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = ["B101"]

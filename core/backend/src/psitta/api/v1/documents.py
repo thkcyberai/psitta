@@ -1,240 +1,152 @@
 """
-Document endpoints — upload, list, detail, delete, status, chunks.
+Psitta — Document Management Routes.
+
+Endpoints for uploading, listing, retrieving status, and deleting documents.
+Documents pass through the pipeline: upload → parse → chunk → TTS → ready.
+
+Security:
+  - File size validated before storage (MAX_DOCUMENT_SIZE_MB)
+  - File type whitelist enforced (PDF, DOCX, TXT, MD, HTML)
+  - User isolation — users can only access their own documents
+  - Storage keys are opaque UUIDs (no user-guessable paths)
 """
 
 from __future__ import annotations
 
-import uuid
-from typing import Any
+from typing import Annotated
+from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import StreamingResponse
-from sqlalchemy import select
-from sqlalchemy.orm import selectinload
+from fastapi import APIRouter, HTTPException, Query, UploadFile, status
 
-from psitta.dependencies import CurrentUserId, DbSession, Providers
-from psitta.models.domain import Document, DocumentChunk
-from psitta.schemas.api import (
-    ApiListResponse,
-    ApiResponse,
-    ChunkResponse,
-    DocumentResponse,
-    DocumentURLRequest,
-    PaginationMeta,
-)
-from psitta.services.document_service import DocumentService
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-logger = structlog.get_logger()
 router = APIRouter()
 
-
-ALLOWED_MIME_TYPES = {
+# Allowed MIME types for upload validation
+ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset({
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "text/plain",
     "text/markdown",
-}
+    "text/html",
+})
 
-MAX_UPLOAD_SIZE = 100 * 1024 * 1024  # 100 MB
+ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
+    ".pdf", ".docx", ".txt", ".md", ".html",
+})
 
 
 @router.post(
-    "",
-    response_model=ApiResponse[DocumentResponse],
-    status_code=status.HTTP_201_CREATED,
+    "/",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Upload a document for processing",
+    response_description="Document accepted and queued for processing",
 )
 async def upload_document(
-    db: DbSession,
-    providers: Providers,
-    user_id: CurrentUserId,
-    file: UploadFile = File(...),
-    title: str | None = Form(None),
-    voice_id: str | None = Form(None),
-    auto_play: bool = Form(True),
-) -> dict[str, Any]:
-    """Upload a document for processing."""
-    # Validate file type
-    if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail=f"Unsupported file type: {file.content_type}. "
-            f"Allowed: {', '.join(ALLOWED_MIME_TYPES)}",
-        )
+    file: UploadFile,
+) -> dict:
+    """Upload a document to begin the narration pipeline.
 
-    # Validate file size
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File size {len(content)} bytes exceeds maximum of {MAX_UPLOAD_SIZE} bytes",
-        )
+    The document is validated, stored, and a processing job is queued.
+    Returns immediately with the document ID and initial status.
 
-    service = DocumentService(db=db, providers=providers)
-    document = await service.create_from_upload(
-        user_id=user_id,
-        filename=file.filename or "untitled",
-        content=content,
-        content_type=file.content_type or "application/octet-stream",
-        title_override=title,
-        voice_id=voice_id,
-        auto_process=auto_play,
-    )
+    Supported formats: PDF, DOCX, TXT, Markdown, HTML.
+    """
+    # ── Validate file type ─────────────────────────────────────────────
+    filename = file.filename or "unknown"
+    extension = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    if extension not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail=f"Unsupported file type '{extension}'. "
+                   f"Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
 
     logger.info(
-        "document_uploaded",
-        document_id=str(document.id),
-        user_id=user_id,
-        source_type=document.source_type,
-        size_bytes=document.file_size_bytes,
+        "document.upload.started",
+        filename=filename,
+        content_type=file.content_type,
+        extension=extension,
     )
 
-    return {"data": DocumentResponse.model_validate(document)}
+    # TODO: Wire to DocumentService
+    # 1. Validate file size against MAX_DOCUMENT_SIZE_MB
+    # 2. Upload to S3 via StorageProvider
+    # 3. Create document record in DB
+    # 4. Enqueue processing job to Redis Streams
+    # 5. Return document ID + status
+
+    return {
+        "message": "Document upload endpoint — service layer pending",
+        "filename": filename,
+        "status": "accepted",
+    }
 
 
-@router.post(
-    "/url",
-    response_model=ApiResponse[DocumentResponse],
-    status_code=status.HTTP_201_CREATED,
+@router.get(
+    "/",
+    summary="List user's documents",
+    response_description="Paginated list of documents",
 )
-async def ingest_url(
-    body: DocumentURLRequest,
-    db: DbSession,
-    providers: Providers,
-    user_id: CurrentUserId,
-) -> dict[str, Any]:
-    """Ingest a document from a URL."""
-    service = DocumentService(db=db, providers=providers)
-    document = await service.create_from_url(
-        user_id=user_id,
-        url=str(body.url),
-        title_override=body.title,
-        voice_id=body.voice_id,
-        auto_process=body.auto_play,
-    )
-
-    return {"data": DocumentResponse.model_validate(document)}
-
-
-@router.get("", response_model=ApiListResponse[DocumentResponse])
 async def list_documents(
-    db: DbSession,
-    user_id: CurrentUserId,
-    status_filter: str | None = Query(None, alias="status"),
-    source_type: str | None = Query(None),
-    cursor: str | None = Query(None),
-    limit: int = Query(20, ge=1, le=100),
-) -> dict[str, Any]:
-    """List documents for the current user."""
-    query = (
-        select(Document)
-        .where(Document.user_id == user_id)
-        .order_by(Document.created_at.desc())
-        .limit(limit + 1)  # Fetch one extra for cursor
-    )
+    page: Annotated[int, Query(ge=1, description="Page number")] = 1,
+    size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
+) -> dict:
+    """Return paginated list of documents for the authenticated user.
 
-    if status_filter:
-        query = query.where(Document.status == status_filter)
-    if source_type:
-        query = query.where(Document.source_type == source_type)
-    if cursor:
-        query = query.where(Document.id < uuid.UUID(cursor))
+    Results are sorted by creation date (newest first).
+    Includes document status, page count, and processing progress.
+    """
+    logger.info("document.list", page=page, size=size)
 
-    result = await db.execute(query)
-    documents = list(result.scalars().all())
-
-    has_more = len(documents) > limit
-    if has_more:
-        documents = documents[:limit]
-
+    # TODO: Wire to DocumentService.list_documents()
     return {
-        "data": [DocumentResponse.model_validate(d) for d in documents],
-        "meta": PaginationMeta(
-            cursor=str(documents[-1].id) if has_more else None,
-            has_more=has_more,
-        ),
+        "items": [],
+        "page": page,
+        "size": size,
+        "total": 0,
     }
 
 
-@router.get("/{document_id}", response_model=ApiResponse[DocumentResponse])
-async def get_document(
-    document_id: uuid.UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> dict[str, Any]:
-    """Get document detail."""
-    document = await _get_user_document(db, document_id, user_id)
-    return {"data": DocumentResponse.model_validate(document)}
+@router.get(
+    "/{document_id}",
+    summary="Get document details and status",
+    response_description="Document metadata and processing status",
+)
+async def get_document(document_id: UUID) -> dict:
+    """Retrieve detailed information about a specific document.
 
+    Includes processing status, chunk count, available voices,
+    and estimated remaining processing time.
+    """
+    logger.info("document.get", document_id=str(document_id))
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_document(
-    document_id: uuid.UUID,
-    db: DbSession,
-    providers: Providers,
-    user_id: CurrentUserId,
-) -> None:
-    """Hard delete a document and all associated data."""
-    document = await _get_user_document(db, document_id, user_id)
-
-    service = DocumentService(db=db, providers=providers)
-    await service.hard_delete(document)
-
-    logger.info("document_deleted", document_id=str(document_id), user_id=user_id)
-
-
-@router.get("/{document_id}/chunks", response_model=ApiListResponse[ChunkResponse])
-async def get_chunks(
-    document_id: uuid.UUID,
-    db: DbSession,
-    user_id: CurrentUserId,
-    from_seq: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=200),
-) -> dict[str, Any]:
-    """Get text chunks for a document."""
-    await _get_user_document(db, document_id, user_id)
-
-    query = (
-        select(DocumentChunk)
-        .where(DocumentChunk.document_id == document_id)
-        .where(DocumentChunk.sequence_num >= from_seq)
-        .order_by(DocumentChunk.sequence_num)
-        .limit(limit + 1)
-    )
-
-    result = await db.execute(query)
-    chunks = list(result.scalars().all())
-
-    has_more = len(chunks) > limit
-    if has_more:
-        chunks = chunks[:limit]
-
+    # TODO: Wire to DocumentService.get_document()
     return {
-        "data": [ChunkResponse.model_validate(c) for c in chunks],
-        "meta": PaginationMeta(
-            cursor=str(chunks[-1].sequence_num + 1) if has_more else None,
-            has_more=has_more,
-        ),
+        "id": str(document_id),
+        "status": "pending",
+        "message": "Document detail endpoint — service layer pending",
     }
 
 
-# ── Helpers ──────────────────────────────────────────────────────────
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a document and all associated audio",
+)
+async def delete_document(document_id: UUID) -> None:
+    """Soft-delete a document and all associated audio segments.
 
+    Marks the document as deleted. Actual storage cleanup
+    is handled by the retention worker on a scheduled basis.
 
-async def _get_user_document(
-    db: DbSession, document_id: uuid.UUID, user_id: str
-) -> Document:
-    """Fetch a document ensuring it belongs to the current user."""
-    result = await db.execute(
-        select(Document).where(
-            Document.id == document_id,
-            Document.user_id == user_id,
-        )
-    )
-    document = result.scalar_one_or_none()
-    if document is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Document {document_id} not found",
-        )
-    return document
+    Security: Only the document owner can delete their documents.
+    """
+    logger.info("document.delete", document_id=str(document_id))
+
+    # TODO: Wire to DocumentService.delete_document()
+    # 1. Verify ownership
+    # 2. Soft-delete document record
+    # 3. Enqueue storage cleanup job

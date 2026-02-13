@@ -1,79 +1,156 @@
 """
-User endpoints — profile, preferences, account deletion.
+Psitta — User Management Routes.
+
+Endpoints for user profile, preferences, and subscription tier info.
+Authentication is handled upstream (middleware/dependency injection).
+
+Security:
+  - All endpoints require authentication
+  - Users can only access their own profile
+  - Sensitive fields (email, tier) are never exposed in public APIs
+  - Password changes trigger session invalidation
 """
 
 from __future__ import annotations
 
-from typing import Any
+from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Header, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, status
 
-from psitta.dependencies import CurrentUserId, DbSession
-from psitta.models.domain import User
-from psitta.schemas.api import ApiResponse, UserResponse, UserUpdateRequest
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-logger = structlog.get_logger()
 router = APIRouter()
 
 
-@router.get("/me", response_model=ApiResponse[UserResponse])
-async def get_current_user(
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> dict[str, Any]:
-    """Get the current user's profile."""
-    user = await _get_user(db, user_id)
-    return {"data": UserResponse.model_validate(user)}
+@router.get(
+    "/me",
+    summary="Get current user's profile",
+    response_description="User profile and preferences",
+)
+async def get_current_user() -> dict:
+    """Retrieve the authenticated user's profile.
+
+    Returns display name, email (masked), subscription tier,
+    usage stats, and preferences.
+    """
+    logger.info("users.profile.get")
+
+    # TODO: Wire to auth dependency + user service
+    return {
+        "id": "pending",
+        "display_name": "pending",
+        "tier": "free",
+        "usage": {
+            "documents_this_month": 0,
+            "documents_limit": 3,
+            "storage_used_mb": 0,
+        },
+        "message": "User profile endpoint — auth + service layer pending",
+    }
 
 
-@router.patch("/me", response_model=ApiResponse[UserResponse])
-async def update_user(
-    body: UserUpdateRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> dict[str, Any]:
-    """Update the current user's profile or preferences."""
-    user = await _get_user(db, user_id)
+@router.patch(
+    "/me",
+    summary="Update current user's profile",
+    response_description="Profile updated",
+)
+async def update_current_user(
+    display_name: str | None = None,
+) -> dict:
+    """Update the authenticated user's profile.
 
-    if body.display_name is not None:
-        user.display_name = body.display_name
-    if body.preferences is not None:
-        user.preferences = {**user.preferences, **body.preferences}
+    Only non-sensitive fields can be updated via this endpoint.
+    Email changes require a separate verification flow.
 
-    await db.flush()
-    logger.info("user_updated", user_id=user_id)
-    return {"data": UserResponse.model_validate(user)}
+    Args:
+        display_name: User's display name (2–100 characters).
+    """
+    logger.info("users.profile.update", display_name=display_name)
 
-
-@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_account(
-    db: DbSession,
-    user_id: CurrentUserId,
-    x_confirm_delete: str = Header(..., alias="X-Confirm-Delete"),
-) -> None:
-    """Delete the current user's account and all associated data."""
-    if x_confirm_delete.lower() != "true":
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Account deletion requires X-Confirm-Delete: true header",
-        )
-
-    user = await _get_user(db, user_id)
-    await db.delete(user)
-    logger.warning("account_deleted", user_id=user_id)
+    # TODO: Wire to user service with input validation
+    return {
+        "display_name": display_name,
+        "status": "updated",
+        "message": "Profile update endpoint — service layer pending",
+    }
 
 
-async def _get_user(db: DbSession, external_id: str) -> User:
-    """Fetch user by external auth provider ID."""
-    result = await db.execute(
-        select(User).where(User.external_id == external_id)
+@router.get(
+    "/me/usage",
+    summary="Get current usage and limits",
+    response_description="Document count, storage, and tier limits",
+)
+async def get_usage() -> dict:
+    """Retrieve the user's current usage against their tier limits.
+
+    Includes documents processed this billing period,
+    storage consumed, and remaining quota.
+    """
+    logger.info("users.usage.get")
+
+    # TODO: Wire to usage tracking service
+    return {
+        "tier": "free",
+        "billing_period_start": "pending",
+        "documents_used": 0,
+        "documents_limit": 3,
+        "storage_used_mb": 0,
+        "storage_limit_mb": 500,
+        "message": "Usage endpoint — service layer pending",
+    }
+
+
+@router.get(
+    "/me/preferences",
+    summary="Get user preferences",
+    response_description="User's app preferences and settings",
+)
+async def get_preferences() -> dict:
+    """Retrieve the user's application preferences.
+
+    Includes theme, notification settings, default voice,
+    auto-delete policy, and accessibility options.
+    """
+    logger.info("users.preferences.get")
+
+    # TODO: Wire to preferences service
+    return {
+        "theme": "system",
+        "notifications_enabled": True,
+        "auto_delete_days": 60,
+        "default_voice_id": "en-US-AriaNeural",
+        "default_speed": 1.0,
+        "message": "Preferences endpoint — service layer pending",
+    }
+
+
+@router.put(
+    "/me/preferences",
+    summary="Update user preferences",
+    response_description="Preferences updated",
+)
+async def update_preferences(
+    theme: str | None = None,
+    notifications_enabled: bool | None = None,
+    auto_delete_days: int | None = None,
+) -> dict:
+    """Update the user's application preferences.
+
+    Partial updates supported — only provided fields are changed.
+    """
+    logger.info(
+        "users.preferences.update",
+        theme=theme,
+        notifications_enabled=notifications_enabled,
+        auto_delete_days=auto_delete_days,
     )
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found",
-        )
-    return user
+
+    # TODO: Wire to preferences service with validation
+    return {
+        "theme": theme,
+        "notifications_enabled": notifications_enabled,
+        "auto_delete_days": auto_delete_days,
+        "status": "updated",
+        "message": "Preferences update endpoint — service layer pending",
+    }

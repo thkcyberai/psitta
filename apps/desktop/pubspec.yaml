@@ -1,0 +1,53 @@
+name: psitta
+description: >
+  Ultra-natural document narration — listen to any document.
+  Desktop-first application for Windows and macOS.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.5.0
+
+  # Routing (supports shell routes for desktop layout)
+  go_router: ^14.0.0
+
+  # Networking
+  dio: ^5.4.0
+
+  # Audio playback
+  just_audio: ^0.9.39
+
+  # Desktop-specific
+  desktop_drop: ^0.4.4            # Drag & drop file upload
+  window_manager: ^0.4.2          # Window size, title bar, positioning
+  hotkey_manager: ^0.2.3          # Global keyboard shortcuts
+
+  # Code generation annotations
+  freezed_annotation: ^2.4.0
+  json_annotation: ^4.9.0
+
+  # Utilities
+  path: ^1.9.0
+  path_provider: ^2.1.0
+  file_picker: ^8.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  build_runner: ^2.4.0
+  freezed: ^2.5.0
+  json_serializable: ^6.8.0
+  mockito: ^5.4.0
+  mocktail: ^1.0.0
+
+flutter:
+  uses-material-design: true

@@ -1,114 +1,131 @@
 """
-S3-compatible storage provider implementation.
+Psitta — S3/MinIO Storage Provider.
 
-Works with AWS S3, MinIO (local dev), and any S3-compatible service.
+Implements the StorageProvider protocol using boto3/aioboto3 for
+S3-compatible object storage. Works with both AWS S3 and MinIO
+(local development).
+
+Security:
+  - Pre-signed URLs have configurable short TTL (default 15 min)
+  - Server-side encryption enabled by default (AES-256)
+  - Bucket policies enforce private access only
+  - No public ACLs — all access via pre-signed URLs or IAM roles
 """
 
 from __future__ import annotations
 
-from typing import AsyncIterator
-
-import aioboto3
 import structlog
 
-from psitta.providers.interfaces.contracts import StorageProvider
+from psitta.config import Settings
 
-logger = structlog.get_logger()
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
 class S3StorageProvider:
-    """S3-compatible object storage implementation."""
+    """S3-compatible object storage using aioboto3.
 
-    def __init__(
-        self,
-        bucket_name: str,
-        region: str = "us-east-1",
-        endpoint_url: str | None = None,
-        access_key_id: str = "",
-        secret_access_key: str = "",
-    ) -> None:
-        self._bucket_name = bucket_name
-        self._session = aioboto3.Session(
-            aws_access_key_id=access_key_id or None,
-            aws_secret_access_key=secret_access_key or None,
-            region_name=region,
+    Satisfies the StorageProvider protocol from contracts.py.
+    Supports AWS S3 and MinIO with identical API.
+    """
+
+    def __init__(self, settings: Settings) -> None:
+        self._endpoint_url = settings.S3_ENDPOINT_URL
+        self._region = settings.S3_REGION
+        self._access_key = settings.AWS_ACCESS_KEY_ID.get_secret_value()
+        self._secret_key = settings.AWS_SECRET_ACCESS_KEY.get_secret_value()
+        self._default_bucket = settings.S3_BUCKET_NAME
+
+    async def _get_client(self):  # type: ignore[no-untyped-def]
+        """Create an aioboto3 S3 client.
+
+        TODO: Replace with connection pool from app lifespan.
+        """
+        import aioboto3
+
+        session = aioboto3.Session()
+        return session.client(
+            "s3",
+            endpoint_url=self._endpoint_url,
+            region_name=self._region,
+            aws_access_key_id=self._access_key,
+            aws_secret_access_key=self._secret_key,
         )
-        self._endpoint_url = endpoint_url
 
-    def _client_kwargs(self) -> dict[str, str]:
-        kwargs: dict[str, str] = {}
-        if self._endpoint_url:
-            kwargs["endpoint_url"] = self._endpoint_url
-        return kwargs
-
-    async def upload(
-        self, key: str, data: bytes, content_type: str = "application/octet-stream"
+    async def put_object(
+        self,
+        bucket: str,
+        key: str,
+        body: bytes,
+        content_type: str = "application/octet-stream",
     ) -> str:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
-            await s3.put_object(
-                Bucket=self._bucket_name,
+        """Store an object in S3. Returns the storage key."""
+        logger.info(
+            "storage.s3.put",
+            bucket=bucket,
+            key=key,
+            size_bytes=len(body),
+            content_type=content_type,
+        )
+
+        async with await self._get_client() as client:
+            await client.put_object(
+                Bucket=bucket,
                 Key=key,
-                Body=data,
+                Body=body,
                 ContentType=content_type,
+                ServerSideEncryption="AES256",
             )
-        logger.debug("s3_upload", key=key, size=len(data))
+
         return key
 
-    async def upload_stream(
-        self, key: str, stream: AsyncIterator[bytes], content_type: str = "application/octet-stream"
-    ) -> str:
-        # For streaming uploads, collect and upload (or use multipart for large files)
-        chunks: list[bytes] = []
-        async for chunk in stream:
-            chunks.append(chunk)
-        data = b"".join(chunks)
-        return await self.upload(key, data, content_type)
+    async def get_object(self, bucket: str, key: str) -> bytes:
+        """Retrieve an object's bytes from S3."""
+        logger.info("storage.s3.get", bucket=bucket, key=key)
 
-    async def download(self, key: str) -> bytes:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
-            response = await s3.get_object(Bucket=self._bucket_name, Key=key)
-            data = await response["Body"].read()
+        async with await self._get_client() as client:
+            response = await client.get_object(Bucket=bucket, Key=key)
+            data: bytes = await response["Body"].read()
+
         return data
 
-    async def download_stream(self, key: str) -> AsyncIterator[bytes]:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
-            response = await s3.get_object(Bucket=self._bucket_name, Key=key)
-            async for chunk in response["Body"].iter_chunks(chunk_size=64 * 1024):
-                yield chunk
+    async def delete_object(self, bucket: str, key: str) -> bool:
+        """Delete an object from S3. Returns True on success."""
+        logger.info("storage.s3.delete", bucket=bucket, key=key)
 
-    async def delete(self, key: str) -> None:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
-            await s3.delete_object(Bucket=self._bucket_name, Key=key)
-        logger.debug("s3_delete", key=key)
+        async with await self._get_client() as client:
+            await client.delete_object(Bucket=bucket, Key=key)
 
-    async def delete_prefix(self, prefix: str) -> int:
-        count = 0
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
-            paginator = s3.get_paginator("list_objects_v2")
-            async for page in paginator.paginate(Bucket=self._bucket_name, Prefix=prefix):
-                objects = page.get("Contents", [])
-                if objects:
-                    await s3.delete_objects(
-                        Bucket=self._bucket_name,
-                        Delete={"Objects": [{"Key": obj["Key"]} for obj in objects]},
-                    )
-                    count += len(objects)
-        logger.debug("s3_delete_prefix", prefix=prefix, count=count)
-        return count
+        return True
 
-    async def exists(self, key: str) -> bool:
-        try:
-            async with self._session.client("s3", **self._client_kwargs()) as s3:
-                await s3.head_object(Bucket=self._bucket_name, Key=key)
-            return True
-        except Exception:
-            return False
+    async def generate_presigned_url(
+        self,
+        bucket: str,
+        key: str,
+        expires_in: int = 900,
+    ) -> str:
+        """Generate a time-limited pre-signed GET URL."""
+        logger.debug(
+            "storage.s3.presign",
+            bucket=bucket,
+            key=key,
+            expires_in=expires_in,
+        )
 
-    async def generate_presigned_url(self, key: str, expires_in: int = 3600) -> str:
-        async with self._session.client("s3", **self._client_kwargs()) as s3:
-            url = await s3.generate_presigned_url(
+        async with await self._get_client() as client:
+            url: str = await client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self._bucket_name, "Key": key},
+                Params={"Bucket": bucket, "Key": key},
                 ExpiresIn=expires_in,
             )
+
         return url
+
+    async def health_check(self) -> bool:
+        """Verify S3 connectivity by listing the default bucket."""
+        try:
+            async with await self._get_client() as client:
+                await client.head_bucket(Bucket=self._default_bucket)
+            return True
+        except Exception:
+            logger.error("storage.s3.health_check.failed", exc_info=True)
+            return False

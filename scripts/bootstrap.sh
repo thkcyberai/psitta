@@ -34,12 +34,12 @@ pre-commit install
 cd ../..
 
 echo "→ Setting up Flutter..."
-cd apps/mobile
+cd apps/desktop
 flutter pub get -q
 cd ../..
 
 echo ""
 echo "  ✓ Bootstrap complete!"
 echo "  Backend:  cd core/backend && uvicorn psitta.main:create_app --factory --reload"
-echo "  Flutter:  cd apps/mobile && flutter run"
+echo "  Flutter:  cd apps/desktop && flutter run"
 echo "  API docs: http://localhost:8000/docs"

@@ -1,123 +1,195 @@
 """
-Azure Cognitive Services TTS provider.
+Psitta — Azure Cognitive TTS Provider.
 
-Core (free-tier) TTS implementation using Azure Neural Voices.
+Implements the TTSProvider protocol using Azure Cognitive Services
+Speech SDK via REST API. Supports Neural voices with SSML prosody.
+
+Security:
+  - API key stored as SecretStr, never logged
+  - SSML input is sanitized to prevent injection
+  - Retry with exponential backoff on transient failures
+  - Request timeout enforced (30 seconds)
+
+Cost: ~$16/1M characters (Neural voices).
 """
 
 from __future__ import annotations
 
-from typing import AsyncIterator
+import re
+import xml.sax.saxutils as saxutils
 
 import httpx
 import structlog
-
-from psitta.providers.interfaces.contracts import (
-    AudioChunk,
-    AudioFormat,
-    CostEstimate,
-    TTSOptions,
-    TTSProvider,
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
 )
 
-logger = structlog.get_logger()
+from psitta.config import Settings
+from psitta.models.domain import ToneCategory
 
-# Azure TTS pricing: ~$16 per 1M characters (neural voices)
-COST_PER_MILLION_CHARS_USD = 16.0
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+# Azure TTS REST endpoint template
+_AZURE_TTS_URL = (
+    "https://{region}.tts.speech.microsoft.com"
+    "/cognitiveservices/v1"
+)
+
+# Map ToneCategory to SSML prosody style
+_TONE_TO_SSML_STYLE: dict[ToneCategory, str] = {
+    ToneCategory.NEUTRAL: "general",
+    ToneCategory.FORMAL: "newscast-formal",
+    ToneCategory.CONVERSATIONAL: "chat",
+    ToneCategory.EMPHATIC: "empathetic",
+    ToneCategory.NARRATIVE: "narration-professional",
+    ToneCategory.TECHNICAL: "newscast-formal",
+}
+
+# Map speed multiplier to SSML rate
+_SPEED_TO_RATE: dict[str, str] = {
+    "slow": "slow",
+    "medium": "medium",
+    "fast": "fast",
+}
 
 
 class AzureTTSProvider:
-    """Azure Cognitive Services Neural TTS implementation."""
+    """Azure Cognitive Services TTS via REST API.
 
-    def __init__(self, key: str, region: str = "eastus") -> None:
-        self._key = key
-        self._region = region
-        self._endpoint = f"https://{region}.tts.speech.microsoft.com"
-        self._token_url = f"https://{region}.api.cognitive.microsoft.com/sts/v1.0/issueToken"
+    Satisfies the TTSProvider protocol from contracts.py.
+    Uses SSML for rich prosody control.
+    """
 
-    async def _get_token(self) -> str:
-        """Fetch a short-lived auth token from Azure."""
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                self._token_url,
-                headers={"Ocp-Apim-Subscription-Key": self._key},
-            )
-            response.raise_for_status()
-            return response.text
+    def __init__(self, settings: Settings) -> None:
+        self._api_key = settings.AZURE_TTS_KEY.get_secret_value()
+        self._region = settings.AZURE_TTS_REGION
+        self._endpoint = _AZURE_TTS_URL.format(region=self._region)
+        self._timeout = 30.0
 
+    def _build_ssml(
+        self,
+        text: str,
+        voice_id: str,
+        speed: float,
+        tone: ToneCategory,
+    ) -> str:
+        """Build SSML payload with prosody and style attributes.
+
+        Security: Text is XML-escaped to prevent SSML injection.
+        """
+        # Sanitize text for XML
+        safe_text = saxutils.escape(text)
+
+        # Map speed to SSML rate percentage
+        rate_pct = f"{int(speed * 100)}%"
+
+        # Get SSML style from tone
+        style = _TONE_TO_SSML_STYLE.get(tone, "general")
+
+        return (
+            '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" '
+            'xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">'
+            f'<voice name="{saxutils.escape(voice_id)}">'
+            f'<mstts:express-as style="{style}">'
+            f'<prosody rate="{rate_pct}">'
+            f"{safe_text}"
+            "</prosody>"
+            "</mstts:express-as>"
+            "</voice>"
+            "</speak>"
+        )
+
+    @retry(
+        retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=10),
+        reraise=True,
+    )
     async def synthesize(
-        self, text: str, voice_id: str, options: TTSOptions
-    ) -> AsyncIterator[AudioChunk]:
-        """Synthesize text to audio using Azure Neural TTS."""
-        ssml = self._build_ssml(text, voice_id, options)
-        yield await self._call_tts_api(ssml, options.output_format)
+        self,
+        text: str,
+        voice_id: str,
+        speed: float = 1.0,
+        tone: ToneCategory = ToneCategory.NEUTRAL,
+        output_format: str = "mp3",
+    ) -> bytes:
+        """Synthesize text to audio via Azure Cognitive TTS REST API."""
+        if len(text) > 5000:
+            raise ValueError(f"Text length {len(text)} exceeds max 5000 characters")
 
-    async def synthesize_ssml(
-        self, ssml: str, voice_id: str, options: TTSOptions
-    ) -> AsyncIterator[AudioChunk]:
-        """Synthesize pre-built SSML."""
-        yield await self._call_tts_api(ssml, options.output_format)
+        if not self._api_key:
+            raise RuntimeError(
+                "Azure TTS API key not configured. "
+                "Set AZURE_TTS_KEY in environment variables."
+            )
 
-    async def _call_tts_api(
-        self, ssml: str, output_format: AudioFormat
-    ) -> AudioChunk:
-        """Make the actual TTS API call."""
-        token = await self._get_token()
+        ssml = self._build_ssml(text, voice_id, speed, tone)
 
+        # Azure output format header values
         format_map = {
-            AudioFormat.MP3: "audio-24khz-96kbitrate-mono-mp3",
-            AudioFormat.WAV: "riff-24khz-16bit-mono-pcm",
-            AudioFormat.OGG: "ogg-24khz-16bit-mono-opus",
+            "mp3": "audio-24khz-96kbitrate-mono-mp3",
+            "opus": "ogg-24khz-16bit-mono-opus",
+            "wav": "riff-24khz-16bit-mono-pcm",
         }
+        output_fmt = format_map.get(output_format, format_map["mp3"])
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        logger.info(
+            "tts.azure.synthesize",
+            voice_id=voice_id,
+            text_length=len(text),
+            speed=speed,
+            tone=tone.value,
+            format=output_format,
+        )
+
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.post(
-                f"{self._endpoint}/cognitiveservices/v1",
+                self._endpoint,
                 headers={
-                    "Authorization": f"Bearer {token}",
+                    "Ocp-Apim-Subscription-Key": self._api_key,
                     "Content-Type": "application/ssml+xml",
-                    "X-Microsoft-OutputFormat": format_map.get(
-                        output_format, "audio-24khz-96kbitrate-mono-mp3"
-                    ),
+                    "X-Microsoft-OutputFormat": output_fmt,
+                    "User-Agent": "Psitta/0.1.0",
                 },
                 content=ssml.encode("utf-8"),
             )
             response.raise_for_status()
 
-            return AudioChunk(
-                data=response.content,
-                format=output_format,
-                duration_ms=0,  # Calculate from audio metadata
-                sequence_num=0,
-                is_last=True,
-            )
-
-    def _build_ssml(self, text: str, voice_id: str, options: TTSOptions) -> str:
-        """Build SSML with prosody controls."""
-        rate = f"{int(options.speed * 100)}%"
-        pitch = f"{int(options.pitch)}%"
-        volume = f"{int(options.volume * 100)}%"
-
-        return f"""<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"
-    xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="en-US">
-  <voice name="{voice_id}">
-    <prosody rate="{rate}" pitch="{pitch}" volume="{volume}">
-      {text}
-    </prosody>
-  </voice>
-</speak>"""
-
-    async def estimate_cost(self, char_count: int, voice_id: str) -> CostEstimate:
-        return CostEstimate(
-            character_count=char_count,
-            estimated_cost_usd=(char_count / 1_000_000) * COST_PER_MILLION_CHARS_USD,
-            provider="azure",
-            voice_id=voice_id,
+        audio_bytes = response.content
+        logger.info(
+            "tts.azure.synthesize.complete",
+            audio_size_bytes=len(audio_bytes),
         )
 
+        return audio_bytes
+
+    async def get_supported_voices(self) -> list[str]:
+        """Fetch available voices from Azure voices list endpoint."""
+        voices_url = (
+            f"https://{self._region}.tts.speech.microsoft.com"
+            f"/cognitiveservices/voices/list"
+        )
+
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            response = await client.get(
+                voices_url,
+                headers={"Ocp-Apim-Subscription-Key": self._api_key},
+            )
+            response.raise_for_status()
+            voices_data = response.json()
+
+        return [v["ShortName"] for v in voices_data]
+
     async def health_check(self) -> bool:
+        """Verify Azure TTS connectivity."""
+        if not self._api_key:
+            return False
         try:
-            await self._get_token()
-            return True
+            voices = await self.get_supported_voices()
+            return len(voices) > 0
         except Exception:
-            logger.warning("azure_tts_health_check_failed")
+            logger.error("tts.azure.health_check.failed", exc_info=True)
             return False

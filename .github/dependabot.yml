@@ -2,20 +2,31 @@ version: 2
 updates:
   - package-ecosystem: pip
     directory: /core/backend
-    schedule: { interval: weekly, day: monday }
+    schedule:
+      interval: weekly
+      day: monday
     open-pull-requests-limit: 10
-    labels: [dependencies, python]
+    labels: ["dependencies", "python"]
+
   - package-ecosystem: pub
-    directory: /apps/mobile
-    schedule: { interval: weekly, day: monday }
+    directory: /apps/desktop
+    schedule:
+      interval: weekly
+      day: monday
     open-pull-requests-limit: 10
-    labels: [dependencies, flutter]
+    labels: ["dependencies", "flutter"]
+
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly, day: monday }
+    schedule:
+      interval: weekly
+      day: monday
     open-pull-requests-limit: 5
-    labels: [dependencies, ci]
+    labels: ["dependencies", "ci"]
+
   - package-ecosystem: docker
     directory: /core/backend
-    schedule: { interval: weekly, day: monday }
-    labels: [dependencies, docker]
+    schedule:
+      interval: weekly
+      day: monday
+    labels: ["dependencies", "docker"]

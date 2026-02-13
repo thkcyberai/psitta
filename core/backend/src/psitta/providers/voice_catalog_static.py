@@ -1,77 +1,133 @@
 """
-Static voice catalog provider — ships with core.
+Psitta — Static Voice Catalog Provider.
 
-Provides a curated set of high-quality neural voices from Azure.
-Premium voices (ElevenLabs) are loaded via extension.
+Implements the VoiceCatalogProvider protocol using a hardcoded
+catalog of Azure Neural voices. This is the core (free) provider;
+premium voice catalogs are loaded via extensions.
+
+The static catalog avoids API calls for voice listing, reducing
+latency and external dependencies during normal operation.
 """
 
 from __future__ import annotations
 
-from psitta.providers.interfaces.contracts import VoiceFilter, VoiceMeta, VoiceCatalogProvider
+import structlog
 
-# Curated catalog of Azure Neural Voices meeting quality bar (MOS >= 4.0)
-_VOICES: list[VoiceMeta] = [
-    VoiceMeta(id="en-US-AriaNeural", name="Aria", language="en-US", gender="female",
-              style="narrative", provider="azure", preview_url="", is_premium=False,
-              quality_score=4.5, description="Warm and expressive narrator",
-              supported_emotions=["neutral", "cheerful", "sad", "angry", "excited"]),
-    VoiceMeta(id="en-US-GuyNeural", name="Guy", language="en-US", gender="male",
-              style="narrative", provider="azure", preview_url="", is_premium=False,
-              quality_score=4.4, description="Professional male narrator",
-              supported_emotions=["neutral", "cheerful", "sad"]),
-    VoiceMeta(id="en-US-JennyNeural", name="Jenny", language="en-US", gender="female",
-              style="conversational", provider="azure", preview_url="", is_premium=False,
-              quality_score=4.3, description="Friendly conversational voice",
-              supported_emotions=["neutral", "cheerful", "excited"]),
-    VoiceMeta(id="en-US-DavisNeural", name="Davis", language="en-US", gender="male",
-              style="formal", provider="azure", preview_url="", is_premium=False,
-              quality_score=4.3, description="Authoritative and clear",
-              supported_emotions=["neutral"]),
-    VoiceMeta(id="en-US-SaraNeural", name="Sara", language="en-US", gender="female",
-              style="warm", provider="azure", preview_url="", is_premium=False,
-              quality_score=4.2, description="Warm and approachable",
-              supported_emotions=["neutral", "cheerful"]),
-    VoiceMeta(id="en-GB-SoniaNeural", name="Sonia", language="en-GB", gender="female",
-              style="narrative", provider="azure", preview_url="", is_premium=False,
-              quality_score=4.4, description="British English narrator",
-              supported_emotions=["neutral", "cheerful", "sad"]),
-    VoiceMeta(id="en-GB-RyanNeural", name="Ryan", language="en-GB", gender="male",
-              style="formal", provider="azure", preview_url="", is_premium=False,
-              quality_score=4.3, description="British English formal voice",
-              supported_emotions=["neutral"]),
-    VoiceMeta(id="en-AU-NatashaNeural", name="Natasha", language="en-AU", gender="female",
-              style="conversational", provider="azure", preview_url="", is_premium=False,
-              quality_score=4.2, description="Australian English conversational",
-              supported_emotions=["neutral", "cheerful"]),
+from psitta.models.domain import VoiceProfile
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+# ── Static Voice Catalog ───────────────────────────────────────────────
+_VOICES: list[VoiceProfile] = [
+    VoiceProfile(
+        id="en-US-AriaNeural",
+        display_name="Aria",
+        language="en-US",
+        gender="female",
+        provider="azure",
+        tier="free",
+        styles=["chat", "narration-professional", "newscast-formal"],
+        description="Warm, versatile female voice. Great for general narration.",
+    ),
+    VoiceProfile(
+        id="en-US-GuyNeural",
+        display_name="Guy",
+        language="en-US",
+        gender="male",
+        provider="azure",
+        tier="free",
+        styles=["narration-professional", "newscast"],
+        description="Clear male voice suited for professional content.",
+    ),
+    VoiceProfile(
+        id="en-US-JennyNeural",
+        display_name="Jenny",
+        language="en-US",
+        gender="female",
+        provider="azure",
+        tier="free",
+        styles=["chat", "cheerful", "empathetic"],
+        description="Friendly female voice with expressive range.",
+    ),
+    VoiceProfile(
+        id="en-US-DavisNeural",
+        display_name="Davis",
+        language="en-US",
+        gender="male",
+        provider="azure",
+        tier="free",
+        styles=["chat", "narration-professional"],
+        description="Confident male voice for engaging content.",
+    ),
+    VoiceProfile(
+        id="en-GB-SoniaNeural",
+        display_name="Sonia",
+        language="en-GB",
+        gender="female",
+        provider="azure",
+        tier="free",
+        styles=["cheerful", "sad"],
+        description="British female voice with natural warmth.",
+    ),
+    VoiceProfile(
+        id="en-GB-RyanNeural",
+        display_name="Ryan",
+        language="en-GB",
+        gender="male",
+        provider="azure",
+        tier="free",
+        styles=["chat", "cheerful"],
+        description="British male voice for professional narration.",
+    ),
 ]
 
 
 class StaticVoiceCatalogProvider:
-    """In-memory voice catalog backed by a curated JSON list."""
+    """In-memory voice catalog backed by a static list.
 
-    def __init__(self, voices: list[VoiceMeta] | None = None) -> None:
-        self._voices = voices or _VOICES
+    Satisfies the VoiceCatalogProvider protocol from contracts.py.
+    Fast, zero-dependency, always available.
+    """
 
-    async def list_voices(self, filters: VoiceFilter) -> list[VoiceMeta]:
-        result = self._voices
+    async def list_voices(
+        self,
+        language: str | None = None,
+        tier: str | None = None,
+    ) -> list[VoiceProfile]:
+        """Return voices filtered by language and/or tier."""
+        result = _VOICES
 
-        if filters.language:
-            result = [v for v in result if v.language.startswith(filters.language)]
-        if filters.gender:
-            result = [v for v in result if v.gender == filters.gender]
-        if filters.style:
-            result = [v for v in result if v.style == filters.style]
-        if filters.provider:
-            result = [v for v in result if v.provider == filters.provider]
-        if filters.is_premium is not None:
-            result = [v for v in result if v.is_premium == filters.is_premium]
+        if language:
+            result = [v for v in result if v.language == language]
+
+        if tier:
+            result = [v for v in result if v.tier == tier]
+
+        logger.info(
+            "voice_catalog.list",
+            language=language,
+            tier=tier,
+            count=len(result),
+        )
 
         return result
 
-    async def get_voice(self, voice_id: str) -> VoiceMeta | None:
-        return next((v for v in self._voices if v.id == voice_id), None)
+    async def get_voice(self, voice_id: str) -> VoiceProfile | None:
+        """Get a specific voice by ID."""
+        for voice in _VOICES:
+            if voice.id == voice_id:
+                return voice
+        return None
 
-    async def get_preview_audio(self, voice_id: str) -> bytes:
-        """Return preview audio. In production, these are cached in S3."""
-        # Placeholder: return empty bytes until preview generation is implemented
-        return b""
+    async def get_preview_url(self, voice_id: str) -> str | None:
+        """Return preview URL for a voice.
+
+        TODO: Wire to S3 storage with pre-signed URLs for
+        cached preview audio files.
+        """
+        voice = await self.get_voice(voice_id)
+        if voice is None:
+            return None
+
+        # Placeholder — preview audio not yet stored
+        return f"/api/v1/voices/{voice_id}/preview/audio"

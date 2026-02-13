@@ -1,313 +1,159 @@
-# Testing Strategy
+# Psitta — Test Strategy
 
-This document defines Psitta's testing approach, fixture patterns, and coverage expectations.
+## Overview
 
-## Test Pyramid
+Psitta uses a three-tier testing approach: unit, integration, and end-to-end. Tests are designed to run fast by default, with heavier tests gated behind markers.
 
-```
-        ╱ ╲
-       ╱ E2E ╲          ← Few: Full Flutter app + API smoke tests
-      ╱───────╲
-     ╱ Integr.  ╲       ← Moderate: API routes + DB + Redis + S3
-    ╱─────────────╲
-   ╱    Unit Tests  ╲   ← Many: Services, schemas, providers, utilities
-  ╱───────────────────╲
-```
-
-| Layer | Count Target | Speed | Dependencies |
-|-------|-------------|-------|-------------|
-| Unit | ~70% of tests | < 1s each | None (all mocked) |
-| Integration | ~25% of tests | < 5s each | PostgreSQL, Redis, MinIO |
-| E2E | ~5% of tests | < 30s each | Full stack |
-
-## Backend Testing
-
-### Directory Structure
-
+## Test Structure
 ```
 core/backend/tests/
-├── conftest.py              # Shared fixtures: db session, redis, test client
-├── factories.py             # Factory functions for test data
-├── unit/
+├── conftest.py              # Shared fixtures (mocks, client, settings)
+├── factories.py             # Domain object factories
+├── unit/                    # Fast, isolated, no external deps
+│   ├── test_schemas.py      # Pydantic validation edge cases
 │   ├── test_document_service.py
 │   ├── test_playback_service.py
-│   ├── test_schemas.py
-│   ├── test_middleware/
-│   │   ├── test_rate_limit.py
-│   │   └── test_request_id.py
-│   └── test_providers/
-│       ├── test_s3_storage.py
-│       └── test_azure_tts.py
-├── integration/
+│   └── test_middleware/
+│       ├── test_request_id.py
+│       └── test_rate_limit.py
+├── integration/             # Real FastAPI app, mocked dependencies
 │   ├── test_document_api.py
 │   ├── test_playback_api.py
 │   ├── test_voice_api.py
-│   ├── test_user_api.py
-│   └── test_worker.py
-└── e2e/
-    └── test_document_flow.py   # Upload → process → play full cycle
+│   └── test_user_api.py
+└── e2e/                     # Full stack (requires running services)
+    └── test_document_flow.py
 ```
 
-### Fixture Patterns
-
-#### Database Fixtures (Integration)
-
-Every integration test runs inside a transaction that is rolled back after the test completes. This gives test isolation without the cost of recreating the schema.
-
-```python
-# conftest.py
-import pytest
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from psitta.db.session import async_session_factory
-
-@pytest.fixture
-async def db_session():
-    """Provide a transactional database session that rolls back after each test."""
-    engine = create_async_engine(settings.database_url)
-    async with engine.connect() as conn:
-        transaction = await conn.begin()
-        session = AsyncSession(bind=conn, expire_on_commit=False)
-        try:
-            yield session
-        finally:
-            await transaction.rollback()
-            await session.close()
-    await engine.dispose()
-```
-
-#### Factory Functions
-
-Use factory functions instead of raw SQL or fixture files. Factories produce valid domain objects with sensible defaults that can be overridden per test.
-
-```python
-# factories.py
-from uuid import uuid4
-from psitta.models.domain import Document, DocumentStatus, SourceType
-
-def make_document(
-    user_id: str | None = None,
-    title: str = "Test Document",
-    status: DocumentStatus = DocumentStatus.UPLOADED,
-    source_type: SourceType = SourceType.PDF,
-    page_count: int = 10,
-    **overrides,
-) -> Document:
-    return Document(
-        id=overrides.get("id", uuid4()),
-        user_id=user_id or f"user_{uuid4().hex[:8]}",
-        title=title,
-        source_type=source_type,
-        status=status,
-        page_count=page_count,
-        file_size_bytes=page_count * 50_000,
-        storage_key=f"uploads/{uuid4()}.pdf",
-        metadata={},
-        **overrides,
-    )
-
-def make_audio_segment(document_id=None, chunk_id=None, **overrides):
-    return AudioSegment(
-        id=overrides.get("id", uuid4()),
-        document_id=document_id or uuid4(),
-        chunk_id=chunk_id or uuid4(),
-        voice_id="en-US-AriaNeural",
-        speed=1.0,
-        storage_key=f"audio/{uuid4()}.mp3",
-        duration_ms=5000,
-        file_size_bytes=40_000,
-        **overrides,
-    )
-```
-
-#### Provider Mocks
-
-External providers are always mocked in unit tests. Each provider has a corresponding fake implementation.
-
-```python
-# Unit test example — mocking the TTS provider
-class FakeTTSProvider:
-    def __init__(self):
-        self.calls: list[tuple[str, str, float]] = []
-
-    async def synthesize(self, text: str, voice_id: str, speed: float):
-        self.calls.append((text, voice_id, speed))
-        return AudioSegment(
-            data=b"fake-audio-data",
-            duration_ms=len(text) * 50,
-            format="mp3",
-        )
-
-    async def list_voices(self):
-        return [VoiceInfo(id="test-voice", name="Test", language="en-US")]
-
-@pytest.fixture
-def fake_tts():
-    return FakeTTSProvider()
-```
-
-#### Test Client (Integration)
-
-```python
-# conftest.py
-from httpx import AsyncClient, ASGITransport
-from psitta.main import create_app
-
-@pytest.fixture
-async def client(db_session):
-    app = create_app()
-    # Override the DB dependency to use our transactional session
-    app.dependency_overrides[get_session] = lambda: db_session
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c
-```
-
-### Test Conventions
-
-1. **One assert per test** when possible. Multiple asserts are fine when testing a single logical operation (e.g., verifying both status code and response body).
-
-2. **Test names describe behavior**, not implementation:
-   ```python
-   # Good
-   async def test_upload_rejects_files_over_size_limit():
-   async def test_playback_resumes_from_last_position():
-
-   # Bad
-   async def test_upload():
-   async def test_playback_service_method():
-   ```
-
-3. **Arrange-Act-Assert** structure:
-   ```python
-   async def test_document_processing_creates_chunks(client, db_session):
-       # Arrange
-       doc = make_document(status=DocumentStatus.UPLOADED)
-       await db_session.add(doc)
-
-       # Act
-       result = await document_service.process(doc.id)
-
-       # Assert
-       assert result.status == DocumentStatus.PROCESSED
-       assert len(result.chunks) > 0
-   ```
-
-4. **Mark slow tests** so they can be skipped in rapid iteration:
-   ```python
-   @pytest.mark.slow
-   async def test_full_document_processing_pipeline():
-       ...
-   ```
-
-### Running Tests
-
+## Running Tests
 ```bash
-# All tests
+# All tests (fast — skips slow/e2e)
+cd core/backend
 pytest
 
-# Unit tests only (fast feedback loop)
-pytest tests/unit -x --tb=short
+# Unit tests only
+pytest tests/unit/ -v
 
-# Integration tests (requires Docker services)
-pytest tests/integration -v
+# Integration tests
+pytest tests/integration/ -v
 
-# With coverage
-pytest --cov=psitta --cov-report=html
-
-# Skip slow tests
-pytest -m "not slow"
-
-# Run specific test file
-pytest tests/unit/test_document_service.py -v
-```
-
-### Coverage Targets
-
-| Module | Target | Rationale |
-|--------|--------|-----------|
-| `services/` | ≥ 85% | Core business logic — highest priority |
-| `schemas/` | ≥ 90% | Validation logic must be thorough |
-| `api/` | ≥ 75% | Route handlers tested via integration |
-| `providers/` | ≥ 70% | External calls mocked; focus on interface compliance |
-| `middleware/` | ≥ 80% | Security-critical code |
-| `workers/` | ≥ 75% | Error handling and retry logic |
-| **Overall** | **≥ 80%** | Enforced in CI |
-
-## Flutter Testing
-
-### Directory Structure
-
-```
-apps/mobile/test/
-├── unit/
-│   ├── models/
-│   ├── services/
-│   └── utils/
-├── widget/
-│   ├── components/
-│   ├── screens/
-│   └── test_helpers.dart
-└── integration/
-    └── app_test.dart
-```
-
-### Key Patterns
-
-**Widget tests** use `pumpWidget` with provider overrides:
-
-```dart
-testWidgets('player shows document title', (tester) async {
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        documentProvider.overrideWith((_) => fakeDocument),
-      ],
-      child: const MaterialApp(home: PlayerScreen()),
-    ),
-  );
-
-  expect(find.text('Test Document'), findsOneWidget);
-});
-```
-
-**Golden tests** for visual regression:
-
-```dart
-testWidgets('voice selector matches design', (tester) async {
-  await tester.pumpWidget(/* ... */);
-  await expectLater(
-    find.byType(VoiceSelector),
-    matchesGoldenFile('goldens/voice_selector.png'),
-  );
-});
-```
-
-### Running Flutter Tests
-
-```bash
-cd apps/mobile
-
-# All tests
-flutter test
+# E2E tests (requires docker compose up)
+pytest tests/e2e/ -v -m slow
 
 # With coverage
-flutter test --coverage
-genhtml coverage/lcov.info -o coverage/html
+pytest --cov=psitta --cov-report=term-missing --cov-report=html
 
-# Update golden files
-flutter test --update-goldens
+# Specific test file
+pytest tests/unit/test_schemas.py -v
 ```
+
+## Fixtures
+
+### Mock Providers
+
+All external providers have corresponding mock fixtures in `conftest.py`:
+
+| Fixture | Mocks |
+|---------|-------|
+| `mock_storage` | S3 put/get/delete/presign |
+| `mock_tts` | Azure TTS synthesis |
+| `mock_vision` | Anthropic image description |
+| `mock_voice_catalog` | Static voice listing |
+| `mock_tone_classifier` | Tone classification |
+| `mock_redis` | Redis commands (xadd, get, set) |
+
+### Test Client
+
+The `client` fixture creates an `httpx.AsyncClient` with ASGI transport — no real HTTP server needed. Each test gets a fresh FastAPI app instance.
+
+### Factories
+
+`factories.py` provides factory classes for all domain objects:
+```python
+from tests.factories import DocumentFactory, ChunkFactory
+
+doc = DocumentFactory.create(title="Custom Title", page_count=5)
+chunk = ChunkFactory.create(document_id=doc.id, sequence_index=0)
+```
+
+All factories return domain dataclass instances with sensible defaults.
+
+## Test Categories
+
+### Unit Tests
+
+Fast, deterministic, no I/O. Test business logic in isolation.
+
+**What to test:**
+- Schema validation (accepted/rejected inputs, edge cases)
+- Service methods with mock providers
+- Middleware behavior via ASGI test client
+- Domain model invariants
+
+**Guidelines:**
+- One assertion per test (prefer focused tests)
+- Use descriptive test names: `test_upload_rejects_oversized_file`
+- Mock at the provider boundary, not inside services
+
+### Integration Tests
+
+Test API endpoints with a real FastAPI app. External services mocked at the dependency injection level.
+
+**What to test:**
+- HTTP status codes for valid/invalid requests
+- Response body structure
+- Error message formats
+- Query parameter handling
+- Authentication requirements
+
+### End-to-End Tests
+
+Full pipeline tests requiring all services running. Marked with `@pytest.mark.slow`.
+
+**What to test:**
+- Upload → process → playback complete flow
+- Health/readiness probes
+- Cross-service interactions
+
+## Coverage Targets
+
+| Component | Target | Rationale |
+|-----------|--------|-----------|
+| Schemas | 95% | Validation is critical for security |
+| Services | 85% | Core business logic |
+| Middleware | 80% | Request handling paths |
+| Providers | 70% | External API wrappers (mocked in unit) |
+| API routes | 75% | HTTP layer (integration tests) |
+| Workers | 60% | Pipeline stages (e2e tests) |
+
+Overall target: **80% line coverage**
 
 ## CI Integration
 
-All tests run automatically on every PR via the CI pipeline (`.github/workflows/ci.yml`). The CI gate requires all test jobs to pass before merge.
+Tests run automatically in GitHub Actions (`ci.yml`):
 
-Test artifacts (coverage XML, JUnit reports) are uploaded as workflow artifacts for debugging failed runs.
+1. **Unit tests** — every push (fast feedback)
+2. **Integration tests** — every push (with service containers)
+3. **E2E tests** — on `main` branch only (requires full stack)
 
-## Writing Tests for New Features
+Coverage reports are uploaded as artifacts and tracked over time.
 
-1. Start with a failing test that describes the desired behavior.
-2. Write the minimum code to make it pass.
-3. Add edge cases: invalid input, missing data, permission denied, timeouts.
-4. Add integration test if the feature touches the database or external services.
-5. Verify coverage didn't drop below targets.
+## Markers
+```ini
+# pyproject.toml
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests requiring full infrastructure",
+    "integration: marks integration tests",
+]
+```
+
+## Best Practices
+
+1. **Test behavior, not implementation** — assert outcomes, not internal calls
+2. **Use factories** — never construct test data inline
+3. **One fixture per mock** — compose fixtures, don't create god-fixtures
+4. **Async by default** — all test methods should be `async def`
+5. **Descriptive names** — test name should explain what and why
+6. **No test interdependence** — each test runs in isolation
+7. **Clean up state** — fixtures use proper teardown

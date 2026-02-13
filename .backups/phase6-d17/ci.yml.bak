@@ -1,0 +1,340 @@
+# ══════════════════════════════════════════════════════════════════════
+# Psitta — CI Pipeline
+#
+# Triggers: push/PR to develop or main
+# Gates:    lint → test → security → build → migration check
+# Fail-fast: entire pipeline stops on first stage failure
+# ══════════════════════════════════════════════════════════════════════
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  FLUTTER_VERSION: "3.24.0"
+
+jobs:
+  # ── Stage 1: Lint ──────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: core/backend/pyproject.toml
+
+      - name: Install dependencies
+        working-directory: core/backend
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Ruff lint
+        working-directory: core/backend
+        run: ruff check src/ tests/
+
+      - name: Ruff format check
+        working-directory: core/backend
+        run: ruff format --check src/ tests/
+
+      - name: Mypy type check
+        working-directory: core/backend
+        run: mypy src/psitta/ --ignore-missing-imports
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Dart analyze
+        working-directory: apps/mobile
+        run: |
+          flutter pub get
+          dart analyze --fatal-infos
+
+      - name: Dart format check
+        working-directory: apps/mobile
+        run: dart format --set-exit-if-changed lib/
+
+  # ── Stage 2: Test ──────────────────────────────────────────────────
+  test-backend:
+    name: Test Backend
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: psitta_test
+          POSTGRES_USER: psitta
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U psitta -d psitta_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      ENVIRONMENT: testing
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+      DATABASE_NAME: psitta_test
+      DATABASE_USER: psitta
+      DATABASE_PASSWORD: test_password
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      S3_ENDPOINT_URL: http://localhost:9000
+      S3_BUCKET_NAME: psitta-test
+      AWS_ACCESS_KEY_ID: testing
+      AWS_SECRET_ACCESS_KEY: testing
+      AZURE_TTS_KEY: ""
+      ANTHROPIC_API_KEY: ""
+      SECRET_KEY: ci-test-secret-not-for-production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: core/backend/pyproject.toml
+
+      - name: Install dependencies
+        working-directory: core/backend
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run unit tests
+        working-directory: core/backend
+        run: |
+          pytest tests/unit/ \
+            -v \
+            --tb=short \
+            --cov=psitta \
+            --cov-report=xml:coverage.xml \
+            --cov-report=term-missing \
+            --junitxml=junit-unit.xml
+
+      - name: Run integration tests
+        working-directory: core/backend
+        run: |
+          pytest tests/integration/ \
+            -v \
+            --tb=short \
+            --junitxml=junit-integration.xml
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: core/backend/coverage.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: core/backend/junit-*.xml
+
+  test-flutter:
+    name: Test Flutter
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+
+      - name: Run tests
+        working-directory: apps/mobile
+        run: flutter test --coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: flutter-coverage
+          path: apps/mobile/coverage/
+
+  # ── Stage 3: Security Scan ─────────────────────────────────────────
+  security:
+    name: Security Scan
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit Python dependencies
+        working-directory: core/backend
+        run: |
+          pip install -e ".[dev]"
+          pip-audit --strict --desc
+
+      - name: Check for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  # ── Stage 4: Docker Build ──────────────────────────────────────────
+  docker-build:
+    name: Docker Build
+    needs: [test-backend, test-flutter, security]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API image (test only)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./core/backend
+          target: runtime
+          push: false
+          tags: psitta-api:ci-${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ── Stage 5: Migration Check ───────────────────────────────────────
+  migration-check:
+    name: Migration Check
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: psitta_migrate
+          POSTGRES_USER: psitta
+          POSTGRES_PASSWORD: migrate_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U psitta -d psitta_migrate"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+      DATABASE_NAME: psitta_migrate
+      DATABASE_USER: psitta
+      DATABASE_PASSWORD: migrate_password
+      REDIS_HOST: localhost
+      S3_ENDPOINT_URL: http://localhost:9000
+      AWS_ACCESS_KEY_ID: testing
+      AWS_SECRET_ACCESS_KEY: testing
+      SECRET_KEY: ci-migration-check
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        working-directory: core/backend
+        run: |
+          pip install --upgrade pip
+          pip install -e "."
+
+      - name: Run migrations (upgrade)
+        working-directory: core/backend
+        run: alembic -c alembic.ini upgrade head
+
+      - name: Verify migration reversibility (downgrade)
+        working-directory: core/backend
+        run: alembic -c alembic.ini downgrade base
+
+      - name: Re-apply migrations (idempotency)
+        working-directory: core/backend
+        run: alembic -c alembic.ini upgrade head
+
+  # ── Gate: All checks must pass ─────────────────────────────────────
+  ci-gate:
+    name: CI Gate
+    if: always()
+    needs: [lint, test-backend, test-flutter, security, docker-build, migration-check]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs passed
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" ]] || \
+             [[ "${{ needs.test-backend.result }}" != "success" ]] || \
+             [[ "${{ needs.test-flutter.result }}" != "success" ]] || \
+             [[ "${{ needs.security.result }}" != "success" ]] || \
+             [[ "${{ needs.docker-build.result }}" != "success" ]] || \
+             [[ "${{ needs.migration-check.result }}" != "success" ]]; then
+            echo "❌ One or more CI jobs failed"
+            exit 1
+          fi
+          echo "✅ All CI checks passed"

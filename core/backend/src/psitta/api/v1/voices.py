@@ -1,174 +1,153 @@
 """
-Voice endpoints — catalog browsing, preview, custom profiles, consent.
+Psitta — Voice Catalog Routes.
+
+Endpoints for browsing available voices, previewing samples,
+and managing user voice profiles (preferred voice + speed settings).
+
+Security:
+  - Voice preview audio served via pre-signed URLs (time-limited)
+  - Custom voice profiles are user-scoped (no cross-user access)
+  - Premium voices gated by user tier validation
 """
 
 from __future__ import annotations
 
-import uuid
-from typing import Any
+from typing import Annotated
+from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, File, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import Response
+from fastapi import APIRouter, HTTPException, Query, status
 
-from psitta.dependencies import CurrentUserId, DbSession, Providers
-from psitta.providers.interfaces.contracts import VoiceFilter
-from psitta.schemas.api import (
-    ApiListResponse,
-    ApiResponse,
-    ConsentSubmitRequest,
-    CustomVoiceCreateRequest,
-    CustomVoiceResponse,
-    PaginationMeta,
-    VoiceResponse,
-)
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
-logger = structlog.get_logger()
 router = APIRouter()
 
 
-@router.get("", response_model=ApiListResponse[VoiceResponse])
+@router.get(
+    "/",
+    summary="List available voices",
+    response_description="Catalog of available TTS voices",
+)
 async def list_voices(
-    providers: Providers,
-    language: str | None = Query(None),
-    gender: str | None = Query(None),
-    style: str | None = Query(None),
-    provider: str | None = Query(None),
-    is_premium: bool | None = Query(None),
-) -> dict[str, Any]:
-    """List available voices with filtering."""
-    filters = VoiceFilter(
-        language=language,
-        gender=gender,
-        style=style,
-        provider=provider,
-        is_premium=is_premium,
-    )
-    voices = await providers.voice_catalog.list_voices(filters)
+    language: Annotated[str | None, Query(
+        description="Filter by language code (e.g., 'en-US')",
+        pattern=r"^[a-z]{2}(-[A-Z]{2})?$",
+    )] = None,
+    tier: Annotated[str | None, Query(
+        description="Filter by tier: 'free' or 'premium'",
+        pattern=r"^(free|premium)$",
+    )] = None,
+) -> dict:
+    """Return the full catalog of available TTS voices.
 
+    Each voice includes: ID, display name, language, gender,
+    sample audio URL, and tier (free/premium).
+
+    Filterable by language code and subscription tier.
+    """
+    logger.info("voices.list", language=language, tier=tier)
+
+    # TODO: Wire to VoiceCatalogProvider.list_voices()
     return {
-        "data": [
-            VoiceResponse(
-                id=v.id,
-                name=v.name,
-                language=v.language,
-                gender=v.gender,
-                style=v.style,
-                provider=v.provider,
-                preview_url=f"/api/v1/voices/{v.id}/preview",
-                is_premium=v.is_premium,
-                quality_score=v.quality_score,
-                description=v.description,
-            )
-            for v in voices
-        ],
-        "meta": PaginationMeta(total=len(voices)),
+        "voices": [],
+        "total": 0,
+        "filters": {"language": language, "tier": tier},
+        "message": "Voice catalog endpoint — provider layer pending",
     }
 
 
-@router.get("/{voice_id}/preview")
-async def preview_voice(
-    voice_id: str,
-    providers: Providers,
-) -> Response:
-    """Get a 10-second preview audio sample for a voice."""
-    audio_data = await providers.voice_catalog.get_preview_audio(voice_id)
-    return Response(
-        content=audio_data,
-        media_type="audio/mpeg",
-        headers={"Cache-Control": "public, max-age=86400"},
-    )
-
-
-@router.post(
-    "/custom",
-    response_model=ApiResponse[CustomVoiceResponse],
-    status_code=status.HTTP_201_CREATED,
+@router.get(
+    "/{voice_id}",
+    summary="Get voice details",
+    response_description="Voice metadata and sample audio",
 )
-async def create_custom_voice(
-    body: CustomVoiceCreateRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> dict[str, Any]:
-    """Create a new custom voice profile."""
-    from psitta.models.domain import VoiceProfile
+async def get_voice(voice_id: str) -> dict:
+    """Retrieve details for a specific voice.
 
-    profile = VoiceProfile(
-        user_id=user_id,
-        name=body.name,
-        language=body.language,
-        status="draft",
-    )
-    db.add(profile)
-    await db.flush()
+    Includes full metadata, sample audio URL, supported languages,
+    and recommended use cases.
+    """
+    logger.info("voices.get", voice_id=voice_id)
 
-    logger.info("voice_profile_created", profile_id=str(profile.id), user_id=user_id)
-    return {"data": CustomVoiceResponse.model_validate(profile)}
+    # TODO: Wire to VoiceCatalogProvider.get_voice()
+    return {
+        "voice_id": voice_id,
+        "status": "pending",
+        "message": "Voice detail endpoint — provider layer pending",
+    }
 
 
-@router.post(
-    "/custom/{profile_id}/recordings",
-    status_code=status.HTTP_201_CREATED,
+@router.get(
+    "/{voice_id}/preview",
+    summary="Get preview audio for a voice",
+    response_description="Pre-signed URL for voice sample audio",
 )
-async def upload_recording(
-    profile_id: uuid.UUID,
-    db: DbSession,
-    providers: Providers,
-    user_id: CurrentUserId,
-    audio: UploadFile = File(...),
-    transcript: str | None = Form(None),
-) -> dict[str, str]:
-    """Upload a voice recording to a custom profile."""
-    from psitta.models.domain import VoiceRecording
+async def preview_voice(voice_id: str) -> dict:
+    """Generate a short preview audio clip for the specified voice.
 
-    content = await audio.read()
+    Returns a pre-signed S3 URL to a sample audio file.
+    Preview clips are cached and reused across users.
 
-    # Validate minimum duration (30 seconds ~ 480KB for WAV at 16kHz)
-    if len(content) < 100_000:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Recording too short. Minimum 30 seconds required.",
-        )
+    The URL expires after 15 minutes.
+    """
+    logger.info("voices.preview", voice_id=voice_id)
 
-    # Store in S3
-    key = f"voices/{profile_id}/recordings/{uuid.uuid4()}.wav"
-    await providers.storage.upload(key, content, content_type="audio/wav")
-
-    recording = VoiceRecording(
-        profile_id=profile_id,
-        recording_key=key,
-        transcript=transcript,
-        duration_ms=0,  # TODO: calculate from audio metadata
-    )
-    db.add(recording)
-
-    return {"status": "uploaded", "recording_id": str(recording.id)}
+    # TODO: Wire to VoiceCatalogProvider.get_preview_url()
+    return {
+        "voice_id": voice_id,
+        "preview_url": "pending",
+        "expires_in_seconds": 900,
+        "message": "Voice preview endpoint — provider layer pending",
+    }
 
 
-@router.post(
-    "/custom/{profile_id}/consent",
-    status_code=status.HTTP_201_CREATED,
+@router.get(
+    "/profiles/me",
+    summary="Get user's voice profile",
+    response_description="User's preferred voice and playback settings",
 )
-async def submit_consent(
-    profile_id: uuid.UUID,
-    body: ConsentSubmitRequest,
-    db: DbSession,
-    user_id: CurrentUserId,
-) -> dict[str, str]:
-    """Submit a consent receipt for a custom voice profile."""
-    from psitta.models.domain import ConsentReceipt
+async def get_voice_profile() -> dict:
+    """Retrieve the authenticated user's voice preferences.
 
-    receipt = ConsentReceipt(
-        profile_id=profile_id,
-        consenter_email=body.consenter_email,
-        consent_type=body.consent_type,
-        consent_text=body.consent_text,
-    )
-    db.add(receipt)
+    Returns preferred voice, default speed, and any custom settings.
+    """
+    logger.info("voices.profile.get")
 
+    # TODO: Wire to user profile service
+    return {
+        "preferred_voice_id": "en-US-AriaNeural",
+        "default_speed": 1.0,
+        "message": "Voice profile endpoint — service layer pending",
+    }
+
+
+@router.put(
+    "/profiles/me",
+    summary="Update user's voice profile",
+    response_description="Voice profile updated",
+)
+async def update_voice_profile(
+    preferred_voice_id: str | None = None,
+    default_speed: Annotated[float | None, Query(ge=0.5, le=3.0)] = None,
+) -> dict:
+    """Update the authenticated user's voice preferences.
+
+    Partial updates supported — only provided fields are changed.
+
+    Args:
+        preferred_voice_id: Default voice for new playback sessions.
+        default_speed: Default playback speed (0.5x to 3.0x).
+    """
     logger.info(
-        "consent_submitted",
-        profile_id=str(profile_id),
-        consent_type=body.consent_type,
+        "voices.profile.update",
+        preferred_voice_id=preferred_voice_id,
+        default_speed=default_speed,
     )
-    return {"status": "recorded", "receipt_id": str(receipt.id)}
+
+    # TODO: Wire to user profile service
+    return {
+        "preferred_voice_id": preferred_voice_id,
+        "default_speed": default_speed,
+        "status": "updated",
+        "message": "Voice profile update endpoint — service layer pending",
+    }

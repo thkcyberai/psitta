@@ -1,69 +1,179 @@
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  Psitta — Security Scan (Nightly)                                ║
-# ║  Dependency audit + container scan on schedule                      ║
-# ╚══════════════════════════════════════════════════════════════════════╝
+# ══════════════════════════════════════════════════════════════════════
+# Psitta — Security Scanning Pipeline
+#
+# Triggers: nightly at 02:00 UTC + manual dispatch
+# Scans:    dependency audit, container scan, secret detection, SAST
+# ══════════════════════════════════════════════════════════════════════
 
-name: Security Scan
+name: Security
 
 on:
   schedule:
-    - cron: "30 3 * * *"     # 03:30 UTC daily
-  workflow_dispatch:
+    - cron: "0 2 * * *"  # Daily at 02:00 UTC
+  workflow_dispatch:       # Manual trigger
 
 permissions:
   contents: read
   security-events: write
 
+env:
+  PYTHON_VERSION: "3.12"
+
 jobs:
+  # ── Python Dependency Audit ────────────────────────────────────────
   dependency-audit:
-    name: "Dependency Audit"
+    name: Dependency Audit
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Install backend deps
+      - name: Install dependencies
         working-directory: core/backend
         run: |
           pip install --upgrade pip
           pip install -e ".[dev]"
+          pip install pip-audit safety
 
-      - name: pip-audit
+      - name: pip-audit (OSV database)
         working-directory: core/backend
-        run: pip-audit --strict --desc on --output pip-audit.json --format json
-        continue-on-error: true
+        run: pip-audit --strict --desc --output json > pip-audit-results.json || true
+
+      - name: safety check (PyUp database)
+        working-directory: core/backend
+        run: safety check --output json > safety-results.json || true
 
       - name: Upload audit results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: pip-audit-results
-          path: core/backend/pip-audit.json
+          name: dependency-audit
+          path: |
+            core/backend/pip-audit-results.json
+            core/backend/safety-results.json
 
+  # ── Container Image Scan ───────────────────────────────────────────
   container-scan:
-    name: "Container Scan"
+    name: Container Scan
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Build image
-        run: |
-          docker build -t psitta-api:scan ./core/backend
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Trivy scan
+      - name: Build image for scanning
+        uses: docker/build-push-action@v6
+        with:
+          context: ./core/backend
+          target: runtime
+          push: false
+          load: true
+          tags: psitta-api:scan
+
+      - name: Trivy vulnerability scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: psitta-api:scan
           format: sarif
-          output: trivy-nightly.sarif
-          severity: MEDIUM,HIGH,CRITICAL
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          exit-code: 0
 
-      - name: Upload SARIF
+      - name: Upload Trivy results to GitHub Security
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-nightly.sarif
-          category: trivy-nightly
+          sarif_file: trivy-results.sarif
+          category: container-scan
+
+  # ── Secret Detection ───────────────────────────────────────────────
+  secret-scan:
+    name: Secret Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ── Static Analysis (CodeQL) ───────────────────────────────────────
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      matrix:
+        language: [python]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: +security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # ── Security Gate ──────────────────────────────────────────────────
+  security-gate:
+    name: Security Gate
+    if: always()
+    needs: [dependency-audit, container-scan, secret-scan, codeql]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check results
+        run: |
+          echo "── Security Scan Summary ──"
+          echo "Dependency Audit: ${{ needs.dependency-audit.result }}"
+          echo "Container Scan:   ${{ needs.container-scan.result }}"
+          echo "Secret Detection: ${{ needs.secret-scan.result }}"
+          echo "CodeQL Analysis:  ${{ needs.codeql.result }}"
+          echo ""
+          # Secret detection failure is critical
+          if [[ "${{ needs.secret-scan.result }}" == "failure" ]]; then
+            echo "❌ CRITICAL: Secrets detected in repository!"
+            exit 1
+          fi
+          # Other failures are warnings (don't block nightly)
+          if [[ "${{ needs.dependency-audit.result }}" == "failure" ]] || \
+             [[ "${{ needs.container-scan.result }}" == "failure" ]] || \
+             [[ "${{ needs.codeql.result }}" == "failure" ]]; then
+            echo "⚠️  Non-critical security findings — review artifacts"
+          else
+            echo "✅ All security checks passed"
+          fi

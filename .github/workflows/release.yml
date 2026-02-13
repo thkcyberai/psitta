@@ -1,218 +1,138 @@
-# ╔══════════════════════════════════════════════════════════════════════╗
-# ║  Psitta — Release & Deploy                                       ║
-# ║  Triggered on version tags (v*) or manual dispatch                  ║
-# ╚══════════════════════════════════════════════════════════════════════╝
+# ══════════════════════════════════════════════════════════════════════
+# Psitta — Release Pipeline
+#
+# Triggers: tag push matching v* (e.g., v0.1.0, v1.0.0-rc.1)
+# Actions:  build → push to GHCR → create GitHub Release
+# ══════════════════════════════════════════════════════════════════════
 
 name: Release
 
 on:
   push:
     tags:
-      - "v*.*.*"
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Target environment"
-        required: true
-        type: choice
-        options:
-          - staging
-          - production
-      skip_tests:
-        description: "Skip test suite (emergency hotfix only)"
-        required: false
-        type: boolean
-        default: false
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository_owner }}/psitta
-
-permissions:
-  contents: write        # For release creation
-  packages: write        # For GHCR push
-  id-token: write        # For OIDC attestation
+  IMAGE_NAME: ${{ github.repository }}/api
 
 jobs:
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Determine version & environment
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  meta:
-    name: "Release Metadata"
+  # ── Build & Push Container ─────────────────────────────────────────
+  release:
+    name: Build & Release
     runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      environment: ${{ steps.env.outputs.environment }}
-      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
-    steps:
-      - uses: actions/checkout@v4
+    timeout-minutes: 20
 
-      - name: Extract version
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
         id: version
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            version="${GITHUB_REF#refs/tags/v}"
-          else
-            version="0.0.0-dev.$(git rev-parse --short HEAD)"
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
-          if [[ "$version" == *"-"* ]]; then
-            echo "is_prerelease=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_prerelease=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "📦 Version: $version"
-
-      - name: Determine environment
-        id: env
-        run: |
-          if [[ -n "${{ inputs.environment }}" ]]; then
-            echo "environment=${{ inputs.environment }}" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ steps.version.outputs.is_prerelease }}" == "true" ]]; then
-            echo "environment=staging" >> "$GITHUB_OUTPUT"
-          else
-            echo "environment=production" >> "$GITHUB_OUTPUT"
-          fi
-
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Run CI (unless explicitly skipped for hotfix)
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  ci:
-    name: "Validate"
-    if: ${{ !inputs.skip_tests }}
-    uses: ./.github/workflows/ci.yml
-
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Build & Push Docker images
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  build-push:
-    name: "Build & Push"
-    runs-on: ubuntu-latest
-    needs: [meta, ci]
-    if: |
-      always() &&
-      needs.meta.result == 'success' &&
-      (needs.ci.result == 'success' || needs.ci.result == 'skipped')
-    strategy:
-      matrix:
-        component:
-          - name: api
-            context: ./core/backend
-            dockerfile: ./core/backend/Dockerfile
-    steps:
-      - uses: actions/checkout@v4
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to GHCR
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker meta
-        id: docker-meta
+      - name: Docker metadata
+        id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-${{ matrix.component.name }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.meta.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.meta.outputs.version }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
             type=sha,prefix=
-            type=raw,value=latest,enable=${{ needs.meta.outputs.is_prerelease == 'false' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.component.context }}
-          file: ${{ matrix.component.dockerfile }}
+          context: ./core/backend
+          target: runtime
           push: true
-          tags: ${{ steps.docker-meta.outputs.tags }}
-          labels: ${{ steps.docker-meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
-            APP_VERSION=${{ needs.meta.outputs.version }}
-            BUILD_SHA=${{ github.sha }}
-
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Database Migration
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  migrate:
-    name: "Migrate DB (${{ needs.meta.outputs.environment }})"
-    runs-on: ubuntu-latest
-    needs: [meta, build-push]
-    environment: ${{ needs.meta.outputs.environment }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run migrations
-        run: |
-          echo "🗃️  Running Alembic migrations against ${{ needs.meta.outputs.environment }}"
-          echo "    Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-api:${{ needs.meta.outputs.version }}"
-          # In real deployment, this runs:
-          # docker run --rm \
-          #   -e DATABASE_URL=${{ secrets.DATABASE_URL }} \
-          #   $IMAGE alembic upgrade head
-          echo "⚠️  Placeholder — wire to your infrastructure (ECS RunTask / K8s Job / SSH)"
-
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # Deploy
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  deploy:
-    name: "Deploy → ${{ needs.meta.outputs.environment }}"
-    runs-on: ubuntu-latest
-    needs: [meta, migrate]
-    environment:
-      name: ${{ needs.meta.outputs.environment }}
-      url: ${{ needs.meta.outputs.environment == 'production' && 'https://api.psitta.io' || 'https://staging-api.psitta.io' }}
-    steps:
-      - name: Deploy notification
-        run: |
-          echo "🚀 Deploying Psitta v${{ needs.meta.outputs.version }}"
-          echo "   Environment: ${{ needs.meta.outputs.environment }}"
-          echo "   Commit:      ${{ github.sha }}"
-          echo ""
-          echo "⚠️  Wire this step to your deployment target:"
-          echo "   - AWS ECS: update service with new task definition"
-          echo "   - Kubernetes: kubectl set image / helm upgrade"
-          echo "   - Fly.io: fly deploy --image ..."
-
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  # GitHub Release
-  # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  release:
-    name: "Create Release"
-    runs-on: ubuntu-latest
-    needs: [meta, deploy]
-    if: github.ref_type == 'tag'
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+            VERSION=${{ steps.version.outputs.version }}
 
       - name: Generate changelog
         id: changelog
         run: |
-          prev_tag=$(git tag --sort=-v:refname | head -2 | tail -1)
-          if [ -z "$prev_tag" ]; then
-            prev_tag=$(git rev-list --max-parents=0 HEAD)
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            echo "changelog=Initial release" >> $GITHUB_OUTPUT
+          else
+            CHANGES=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD)
+            # Write multiline output
+            echo "changelog<<CHANGELOG_EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGES" >> $GITHUB_OUTPUT
+            echo "CHANGELOG_EOF" >> $GITHUB_OUTPUT
           fi
-          echo "## What's Changed" > changelog.md
-          echo "" >> changelog.md
-          git log --pretty=format:"- %s (%h)" "$prev_tag"..HEAD >> changelog.md
-          echo "" >> changelog.md
-          echo "---" >> changelog.md
-          echo "**Full Changelog**: https://github.com/${{ github.repository }}/compare/$prev_tag...v${{ needs.meta.outputs.version }}" >> changelog.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.meta.outputs.version }}
-          name: "Psitta v${{ needs.meta.outputs.version }}"
-          body_path: changelog.md
-          prerelease: ${{ needs.meta.outputs.is_prerelease == 'true' }}
+          tag_name: ${{ github.ref_name }}
+          name: Psitta ${{ github.ref_name }}
+          body: |
+            ## Changes
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Container Image
+```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+```
+
+            ## Upgrade
+```bash
+            docker compose -f docker-compose.yml -f compose.prod.yml pull
+            docker compose -f docker-compose.yml -f compose.prod.yml up -d
+```
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           generate_release_notes: true
+
+  # ── Post-Release: Deploy ───────────────────────────────────────────
+  deploy:
+    name: Deploy
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy notification
+        run: |
+          echo "🚀 Psitta ${{ github.ref_name }} released"
+          echo ""
+          echo "TODO: Wire deployment target here"
+          echo "Options:"
+          echo "  - AWS ECS: update task definition with new image tag"
+          echo "  - Kubernetes: kubectl set image deployment/psitta-api"
+          echo "  - Fly.io: fly deploy --image ghcr.io/..."
+          echo ""
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME#v}"
