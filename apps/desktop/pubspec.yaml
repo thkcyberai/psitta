@@ -26,7 +26,7 @@ dependencies:
   just_audio: ^0.9.39
 
   # Desktop-specific
-  desktop_drop: ^0.4.4            # Drag & drop file upload
+  desktop_drop: ^0.7.0            # Drag & drop file upload
   window_manager: ^0.4.2          # Window size, title bar, positioning
   hotkey_manager: ^0.2.3          # Global keyboard shortcuts
 
