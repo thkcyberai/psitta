@@ -1,16 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
+import '../../data/providers/providers.dart';
 import '../shell/widgets/player_bar.dart';
 import 'widgets/chunk_navigator.dart';
-import 'widgets/playback_controls.dart';
 
-/// Player Screen — document playback with chunk navigation.
-///
-/// Desktop layout: two-pane view.
-/// Left: chunk navigator (table of contents with active highlight).
-/// Right: current chunk text with synchronized highlighting.
-/// The persistent player bar at the bottom handles transport controls.
 class PlayerScreen extends ConsumerStatefulWidget {
   final String documentId;
 
@@ -23,25 +17,12 @@ class PlayerScreen extends ConsumerStatefulWidget {
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _activeChunkIndex = 0;
 
-  // TODO: Replace with real data from PlaybackRepository
-  final List<Map<String, String>> _chunks = [
-    {'title': 'Abstract', 'preview': 'This paper presents a comprehensive overview...'},
-    {'title': 'Introduction', 'preview': 'Recent advances in large language models...'},
-    {'title': 'Background', 'preview': 'The field of AI safety has evolved...'},
-    {'title': 'Methodology', 'preview': 'We conducted a systematic review of...'},
-    {'title': 'Results', 'preview': 'Our analysis reveals three key findings...'},
-    {'title': 'Discussion', 'preview': 'The implications of these results...'},
-    {'title': 'Conclusion', 'preview': 'In summary, this work demonstrates...'},
-    {'title': 'References', 'preview': '[1] Smith et al., 2024...'},
-  ];
-
   @override
   void initState() {
     super.initState();
-    // Set the player bar title when entering player
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(currentDocTitleProvider.notifier).state =
-          'Document ${widget.documentId}';
+          'Document ${widget.documentId.substring(0, 8)}...';
     });
   }
 
@@ -49,82 +30,141 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+    final chunksAsync = ref.watch(chunksProvider(widget.documentId));
 
-    return Row(
-      children: [
-        // ── Chunk navigator (left pane) ────────────────────
-        SizedBox(
-          width: 280,
-          child: Container(
-            color: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Text(
-                    'Chapters',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(
-                  child: ChunkNavigator(
-                    chunks: _chunks,
-                    activeIndex: _activeChunkIndex,
-                    onChunkSelected: (index) {
-                      setState(() => _activeChunkIndex = index);
-                    },
-                  ),
-                ),
-              ],
+    return chunksAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (err, _) => Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            const SizedBox(height: 16),
+            Text('Failed to load document', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 8),
+            Text('$err', style: theme.textTheme.bodySmall),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => ref.invalidate(chunksProvider(widget.documentId)),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
             ),
-          ),
+          ],
         ),
-        const VerticalDivider(width: 1),
-
-        // ── Content area (right pane) ──────────────────────
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
+      ),
+      data: (data) {
+        final chunks = (data['chunks'] as List<dynamic>?) ?? [];
+        if (chunks.isEmpty) {
+          return Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                // Chunk title
-                Text(
-                  _chunks[_activeChunkIndex]['title']!,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+                const Icon(Icons.article_outlined, size: 48, color: AppColors.textSecondary),
+                const SizedBox(height: 16),
+                Text('No content available', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Text(
-                  'Chunk ${_activeChunkIndex + 1} of ${_chunks.length}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Chunk text content (scrollable)
-                Expanded(
-                  child: SingleChildScrollView(
-                    child: SelectableText(
-                      _chunks[_activeChunkIndex]['preview']! * 20,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        height: 1.8,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
+                  'This document has not been processed yet.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
                 ),
               ],
             ),
-          ),
-        ),
-      ],
+          );
+        }
+
+        if (_activeChunkIndex >= chunks.length) {
+          _activeChunkIndex = 0;
+        }
+
+        final chunkMaps = chunks.map<Map<String, String>>((c) {
+          final m = c as Map<String, dynamic>;
+          return {
+            'title': (m['title'] ?? 'Section ${(m['sequence_index'] ?? 0) + 1}').toString(),
+            'preview': _truncate((m['text_content'] ?? '').toString(), 80),
+          };
+        }).toList();
+
+        final activeChunk = chunks[_activeChunkIndex] as Map<String, dynamic>;
+        final chunkTitle = (activeChunk['title'] ?? 'Section ${_activeChunkIndex + 1}').toString();
+        final chunkText = (activeChunk['text_content'] ?? '').toString();
+
+        return Row(
+          children: [
+            SizedBox(
+              width: 280,
+              child: Container(
+                color: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Text(
+                        'Chapters',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child: ChunkNavigator(
+                        chunks: chunkMaps,
+                        activeIndex: _activeChunkIndex,
+                        onChunkSelected: (index) {
+                          setState(() => _activeChunkIndex = index);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const VerticalDivider(width: 1),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      chunkTitle,
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Chunk ${_activeChunkIndex + 1} of ${chunks.length}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: SelectableText(
+                          chunkText,
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            height: 1.8,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
+  }
+
+  String _truncate(String text, int maxLen) {
+    final clean = text.replaceAll('\n', ' ').trim();
+    if (clean.length <= maxLen) return clean;
+    return '${clean.substring(0, maxLen)}...';
   }
 }

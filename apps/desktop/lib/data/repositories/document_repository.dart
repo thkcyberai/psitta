@@ -31,4 +31,11 @@ class DocumentRepository {
   Future<void> deleteDocument(String id) async {
     await _api.dio.delete('/documents/$id');
   }
+
+  /// Get chunks for a document.
+  Future<Map<String, dynamic>> getChunks(String documentId) async {
+    final response = await _api.dio.get('/documents/$documentId/chunks/');
+    return response.data as Map<String, dynamic>;
+  }
+
 }
