@@ -12,7 +12,7 @@ class VoiceRepository {
     final params = <String, dynamic>{};
     if (language != null) params['language'] = language;
     if (tier != null) params['tier'] = tier;
-    final response = await _api.dio.get('/voices', queryParameters: params);
+    final response = await _api.dio.get('/voices/', queryParameters: params);
     final items = response.data['voices'] as List<dynamic>;
     return items.map((e) => Voice.fromJson(e as Map<String, dynamic>)).toList();
   }

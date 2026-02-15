@@ -1,152 +1,148 @@
-"""
-Psitta — Document Management Routes.
-
-Endpoints for uploading, listing, retrieving status, and deleting documents.
-Documents pass through the pipeline: upload → parse → chunk → TTS → ready.
-
-Security:
-  - File size validated before storage (MAX_DOCUMENT_SIZE_MB)
-  - File type whitelist enforced (PDF, DOCX, TXT, MD, HTML)
-  - User isolation — users can only access their own documents
-  - Storage keys are opaque UUIDs (no user-guessable paths)
-"""
+"""Psitta - Document Management Routes."""
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+from psitta.dependencies import get_db_session
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
-# Allowed MIME types for upload validation
-ALLOWED_CONTENT_TYPES: frozenset[str] = frozenset({
-    "application/pdf",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "text/plain",
-    "text/markdown",
-    "text/html",
-})
+ALLOWED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".md", ".html"})
 
-ALLOWED_EXTENSIONS: frozenset[str] = frozenset({
-    ".pdf", ".docx", ".txt", ".md", ".html",
-})
+DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
-@router.post(
-    "/",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Upload a document for processing",
-    response_description="Document accepted and queued for processing",
-)
+@router.post("/", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
     file: UploadFile,
+    db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Upload a document to begin the narration pipeline.
-
-    The document is validated, stored, and a processing job is queued.
-    Returns immediately with the document ID and initial status.
-
-    Supported formats: PDF, DOCX, TXT, Markdown, HTML.
-    """
-    # ── Validate file type ─────────────────────────────────────────────
     filename = file.filename or "unknown"
     extension = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
     if extension not in ALLOWED_EXTENSIONS:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail=f"Unsupported file type '{extension}'. "
-                   f"Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
-        )
+        raise HTTPException(status_code=415, detail="Unsupported file type")
 
-    logger.info(
-        "document.upload.started",
-        filename=filename,
-        content_type=file.content_type,
-        extension=extension,
+    file_bytes = await file.read()
+    file_size = len(file_bytes)
+
+    doc_id = uuid4()
+    title = filename.rsplit(".", 1)[0] if "." in filename else filename
+    source_type = extension.lstrip(".")
+    storage_key = f"uploads/{doc_id}{extension}"
+    now = datetime.now(timezone.utc)
+
+    await db.execute(
+        text(
+            "INSERT INTO documents (id, user_id, title, source_type, status, file_size_bytes, storage_key, created_at, updated_at) "
+            "VALUES (:id, :user_id, :title, :source_type, :status, :file_size_bytes, :storage_key, :created_at, :updated_at)"
+        ),
+        {
+            "id": doc_id,
+            "user_id": DEV_USER_ID,
+            "title": title,
+            "source_type": source_type,
+            "status": "uploaded",
+            "file_size_bytes": file_size,
+            "storage_key": storage_key,
+            "created_at": now,
+            "updated_at": now,
+        },
     )
 
-    # TODO: Wire to DocumentService
-    # 1. Validate file size against MAX_DOCUMENT_SIZE_MB
-    # 2. Upload to S3 via StorageProvider
-    # 3. Create document record in DB
-    # 4. Enqueue processing job to Redis Streams
-    # 5. Return document ID + status
+    logger.info("document.upload.accepted", doc_id=str(doc_id), title=title)
 
     return {
-        "message": "Document upload endpoint — service layer pending",
-        "filename": filename,
-        "status": "accepted",
+        "id": str(doc_id),
+        "title": title,
+        "status": "uploaded",
+        "source_type": source_type,
+        "page_count": None,
+        "created_at": now.isoformat(),
     }
 
 
-@router.get(
-    "/",
-    summary="List user's documents",
-    response_description="Paginated list of documents",
-)
+@router.get("/")
 async def list_documents(
-    page: Annotated[int, Query(ge=1, description="Page number")] = 1,
-    size: Annotated[int, Query(ge=1, le=100, description="Items per page")] = 20,
+    page: Annotated[int, Query(ge=1)] = 1,
+    size: Annotated[int, Query(ge=1, le=100)] = 20,
+    db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Return paginated list of documents for the authenticated user.
+    offset = (page - 1) * size
 
-    Results are sorted by creation date (newest first).
-    Includes document status, page count, and processing progress.
-    """
-    logger.info("document.list", page=page, size=size)
+    count_result = await db.execute(
+        text("SELECT COUNT(*) FROM documents WHERE user_id = :uid AND status != 'deleted'"),
+        {"uid": DEV_USER_ID},
+    )
+    total = count_result.scalar() or 0
 
-    # TODO: Wire to DocumentService.list_documents()
+    rows = await db.execute(
+        text(
+            "SELECT id, title, status, source_type, page_count, created_at "
+            "FROM documents WHERE user_id = :uid AND status != 'deleted' "
+            "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
+        ),
+        {"uid": DEV_USER_ID, "lim": size, "off": offset},
+    )
+
+    items = [
+        {
+            "id": str(r.id),
+            "title": r.title,
+            "status": r.status,
+            "source_type": r.source_type,
+            "page_count": r.page_count,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        }
+        for r in rows
+    ]
+
+    return {"items": items, "page": page, "size": size, "total": total}
+
+
+@router.get("/{document_id}")
+async def get_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    result = await db.execute(
+        text("SELECT id, title, status, source_type, page_count, file_size_bytes, created_at FROM documents WHERE id = :did"),
+        {"did": document_id},
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+
     return {
-        "items": [],
-        "page": page,
-        "size": size,
-        "total": 0,
+        "id": str(row.id),
+        "title": row.title,
+        "status": row.status,
+        "source_type": row.source_type,
+        "page_count": row.page_count,
+        "file_size_bytes": row.file_size_bytes,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
     }
 
 
-@router.get(
-    "/{document_id}",
-    summary="Get document details and status",
-    response_description="Document metadata and processing status",
-)
-async def get_document(document_id: UUID) -> dict:
-    """Retrieve detailed information about a specific document.
-
-    Includes processing status, chunk count, available voices,
-    and estimated remaining processing time.
-    """
-    logger.info("document.get", document_id=str(document_id))
-
-    # TODO: Wire to DocumentService.get_document()
-    return {
-        "id": str(document_id),
-        "status": "pending",
-        "message": "Document detail endpoint — service layer pending",
-    }
-
-
-@router.delete(
-    "/{document_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a document and all associated audio",
-)
-async def delete_document(document_id: UUID) -> None:
-    """Soft-delete a document and all associated audio segments.
-
-    Marks the document as deleted. Actual storage cleanup
-    is handled by the retention worker on a scheduled basis.
-
-    Security: Only the document owner can delete their documents.
-    """
-    logger.info("document.delete", document_id=str(document_id))
-
-    # TODO: Wire to DocumentService.delete_document()
-    # 1. Verify ownership
-    # 2. Soft-delete document record
-    # 3. Enqueue storage cleanup job
+@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    result = await db.execute(
+        text("UPDATE documents SET status = 'deleted', updated_at = NOW() WHERE id = :did AND user_id = :uid AND status != 'deleted'"),
+        {"did": document_id, "uid": DEV_USER_ID},
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    logger.info("document.deleted", doc_id=str(document_id))

@@ -13,7 +13,7 @@ class PlaybackRepository {
     String voiceId = 'en-US-AriaNeural',
     double speed = 1.0,
   }) async {
-    final response = await _api.dio.post('/playback/sessions', data: {
+    final response = await _api.dio.post('/playback/sessions/', data: {
       'document_id': documentId,
       'voice_id': voiceId,
       'speed': speed,

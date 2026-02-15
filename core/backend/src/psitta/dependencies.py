@@ -31,31 +31,19 @@ async def get_app_settings() -> Settings:
 
 # ── Database Session ───────────────────────────────────────────────────
 async def get_db_session() -> AsyncGenerator:  # type: ignore[type-arg]
-    """Yield a transactional async database session.
-
-    The session is committed on success and rolled back on exception.
-    Connection is returned to the pool after the request completes.
-
-    Usage:
-        @router.get("/items")
-        async def list_items(db: AsyncSession = Depends(get_db_session)):
-            ...
-    """
-    # TODO: Wire to db/session.py once engine is configured
-    # from psitta.db.session import async_session_factory
-    # async with async_session_factory() as session:
-    #     try:
-    #         yield session
-    #         await session.commit()
-    #     except Exception:
-    #         await session.rollback()
-    #         raise
-    #     finally:
-    #         await session.close()
-    yield None  # Placeholder until DB is wired
+    """Yield a transactional async database session."""
+    from psitta.db.session import async_session_factory
+    async with async_session_factory() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 
 
-# ── Redis Connection ───────────────────────────────────────────────────
 async def get_redis():  # type: ignore[no-untyped-def]
     """Inject a Redis connection from the shared pool.
 

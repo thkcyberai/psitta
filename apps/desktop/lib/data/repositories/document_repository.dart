@@ -10,7 +10,7 @@ class DocumentRepository {
 
   /// List all documents for the current user.
   Future<List<Document>> listDocuments({int page = 1, int limit = 20}) async {
-    final response = await _api.dio.get('/documents', queryParameters: {
+    final response = await _api.dio.get('/documents/', queryParameters: {
       'page': page,
       'limit': limit,
     });
@@ -23,7 +23,7 @@ class DocumentRepository {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath),
     });
-    final response = await _api.dio.post('/documents', data: formData);
+    final response = await _api.dio.post('/documents/', data: formData);
     return Document.fromJson(response.data as Map<String, dynamic>);
   }
 

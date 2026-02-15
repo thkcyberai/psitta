@@ -18,7 +18,6 @@ class ApiClient {
       receiveTimeout: AppConstants.httpTimeout,
       headers: {
         'Accept': 'application/json',
-        'Content-Type': 'application/json',
       },
     ));
 

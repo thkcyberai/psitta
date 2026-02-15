@@ -1,74 +1,85 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
+import '../../data/providers/providers.dart';
 import 'widgets/voice_preview_card.dart';
 
-/// Voice Selector Screen — browse and preview available TTS voices.
-///
-/// Desktop layout: responsive grid with audio preview on hover/click.
-/// Voices are grouped by language with tier badges (free/premium).
-class VoiceSelectorScreen extends StatelessWidget {
+class VoiceSelectorScreen extends ConsumerWidget {
   const VoiceSelectorScreen({super.key});
 
-  // TODO: Replace with Riverpod provider + API data
-  static const _voices = [
-    {'name': 'Aria', 'id': 'en-US-AriaNeural', 'lang': 'English (US)', 'tier': 'free', 'gender': 'Female'},
-    {'name': 'Guy', 'id': 'en-US-GuyNeural', 'lang': 'English (US)', 'tier': 'free', 'gender': 'Male'},
-    {'name': 'Jenny', 'id': 'en-US-JennyNeural', 'lang': 'English (US)', 'tier': 'free', 'gender': 'Female'},
-    {'name': 'Davis', 'id': 'en-US-DavisNeural', 'lang': 'English (US)', 'tier': 'premium', 'gender': 'Male'},
-    {'name': 'Sonia', 'id': 'en-GB-SoniaNeural', 'lang': 'English (UK)', 'tier': 'free', 'gender': 'Female'},
-    {'name': 'Ryan', 'id': 'en-GB-RyanNeural', 'lang': 'English (UK)', 'tier': 'free', 'gender': 'Male'},
-  ];
-
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final voicesAsync = ref.watch(voicesProvider);
 
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Voices',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+          Text('Voices',
+              style: theme.textTheme.headlineSmall
+                  ?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
           Text(
             'Choose a voice for document narration. Preview before selecting.',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(color: AppColors.textSecondary),
           ),
           const SizedBox(height: 24),
           Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final crossAxisCount =
-                    (constraints.maxWidth / 320).floor().clamp(1, 4);
-                return GridView.builder(
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 2.8,
-                  ),
-                  itemCount: _voices.length,
-                  itemBuilder: (context, index) {
-                    final v = _voices[index];
-                    return VoicePreviewCard(
-                      voiceName: v['name']!,
-                      voiceId: v['id']!,
-                      language: v['lang']!,
-                      tier: v['tier']!,
-                      gender: v['gender']!,
-                      onPreview: () {},
-                      onSelect: () {},
-                    );
-                  },
-                );
-              },
+            child: voicesAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cloud_off, size: 48, color: AppColors.error),
+                    const SizedBox(height: 12),
+                    Text('Could not load voices', style: theme.textTheme.bodyLarge),
+                    const SizedBox(height: 4),
+                    Text(error.toString(),
+                        style: theme.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary)),
+                    const SizedBox(height: 16),
+                    OutlinedButton.icon(
+                      onPressed: () => ref.invalidate(voicesProvider),
+                      icon: const Icon(Icons.refresh, size: 18),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+              data: (voices) => voices.isEmpty
+                  ? Center(
+                      child: Text('No voices available',
+                          style: theme.textTheme.bodyLarge?.copyWith(color: AppColors.textSecondary)),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final crossAxisCount = (constraints.maxWidth / 320).floor().clamp(1, 4);
+                        return GridView.builder(
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: crossAxisCount,
+                            mainAxisSpacing: 12,
+                            crossAxisSpacing: 12,
+                            childAspectRatio: 2.8,
+                          ),
+                          itemCount: voices.length,
+                          itemBuilder: (context, index) {
+                            final v = voices[index];
+                            return VoicePreviewCard(
+                              voiceName: v.displayName,
+                              voiceId: v.id,
+                              language: v.language,
+                              tier: v.tier,
+                              gender: v.gender,
+                              onPreview: () {},
+                              onSelect: () {},
+                            );
+                          },
+                        );
+                      },
+                    ),
             ),
           ),
         ],
