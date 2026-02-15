@@ -323,3 +323,108 @@ async def delete_document(
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
     logger.info("document.deleted", doc_id=str(document_id))
+
+@router.post("/{document_id}/synthesize")
+async def synthesize_document(
+    document_id: UUID,
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Synthesize audio for all chunks in a document."""
+    from psitta.config import get_settings
+    settings = get_settings()
+
+    doc_result = await db.execute(
+        text("SELECT id, status FROM documents WHERE id = :did"),
+        {"did": document_id},
+    )
+    doc = doc_result.first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    chunks_result = await db.execute(
+        text("SELECT id, text_content FROM document_chunks WHERE document_id = :did ORDER BY sequence_index"),
+        {"did": document_id},
+    )
+    chunks = list(chunks_result)
+    if not chunks:
+        raise HTTPException(status_code=400, detail="No chunks to synthesize")
+
+    if not settings.ELEVENLABS_API_KEY.get_secret_value():
+        raise HTTPException(status_code=503, detail="TTS provider not configured. Set ELEVENLABS_API_KEY.")
+
+    from psitta.providers.tts_elevenlabs import ElevenLabsTTSProvider
+    import os
+    tts = ElevenLabsTTSProvider()
+
+    audio_dir = "/app/audio_cache"
+    os.makedirs(audio_dir, exist_ok=True)
+
+    synthesized = 0
+    for chunk in chunks:
+        existing = await db.execute(
+            text("SELECT id FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
+            {"cid": chunk.id, "vid": voice_id},
+        )
+        if existing.first():
+            synthesized += 1
+            continue
+
+        audio_bytes = await tts.synthesize(chunk.text_content, voice_id)
+
+        seg_id = uuid4()
+        audio_path = f"{audio_dir}/{seg_id}.mp3"
+        with open(audio_path, "wb") as f:
+            f.write(audio_bytes)
+
+        await db.execute(
+            text(
+                "INSERT INTO audio_segments (id, document_id, chunk_id, voice_id, speed, storage_key, duration_ms, file_size_bytes, format) "
+                "VALUES (:id, :doc_id, :chunk_id, :voice_id, :speed, :key, :dur, :size, :fmt)"
+            ),
+            {
+                "id": seg_id,
+                "doc_id": document_id,
+                "chunk_id": chunk.id,
+                "voice_id": voice_id,
+                "speed": 1.0,
+                "key": audio_path,
+                "dur": 0,
+                "size": len(audio_bytes),
+                "fmt": "mp3",
+            },
+        )
+        synthesized += 1
+        logger.info("tts.chunk.synthesized", chunk_id=str(chunk.id), size=len(audio_bytes))
+
+    await db.execute(
+        text("UPDATE documents SET status = 'ready', updated_at = NOW() WHERE id = :did"),
+        {"did": document_id},
+    )
+
+    return {"document_id": str(document_id), "synthesized": synthesized, "voice_id": voice_id}
+
+
+@router.get("/{document_id}/chunks/{chunk_id}/audio")
+async def get_chunk_audio(
+    document_id: UUID,
+    chunk_id: UUID,
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    """Stream audio for a specific chunk."""
+    from fastapi.responses import FileResponse
+
+    result = await db.execute(
+        text("SELECT storage_key FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
+        {"cid": chunk_id, "vid": voice_id},
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Audio not found. Run /synthesize first.")
+
+    import os
+    if not os.path.exists(row.storage_key):
+        raise HTTPException(status_code=404, detail="Audio file missing from cache")
+
+    return FileResponse(row.storage_key, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")

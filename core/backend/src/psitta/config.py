@@ -65,7 +65,9 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: SecretStr = SecretStr("minioadmin")
 
     # ── TTS Provider ───────────────────────────────────────────────────
-    TTS_PROVIDER: Literal["azure", "stub"] = "stub"
+    TTS_PROVIDER: Literal["elevenlabs", "azure", "stub"] = "stub"
+    ELEVENLABS_API_KEY: SecretStr = SecretStr("")
+    ELEVENLABS_MODEL: str = "eleven_multilingual_v2"
     AZURE_TTS_KEY: SecretStr = SecretStr("")
     AZURE_TTS_REGION: str = "eastus"
 

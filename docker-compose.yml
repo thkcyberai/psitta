@@ -133,6 +133,7 @@ services:
       --log-level ${LOG_LEVEL:-debug}
     volumes:
       - ./core/backend/src:/app/src:ro
+      - psitta-audio-cache:/app/audio_cache
     healthcheck:
       test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
       interval: 10s
@@ -161,6 +162,7 @@ services:
     command: python -m psitta.workers.document_processor
 
 volumes:
+  psitta-audio-cache:
   psitta-pgdata:
     driver: local
   psitta-redis:

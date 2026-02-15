@@ -12,26 +12,18 @@ logger = structlog.get_logger(__name__)
 router = APIRouter()
 
 VOICE_CATALOG = [
-    {"id": "en-US-AriaNeural", "display_name": "Aria", "language": "en-US", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "en-US-GuyNeural", "display_name": "Guy", "language": "en-US", "gender": "male", "tier": "free", "sample_url": None},
-    {"id": "en-US-JennyNeural", "display_name": "Jenny", "language": "en-US", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "en-US-DavisNeural", "display_name": "Davis", "language": "en-US", "gender": "male", "tier": "free", "sample_url": None},
-    {"id": "en-US-AmberNeural", "display_name": "Amber", "language": "en-US", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "en-US-AnaNeural", "display_name": "Ana", "language": "en-US", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "en-US-BrandonNeural", "display_name": "Brandon", "language": "en-US", "gender": "male", "tier": "free", "sample_url": None},
-    {"id": "en-US-ChristopherNeural", "display_name": "Christopher", "language": "en-US", "gender": "male", "tier": "free", "sample_url": None},
-    {"id": "en-GB-SoniaNeural", "display_name": "Sonia", "language": "en-GB", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "en-GB-RyanNeural", "display_name": "Ryan", "language": "en-GB", "gender": "male", "tier": "free", "sample_url": None},
-    {"id": "es-ES-ElviraNeural", "display_name": "Elvira", "language": "es-ES", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "es-MX-DaliaNeural", "display_name": "Dalia", "language": "es-MX", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "fr-FR-DeniseNeural", "display_name": "Denise", "language": "fr-FR", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "de-DE-KatjaNeural", "display_name": "Katja", "language": "de-DE", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "ja-JP-NanamiNeural", "display_name": "Nanami", "language": "ja-JP", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "zh-CN-XiaoxiaoNeural", "display_name": "Xiaoxiao", "language": "zh-CN", "gender": "female", "tier": "free", "sample_url": None},
-    {"id": "en-US-JennyMultilingualNeural", "display_name": "Jenny (Multilingual)", "language": "en-US", "gender": "female", "tier": "premium", "sample_url": None},
-    {"id": "en-US-RogerNeural", "display_name": "Roger", "language": "en-US", "gender": "male", "tier": "premium", "sample_url": None},
-    {"id": "en-US-SteffanNeural", "display_name": "Steffan", "language": "en-US", "gender": "male", "tier": "premium", "sample_url": None},
-    {"id": "en-US-AriaMultilingualNeural", "display_name": "Aria (Multilingual)", "language": "en-US", "gender": "female", "tier": "premium", "sample_url": None},
+    {"id": "21m00Tcm4TlvDq8ikWAM", "display_name": "Rachel", "language": "en-US", "gender": "female", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "29vD33N1CtxCmqQRPOHJ", "display_name": "Drew", "language": "en-US", "gender": "male", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "EXAVITQu4vr4xnSDxMaL", "display_name": "Bella", "language": "en-US", "gender": "female", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "ErXwobaYiN019PkySvjV", "display_name": "Antoni", "language": "en-US", "gender": "male", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "TxGEqnHWrfWFTfGW9XjX", "display_name": "Josh", "language": "en-US", "gender": "male", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "VR6AewLTigWG4xSOukaG", "display_name": "Arnold", "language": "en-US", "gender": "male", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "pNInz6obpgDQGcFmaJgB", "display_name": "Adam", "language": "en-US", "gender": "male", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "yoZ06aMxZJJ28mfd3POQ", "display_name": "Sam", "language": "en-US", "gender": "male", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "jBpfuIE2acCO8z3wKNLl", "display_name": "Gigi", "language": "en-US", "gender": "female", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "AZnzlk1XvdvUeBnXmlld", "display_name": "Domi", "language": "en-US", "gender": "female", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "MF3mGyEYCl7XYWbV9V6O", "display_name": "Elli", "language": "en-US", "gender": "female", "tier": "free", "provider": "elevenlabs", "sample_url": None},
+    {"id": "2EiwWnXFnvU5JabPnv8n", "display_name": "Clyde", "language": "en-US", "gender": "male", "tier": "free", "provider": "elevenlabs", "sample_url": None},
 ]
 
 
@@ -63,7 +55,7 @@ async def preview_voice(voice_id: str) -> dict:
 
 @router.get("/profiles/me", summary="Get user voice profile")
 async def get_voice_profile() -> dict:
-    return {"preferred_voice_id": "en-US-AriaNeural", "default_speed": 1.0}
+    return {"preferred_voice_id": "21m00Tcm4TlvDq8ikWAM", "default_speed": 1.0}
 
 
 @router.put("/profiles/me", summary="Update user voice profile")
