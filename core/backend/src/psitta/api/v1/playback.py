@@ -16,7 +16,7 @@ from typing import Annotated
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -127,7 +127,7 @@ async def update_position(
 )
 async def stream_chunk_audio(
     session_id: UUID,
-    chunk_index: Annotated[int, Query(ge=0)],
+    chunk_index: Annotated[int, Path(ge=0)],
 ) -> dict:
     """Stream the audio file for a specific chunk.
 

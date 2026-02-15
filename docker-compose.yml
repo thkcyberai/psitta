@@ -95,11 +95,11 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_NAME: ${DATABASE_NAME:-psitta}
-      DATABASE_USER: ${DATABASE_USER:-psitta}
-      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-psitta_dev_password}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-psitta}
+      POSTGRES_USER: ${POSTGRES_USER:-psitta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-psitta_dev_password}
     command: alembic -c alembic.ini upgrade head
     profiles: ["migrate"]
 
@@ -121,7 +121,7 @@ services:
       - "8000:8000"
     env_file: .env
     environment:
-      DATABASE_HOST: postgres
+      POSTGRES_HOST: postgres
       REDIS_HOST: redis
       S3_ENDPOINT_URL: http://minio:9000
     command: >
@@ -155,7 +155,7 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DATABASE_HOST: postgres
+      POSTGRES_HOST: postgres
       REDIS_HOST: redis
       S3_ENDPOINT_URL: http://minio:9000
     command: python -m psitta.workers.document_processor
