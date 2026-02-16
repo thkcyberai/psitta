@@ -1,41 +1,54 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:just_audio/just_audio.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/extensions.dart';
+import '../../../data/services/audio_service.dart';
 
-/// Playback state — shared across shell and player screen.
-final isPlayingProvider = StateProvider<bool>((ref) => false);
+/// Shared state for current document info in the player bar.
 final currentDocTitleProvider = StateProvider<String?>((ref) => null);
-final playbackPositionProvider = StateProvider<Duration>((ref) => Duration.zero);
-final playbackDurationProvider = StateProvider<Duration>(
-  (ref) => const Duration(minutes: 5),
-);
+final currentChunkIndexProvider = StateProvider<int>((ref) => 0);
+final totalChunksProvider = StateProvider<int>((ref) => 0);
 
-/// Player Bar — persistent audio controls at the bottom of the shell.
-///
-/// Always visible. Shows current document title, play/pause,
-/// skip controls, progress slider, and speed indicator.
-/// When nothing is playing, shows a muted "No document playing" state.
+/// Current document and chunk IDs for audio loading.
+final activeDocumentIdProvider = StateProvider<String?>((ref) => null);
+final activeChunkIdsProvider = StateProvider<List<String>>((ref) => []);
+
+/// Player Bar with real audio playback via just_audio.
 class PlayerBar extends ConsumerWidget {
   const PlayerBar({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isPlaying = ref.watch(isPlayingProvider);
     final docTitle = ref.watch(currentDocTitleProvider);
-    final position = ref.watch(playbackPositionProvider);
-    final duration = ref.watch(playbackDurationProvider);
+    final chunkIndex = ref.watch(currentChunkIndexProvider);
+    final totalChunks = ref.watch(totalChunksProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-
     final hasActiveSession = docTitle != null;
+
+    // Audio streams
+    final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ?? false;
+    final position = ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero;
+    final duration = ref.watch(audioDurationProvider).valueOrNull ?? const Duration(minutes: 5);
+    final audioService = ref.watch(audioServiceProvider);
+
+    // Auto-advance to next chunk when current one finishes
+    ref.listen<AsyncValue<PlayerState>>(audioPlayerStateProvider, (prev, next) {
+      final state = next.valueOrNull;
+      if (state != null &&
+          state.processingState == ProcessingState.completed &&
+          state.playing == false) {
+        _skipForward(ref, audioService);
+      }
+    });
 
     return Container(
       color: isDark ? AppColors.playerBarDark : AppColors.playerBar,
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          // ── Document info (left) ───────────────────────────
+          // Document info (left)
           SizedBox(
             width: 200,
             child: hasActiveSession
@@ -53,7 +66,9 @@ class PlayerBar extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Chapter 1 of 12',
+                        totalChunks > 0
+                            ? 'Chapter ${chunkIndex + 1} of $totalChunks'
+                            : 'No chapters',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: isDark
                               ? AppColors.textSecondaryDark
@@ -72,20 +87,21 @@ class PlayerBar extends ConsumerWidget {
                   ),
           ),
 
-          // ── Playback controls (center) ─────────────────────
+          // Playback controls (center)
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Controls row
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
                       icon: const Icon(Icons.skip_previous, size: 22),
-                      onPressed: hasActiveSession ? () {} : null,
-                      tooltip: 'Previous chunk (Ctrl+←)',
+                      onPressed: hasActiveSession
+                          ? () => _skipBackward(ref, audioService)
+                          : null,
+                      tooltip: 'Previous chunk',
                     ),
                     const SizedBox(width: 8),
                     IconButton(
@@ -97,21 +113,20 @@ class PlayerBar extends ConsumerWidget {
                         color: hasActiveSession ? AppColors.primary : null,
                       ),
                       onPressed: hasActiveSession
-                          ? () => ref
-                              .read(isPlayingProvider.notifier)
-                              .state = !isPlaying
+                          ? () => audioService.togglePlayPause()
                           : null,
                       tooltip: 'Play/Pause (Space)',
                     ),
                     const SizedBox(width: 8),
                     IconButton(
                       icon: const Icon(Icons.skip_next, size: 22),
-                      onPressed: hasActiveSession ? () {} : null,
-                      tooltip: 'Next chunk (Ctrl+→)',
+                      onPressed: hasActiveSession
+                          ? () => _skipForward(ref, audioService)
+                          : null,
+                      tooltip: 'Next chunk',
                     ),
                   ],
                 ),
-                // Progress slider
                 SizedBox(
                   height: 20,
                   child: Row(
@@ -122,12 +137,15 @@ class PlayerBar extends ConsumerWidget {
                       ),
                       Expanded(
                         child: Slider(
-                          value: position.inMilliseconds.toDouble(),
-                          max: duration.inMilliseconds.toDouble().clamp(1, double.infinity),
+                          value: position.inMilliseconds
+                              .toDouble()
+                              .clamp(0, duration.inMilliseconds.toDouble()),
+                          max: duration.inMilliseconds
+                              .toDouble()
+                              .clamp(1, double.infinity),
                           onChanged: hasActiveSession
-                              ? (v) => ref
-                                  .read(playbackPositionProvider.notifier)
-                                  .state = Duration(milliseconds: v.toInt())
+                              ? (v) => audioService
+                                  .seek(Duration(milliseconds: v.toInt()))
                               : null,
                         ),
                       ),
@@ -142,7 +160,7 @@ class PlayerBar extends ConsumerWidget {
             ),
           ),
 
-          // ── Speed & volume (right) ─────────────────────────
+          // Speed and volume (right)
           SizedBox(
             width: 120,
             child: Row(
@@ -168,5 +186,35 @@ class PlayerBar extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  void _skipForward(WidgetRef ref, AudioService audioService) {
+    final chunkIds = ref.read(activeChunkIdsProvider);
+    final current = ref.read(currentChunkIndexProvider);
+    if (current < chunkIds.length - 1) {
+      ref.read(currentChunkIndexProvider.notifier).state = current + 1;
+      final docId = ref.read(activeDocumentIdProvider);
+      if (docId != null) {
+        audioService.playChunk(
+          documentId: docId,
+          chunkId: chunkIds[current + 1],
+        );
+      }
+    }
+  }
+
+  void _skipBackward(WidgetRef ref, AudioService audioService) {
+    final chunkIds = ref.read(activeChunkIdsProvider);
+    final current = ref.read(currentChunkIndexProvider);
+    if (current > 0) {
+      ref.read(currentChunkIndexProvider.notifier).state = current - 1;
+      final docId = ref.read(activeDocumentIdProvider);
+      if (docId != null) {
+        audioService.playChunk(
+          documentId: docId,
+          chunkId: chunkIds[current - 1],
+        );
+      }
+    }
   }
 }

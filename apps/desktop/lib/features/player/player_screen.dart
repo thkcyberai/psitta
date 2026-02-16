@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
+import '../../data/services/audio_service.dart';
 import '../shell/widgets/player_bar.dart';
 import 'widgets/chunk_navigator.dart';
 
@@ -15,14 +16,13 @@ class PlayerScreen extends ConsumerStatefulWidget {
 }
 
 class _PlayerScreenState extends ConsumerState<PlayerScreen> {
-  int _activeChunkIndex = 0;
-
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(currentDocTitleProvider.notifier).state =
-          'Document ${widget.documentId.substring(0, 8)}...';
+          "Document ${widget.documentId.substring(0, 8)}...";
+      ref.read(activeDocumentIdProvider.notifier).state = widget.documentId;
     });
   }
 
@@ -31,6 +31,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final chunksAsync = ref.watch(chunksProvider(widget.documentId));
+    final activeChunkIndex = ref.watch(currentChunkIndexProvider);
 
     return chunksAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -40,20 +41,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             const Icon(Icons.error_outline, size: 48, color: AppColors.error),
             const SizedBox(height: 16),
-            Text('Failed to load document', style: theme.textTheme.titleMedium),
+            Text("Failed to load document", style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
-            Text('$err', style: theme.textTheme.bodySmall),
+            Text("$err", style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () => ref.invalidate(chunksProvider(widget.documentId)),
               icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
+              label: const Text("Retry"),
             ),
           ],
         ),
       ),
       data: (data) {
-        final chunks = (data['chunks'] as List<dynamic>?) ?? [];
+        final chunks = (data["chunks"] as List<dynamic>?) ?? [];
         if (chunks.isEmpty) {
           return Center(
             child: Column(
@@ -61,32 +62,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               children: [
                 const Icon(Icons.article_outlined, size: 48, color: AppColors.textSecondary),
                 const SizedBox(height: 16),
-                Text('No content available', style: theme.textTheme.titleMedium),
-                const SizedBox(height: 8),
-                Text(
-                  'This document has not been processed yet.',
-                  style: theme.textTheme.bodySmall?.copyWith(color: AppColors.textSecondary),
-                ),
+                Text("No content available", style: theme.textTheme.titleMedium),
               ],
             ),
           );
         }
 
-        if (_activeChunkIndex >= chunks.length) {
-          _activeChunkIndex = 0;
-        }
+        // Update player bar state
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final chunkIds = chunks.map<String>((c) {
+            return ((c as Map<String, dynamic>)["id"] ?? "").toString();
+          }).toList();
+          ref.read(activeChunkIdsProvider.notifier).state = chunkIds;
+          ref.read(totalChunksProvider.notifier).state = chunks.length;
+        });
+
+        final currentIndex = activeChunkIndex.clamp(0, chunks.length - 1);
 
         final chunkMaps = chunks.map<Map<String, String>>((c) {
           final m = c as Map<String, dynamic>;
           return {
-            'title': (m['title'] ?? 'Section ${(m['sequence_index'] ?? 0) + 1}').toString(),
-            'preview': _truncate((m['text_content'] ?? '').toString(), 80),
+            "title": (m["title"] ?? "Section ${(m["sequence_index"] ?? 0) + 1}").toString(),
+            "preview": _truncate((m["text_content"] ?? "").toString(), 80),
           };
         }).toList();
 
-        final activeChunk = chunks[_activeChunkIndex] as Map<String, dynamic>;
-        final chunkTitle = (activeChunk['title'] ?? 'Section ${_activeChunkIndex + 1}').toString();
-        final chunkText = (activeChunk['text_content'] ?? '').toString();
+        final activeChunk = chunks[currentIndex] as Map<String, dynamic>;
+        final chunkTitle = (activeChunk["title"] ?? "Section ${currentIndex + 1}").toString();
+        final chunkText = (activeChunk["text_content"] ?? "").toString();
 
         return Row(
           children: [
@@ -100,7 +103,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     Padding(
                       padding: const EdgeInsets.all(16),
                       child: Text(
-                        'Chapters',
+                        "Chapters",
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
@@ -110,9 +113,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     Expanded(
                       child: ChunkNavigator(
                         chunks: chunkMaps,
-                        activeIndex: _activeChunkIndex,
+                        activeIndex: currentIndex,
                         onChunkSelected: (index) {
-                          setState(() => _activeChunkIndex = index);
+                          ref.read(currentChunkIndexProvider.notifier).state = index;
+                          final chunkIds = ref.read(activeChunkIdsProvider);
+                          if (index < chunkIds.length) {
+                            final audioService = ref.read(audioServiceProvider);
+                            audioService.playChunk(
+                              documentId: widget.documentId,
+                              chunkId: chunkIds[index],
+                            );
+                          }
                         },
                       ),
                     ),
@@ -135,7 +146,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Chunk ${_activeChunkIndex + 1} of ${chunks.length}',
+                      "Chunk ${currentIndex + 1} of ${chunks.length}",
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: AppColors.textSecondary,
                       ),
@@ -165,6 +176,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String _truncate(String text, int maxLen) {
     final clean = text.replaceAll('\n', ' ').trim();
     if (clean.length <= maxLen) return clean;
-    return '${clean.substring(0, maxLen)}...';
+    return "${clean.substring(0, maxLen)}...";
   }
 }
