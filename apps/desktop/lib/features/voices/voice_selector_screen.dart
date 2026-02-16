@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
+import '../../data/services/audio_service.dart';
+import '../shell/widgets/player_bar.dart';
 import 'widgets/voice_preview_card.dart';
 
 class VoiceSelectorScreen extends ConsumerWidget {
@@ -11,6 +13,7 @@ class VoiceSelectorScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final voicesAsync = ref.watch(voicesProvider);
+    final selectedVoiceId = ref.watch(selectedVoiceIdProvider);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -73,8 +76,31 @@ class VoiceSelectorScreen extends ConsumerWidget {
                               language: v.language,
                               tier: v.tier,
                               gender: v.gender,
-                              onPreview: () {},
-                              onSelect: () {},
+                              isSelected: v.id == selectedVoiceId,
+                              onPreview: () {
+                                // Preview: play a short sample with this voice
+                                final audioService = ref.read(audioServiceProvider);
+                                final docId = ref.read(activeDocumentIdProvider);
+                                final chunkIds = ref.read(activeChunkIdsProvider);
+                                if (docId != null && chunkIds.isNotEmpty) {
+                                  audioService.playChunk(
+                                    documentId: docId,
+                                    chunkId: chunkIds.first,
+                                    voiceId: v.id,
+                                  );
+                                }
+                              },
+                              onSelect: () {
+                                ref.read(selectedVoiceIdProvider.notifier).state = v.id;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Voice set to ${v.displayName}'),
+                                    duration: const Duration(seconds: 2),
+                                    behavior: SnackBarBehavior.floating,
+                                    width: 280,
+                                  ),
+                                );
+                              },
                             );
                           },
                         );

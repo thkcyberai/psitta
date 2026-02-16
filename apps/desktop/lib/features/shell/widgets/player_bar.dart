@@ -14,6 +14,10 @@ final totalChunksProvider = StateProvider<int>((ref) => 0);
 final activeDocumentIdProvider = StateProvider<String?>((ref) => null);
 final activeChunkIdsProvider = StateProvider<List<String>>((ref) => []);
 
+/// Selected voice ID — Rachel is default.
+final selectedVoiceIdProvider =
+    StateProvider<String>((ref) => "21m00Tcm4TlvDq8ikWAM");
+
 /// Player Bar with real audio playback via just_audio.
 class PlayerBar extends ConsumerWidget {
   const PlayerBar({super.key});
@@ -29,9 +33,13 @@ class PlayerBar extends ConsumerWidget {
 
     // Audio streams
     final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ?? false;
-    final position = ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero;
-    final duration = ref.watch(audioDurationProvider).valueOrNull ?? const Duration(minutes: 5);
+    final position =
+        ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero;
+    final duration = ref.watch(audioDurationProvider).valueOrNull ??
+        const Duration(minutes: 5);
     final audioService = ref.watch(audioServiceProvider);
+    final isSynthesizing =
+        ref.watch(isSynthesizingProvider).valueOrNull ?? false;
 
     // Auto-advance to next chunk when current one finishes
     ref.listen<AsyncValue<PlayerState>>(audioPlayerStateProvider, (prev, next) {
@@ -104,19 +112,60 @@ class PlayerBar extends ConsumerWidget {
                       tooltip: 'Previous chunk',
                     ),
                     const SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(
-                        isPlaying
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                        size: 38,
-                        color: hasActiveSession ? AppColors.primary : null,
-                      ),
-                      onPressed: hasActiveSession
-                          ? () => audioService.togglePlayPause()
-                          : null,
-                      tooltip: 'Play/Pause (Space)',
+
+                    // Play/Pause button — shows spinner when synthesizing
+                    SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: isSynthesizing
+                          ? const Center(
+                              child: SizedBox(
+                                width: 28,
+                                height: 28,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 3,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            )
+                          : IconButton(
+                              icon: Icon(
+                                isPlaying
+                                    ? Icons.pause_circle_filled
+                                    : Icons.play_circle_filled,
+                                size: 38,
+                                color: hasActiveSession
+                                    ? AppColors.primary
+                                    : null,
+                              ),
+                              onPressed: hasActiveSession
+                                  ? () {
+                                      if (audioService.duration == null) {
+                                        final chunkIds = ref
+                                            .read(activeChunkIdsProvider);
+                                        final docId = ref
+                                            .read(activeDocumentIdProvider);
+                                        final idx = ref.read(
+                                            currentChunkIndexProvider);
+                                        if (docId != null &&
+                                            idx < chunkIds.length) {
+                                          final voiceId = ref
+                                              .read(selectedVoiceIdProvider);
+                                          audioService.playChunk(
+                                            documentId: docId,
+                                            chunkId: chunkIds[idx],
+                                            voiceId: voiceId,
+                                          );
+                                        }
+                                      } else {
+                                        audioService.togglePlayPause();
+                                      }
+                                    }
+                                  : null,
+                              tooltip: 'Play/Pause (Space)',
+                            ),
                     ),
+
                     const SizedBox(width: 8),
                     IconButton(
                       icon: const Icon(Icons.skip_next, size: 22),
@@ -192,13 +241,25 @@ class PlayerBar extends ConsumerWidget {
     final chunkIds = ref.read(activeChunkIdsProvider);
     final current = ref.read(currentChunkIndexProvider);
     if (current < chunkIds.length - 1) {
-      ref.read(currentChunkIndexProvider.notifier).state = current + 1;
+      final nextIdx = current + 1;
+      ref.read(currentChunkIndexProvider.notifier).state = nextIdx;
       final docId = ref.read(activeDocumentIdProvider);
       if (docId != null) {
+        final voiceId = ref.read(selectedVoiceIdProvider);
         audioService.playChunk(
           documentId: docId,
-          chunkId: chunkIds[current + 1],
-        );
+          chunkId: chunkIds[nextIdx],
+          voiceId: voiceId,
+        ).then((_) {
+          // Prefetch the chunk after next
+          if (nextIdx + 1 < chunkIds.length) {
+            audioService.prefetchChunk(
+              documentId: docId,
+              chunkId: chunkIds[nextIdx + 1],
+              voiceId: voiceId,
+            );
+          }
+        });
       }
     }
   }
@@ -207,12 +268,15 @@ class PlayerBar extends ConsumerWidget {
     final chunkIds = ref.read(activeChunkIdsProvider);
     final current = ref.read(currentChunkIndexProvider);
     if (current > 0) {
-      ref.read(currentChunkIndexProvider.notifier).state = current - 1;
+      final prevIdx = current - 1;
+      ref.read(currentChunkIndexProvider.notifier).state = prevIdx;
       final docId = ref.read(activeDocumentIdProvider);
       if (docId != null) {
+        final voiceId = ref.read(selectedVoiceIdProvider);
         audioService.playChunk(
           documentId: docId,
-          chunkId: chunkIds[current - 1],
+          chunkId: chunkIds[prevIdx],
+          voiceId: voiceId,
         );
       }
     }

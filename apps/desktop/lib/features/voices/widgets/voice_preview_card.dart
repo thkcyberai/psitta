@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/colors.dart';
 
-/// Voice preview card — displays voice info with play preview button.
+/// Voice preview card — displays voice info with preview and select.
 class VoicePreviewCard extends StatelessWidget {
   final String voiceName;
   final String voiceId;
   final String language;
   final String tier;
   final String gender;
+  final bool isSelected;
   final VoidCallback onPreview;
   final VoidCallback onSelect;
 
@@ -18,6 +19,7 @@ class VoicePreviewCard extends StatelessWidget {
     required this.language,
     required this.tier,
     required this.gender,
+    required this.isSelected,
     required this.onPreview,
     required this.onSelect,
   });
@@ -31,7 +33,10 @@ class VoicePreviewCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: theme.dividerColor.withOpacity(0.5)),
+        side: BorderSide(
+          color: isSelected ? AppColors.primary : theme.dividerColor.withOpacity(0.5),
+          width: isSelected ? 2 : 1,
+        ),
       ),
       child: InkWell(
         onTap: onSelect,
@@ -93,12 +98,15 @@ class VoicePreviewCard extends StatelessWidget {
                 onPressed: onPreview,
                 tooltip: 'Preview voice',
               ),
-              // Select button
+              // Select indicator
               IconButton(
-                icon: const Icon(Icons.check_circle_outline, size: 20),
+                icon: Icon(
+                  isSelected ? Icons.check_circle : Icons.circle_outlined,
+                  size: 22,
+                  color: isSelected ? AppColors.primary : AppColors.textSecondary,
+                ),
                 onPressed: onSelect,
-                tooltip: 'Select as default voice',
-                color: AppColors.primary,
+                tooltip: isSelected ? 'Currently selected' : 'Select as default voice',
               ),
             ],
           ),

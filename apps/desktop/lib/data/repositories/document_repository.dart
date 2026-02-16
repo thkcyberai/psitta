@@ -34,8 +34,16 @@ class DocumentRepository {
 
   /// Get chunks for a document.
   Future<Map<String, dynamic>> getChunks(String documentId) async {
-    final response = await _api.dio.get('/documents/$documentId/chunks/');
+    final response = await _api.dio.get('/documents/$documentId/chunks');
     return response.data as Map<String, dynamic>;
   }
 
+  /// Synthesize all chunks for a document with a specific voice.
+  Future<Map<String, dynamic>> synthesizeDocument(String documentId, String voiceId) async {
+    final response = await _api.dio.post(
+      '/documents/$documentId/synthesize',
+      queryParameters: {'voice_id': voiceId},
+    );
+    return response.data as Map<String, dynamic>;
+  }
 }

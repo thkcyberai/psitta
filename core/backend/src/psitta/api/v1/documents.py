@@ -412,19 +412,73 @@ async def get_chunk_audio(
     voice_id: str = "21m00Tcm4TlvDq8ikWAM",
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    """Stream audio for a specific chunk."""
+    """Stream audio for a specific chunk. Auto-synthesizes on cache miss."""
+    import os
     from fastapi.responses import FileResponse
 
+    # Check cache first
     result = await db.execute(
         text("SELECT storage_key FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
         {"cid": chunk_id, "vid": voice_id},
     )
     row = result.first()
-    if not row:
-        raise HTTPException(status_code=404, detail="Audio not found. Run /synthesize first.")
 
-    import os
-    if not os.path.exists(row.storage_key):
-        raise HTTPException(status_code=404, detail="Audio file missing from cache")
+    if row and os.path.exists(row.storage_key):
+        return FileResponse(row.storage_key, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
 
-    return FileResponse(row.storage_key, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
+    # Cache miss -- synthesize on demand
+    logger.info("audio.cache_miss", chunk_id=str(chunk_id), voice_id=voice_id)
+
+    # Get chunk text
+    chunk_result = await db.execute(
+        text("SELECT text_content FROM document_chunks WHERE id = :cid AND document_id = :did"),
+        {"cid": chunk_id, "did": document_id},
+    )
+    chunk_row = chunk_result.first()
+    if not chunk_row or not chunk_row.text_content:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+
+    # Synthesize
+    from psitta.providers.tts_elevenlabs import ElevenLabsTTSProvider
+    tts = ElevenLabsTTSProvider()
+    try:
+        audio_bytes = await tts.synthesize(chunk_row.text_content, voice_id)
+    except Exception as e:
+        logger.error("audio.synthesize_failed", error=str(e), voice_id=voice_id)
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {e}")
+
+    # Save to disk
+    audio_dir = "/tmp/psitta_audio"
+    os.makedirs(audio_dir, exist_ok=True)
+    storage_key = f"{audio_dir}/{chunk_id}_{voice_id}.mp3"
+    with open(storage_key, "wb") as f:
+        f.write(audio_bytes)
+
+    # Insert cache record (delete stale row first if file was missing)
+    if row:
+        await db.execute(
+            text("DELETE FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
+            {"cid": chunk_id, "vid": voice_id},
+        )
+    from uuid import uuid4 as _uuid4
+    await db.execute(
+        text(
+            "INSERT INTO audio_segments (id, document_id, chunk_id, voice_id, speed, storage_key, duration_ms, file_size_bytes, format) "
+            "VALUES (:id, :doc_id, :chunk_id, :voice_id, :speed, :key, :dur, :size, :fmt)"
+        ),
+        {
+            "id": _uuid4(),
+            "doc_id": document_id,
+            "chunk_id": chunk_id,
+            "voice_id": voice_id,
+            "speed": 1.0,
+            "key": storage_key,
+            "dur": int(len(audio_bytes) / 24),
+            "size": len(audio_bytes),
+            "fmt": "mp3",
+        },
+    )
+    await db.commit()
+    logger.info("audio.synthesized_on_demand", chunk_id=str(chunk_id), voice_id=voice_id, size=len(audio_bytes))
+
+    return FileResponse(storage_key, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
