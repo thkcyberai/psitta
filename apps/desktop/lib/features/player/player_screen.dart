@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
+import '../../data/services/preferences_service.dart';
 import '../shell/widgets/player_bar.dart';
 import 'widgets/chunk_navigator.dart';
 
@@ -127,7 +128,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           }
 
           // Listen for voice changes and re-play current chunk with new voice
-          ref.listen(selectedVoiceIdProvider, (previous, next) {
+          ref.listen<String>(selectedVoiceIdProvider, (previous, next) {
             if (previous != null && previous != next) {
               final ids = ref.read(activeChunkIdsProvider);
               final idx = ref.read(currentChunkIndexProvider);

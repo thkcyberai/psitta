@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
+import '../../data/services/preferences_service.dart';
 import '../shell/widgets/player_bar.dart';
 import 'widgets/voice_preview_card.dart';
 
@@ -91,7 +92,7 @@ class VoiceSelectorScreen extends ConsumerWidget {
                                 }
                               },
                               onSelect: () {
-                                ref.read(selectedVoiceIdProvider.notifier).state = v.id;
+                                ref.read(selectedVoiceIdProvider.notifier).select(v.id);
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text('Voice set to ${v.displayName}'),

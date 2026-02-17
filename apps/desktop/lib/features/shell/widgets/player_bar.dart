@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/extensions.dart';
 import '../../../data/services/audio_service.dart';
+import '../../../data/services/preferences_service.dart';
 
 /// Shared state for current document info in the player bar.
 final currentDocTitleProvider = StateProvider<String?>((ref) => null);
@@ -14,9 +15,7 @@ final totalChunksProvider = StateProvider<int>((ref) => 0);
 final activeDocumentIdProvider = StateProvider<String?>((ref) => null);
 final activeChunkIdsProvider = StateProvider<List<String>>((ref) => []);
 
-/// Selected voice ID — Rachel is default.
-final selectedVoiceIdProvider =
-    StateProvider<String>((ref) => "21m00Tcm4TlvDq8ikWAM");
+
 
 /// Player Bar with real audio playback via just_audio.
 class PlayerBar extends ConsumerWidget {

@@ -350,12 +350,11 @@ async def synthesize_document(
     if not chunks:
         raise HTTPException(status_code=400, detail="No chunks to synthesize")
 
-    if not settings.ELEVENLABS_API_KEY.get_secret_value():
-        raise HTTPException(status_code=503, detail="TTS provider not configured. Set ELEVENLABS_API_KEY.")
-
-    from psitta.providers.tts_elevenlabs import ElevenLabsTTSProvider
+    from psitta.providers.tts_router import TTSRouter
     import os
-    tts = ElevenLabsTTSProvider()
+    tts = TTSRouter()
+    if not tts.has_provider:
+        raise HTTPException(status_code=503, detail="No TTS provider configured. Set ELEVENLABS_API_KEY or AZURE_TTS_KEY.")
 
     audio_dir = "/app/audio_cache"
     os.makedirs(audio_dir, exist_ok=True)
@@ -439,8 +438,8 @@ async def get_chunk_audio(
         raise HTTPException(status_code=404, detail="Chunk not found")
 
     # Synthesize
-    from psitta.providers.tts_elevenlabs import ElevenLabsTTSProvider
-    tts = ElevenLabsTTSProvider()
+    from psitta.providers.tts_router import TTSRouter
+    tts = TTSRouter()
     try:
         audio_bytes = await tts.synthesize(chunk_row.text_content, voice_id)
     except Exception as e:
