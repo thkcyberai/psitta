@@ -161,6 +161,12 @@ services:
       S3_ENDPOINT_URL: http://minio:9000
     command: python -m psitta.workers.document_processor
 
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://api:8000/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
 volumes:
   psitta-audio-cache:
   psitta-pgdata:

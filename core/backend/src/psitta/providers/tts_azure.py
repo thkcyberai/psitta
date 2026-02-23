@@ -15,20 +15,20 @@ Cost: ~$16/1M characters (Neural voices).
 
 from __future__ import annotations
 
-import re
 import xml.sax.saxutils as saxutils
 
 import httpx
 import structlog
 from tenacity import (
     retry,
-    retry_if_exception_type,
+    retry_if_exception,
     stop_after_attempt,
     wait_exponential,
 )
 
 from psitta.config import Settings
 from psitta.models.domain import ToneCategory
+from psitta.providers.tts_errors import TTSProviderError
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -48,18 +48,28 @@ _TONE_TO_SSML_STYLE: dict[ToneCategory, str] = {
     ToneCategory.TECHNICAL: "newscast-formal",
 }
 
-# Map speed multiplier to SSML rate
-_SPEED_TO_RATE: dict[str, str] = {
-    "slow": "slow",
-    "medium": "medium",
-    "fast": "fast",
-}
+
+def _retry_on_tts_provider_error(exc: BaseException) -> bool:
+    """
+    Retry only on transient failures:
+      - network/timeout (status_code=None)
+      - 408, 429
+      - 5xx
+    """
+    if not isinstance(exc, TTSProviderError):
+        return False
+
+    code = exc.status_code
+    if code is None:
+        return True
+    if code in (408, 429):
+        return True
+    return 500 <= code < 600
 
 
 class AzureTTSProvider:
     """Azure Cognitive Services TTS via REST API.
 
-    Satisfies the TTSProvider protocol from contracts.py.
     Uses SSML for rich prosody control.
     """
 
@@ -80,13 +90,8 @@ class AzureTTSProvider:
 
         Security: Text is XML-escaped to prevent SSML injection.
         """
-        # Sanitize text for XML
         safe_text = saxutils.escape(text)
-
-        # Map speed to SSML rate percentage
         rate_pct = f"{int(speed * 100)}%"
-
-        # Get SSML style from tone
         style = _TONE_TO_SSML_STYLE.get(tone, "general")
 
         return (
@@ -103,7 +108,7 @@ class AzureTTSProvider:
         )
 
     @retry(
-        retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
+        retry=retry_if_exception(_retry_on_tts_provider_error),
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=1, max=10),
         reraise=True,
@@ -128,7 +133,6 @@ class AzureTTSProvider:
 
         ssml = self._build_ssml(text, voice_id, speed, tone)
 
-        # Azure output format header values
         format_map = {
             "mp3": "audio-24khz-96kbitrate-mono-mp3",
             "opus": "ogg-24khz-16bit-mono-opus",
@@ -145,18 +149,31 @@ class AzureTTSProvider:
             format=output_format,
         )
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(
-                self._endpoint,
-                headers={
-                    "Ocp-Apim-Subscription-Key": self._api_key,
-                    "Content-Type": "application/ssml+xml",
-                    "X-Microsoft-OutputFormat": output_fmt,
-                    "User-Agent": "Psitta/0.1.0",
-                },
-                content=ssml.encode("utf-8"),
-            )
-            response.raise_for_status()
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(
+                    self._endpoint,
+                    headers={
+                        "Ocp-Apim-Subscription-Key": self._api_key,
+                        "Content-Type": "application/ssml+xml",
+                        "X-Microsoft-OutputFormat": output_fmt,
+                        "User-Agent": "Psitta/0.1.0",
+                    },
+                    content=ssml.encode("utf-8"),
+                )
+                response.raise_for_status()
+        except httpx.RequestError as exc:
+            logger.error("tts.azure.network_error", error=str(exc))
+            raise TTSProviderError("azure", f"Network error: {exc}", status_code=None) from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            body_preview = ""
+            try:
+                body_preview = (exc.response.text or "")[:200] if exc.response is not None else ""
+            except Exception:
+                body_preview = ""
+            logger.error("tts.azure.http_error", status=status, body=body_preview)
+            raise TTSProviderError("azure", f"Azure TTS HTTP error: {status}", status_code=status) from exc
 
         audio_bytes = response.content
         logger.info(
@@ -173,13 +190,19 @@ class AzureTTSProvider:
             f"/cognitiveservices/voices/list"
         )
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.get(
-                voices_url,
-                headers={"Ocp-Apim-Subscription-Key": self._api_key},
-            )
-            response.raise_for_status()
-            voices_data = response.json()
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.get(
+                    voices_url,
+                    headers={"Ocp-Apim-Subscription-Key": self._api_key},
+                )
+                response.raise_for_status()
+                voices_data = response.json()
+        except httpx.RequestError as exc:
+            raise TTSProviderError("azure", f"Network error: {exc}", status_code=None) from exc
+        except httpx.HTTPStatusError as exc:
+            status = exc.response.status_code if exc.response is not None else None
+            raise TTSProviderError("azure", f"Azure voices list HTTP error: {status}", status_code=status) from exc
 
         return [v["ShortName"] for v in voices_data]
 

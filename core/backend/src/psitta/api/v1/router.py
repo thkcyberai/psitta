@@ -17,11 +17,11 @@ from psitta.api.v1.documents import router as documents_router
 from psitta.api.v1.playback import router as playback_router
 from psitta.api.v1.voices import router as voices_router
 from psitta.api.v1.users import router as users_router
+from psitta.api.v1.tts import router as tts_router
 
 v1_router = APIRouter()
 
 # ── Document Management ────────────────────────────────────────────────
-# Upload, status, list, delete documents
 v1_router.include_router(
     documents_router,
     prefix="/documents",
@@ -29,7 +29,6 @@ v1_router.include_router(
 )
 
 # ── Playback ───────────────────────────────────────────────────────────
-# Stream audio, manage sessions, update position
 v1_router.include_router(
     playback_router,
     prefix="/playback",
@@ -37,7 +36,6 @@ v1_router.include_router(
 )
 
 # ── Voice Catalog ──────────────────────────────────────────────────────
-# List voices, preview, manage voice profiles
 v1_router.include_router(
     voices_router,
     prefix="/voices",
@@ -45,9 +43,15 @@ v1_router.include_router(
 )
 
 # ── User Management ────────────────────────────────────────────────────
-# Profile, preferences, tier information
 v1_router.include_router(
     users_router,
     prefix="/users",
     tags=["users"],
+)
+
+# ── TTS Diagnostics ────────────────────────────────────────────────────
+v1_router.include_router(
+    tts_router,
+    prefix="/tts",
+    tags=["tts"],
 )

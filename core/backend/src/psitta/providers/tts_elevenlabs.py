@@ -6,6 +6,7 @@ import httpx
 import structlog
 
 from psitta.config import get_settings
+from psitta.providers.tts_errors import TTSProviderError
 
 logger = structlog.get_logger(__name__)
 
@@ -63,18 +64,27 @@ class ElevenLabsTTSProvider:
         }
         params = {"output_format": output_format}
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(url, json=payload, headers=headers, params=params)
-            if response.status_code != 200:
-                logger.error(
-                    "elevenlabs.synthesize.failed",
-                    status=response.status_code,
-                    body=response.text[:200],
-                )
-                raise RuntimeError(f"ElevenLabs API error: {response.status_code}")
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(url, json=payload, headers=headers, params=params)
+        except httpx.RequestError as exc:
+            logger.error("elevenlabs.synthesize.network_error", error=str(exc))
+            raise TTSProviderError("elevenlabs", f"Network error: {exc}", status_code=None) from exc
 
-            logger.info("elevenlabs.synthesize.ok", voice_id=voice_id, chars=len(text))
-            return response.content
+        if response.status_code != 200:
+            logger.error(
+                "elevenlabs.synthesize.failed",
+                status=response.status_code,
+                body=response.text[:200],
+            )
+            raise TTSProviderError(
+                "elevenlabs",
+                f"ElevenLabs API error: {response.status_code}",
+                status_code=response.status_code,
+            )
+
+        logger.info("elevenlabs.synthesize.ok", voice_id=voice_id, chars=len(text))
+        return response.content
 
     async def get_voices(self) -> list[dict]:
         """Fetch available voices from ElevenLabs API."""

@@ -12,7 +12,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -65,11 +65,18 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: SecretStr = SecretStr("minioadmin")
 
     # ── TTS Provider ───────────────────────────────────────────────────
-    TTS_PROVIDER: Literal["elevenlabs", "azure", "stub"] = "stub"
+    TTS_PROVIDER: Literal["auto", "elevenlabs", "azure", "edge", "stub"] = "auto"
+    TTS_FALLBACK: Literal["azure", "edge", "none"] = "azure"
     ELEVENLABS_API_KEY: SecretStr = SecretStr("")
     ELEVENLABS_MODEL: str = "eleven_multilingual_v2"
-    AZURE_TTS_KEY: SecretStr = SecretStr("")
-    AZURE_TTS_REGION: str = "eastus"
+    AZURE_TTS_KEY: SecretStr = Field(
+        default=SecretStr(""),
+        validation_alias=AliasChoices("AZURE_TTS_KEY", "SPEECH_KEY"),
+    )
+    AZURE_TTS_REGION: str = Field(
+        default="eastus",
+        validation_alias=AliasChoices("AZURE_TTS_REGION", "SPEECH_REGION"),
+    )
 
     # ── Vision Provider ────────────────────────────────────────────────
     VISION_PROVIDER: Literal["anthropic", "stub"] = "stub"
