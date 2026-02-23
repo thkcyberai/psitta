@@ -15,7 +15,9 @@ class DocumentRepository {
       'limit': limit,
     });
     final items = response.data['items'] as List<dynamic>;
-    return items.map((e) => Document.fromJson(e as Map<String, dynamic>)).toList();
+    return items
+        .map((e) => Document.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   /// Upload a document file.
@@ -32,6 +34,14 @@ class DocumentRepository {
     await _api.dio.delete('/documents/$id');
   }
 
+  /// Rename a document (title only).
+  Future<Document> renameDocument(String id, String title) async {
+    final response = await _api.dio.patch('/documents/$id', data: {
+      'title': title,
+    });
+    return Document.fromJson(response.data as Map<String, dynamic>);
+  }
+
   /// Get chunks for a document.
   Future<Map<String, dynamic>> getChunks(String documentId) async {
     final response = await _api.dio.get('/documents/$documentId/chunks');
@@ -39,7 +49,8 @@ class DocumentRepository {
   }
 
   /// Synthesize all chunks for a document with a specific voice.
-  Future<Map<String, dynamic>> synthesizeDocument(String documentId, String voiceId) async {
+  Future<Map<String, dynamic>> synthesizeDocument(
+      String documentId, String voiceId) async {
     final response = await _api.dio.post(
       '/documents/$documentId/synthesize',
       queryParameters: {'voice_id': voiceId},

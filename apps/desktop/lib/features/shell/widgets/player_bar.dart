@@ -313,6 +313,7 @@ class _SpeedButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final speed = ref.watch(selectedSpeedProvider);
     final theme = Theme.of(context);
+    final speeds = const [1.0, 1.5, 2.0];
 
     return PopupMenuButton<double>(
       enabled: enabled,
@@ -322,7 +323,7 @@ class _SpeedButton extends StatelessWidget {
         await ref.read(selectedSpeedProvider.notifier).select(newSpeed);
         await audioService.setSpeed(newSpeed);
       },
-      itemBuilder: (context) => SpeedPreferenceNotifier.speeds
+      itemBuilder: (context) => speeds
           .map(
             (s) => PopupMenuItem<double>(
               value: s,
@@ -332,14 +333,16 @@ class _SpeedButton extends StatelessWidget {
                   SizedBox(
                     width: 24,
                     child: s == speed
-                        ? const Icon(Icons.check, size: 18, color: AppColors.primary)
+                        ? const Icon(Icons.check,
+                            size: 18, color: AppColors.primary)
                         : null,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     '${s}x',
                     style: TextStyle(
-                      fontWeight: s == speed ? FontWeight.bold : FontWeight.normal,
+                      fontWeight:
+                          s == speed ? FontWeight.bold : FontWeight.normal,
                       color: s == speed ? AppColors.primary : null,
                     ),
                   ),

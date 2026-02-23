@@ -36,6 +36,9 @@ EDGE_VOICES: dict[str, str] = {
 
 EDGE_DEFAULT_VOICE = "en-US-JennyNeural"
 
+# Hard lock. We do not allow per-voice or per-request synthesis speed drift.
+EDGE_RATE = "+0%"
+
 
 class EdgeTTSProvider:
     """Free Microsoft Neural TTS via edge-tts library."""
@@ -47,29 +50,26 @@ class EdgeTTSProvider:
         self,
         text: str,
         voice_id: str,
-        speed: float = 1.0,
+        speed: float = 1.0,  # kept for interface compatibility, ignored
         output_format: str = "mp3_44100_128",
     ) -> bytes:
         edge_voice = self._get_voice(voice_id)
-
-        rate_pct = int((speed - 1.0) * 100)
-        rate_str = f"+{rate_pct}%" if rate_pct >= 0 else f"{rate_pct}%"
 
         logger.info(
             "tts.edge.synthesize",
             voice=edge_voice,
             original_voice_id=voice_id,
             text_length=len(text),
-            rate=rate_str,
+            rate=EDGE_RATE,
         )
 
         communicate = edge_tts.Communicate(
             text=text[:5000],
             voice=edge_voice,
-            rate=rate_str,
+            rate=EDGE_RATE,
         )
 
-        audio_chunks = []
+        audio_chunks: list[bytes] = []
         async for chunk in communicate.stream():
             if chunk["type"] == "audio":
                 audio_chunks.append(chunk["data"])

@@ -4,18 +4,21 @@ import '../../../core/theme/colors.dart';
 /// Document card — displayed in the library grid.
 ///
 /// Shows document title, processing status with visual indicator,
-/// and file type icon. Desktop-optimized: hover effect, right-click
-/// context menu support (TODO).
+/// and file type icon. Desktop-optimized: hover effect and actions menu.
 class DocumentCard extends StatelessWidget {
   final String title;
   final String status;
   final VoidCallback onTap;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
   const DocumentCard({
     super.key,
     required this.title,
     required this.status,
     required this.onTap,
+    required this.onEdit,
+    required this.onDelete,
   });
 
   IconData get _statusIcon => switch (status) {
@@ -34,11 +37,12 @@ class DocumentCard extends StatelessWidget {
       };
 
   IconData get _fileIcon {
-    if (title.endsWith('.pdf')) return Icons.picture_as_pdf;
-    if (title.endsWith('.docx')) return Icons.article;
-    if (title.endsWith('.md')) return Icons.code;
-    if (title.endsWith('.txt')) return Icons.text_snippet;
-    if (title.endsWith('.html')) return Icons.language;
+    final t = title.toLowerCase();
+    if (t.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (t.endsWith('.docx')) return Icons.article;
+    if (t.endsWith('.md')) return Icons.code;
+    if (t.endsWith('.txt')) return Icons.text_snippet;
+    if (t.endsWith('.html')) return Icons.language;
     return Icons.description;
   }
 
@@ -75,6 +79,40 @@ class DocumentCard extends StatelessWidget {
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: _statusColor,
                       fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  PopupMenuButton<String>(
+                    tooltip: 'Actions',
+                    onSelected: (value) {
+                      if (value == 'edit') onEdit();
+                      if (value == 'delete') onDelete();
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit, size: 18),
+                            SizedBox(width: 10),
+                            Text('Edit'),
+                          ],
+                        ),
+                      ),
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline, size: 18),
+                            SizedBox(width: 10),
+                            Text('Delete'),
+                          ],
+                        ),
+                      ),
+                    ],
+                    child: const Padding(
+                      padding: EdgeInsets.all(4),
+                      child: Icon(Icons.more_horiz, size: 18),
                     ),
                   ),
                 ],

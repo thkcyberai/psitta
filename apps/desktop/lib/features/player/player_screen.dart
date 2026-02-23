@@ -37,15 +37,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ref.read(currentDocTitleProvider.notifier).state = docTitle;
       ref.read(activeDocumentIdProvider.notifier).state = widget.documentId;
     });
+
+    // Listen for voice changes and re-play current chunk with new voice
+    ref.listenManual<String>(selectedVoiceIdProvider, (previous, next) {
+      if (previous != null && previous != next) {
+        final ids = ref.read(activeChunkIdsProvider);
+        final idx = ref.read(currentChunkIndexProvider);
+        if (idx < ids.length) {
+          _playAndPrefetch(ids, idx, next);
+        }
+      }
+    });
   }
 
   /// Play a chunk and prefetch the next one in the background.
   void _playAndPrefetch(List<String> chunkIds, int index, String voiceId) {
     final audioService = ref.read(audioServiceProvider);
+    final speed = ref.read(selectedSpeedProvider);
+    final volume = ref.read(selectedVolumeProvider);
     audioService.playChunk(
       documentId: widget.documentId,
       chunkId: chunkIds[index],
       voiceId: voiceId,
+      speed: speed,
+      volume: volume,
     ).then((_) {
       // Prefetch next chunk while current one plays
       if (index + 1 < chunkIds.length) {
@@ -137,16 +152,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             _playAndPrefetch(chunkIds, 0, voiceId);
           }
 
-          // Listen for voice changes and re-play current chunk with new voice
-          ref.listen<String>(selectedVoiceIdProvider, (previous, next) {
-            if (previous != null && previous != next) {
-              final ids = ref.read(activeChunkIdsProvider);
-              final idx = ref.read(currentChunkIndexProvider);
-              if (idx < ids.length) {
-                _playAndPrefetch(ids, idx, next);
-              }
-            }
-          });
         });
 
         final currentIndex = activeChunkIndex.clamp(0, chunks.length - 1);

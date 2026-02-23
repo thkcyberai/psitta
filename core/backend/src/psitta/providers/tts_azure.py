@@ -38,6 +38,14 @@ _AZURE_TTS_URL = (
     "/cognitiveservices/v1"
 )
 
+# Product baseline: slow slightly for clarity.
+# speed=1.0 should still map to neutral, then baseline applies.
+_BASELINE_RATE_DELTA_PCT = -8
+
+# Safety clamp to avoid extreme rates
+_MIN_RATE_DELTA_PCT = -50
+_MAX_RATE_DELTA_PCT = 50
+
 # Map ToneCategory to SSML prosody style
 _TONE_TO_SSML_STYLE: dict[ToneCategory, str] = {
     ToneCategory.NEUTRAL: "general",
@@ -67,6 +75,27 @@ def _retry_on_tts_provider_error(exc: BaseException) -> bool:
     return 500 <= code < 600
 
 
+def _rate_str_from_speed(speed: float) -> str:
+    """
+    Convert speed multiplier to Azure SSML prosody rate.
+
+    Azure accepts relative percent strings like "-10%" or "+5%".
+    We treat speed=1.0 as 0%, then apply product baseline.
+    """
+    try:
+        delta = int(round((float(speed) - 1.0) * 100.0))
+    except Exception:
+        delta = 0
+
+    effective = _BASELINE_RATE_DELTA_PCT + delta
+    if effective < _MIN_RATE_DELTA_PCT:
+        effective = _MIN_RATE_DELTA_PCT
+    if effective > _MAX_RATE_DELTA_PCT:
+        effective = _MAX_RATE_DELTA_PCT
+
+    return f"{effective:+d}%"
+
+
 class AzureTTSProvider:
     """Azure Cognitive Services TTS via REST API.
 
@@ -91,7 +120,7 @@ class AzureTTSProvider:
         Security: Text is XML-escaped to prevent SSML injection.
         """
         safe_text = saxutils.escape(text)
-        rate_pct = f"{int(speed * 100)}%"
+        rate_str = _rate_str_from_speed(speed)
         style = _TONE_TO_SSML_STYLE.get(tone, "general")
 
         return (
@@ -99,7 +128,7 @@ class AzureTTSProvider:
             'xmlns:mstts="http://www.w3.org/2001/mstts" xml:lang="en-US">'
             f'<voice name="{saxutils.escape(voice_id)}">'
             f'<mstts:express-as style="{style}">'
-            f'<prosody rate="{rate_pct}">'
+            f'<prosody rate="{rate_str}">'
             f"{safe_text}"
             "</prosody>"
             "</mstts:express-as>"
@@ -145,6 +174,7 @@ class AzureTTSProvider:
             voice_id=voice_id,
             text_length=len(text),
             speed=speed,
+            rate=_rate_str_from_speed(speed),
             tone=tone.value,
             format=output_format,
         )

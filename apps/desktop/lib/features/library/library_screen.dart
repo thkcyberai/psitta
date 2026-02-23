@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
+import '../../data/models/document.dart';
 import 'widgets/document_card.dart';
 import 'widgets/drop_zone_overlay.dart';
 
@@ -42,7 +43,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (file.path == null) continue;
       try {
         await repo.uploadDocument(file.path!);
-      } catch (e) {
+      } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Upload failed: ${file.name}')),
@@ -51,7 +52,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       }
     }
     setState(() => _isUploading = false);
-    // Refresh document list
     ref.invalidate(documentsProvider);
   }
 
@@ -73,6 +73,95 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  Future<void> _confirmAndDelete(Document doc) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete document'),
+        content: Text('Delete "${doc.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    final repo = ref.read(documentRepositoryProvider);
+    try {
+      await repo.deleteDocument(doc.id);
+      ref.invalidate(documentsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document deleted')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _rename(Document doc) async {
+    final controller = TextEditingController(text: doc.title);
+
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit document name'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Name',
+            hintText: 'Enter a document name',
+          ),
+          onSubmitted: (_) => Navigator.of(ctx).pop(controller.text.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    final trimmed = (newTitle ?? '').trim();
+    if (trimmed.isEmpty || trimmed == doc.title) return;
+
+    final repo = ref.read(documentRepositoryProvider);
+    try {
+      await repo.renameDocument(doc.id, trimmed);
+      ref.invalidate(documentsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document updated')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Update failed: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -89,7 +178,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header row
                 Row(
                   children: [
                     Text(
@@ -139,13 +227,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-
-                // Document grid — powered by Riverpod
                 Expanded(
                   child: documentsAsync.when(
-                    loading: () => const Center(
-                      child: CircularProgressIndicator(),
-                    ),
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
                     error: (error, _) => Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -166,8 +251,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           ),
                           const SizedBox(height: 16),
                           OutlinedButton.icon(
-                            onPressed: () =>
-                                ref.invalidate(documentsProvider),
+                            onPressed: () => ref.invalidate(documentsProvider),
                             icon: const Icon(Icons.refresh, size: 18),
                             label: const Text('Retry'),
                           ),
@@ -196,8 +280,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                   return DocumentCard(
                                     title: doc.title,
                                     status: doc.status,
-                                    onTap: () =>
-                                        context.go('/player/${doc.id}'),
+                                    onTap: () => context.go('/player/${doc.id}'),
+                                    onEdit: () => _rename(doc),
+                                    onDelete: () => _confirmAndDelete(doc),
                                   );
                                 },
                               );
@@ -208,7 +293,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ],
             ),
           ),
-
           if (_isDragging) const DropZoneOverlay(),
         ],
       ),
@@ -238,16 +322,16 @@ class _EmptyState extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Supports PDF, DOCX, TXT, Markdown, HTML',
+            'Supported: PDF, DOCX, TXT, MD, HTML',
             style: theme.textTheme.bodySmall?.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           FilledButton.icon(
             onPressed: onUpload,
-            icon: const Icon(Icons.upload_file),
-            label: const Text('Upload Document'),
+            icon: const Icon(Icons.upload_file, size: 18),
+            label: const Text('Upload'),
           ),
         ],
       ),

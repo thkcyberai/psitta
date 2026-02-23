@@ -84,10 +84,15 @@ class VoiceSelectorScreen extends ConsumerWidget {
                                 final docId = ref.read(activeDocumentIdProvider);
                                 final chunkIds = ref.read(activeChunkIdsProvider);
                                 if (docId != null && chunkIds.isNotEmpty) {
+                                  final speed = ref.read(selectedSpeedProvider);
+                                  final volume =
+                                      ref.read(selectedVolumeProvider);
                                   audioService.playChunk(
                                     documentId: docId,
                                     chunkId: chunkIds.first,
                                     voiceId: v.id,
+                                    speed: speed,
+                                    volume: volume,
                                   );
                                 }
                               },

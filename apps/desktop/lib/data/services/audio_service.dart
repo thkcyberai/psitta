@@ -116,12 +116,18 @@ class AudioService {
 
       final cacheKey = '${chunkId}_$voiceId';
       String? filePath = _fileCache[cacheKey];
+      var cacheHit = false;
 
       // Check if cached file still exists on disk
       if (filePath != null && await File(filePath).exists()) {
         // Instant play from cache — no synthesizing indicator
+        cacheHit = true;
         await _player.setFilePath(filePath);
+      print('DEBUG_AUDIO file=' + filePath + ' speed=' + speed.toString() + ' playerSpeed=' + _player.speed.toString() + ' duration=' + (_player.duration?.toString() ?? 'null'));
         await _player.setSpeed(speed);
+        print(
+          'playChunk: speed=$speed playerSpeed=${_player.speed} cacheHit=$cacheHit',
+        );
         await _player.setVolume(volume);
         await _player.play();
         return true;
@@ -147,6 +153,9 @@ class AudioService {
       // Play from local file
       await _player.setFilePath(filePath);
       await _player.setSpeed(speed);
+      print(
+        'playChunk: speed=$speed playerSpeed=${_player.speed} cacheHit=$cacheHit',
+      );
       await _player.setVolume(volume);
       await _player.play();
       return true;
@@ -159,7 +168,6 @@ class AudioService {
       return false;
     }
   }
-
   Future<void> play() => _player.play();
   Future<void> pause() => _player.pause();
 

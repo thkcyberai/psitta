@@ -10,7 +10,7 @@
 #
 # Security:
 #   - Non-root user (appuser:1001)
-#   - No shell in runtime (distroless-style slim)
+#   - Minimal packages in runtime
 #   - Pip cache purged after install
 #   - .dockerignore excludes tests, docs, local envs
 # ══════════════════════════════════════════════════════════════════════
@@ -43,10 +43,14 @@ FROM python:3.12-slim AS runtime
 WORKDIR /app
 
 # Runtime-only system deps
+# - poppler-utils provides pdftoppm (required by pdf2image)
+# - tesseract-ocr provides OCR engine for scanned PDFs
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libpq5 \
         curl \
+        poppler-utils \
+        tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user

@@ -35,31 +35,17 @@ final selectedVoiceIdProvider =
 );
 
 
-/// Persists the user's selected playback speed across sessions.
+/// Tracks the user's selected playback speed (not persisted).
 class SpeedPreferenceNotifier extends StateNotifier<double> {
-  SpeedPreferenceNotifier() : super(_defaultSpeed) {
-    _load();
-  }
-
-  static const _key = 'playback_speed';
+  SpeedPreferenceNotifier() : super(_defaultSpeed);
   static const _defaultSpeed = 1.0;
 
   /// Available speed options.
-  static const speeds = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
+  static const speeds = [1.0, 1.5, 2.0];
 
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getDouble(_key);
-    if (saved != null && speeds.contains(saved)) {
-      state = saved;
-    }
-  }
-
-  /// Select a speed and persist the choice.
+  /// Select a speed for this session only.
   Future<void> select(double speed) async {
     state = speed;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_key, speed);
   }
 
   /// Cycle to next speed in the list.
@@ -70,7 +56,7 @@ class SpeedPreferenceNotifier extends StateNotifier<double> {
   }
 }
 
-/// Selected playback speed — persisted via SharedPreferences.
+/// Selected playback speed (session-only).
 final selectedSpeedProvider =
     StateNotifierProvider<SpeedPreferenceNotifier, double>(
   (ref) => SpeedPreferenceNotifier(),

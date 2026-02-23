@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import io
 from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -11,6 +12,8 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from pydantic import BaseModel, Field
 
 from psitta.dependencies import get_db_session
 
@@ -33,6 +36,38 @@ def _extract_text(file_bytes: bytes, extension: str) -> str | None:
                 return file_bytes.decode(encoding)
             except UnicodeDecodeError:
                 continue
+
+    if extension == ".docx":
+        # Extract text from DOCX using python-docx.
+        try:
+            import docx  # python-docx
+            doc = docx.Document(io.BytesIO(file_bytes))
+            parts: list[str] = []
+            for para in doc.paragraphs:
+                t = (para.text or "").strip()
+                if t:
+                    parts.append(t)
+            text = "\n\n".join(parts).strip()
+            return text if text else None
+        except Exception:
+            return None
+
+    if extension == ".pdf":
+        # Extract text from PDF using pypdf.
+        # For scanned PDFs with no text layer, this returns None.
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(io.BytesIO(file_bytes))
+            parts: list[str] = []
+            for page in reader.pages:
+                t = (page.extract_text() or "").strip()
+                if t:
+                    parts.append(t)
+            text = "\n\n".join(parts).strip()
+            return text if text else None
+        except Exception:
+            return None
+
     return None
 
 
@@ -311,6 +346,58 @@ async def get_document_chunks(
     }
 
 
+
+class DocumentUpdateRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+
+
+@router.patch("/{document_id}")
+async def update_document(
+    document_id: UUID,
+    payload: DocumentUpdateRequest,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Update editable document fields.
+
+    Currently supports title rename only.
+    """
+    # Update title for this user's document (ignore deleted docs)
+    result = await db.execute(
+        text(
+            "UPDATE documents "
+            "SET title = :title, updated_at = NOW() "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": DEV_USER_ID, "title": payload.title.strip()},
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    row = await db.execute(
+        text(
+            "SELECT id, user_id, title, status, source_type, page_count, file_size_bytes, created_at, updated_at "
+            "FROM documents WHERE id = :did"
+        ),
+        {"did": document_id},
+    )
+    doc = row.first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    logger.info("document.updated", doc_id=str(document_id), fields=["title"])
+
+    return {
+        "id": str(doc.id),
+        "title": doc.title,
+        "status": doc.status,
+        "source_type": doc.source_type,
+        "page_count": doc.page_count,
+        "file_size_bytes": doc.file_size_bytes,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+    }
+
+
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: UUID,
@@ -323,6 +410,29 @@ async def delete_document(
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
     logger.info("document.deleted", doc_id=str(document_id))
+
+    # Purge cached audio for this document (best-effort).
+    # This prevents stale MP3 reuse after document deletion.
+    try:
+        from pathlib import Path as _Path
+
+        audio_dir = _Path("/app/audio_cache")
+        prefix = f"psitta_{document_id}_"
+        purged = 0
+
+        if audio_dir.exists():
+            for f in audio_dir.iterdir():
+                name = f.name
+                if name.startswith(prefix) and name.endswith(".mp3"):
+                    try:
+                        f.unlink()
+                        purged += 1
+                    except Exception:
+                        pass
+
+        logger.info("document.audio_cache.purge", doc_id=str(document_id), purged=purged)
+    except Exception:
+        logger.info("document.audio_cache.purge", doc_id=str(document_id), purged=None)
 
 @router.post("/{document_id}/synthesize")
 async def synthesize_document(
