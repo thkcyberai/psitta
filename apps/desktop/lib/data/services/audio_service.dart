@@ -105,6 +105,8 @@ class AudioService {
     required String documentId,
     required String chunkId,
     String voiceId = '21m00Tcm4TlvDq8ikWAM',
+    double speed = 1.0,
+    double volume = 1.0,
   }) async {
     try {
       // Stop current playback immediately
@@ -119,6 +121,8 @@ class AudioService {
       if (filePath != null && await File(filePath).exists()) {
         // Instant play from cache — no synthesizing indicator
         await _player.setFilePath(filePath);
+        await _player.setSpeed(speed);
+        await _player.setVolume(volume);
         await _player.play();
         return true;
       }
@@ -142,6 +146,8 @@ class AudioService {
 
       // Play from local file
       await _player.setFilePath(filePath);
+      await _player.setSpeed(speed);
+      await _player.setVolume(volume);
       await _player.play();
       return true;
     } catch (e) {
@@ -170,6 +176,15 @@ class AudioService {
 
   Future<void> stop() async {
     await _player.stop();
+  }
+
+  /// Full reset — stops playback and clears player state.
+  /// Use when switching voices so next play loads fresh audio.
+  Future<void> reset() async {
+    try {
+      await _player.stop();
+      await _player.seek(Duration.zero);
+    } catch (_) {}
   }
 
   void dispose() {

@@ -23,8 +23,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(currentDocTitleProvider.notifier).state =
-          "Document ${widget.documentId.substring(0, 8)}...";
+      // Look up real document title from documents provider
+      final docs = ref.read(documentsProvider).valueOrNull;
+      String docTitle = widget.documentId;
+      if (docs != null) {
+        for (final doc in docs) {
+          if (doc.id == widget.documentId) {
+            docTitle = doc.title;
+            break;
+          }
+        }
+      }
+      ref.read(currentDocTitleProvider.notifier).state = docTitle;
       ref.read(activeDocumentIdProvider.notifier).state = widget.documentId;
     });
   }

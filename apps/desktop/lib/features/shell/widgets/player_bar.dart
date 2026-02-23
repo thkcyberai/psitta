@@ -40,6 +40,13 @@ class PlayerBar extends ConsumerWidget {
     final isSynthesizing =
         ref.watch(isSynthesizingProvider).valueOrNull ?? false;
 
+    // Reset audio when voice changes — forces reload with new voice
+    ref.listen<String>(selectedVoiceIdProvider, (previous, next) {
+      if (previous != null && previous != next) {
+        audioService.reset();
+      }
+    });
+
     // Auto-advance to next chunk when current one finishes
     ref.listen<AsyncValue<PlayerState>>(audioPlayerStateProvider, (prev, next) {
       final state = next.valueOrNull;
@@ -139,7 +146,7 @@ class PlayerBar extends ConsumerWidget {
                               ),
                               onPressed: hasActiveSession
                                   ? () {
-                                      if (audioService.duration == null) {
+                                      if (!isPlaying && (audioService.duration == null || audioService.position == Duration.zero)) {
                                         final chunkIds = ref
                                             .read(activeChunkIdsProvider);
                                         final docId = ref
@@ -150,10 +157,14 @@ class PlayerBar extends ConsumerWidget {
                                             idx < chunkIds.length) {
                                           final voiceId = ref
                                               .read(selectedVoiceIdProvider);
+                                          final speed = ref.read(selectedSpeedProvider);
+                                          final volume = ref.read(selectedVolumeProvider);
                                           audioService.playChunk(
                                             documentId: docId,
                                             chunkId: chunkIds[idx],
                                             voiceId: voiceId,
+                                            speed: speed,
+                                            volume: volume,
                                           );
                                         }
                                       } else {
@@ -214,19 +225,15 @@ class PlayerBar extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
-                  onPressed: hasActiveSession ? () {} : null,
-                  child: Text(
-                    '1.0x',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                _SpeedButton(
+                  enabled: hasActiveSession,
+                  ref: ref,
+                  audioService: audioService,
                 ),
-                IconButton(
-                  icon: const Icon(Icons.volume_up, size: 20),
-                  onPressed: hasActiveSession ? () {} : null,
-                  tooltip: 'Volume',
+                _VolumeButton(
+                  enabled: hasActiveSession,
+                  ref: ref,
+                  audioService: audioService,
                 ),
               ],
             ),
@@ -245,10 +252,14 @@ class PlayerBar extends ConsumerWidget {
       final docId = ref.read(activeDocumentIdProvider);
       if (docId != null) {
         final voiceId = ref.read(selectedVoiceIdProvider);
+        final speed = ref.read(selectedSpeedProvider);
+        final volume = ref.read(selectedVolumeProvider);
         audioService.playChunk(
           documentId: docId,
           chunkId: chunkIds[nextIdx],
           voiceId: voiceId,
+          speed: speed,
+          volume: volume,
         ).then((_) {
           // Prefetch the chunk after next
           if (nextIdx + 1 < chunkIds.length) {
@@ -272,12 +283,250 @@ class PlayerBar extends ConsumerWidget {
       final docId = ref.read(activeDocumentIdProvider);
       if (docId != null) {
         final voiceId = ref.read(selectedVoiceIdProvider);
+        final speed = ref.read(selectedSpeedProvider);
+        final volume = ref.read(selectedVolumeProvider);
         audioService.playChunk(
           documentId: docId,
           chunkId: chunkIds[prevIdx],
           voiceId: voiceId,
+          speed: speed,
+          volume: volume,
         );
       }
     }
+  }
+}
+
+/// Speed selector button — tap to cycle, long-press for menu.
+class _SpeedButton extends StatelessWidget {
+  final bool enabled;
+  final WidgetRef ref;
+  final AudioService audioService;
+
+  const _SpeedButton({
+    required this.enabled,
+    required this.ref,
+    required this.audioService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final speed = ref.watch(selectedSpeedProvider);
+    final theme = Theme.of(context);
+
+    return PopupMenuButton<double>(
+      enabled: enabled,
+      tooltip: 'Playback speed',
+      offset: const Offset(0, -280),
+      onSelected: (newSpeed) async {
+        await ref.read(selectedSpeedProvider.notifier).select(newSpeed);
+        await audioService.setSpeed(newSpeed);
+      },
+      itemBuilder: (context) => SpeedPreferenceNotifier.speeds
+          .map(
+            (s) => PopupMenuItem<double>(
+              value: s,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 24,
+                    child: s == speed
+                        ? const Icon(Icons.check, size: 18, color: AppColors.primary)
+                        : null,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${s}x',
+                    style: TextStyle(
+                      fontWeight: s == speed ? FontWeight.bold : FontWeight.normal,
+                      color: s == speed ? AppColors.primary : null,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          )
+          .toList(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          '${speed}x',
+          style: theme.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: speed != 1.0 ? AppColors.primary : null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+
+
+/// Volume button with vertical slider popup.
+class _VolumeButton extends StatefulWidget {
+  final bool enabled;
+  final WidgetRef ref;
+  final AudioService audioService;
+
+  const _VolumeButton({
+    required this.enabled,
+    required this.ref,
+    required this.audioService,
+  });
+
+  @override
+  State<_VolumeButton> createState() => _VolumeButtonState();
+}
+
+class _VolumeButtonState extends State<_VolumeButton> {
+  OverlayEntry? _overlayEntry;
+  final LayerLink _layerLink = LayerLink();
+
+  void _toggleOverlay() {
+    if (_overlayEntry != null) {
+      _removeOverlay();
+    } else {
+      _showOverlay();
+    }
+  }
+
+  void _showOverlay() {
+    _overlayEntry = OverlayEntry(
+      builder: (context) => Stack(
+        children: [
+          // Tap anywhere to dismiss
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _removeOverlay,
+              behavior: HitTestBehavior.translucent,
+              child: Container(color: Colors.transparent),
+            ),
+          ),
+          // Volume slider positioned above the button
+          CompositedTransformFollower(
+            link: _layerLink,
+            targetAnchor: Alignment.topCenter,
+            followerAnchor: Alignment.bottomCenter,
+            offset: const Offset(0, -8),
+            child: Material(
+              elevation: 8,
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 48,
+                height: 180,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Theme.of(context).dividerColor.withOpacity(0.2),
+                  ),
+                ),
+                child: _VolumeSlider(
+                  ref: widget.ref,
+                  audioService: widget.audioService,
+                  onChanged: () {
+                    // Update the icon when volume changes
+                    if (mounted) setState(() {});
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _removeOverlay() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+  }
+
+  @override
+  void dispose() {
+    _removeOverlay();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final volume = widget.ref.watch(selectedVolumeProvider);
+    IconData icon;
+    if (volume <= 0.0) {
+      icon = Icons.volume_off;
+    } else if (volume < 0.5) {
+      icon = Icons.volume_down;
+    } else {
+      icon = Icons.volume_up;
+    }
+
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: IconButton(
+        icon: Icon(icon, size: 20),
+        onPressed: widget.enabled ? _toggleOverlay : null,
+        tooltip: 'Volume',
+      ),
+    );
+  }
+}
+
+/// Vertical volume slider used inside the overlay.
+/// Uses Consumer to ensure rebuilds when volume state changes,
+/// since OverlayEntry lives outside the normal Riverpod widget tree.
+class _VolumeSlider extends StatefulWidget {
+  final WidgetRef ref;
+  final AudioService audioService;
+  final VoidCallback onChanged;
+
+  const _VolumeSlider({
+    required this.ref,
+    required this.audioService,
+    required this.onChanged,
+  });
+
+  @override
+  State<_VolumeSlider> createState() => _VolumeSliderState();
+}
+
+class _VolumeSliderState extends State<_VolumeSlider> {
+  late double _localVolume;
+
+  @override
+  void initState() {
+    super.initState();
+    _localVolume = widget.ref.read(selectedVolumeProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RotatedBox(
+      quarterTurns: 3,
+      child: SliderTheme(
+        data: SliderThemeData(
+          trackHeight: 4,
+          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
+          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+          activeTrackColor: AppColors.primary,
+          inactiveTrackColor: AppColors.primary.withOpacity(0.2),
+          thumbColor: AppColors.primary,
+        ),
+        child: Slider(
+          value: _localVolume,
+          min: 0.0,
+          max: 1.0,
+          onChanged: (v) {
+            setState(() => _localVolume = v);
+            widget.ref.read(selectedVolumeProvider.notifier).set(v);
+            widget.audioService.player.setVolume(v);
+            widget.onChanged();
+          },
+        ),
+      ),
+    );
   }
 }
