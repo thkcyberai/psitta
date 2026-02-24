@@ -71,3 +71,9 @@ temp/
 
 # Local backups folder
 backups/
+
+# Junk files created by accidental shell usage
+cd
+ls
+core/backend/powershell.exe
+Devlog/
