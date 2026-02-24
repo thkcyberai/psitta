@@ -68,3 +68,6 @@ temp/
 # Local backups
 *.bak
 *.bak_*
+
+# Local backups folder
+backups/
