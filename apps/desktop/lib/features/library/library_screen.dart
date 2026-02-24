@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
+import '../../data/services/preferences_service.dart';
 import '../../data/models/document.dart';
 import 'widgets/document_card.dart';
 import 'widgets/drop_zone_overlay.dart';
@@ -217,6 +218,52 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           isDense: true,
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Voice selector (Adam + Bella)
+                    SizedBox(
+                      width: 220,
+                      height: 36,
+                      child: ref.watch(voicesProvider).when(
+                            loading: () => const SizedBox.shrink(),
+                            error: (_, __) => const SizedBox.shrink(),
+                            data: (voices) {
+                              final selected = ref.watch(selectedVoiceIdProvider);
+                              final items = voices;
+                              final current = items.any((v) => v.id == selected)
+                                  ? selected
+                                  : (items.isNotEmpty ? items.first.id : selected);
+
+                              if (current != selected && items.isNotEmpty) {
+                                // keep selected voice valid
+                                ref.read(selectedVoiceIdProvider.notifier).select(current);
+                              }
+
+                              return DropdownButtonFormField<String>(
+                                value: current,
+                                items: items
+                                    .map(
+                                      (v) => DropdownMenuItem(
+                                        value: v.id,
+                                        child: Text(v.displayName),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  ref.read(selectedVoiceIdProvider.notifier).select(value);
+                                },
+                                decoration: InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 10),
+                                ),
+                              );
+                            },
+                          ),
                     ),
                     const SizedBox(width: 12),
                     FilledButton.icon(

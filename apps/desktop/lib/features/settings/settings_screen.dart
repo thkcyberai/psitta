@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/colors.dart';
+import '../../data/services/preferences_service.dart';
 
 /// Settings Screen — user preferences and app configuration.
 ///
 /// Desktop layout: single-column settings list with sections.
-/// Constrained width for readability on wide monitors.
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final selectedTheme = ref.watch(selectedThemeNameProvider);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -24,17 +26,48 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          // Constrain width for readability
           Expanded(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
               child: ListView(
                 children: [
-                  // ── Playback section ─────────────────────────
+                  _SectionHeader(title: 'Appearance'),
+                  ListTile(
+                    title: const Text('Theme'),
+                    subtitle: Text(selectedTheme),
+                    trailing: SizedBox(
+                      width: 260,
+                      child: DropdownButtonFormField<String>(
+                        value: selectedTheme,
+                        items: ThemeNames.all
+                            .map(
+                              (t) => DropdownMenuItem(
+                                value: t,
+                                child: Text(t),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) {
+                          if (value == null) return;
+                          ref
+                              .read(selectedThemeNameProvider.notifier)
+                              .select(value);
+                        },
+                        decoration: const InputDecoration(
+                          isDense: true,
+                          border: OutlineInputBorder(),
+                          contentPadding:
+                              EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
                   _SectionHeader(title: 'Playback'),
                   const ListTile(
                     title: Text('Default Voice'),
-                    subtitle: Text('en-US-AriaNeural'),
+                    subtitle: Text('Rachel'),
                     trailing: Icon(Icons.chevron_right),
                   ),
                   const ListTile(
@@ -53,14 +86,6 @@ class SettingsScreen extends StatelessWidget {
                   const ListTile(
                     title: Text('Cache Size'),
                     subtitle: Text('256 MB'),
-                    trailing: Icon(Icons.chevron_right),
-                  ),
-
-                  const SizedBox(height: 16),
-                  _SectionHeader(title: 'Appearance'),
-                  const ListTile(
-                    title: Text('Theme'),
-                    subtitle: Text('System default'),
                     trailing: Icon(Icons.chevron_right),
                   ),
 

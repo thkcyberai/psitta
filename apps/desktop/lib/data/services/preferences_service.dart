@@ -1,6 +1,54 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Theme names shown to the user.
+abstract final class ThemeNames {
+  static const creatorStudioDark = 'Creator Studio Dark';
+  static const paperLight = 'Paper Light';
+  static const roseSalmonPastel = 'Rose Salmon Pastel';
+  static const beigeGoldNavy = 'Beige Gold Navy';
+
+  static const all = <String>[
+    creatorStudioDark,
+    paperLight,
+    roseSalmonPastel,
+    beigeGoldNavy,
+  ];
+}
+
+/// Persists the user's selected theme across sessions.
+class ThemePreferenceNotifier extends StateNotifier<String> {
+  ThemePreferenceNotifier() : super(_defaultTheme) {
+    _load();
+  }
+
+  static const _key = 'selected_theme_name';
+  static const _defaultTheme = ThemeNames.creatorStudioDark;
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_key);
+    if (saved != null && ThemeNames.all.contains(saved)) {
+      state = saved;
+    }
+  }
+
+  Future<void> select(String themeName) async {
+    if (!ThemeNames.all.contains(themeName)) return;
+    state = themeName;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, themeName);
+  }
+}
+
+/// Selected theme name — persisted via SharedPreferences.
+/// Reads: ref.watch(selectedThemeNameProvider) returns String.
+/// Writes: ref.read(selectedThemeNameProvider.notifier).select(themeName).
+final selectedThemeNameProvider =
+    StateNotifierProvider<ThemePreferenceNotifier, String>(
+  (ref) => ThemePreferenceNotifier(),
+);
+
 /// Persists the user's selected voice across sessions.
 class VoicePreferenceNotifier extends StateNotifier<String> {
   VoicePreferenceNotifier() : super(_defaultVoice) {
@@ -27,13 +75,10 @@ class VoicePreferenceNotifier extends StateNotifier<String> {
 }
 
 /// Selected voice ID — persisted via SharedPreferences.
-/// Reads: ref.watch(selectedVoiceIdProvider) returns String.
-/// Writes: ref.read(selectedVoiceIdProvider.notifier).select(voiceId).
 final selectedVoiceIdProvider =
     StateNotifierProvider<VoicePreferenceNotifier, String>(
   (ref) => VoicePreferenceNotifier(),
 );
-
 
 /// Tracks the user's selected playback speed (not persisted).
 class SpeedPreferenceNotifier extends StateNotifier<double> {
@@ -61,7 +106,6 @@ final selectedSpeedProvider =
     StateNotifierProvider<SpeedPreferenceNotifier, double>(
   (ref) => SpeedPreferenceNotifier(),
 );
-
 
 /// Persists the user's selected volume across sessions.
 class VolumePreferenceNotifier extends StateNotifier<double> {
