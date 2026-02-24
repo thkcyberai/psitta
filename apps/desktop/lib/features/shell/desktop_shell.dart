@@ -1,25 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/constants.dart';
 import '../../core/keyboard/shortcuts.dart';
-import 'widgets/sidebar_nav.dart';
-import 'widgets/player_bar.dart';
+import 'app_shell.dart';
 
 /// Sidebar collapsed state — persists across navigation.
 final sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
 
 /// Desktop Shell — persistent multi-pane layout.
-///
-/// Layout structure:
-/// ┌──────────┬──────────────────────────────┐
-/// │          │                              │
-/// │ Sidebar  │       Content Area           │
-/// │  (nav)   │   (swapped by GoRouter)      │
-/// │          │                              │
-/// │          │                              │
-/// ├──────────┴──────────────────────────────┤
-/// │              Player Bar                 │
-/// └─────────────────────────────────────────┘
 ///
 /// The shell never rebuilds when navigating — only the content
 /// area changes. Sidebar and player bar are persistent.
@@ -31,9 +18,6 @@ class DesktopShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isCollapsed = ref.watch(sidebarCollapsedProvider);
-    final sidebarWidth = isCollapsed
-        ? AppConstants.sidebarCollapsedWidth
-        : AppConstants.sidebarWidth;
 
     return Shortcuts(
       shortcuts: psittaShortcuts,
@@ -50,35 +34,9 @@ class DesktopShell extends ConsumerWidget {
         },
         child: Focus(
           autofocus: true,
-          child: Scaffold(
-            body: Column(
-              children: [
-                // ── Main area: sidebar + content ──────────────
-                Expanded(
-                  child: Row(
-                    children: [
-                      // Sidebar
-                      AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeInOut,
-                        width: sidebarWidth,
-                        child: SidebarNav(isCollapsed: isCollapsed),
-                      ),
-                      // Vertical divider
-                      const VerticalDivider(width: 1),
-                      // Content area (from GoRouter)
-                      Expanded(child: child),
-                    ],
-                  ),
-                ),
-                // ── Player bar (persistent) ──────────────────
-                const Divider(height: 1),
-                const SizedBox(
-                  height: AppConstants.playerBarHeight,
-                  child: PlayerBar(),
-                ),
-              ],
-            ),
+          child: AppShell(
+            content: child,
+            isSidebarCollapsed: isCollapsed,
           ),
         ),
       ),

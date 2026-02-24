@@ -3,15 +3,14 @@ import 'package:go_router/go_router.dart';
 import '../../features/shell/desktop_shell.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/player/player_screen.dart';
-import '../../features/voices/voice_selector_screen.dart';
+import '../../features/player/player_landing_screen.dart';
+import '../../features/projects/projects_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
 /// Desktop routing configuration.
 ///
 /// Uses [ShellRoute] to maintain a persistent desktop shell
 /// (sidebar + player bar) while swapping the main content area.
-/// This is the key desktop UX pattern — the shell never rebuilds
-/// when navigating between library, player, voices, settings.
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/library',
@@ -28,6 +27,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
+            path: '/player',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: PlayerLandingScreen(),
+            ),
+          ),
+          GoRoute(
             path: '/player/:documentId',
             pageBuilder: (context, state) => NoTransitionPage(
               child: PlayerScreen(
@@ -36,9 +41,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             ),
           ),
           GoRoute(
-            path: '/voices',
+            path: '/projects',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: VoiceSelectorScreen(),
+              child: ProjectsScreen(),
             ),
           ),
           GoRoute(

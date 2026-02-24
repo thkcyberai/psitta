@@ -4,11 +4,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/colors.dart';
 
 /// Sidebar navigation — collapsible, persistent.
-///
-/// Uses [LayoutBuilder] to decide between icon-only and full-label
-/// rendering based on the *actual* available width, not just the
-/// [isCollapsed] flag.  This prevents layout crashes during the
-/// [AnimatedContainer] width transition in [DesktopShell].
 class SidebarNav extends StatelessWidget {
   final bool isCollapsed;
 
@@ -22,15 +17,12 @@ class SidebarNav extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Treat as collapsed whenever the actual width is too narrow
-        // for text labels, regardless of the boolean flag.
         final narrow = isCollapsed || constraints.maxWidth < 150;
 
         return Container(
           color: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
           child: Column(
             children: [
-              // ── App header ─────────────────────────────────
               SizedBox(
                 height: 56,
                 child: Padding(
@@ -64,7 +56,6 @@ class SidebarNav extends StatelessWidget {
               ),
               const Divider(height: 1),
 
-              // ── Navigation items ───────────────────────────
               const SizedBox(height: 8),
               _NavItem(
                 icon: Icons.library_books_outlined,
@@ -75,10 +66,18 @@ class SidebarNav extends StatelessWidget {
                 narrow: narrow,
               ),
               _NavItem(
-                icon: Icons.record_voice_over_outlined,
-                activeIcon: Icons.record_voice_over,
-                label: 'Voices',
-                path: '/voices',
+                icon: Icons.play_circle_outline,
+                activeIcon: Icons.play_circle,
+                label: 'Player',
+                path: '/player',
+                currentPath: currentPath,
+                narrow: narrow,
+              ),
+              _NavItem(
+                icon: Icons.folder_open_outlined,
+                activeIcon: Icons.folder_open,
+                label: 'Projects',
+                path: '/projects',
                 currentPath: currentPath,
                 narrow: narrow,
               ),
@@ -93,7 +92,6 @@ class SidebarNav extends StatelessWidget {
 
               const Spacer(),
 
-              // ── Collapse toggle ────────────────────────────
               const Divider(height: 1),
               _CollapseButton(isCollapsed: isCollapsed),
             ],
@@ -128,7 +126,6 @@ class _NavItem extends StatelessWidget {
     final theme = Theme.of(context);
     final color = _isActive ? AppColors.primary : theme.iconTheme.color;
 
-    // ── Collapsed / narrow: simple icon, no ListTile ──────────
     if (narrow) {
       return Tooltip(
         message: label,
@@ -158,7 +155,6 @@ class _NavItem extends StatelessWidget {
       );
     }
 
-    // ── Expanded: full ListTile with label ─────────────────────
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: ListTile(
