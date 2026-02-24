@@ -3,11 +3,15 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/constants.dart';
 import '../../core/theme/colors.dart';
+import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/preferences_service.dart';
 import '../../data/models/document.dart';
+import '../shell/app_shell.dart';
+import '../shell/desktop_shell.dart';
 import 'widgets/document_card.dart';
 import 'widgets/drop_zone_overlay.dart';
 
@@ -25,6 +29,8 @@ class LibraryScreen extends ConsumerStatefulWidget {
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   bool _isDragging = false;
   bool _isUploading = false;
+
+  String? _selectedDocId;
 
   Future<void> _handleFilePick() async {
     final result = await FilePicker.platform.pickFiles(
@@ -166,15 +172,56 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = PsittaTokens.of(context);
     final documentsAsync = ref.watch(documentsProvider);
 
-    return DropTarget(
-      onDragEntered: (_) => setState(() => _isDragging = true),
-      onDragExited: (_) => setState(() => _isDragging = false),
-      onDragDone: _handleDrop,
-      child: Stack(
-        children: [
-          Padding(
+    return documentsAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _LibraryBody(
+        isDragging: _isDragging,
+        onDragEntered: () => setState(() => _isDragging = true),
+        onDragExited: () => setState(() => _isDragging = false),
+        onDrop: _handleDrop,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_off, size: 48, color: AppColors.error),
+              const SizedBox(height: 12),
+              Text('Could not load documents', style: theme.textTheme.bodyLarge),
+              const SizedBox(height: 4),
+              Text(
+                error.toString(),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => ref.invalidate(documentsProvider),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      data: (documents) {
+        if (_selectedDocId != null &&
+            !documents.any((d) => d.id == _selectedDocId)) {
+          _selectedDocId = null;
+        }
+
+        final selected = _selectedDocId == null
+            ? null
+            : documents.firstWhere((d) => d.id == _selectedDocId);
+
+        final content = _LibraryBody(
+          isDragging: _isDragging,
+          onDragEntered: () => setState(() => _isDragging = true),
+          onDragExited: () => setState(() => _isDragging = false),
+          onDrop: _handleDrop,
+          child: Padding(
             padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,59 +260,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           contentPadding:
                               const EdgeInsets.symmetric(vertical: 8),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius:
+                                BorderRadius.circular(tokens.radius - 6),
                           ),
                           isDense: true,
                         ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Voice selector (Adam + Bella)
-                    SizedBox(
-                      width: 220,
-                      height: 36,
-                      child: ref.watch(voicesProvider).when(
-                            loading: () => const SizedBox.shrink(),
-                            error: (_, __) => const SizedBox.shrink(),
-                            data: (voices) {
-                              final selected = ref.watch(selectedVoiceIdProvider);
-                              final items = voices;
-                              final current = items.any((v) => v.id == selected)
-                                  ? selected
-                                  : (items.isNotEmpty ? items.first.id : selected);
-
-                              if (current != selected && items.isNotEmpty) {
-                                // keep selected voice valid
-                                ref.read(selectedVoiceIdProvider.notifier).select(current);
-                              }
-
-                              return DropdownButtonFormField<String>(
-                                value: current,
-                                items: items
-                                    .map(
-                                      (v) => DropdownMenuItem(
-                                        value: v.id,
-                                        child: Text(v.displayName),
-                                      ),
-                                    )
-                                    .toList(),
-                                onChanged: (value) {
-                                  if (value == null) return;
-                                  ref.read(selectedVoiceIdProvider.notifier).select(value);
-                                },
-                                decoration: InputDecoration(
-                                  isDense: true,
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 10, vertical: 10),
-                                ),
-                              );
-                            },
-                          ),
-                    ),
-                    const SizedBox(width: 12),
+                                        const SizedBox(width: 12),
                     FilledButton.icon(
                       onPressed: _isUploading ? null : _handleFilePick,
                       icon: const Icon(Icons.upload_file, size: 18),
@@ -275,73 +278,376 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
                 const SizedBox(height: 24),
                 Expanded(
-                  child: documentsAsync.when(
-                    loading: () =>
-                        const Center(child: CircularProgressIndicator()),
-                    error: (error, _) => Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.cloud_off,
-                              size: 48, color: AppColors.error),
-                          const SizedBox(height: 12),
-                          Text(
-                            'Could not load documents',
-                            style: theme.textTheme.bodyLarge,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            error.toString(),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          OutlinedButton.icon(
-                            onPressed: () => ref.invalidate(documentsProvider),
-                            icon: const Icon(Icons.refresh, size: 18),
-                            label: const Text('Retry'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    data: (documents) => documents.isEmpty
-                        ? _EmptyState(onUpload: _handleFilePick)
-                        : LayoutBuilder(
-                            builder: (context, constraints) {
-                              final crossAxisCount =
-                                  (constraints.maxWidth / 300)
-                                      .floor()
-                                      .clamp(1, 5);
-                              return GridView.builder(
-                                gridDelegate:
-                                    SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: crossAxisCount,
-                                  mainAxisSpacing: 16,
-                                  crossAxisSpacing: 16,
-                                  childAspectRatio: 2.2,
-                                ),
-                                itemCount: documents.length,
-                                itemBuilder: (context, index) {
-                                  final doc = documents[index];
-                                  return DocumentCard(
-                                    title: doc.title,
-                                    status: doc.status,
-                                    onTap: () => context.go('/player/${doc.id}'),
-                                    onEdit: () => _rename(doc),
-                                    onDelete: () => _confirmAndDelete(doc),
-                                  );
-                                },
-                              );
-                            },
-                          ),
-                  ),
+                  child: documents.isEmpty
+                      ? _EmptyState(onUpload: _handleFilePick)
+                      : LayoutBuilder(
+                          builder: (context, constraints) {
+                            final crossAxisCount =
+                                (constraints.maxWidth / 320)
+                                    .floor()
+                                    .clamp(1, 4);
+                            return GridView.builder(
+                              gridDelegate:
+                                  SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: crossAxisCount,
+                                mainAxisSpacing: 16,
+                                crossAxisSpacing: 16,
+                                childAspectRatio: 2.2,
+                              ),
+                              itemCount: documents.length,
+                              itemBuilder: (context, index) {
+                                final doc = documents[index];
+                                return DocumentCard(
+                                  title: doc.title,
+                                  status: doc.status,
+                                  onTap: () => setState(() => _selectedDocId = doc.id),
+                                  onEdit: () => _rename(doc),
+                                  onDelete: () => _confirmAndDelete(doc),
+                                );
+                              },
+                            );
+                          },
+                        ),
                 ),
               ],
             ),
           ),
-          if (_isDragging) const DropZoneOverlay(),
+        );
+
+        final isInDesktopShell =
+            context.findAncestorWidgetOfExactType<DesktopShell>() != null;
+
+        final rightPanel = _LibraryRightPanel(
+          selected: selected,
+          tokens: tokens,
+          onListen: selected == null ? null : () => context.go('/player/${selected.id}'),
+          onRename: selected == null ? null : () => _rename(selected),
+          onDelete: selected == null ? null : () => _confirmAndDelete(selected),
+        );
+
+        if (isInDesktopShell) {
+          return Row(
+            children: [
+              Expanded(child: content),
+              VerticalDivider(width: 1, color: tokens.divider),
+              SizedBox(
+                width: AppConstants.detailPanelMinWidth,
+                child: rightPanel,
+              ),
+            ],
+          );
+        }
+
+        return AppShell(
+          content: content,
+          rightPanel: rightPanel,
+          isSidebarCollapsed: ref.read(sidebarCollapsedProvider),
+        );
+      },
+    );
+  }
+}
+
+class _LibraryBody extends StatelessWidget {
+  final bool isDragging;
+  final VoidCallback onDragEntered;
+  final VoidCallback onDragExited;
+  final void Function(DropDoneDetails) onDrop;
+  final Widget child;
+
+  const _LibraryBody({
+    required this.isDragging,
+    required this.onDragEntered,
+    required this.onDragExited,
+    required this.onDrop,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropTarget(
+      onDragEntered: (_) => onDragEntered(),
+      onDragExited: (_) => onDragExited(),
+      onDragDone: onDrop,
+      child: Stack(
+        children: [
+          child,
+          if (isDragging) const DropZoneOverlay(),
         ],
+      ),
+    );
+  }
+}
+
+class _LibraryRightPanel extends StatelessWidget {
+  final Document? selected;
+  final PsittaTokens tokens;
+  final VoidCallback? onListen;
+  final VoidCallback? onRename;
+  final VoidCallback? onDelete;
+
+  const _LibraryRightPanel({
+    required this.selected,
+    required this.tokens,
+    required this.onListen,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  String _fmtDate(DateTime dt) {
+    final y = dt.year.toString().padLeft(4, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final d = dt.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: tokens.surface2.withOpacity(0.9),
+        border: Border(left: BorderSide(color: tokens.divider, width: 1)),
+      ),
+      padding: const EdgeInsets.all(18),
+      child: selected == null
+          ? Center(
+              child: Text(
+                'Select a document',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.75),
+                ),
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  selected!.title,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  selected!.sourceType.toUpperCase(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.70),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}  |  Pages: ${selected!.pageCount}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.75),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: onListen,
+                    icon: const Icon(Icons.play_arrow, size: 18),
+                    label: const Text('Listen'),
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onRename,
+                        icon: const Icon(Icons.edit, size: 18),
+                        label: const Text('Rename'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: onDelete,
+                        icon: const Icon(Icons.delete_outline, size: 18),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.error,
+                        ),
+                        label: const Text('Delete'),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 16),
+
+                Text(
+                  'Voice',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                Consumer(
+                  builder: (context, ref, _) {
+                    return ref.watch(voicesProvider).when(
+                      loading: () => const SizedBox(height: 36),
+                      error: (_, __) => const SizedBox(height: 36),
+                      data: (voices) {
+                        final allowed = {'Adam', 'Bella'};
+                        final filtered = voices
+                            .where((v) => allowed.contains(v.displayName))
+                            .toList();
+
+                        final selectedVoice = ref.watch(selectedVoiceIdProvider);
+                        final current = filtered.any((v) => v.id == selectedVoice)
+                            ? selectedVoice
+                            : (filtered.isNotEmpty ? filtered.first.id : selectedVoice);
+
+                        if (current != selectedVoice && filtered.isNotEmpty) {
+                          ref.read(selectedVoiceIdProvider.notifier).select(current);
+                        }
+
+                        return SizedBox(
+                          height: 40,
+                          child: DropdownButtonFormField<String>(
+                            value: current,
+                            items: filtered
+                                .map(
+                                  (v) => DropdownMenuItem(
+                                    value: v.id,
+                                    child: Text(v.displayName),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              ref.read(selectedVoiceIdProvider.notifier).select(value);
+                            },
+                            decoration: InputDecoration(
+                              isDense: true,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(tokens.radius - 6),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 10,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 22),
+                Text(
+                  'Quick Actions',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                _QuickAction(
+                  icon: Icons.play_circle_outline,
+                  label: 'Play from Start',
+                  onTap: onListen,
+                ),
+                const SizedBox(height: 10),
+                _QuickAction(
+                  icon: Icons.graphic_eq,
+                  label: 'Generate Audio',
+                  onTap: null,
+                ),
+                const SizedBox(height: 10),
+                _QuickAction(
+                  icon: Icons.info_outline,
+                  label: 'View Details',
+                  onTap: null,
+                ),
+
+                const Spacer(),
+
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: tokens.surface.withOpacity(0.35),
+                    borderRadius: BorderRadius.circular(tokens.radius),
+                    border: Border.all(color: tokens.border, width: 1),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.verified_user_outlined,
+                          size: 18,
+                          color: theme.iconTheme.color?.withOpacity(0.85)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Status: ${selected!.status}',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _QuickAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = PsittaTokens.of(context);
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(tokens.radius),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: tokens.surface.withOpacity(0.55),
+          borderRadius: BorderRadius.circular(tokens.radius),
+          border: Border.all(color: tokens.border, width: 1),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18, color: theme.iconTheme.color?.withOpacity(0.85)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                label,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              size: 18,
+              color: theme.iconTheme.color?.withOpacity(0.6),
+            ),
+          ],
+        ),
       ),
     );
   }
