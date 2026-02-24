@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+
 import '../../core/constants.dart';
+import '../../core/theme/psitta_tokens.dart';
 import 'widgets/player_bar.dart';
 import 'widgets/sidebar_nav.dart';
 
-/// AppShell — persistent desktop layout with header, sidebar, and player bar.
+/// AppShell — persistent desktop layout with header, sidebar, optional right panel, and pinned player bar.
 class AppShell extends StatelessWidget {
   final Widget content;
   final Widget? rightPanel;
@@ -25,81 +27,128 @@ class AppShell extends StatelessWidget {
     final sidebarWidth = isSidebarCollapsed
         ? AppConstants.sidebarCollapsedWidth
         : AppConstants.sidebarWidth;
+
+    final tokens = PsittaTokens.of(context);
     final theme = Theme.of(context);
 
     return Scaffold(
-      body: Column(
-        children: [
-          // Main area: sidebar + content + optional right panel
-          Expanded(
-            child: Row(
-              children: [
-                // Sidebar
-                AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  curve: Curves.easeInOut,
-                  width: sidebarWidth,
-                  child: SidebarNav(isCollapsed: isSidebarCollapsed),
-                ),
-                // Vertical divider
-                const VerticalDivider(width: 1),
-                // Content area with header
-                Expanded(
-                  child: Column(
-                    children: [
-                      Container(
-                        height: 64,
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        alignment: Alignment.centerLeft,
-                        child: Row(
-                          children: [
-                            Text(
-                              title,
-                              style: theme.textTheme.titleLarge?.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const Spacer(),
-                            SizedBox(
-                              width: 300,
-                              height: 36,
-                              child: TextField(
-                                decoration: InputDecoration(
-                                  hintText: searchHint,
-                                  prefixIcon:
-                                      const Icon(Icons.search, size: 18),
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(vertical: 8),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  isDense: true,
-                                ),
-                              ),
-                            ),
-                          ],
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: BoxDecoration(gradient: tokens.backgroundGradient),
+        child: Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  // Sidebar
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    width: sidebarWidth,
+                    child: SidebarNav(isCollapsed: isSidebarCollapsed),
+                  ),
+
+                  VerticalDivider(width: 1, color: tokens.divider),
+
+                  // Content area + header
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _Header(
+                          title: title,
+                          searchHint: searchHint,
+                          theme: theme,
+                          tokens: tokens,
                         ),
-                      ),
-                      const Divider(height: 1),
-                      Expanded(child: content),
-                    ],
+                        Divider(height: 1, color: tokens.divider),
+                        Expanded(child: content),
+                      ],
+                    ),
                   ),
-                ),
-                if (rightPanel != null) ...[
-                  const VerticalDivider(width: 1),
-                  SizedBox(
-                    width: AppConstants.detailPanelMinWidth,
-                    child: rightPanel,
-                  ),
+
+                  if (rightPanel != null) ...[
+                    VerticalDivider(width: 1, color: tokens.divider),
+                    SizedBox(
+                      width: AppConstants.detailPanelMinWidth,
+                      child: rightPanel,
+                    ),
+                  ],
                 ],
-              ],
+              ),
+            ),
+
+            Divider(height: 1, color: tokens.divider),
+
+            const SizedBox(
+              height: AppConstants.playerBarHeight,
+              child: PlayerBar(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Header extends StatelessWidget {
+  final String title;
+  final String searchHint;
+  final ThemeData theme;
+  final PsittaTokens tokens;
+
+  const _Header({
+    required this.title,
+    required this.searchHint,
+    required this.theme,
+    required this.tokens,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 64,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      decoration: BoxDecoration(
+        color: tokens.headerSurface,
+        border: Border(
+          bottom: BorderSide(color: tokens.divider, width: 1),
+        ),
+      ),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: theme.textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.2,
             ),
           ),
-          // Player bar (persistent)
-          const Divider(height: 1),
-          const SizedBox(
-            height: AppConstants.playerBarHeight,
-            child: PlayerBar(),
+          const Spacer(),
+          SizedBox(
+            width: 320,
+            height: 38,
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: searchHint,
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 18,
+                  color: theme.iconTheme.color?.withOpacity(0.85),
+                ),
+                filled: true,
+                fillColor: tokens.inputFill,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: tokens.border, width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: tokens.glow, width: 1),
+                ),
+              ),
+            ),
           ),
         ],
       ),
