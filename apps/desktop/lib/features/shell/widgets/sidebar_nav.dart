@@ -142,7 +142,8 @@ class _NavItem extends StatelessWidget {
           decoration: BoxDecoration(
             color: isActive ? tokens.inputFill : Colors.transparent,
             borderRadius: BorderRadius.circular(tokens.radius),
-            border: isActive ? Border.all(color: tokens.border, width: 1) : null,
+            border:
+                isActive ? Border.all(color: tokens.border, width: 1) : null,
             boxShadow: isActive
                 ? [
                     BoxShadow(

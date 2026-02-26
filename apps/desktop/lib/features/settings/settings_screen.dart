@@ -56,13 +56,12 @@ class SettingsScreen extends ConsumerWidget {
                         decoration: const InputDecoration(
                           isDense: true,
                           border: OutlineInputBorder(),
-                          contentPadding:
-                              EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
                         ),
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 16),
                   _SectionHeader(title: 'Playback'),
                   const ListTile(
@@ -75,7 +74,6 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle: Text('1.0x'),
                     trailing: Icon(Icons.chevron_right),
                   ),
-
                   const SizedBox(height: 16),
                   _SectionHeader(title: 'Storage'),
                   const ListTile(
@@ -88,7 +86,6 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle: Text('256 MB'),
                     trailing: Icon(Icons.chevron_right),
                   ),
-
                   const SizedBox(height: 16),
                   _SectionHeader(title: 'Account'),
                   const ListTile(
@@ -101,7 +98,6 @@ class SettingsScreen extends ConsumerWidget {
                     subtitle: Text('http://localhost:8000'),
                     trailing: Icon(Icons.chevron_right),
                   ),
-
                   const SizedBox(height: 32),
                   Center(
                     child: Text(

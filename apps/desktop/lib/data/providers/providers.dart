@@ -36,10 +36,9 @@ final voicesProvider = FutureProvider.autoDispose<List<Voice>>((ref) async {
   return repo.listVoices();
 });
 
-
 /// Fetches chunks for a specific document from API.
-final chunksProvider =
-    FutureProvider.autoDispose.family<Map<String, dynamic>, String>((ref, documentId) async {
+final chunksProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, String>((ref, documentId) async {
   final repo = ref.watch(documentRepositoryProvider);
   return repo.getChunks(documentId);
 });

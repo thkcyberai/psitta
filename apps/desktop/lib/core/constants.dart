@@ -28,6 +28,10 @@ abstract final class AppConstants {
   // ── Upload ───────────────────────────────────────────────────
   static const int maxFileSizeMB = 50;
   static const List<String> allowedExtensions = [
-    'pdf', 'docx', 'txt', 'md', 'html',
+    'pdf',
+    'docx',
+    'txt',
+    'md',
+    'html',
   ];
 }

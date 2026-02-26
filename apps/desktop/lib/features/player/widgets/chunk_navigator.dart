@@ -43,12 +43,8 @@ class ChunkNavigator extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isActive
-                    ? AppColors.primary
-                    : Colors.transparent,
-                border: isActive
-                    ? null
-                    : Border.all(color: theme.dividerColor),
+                color: isActive ? AppColors.primary : Colors.transparent,
+                border: isActive ? null : Border.all(color: theme.dividerColor),
               ),
               child: Text(
                 '${index + 1}',

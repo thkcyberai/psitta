@@ -30,6 +30,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   bool _isDragging = false;
   bool _isUploading = false;
 
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
   String? _selectedDocId;
 
   Future<void> _handleFilePick() async {
@@ -175,8 +178,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final tokens = PsittaTokens.of(context);
     final documentsAsync = ref.watch(documentsProvider);
 
-    return documentsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+    Document? selected;
+
+    final content = documentsAsync.when(
+      loading: () => _LibraryBody(
+        isDragging: _isDragging,
+        onDragEntered: () => setState(() => _isDragging = true),
+        onDragExited: () => setState(() => _isDragging = false),
+        onDrop: _handleDrop,
+        child: const Center(child: CircularProgressIndicator()),
+      ),
       error: (error, _) => _LibraryBody(
         isDragging: _isDragging,
         onDragEntered: () => setState(() => _isDragging = true),
@@ -188,7 +199,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             children: [
               Icon(Icons.cloud_off, size: 48, color: AppColors.error),
               const SizedBox(height: 12),
-              Text('Could not load documents', style: theme.textTheme.bodyLarge),
+              Text(
+                'Could not load documents',
+                style: theme.textTheme.bodyLarge,
+              ),
               const SizedBox(height: 4),
               Text(
                 error.toString(),
@@ -207,16 +221,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ),
       ),
       data: (documents) {
-        if (_selectedDocId != null &&
-            !documents.any((d) => d.id == _selectedDocId)) {
-          _selectedDocId = null;
+        final query = _searchQuery.trim().toLowerCase();
+        final filteredDocs = query.isEmpty
+            ? documents
+            : documents
+                .where((doc) => doc.title.toLowerCase().contains(query))
+                .toList();
+
+        if (_selectedDocId != null) {
+          for (final doc in documents) {
+            if (doc.id == _selectedDocId) {
+              selected = doc;
+              break;
+            }
+          }
         }
 
-        final selected = _selectedDocId == null
-            ? null
-            : documents.firstWhere((d) => d.id == _selectedDocId);
-
-        final content = _LibraryBody(
+        return _LibraryBody(
           isDragging: _isDragging,
           onDragEntered: () => setState(() => _isDragging = true),
           onDragExited: () => setState(() => _isDragging = false),
@@ -226,124 +247,213 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Text(
-                      'Library',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 900;
+
+                    final searchField = TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => FocusScope.of(context).unfocus(),
+                      onChanged: (v) => setState(
+                        () => _searchQuery = v.trim().toLowerCase(),
                       ),
-                    ),
-                    if (_isUploading) ...[
-                      const SizedBox(width: 16),
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Uploading...',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondary,
+                      decoration: InputDecoration(
+                        hintText: 'Search documents... (Ctrl+F)',
+                        prefixIcon: const Icon(Icons.search, size: 18),
+                        suffixIcon: _searchQuery.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Clear',
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                                icon: const Icon(Icons.close, size: 18),
+                              ),
+                        contentPadding: EdgeInsets.symmetric(
+                          vertical: isNarrow ? 10 : 8,
                         ),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(tokens.radius - 6),
+                        ),
+                        isDense: true,
                       ),
-                    ],
-                    const Spacer(),
-                    SizedBox(
-                      width: 260,
-                      height: 36,
-                      child: TextField(
-                        decoration: InputDecoration(
-                          hintText: 'Search documents... (Ctrl+F)',
-                          prefixIcon: const Icon(Icons.search, size: 18),
-                          contentPadding:
-                              const EdgeInsets.symmetric(vertical: 8),
-                          border: OutlineInputBorder(
-                            borderRadius:
-                                BorderRadius.circular(tokens.radius - 6),
+                    );
+
+                    if (isNarrow) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text(
+                                'Library',
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              if (_isUploading) ...[
+                                const SizedBox(width: 16),
+                                const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Uploading...',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                          isDense: true,
+                          const SizedBox(height: 12),
+                          searchField,
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton.icon(
+                              onPressed: _isUploading ? null : _handleFilePick,
+                              icon: const Icon(Icons.upload_file, size: 18),
+                              label: const Text('Upload'),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    return Row(
+                      children: [
+                        Text(
+                          'Library',
+                          style: theme.textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                                        const SizedBox(width: 12),
-                    FilledButton.icon(
-                      onPressed: _isUploading ? null : _handleFilePick,
-                      icon: const Icon(Icons.upload_file, size: 18),
-                      label: const Text('Upload'),
-                    ),
-                  ],
+                        if (_isUploading) ...[
+                          const SizedBox(width: 16),
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Uploading...',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                        const Spacer(),
+                        SizedBox(
+                          width: 260,
+                          height: 36,
+                          child: searchField,
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton.icon(
+                          onPressed: _isUploading ? null : _handleFilePick,
+                          icon: const Icon(Icons.upload_file, size: 18),
+                          label: const Text('Upload'),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 const SizedBox(height: 24),
                 Expanded(
                   child: documents.isEmpty
                       ? _EmptyState(onUpload: _handleFilePick)
-                      : LayoutBuilder(
-                          builder: (context, constraints) {
-                            final crossAxisCount =
-                                (constraints.maxWidth / 320)
-                                    .floor()
-                                    .clamp(1, 4);
-                            return GridView.builder(
-                              gridDelegate:
-                                  SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: crossAxisCount,
-                                mainAxisSpacing: 16,
-                                crossAxisSpacing: 16,
-                                childAspectRatio: 2.2,
+                      : filteredDocs.isEmpty
+                          ? Center(
+                              child: Text(
+                                'No matches',
+                                style: theme.textTheme.bodyLarge?.copyWith(
+                                  color: AppColors.textSecondary,
+                                ),
                               ),
-                              itemCount: documents.length,
-                              itemBuilder: (context, index) {
-                                final doc = documents[index];
-                                return DocumentCard(
-                                  title: doc.title,
-                                  status: doc.status,
-                                  onTap: () => setState(() => _selectedDocId = doc.id),
-                                  onEdit: () => _rename(doc),
-                                  onDelete: () => _confirmAndDelete(doc),
+                            )
+                          : LayoutBuilder(
+                              builder: (context, constraints) {
+                                final crossAxisCount =
+                                    (constraints.maxWidth / 320)
+                                        .floor()
+                                        .clamp(1, 4);
+                                final childAspectRatio =
+                                    constraints.maxWidth < 900 ? 1.55 : 2.2;
+                                return GridView.builder(
+                                  gridDelegate:
+                                      SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: crossAxisCount,
+                                    mainAxisSpacing: 16,
+                                    crossAxisSpacing: 16,
+                                    childAspectRatio: childAspectRatio,
+                                  ),
+                                  itemCount: filteredDocs.length,
+                                  itemBuilder: (context, index) {
+                                    final doc = filteredDocs[index];
+                                    return DocumentCard(
+                                      title: doc.title,
+                                      status: doc.status,
+                                      onTap: () => setState(
+                                          () => _selectedDocId = doc.id),
+                                      onEdit: () => _rename(doc),
+                                      onDelete: () => _confirmAndDelete(doc),
+                                    );
+                                  },
                                 );
                               },
-                            );
-                          },
-                        ),
+                            ),
                 ),
               ],
             ),
           ),
         );
+      },
+    );
 
-        final isInDesktopShell =
-            context.findAncestorWidgetOfExactType<DesktopShell>() != null;
+    final isInDesktopShell =
+        context.findAncestorWidgetOfExactType<DesktopShell>() != null;
 
-        final rightPanel = _LibraryRightPanel(
-          selected: selected,
-          tokens: tokens,
-          onListen: selected == null ? null : () => context.go('/player/${selected.id}'),
-          onRename: selected == null ? null : () => _rename(selected),
-          onDelete: selected == null ? null : () => _confirmAndDelete(selected),
-        );
+    final rightPanel = _LibraryRightPanel(
+      selected: selected,
+      tokens: tokens,
+      onListen:
+          selected == null ? null : () => context.go('/player/${selected!.id}'),
+      onRename: selected == null ? null : () => _rename(selected!),
+      onDelete: selected == null ? null : () => _confirmAndDelete(selected!),
+    );
 
-        if (isInDesktopShell) {
+    if (isInDesktopShell) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          final showRightPanel = constraints.maxWidth >= 1100;
           return Row(
             children: [
               Expanded(child: content),
-              VerticalDivider(width: 1, color: tokens.divider),
-              SizedBox(
-                width: AppConstants.detailPanelMinWidth,
-                child: rightPanel,
-              ),
+              if (showRightPanel) ...[
+                VerticalDivider(width: 1, color: tokens.divider),
+                SizedBox(
+                  width: AppConstants.detailPanelMinWidth,
+                  child: rightPanel,
+                ),
+              ],
             ],
           );
-        }
+        },
+      );
+    }
 
-        return AppShell(
-          content: content,
-          rightPanel: rightPanel,
-          isSidebarCollapsed: ref.read(sidebarCollapsedProvider),
-        );
-      },
+    return AppShell(
+      content: content,
+      rightPanel: rightPanel,
+      isSidebarCollapsed: ref.read(sidebarCollapsedProvider),
     );
   }
 }
@@ -420,184 +530,187 @@ class _LibraryRightPanel extends StatelessWidget {
                 ),
               ),
             )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  selected!.title,
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  selected!.sourceType.toUpperCase(),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.70),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}  |  Pages: ${selected!.pageCount}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.75),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: onListen,
-                    icon: const Icon(Icons.play_arrow, size: 18),
-                    label: const Text('Listen'),
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onRename,
-                        icon: const Icon(Icons.edit, size: 18),
-                        label: const Text('Rename'),
-                      ),
+          : SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    selected!.title,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: onDelete,
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                        ),
-                        label: const Text('Delete'),
-                      ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    selected!.sourceType.toUpperCase(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color:
+                          theme.textTheme.bodySmall?.color?.withOpacity(0.70),
                     ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                Text(
-                  'Voice',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
                   ),
-                ),
-                const SizedBox(height: 10),
-
-                Consumer(
-                  builder: (context, ref, _) {
-                    return ref.watch(voicesProvider).when(
-                      loading: () => const SizedBox(height: 36),
-                      error: (_, __) => const SizedBox(height: 36),
-                      data: (voices) {
-                        final allowed = {'Adam', 'Bella'};
-                        final filtered = voices
-                            .where((v) => allowed.contains(v.displayName))
-                            .toList();
-
-                        final selectedVoice = ref.watch(selectedVoiceIdProvider);
-                        final current = filtered.any((v) => v.id == selectedVoice)
-                            ? selectedVoice
-                            : (filtered.isNotEmpty ? filtered.first.id : selectedVoice);
-
-                        if (current != selectedVoice && filtered.isNotEmpty) {
-                          ref.read(selectedVoiceIdProvider.notifier).select(current);
-                        }
-
-                        return SizedBox(
-                          height: 40,
-                          child: DropdownButtonFormField<String>(
-                            value: current,
-                            items: filtered
-                                .map(
-                                  (v) => DropdownMenuItem(
-                                    value: v.id,
-                                    child: Text(v.displayName),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (value) {
-                              if (value == null) return;
-                              ref.read(selectedVoiceIdProvider.notifier).select(value);
-                            },
-                            decoration: InputDecoration(
-                              isDense: true,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(tokens.radius - 6),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 10,
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 22),
-                Text(
-                  'Quick Actions',
-                  style: theme.textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w800,
+                  const SizedBox(height: 10),
+                  Text(
+                    'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}  |  Pages: ${selected!.pageCount}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color:
+                          theme.textTheme.bodySmall?.color?.withOpacity(0.75),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 10),
-
-                _QuickAction(
-                  icon: Icons.play_circle_outline,
-                  label: 'Play from Start',
-                  onTap: onListen,
-                ),
-                const SizedBox(height: 10),
-                _QuickAction(
-                  icon: Icons.graphic_eq,
-                  label: 'Generate Audio',
-                  onTap: null,
-                ),
-                const SizedBox(height: 10),
-                _QuickAction(
-                  icon: Icons.info_outline,
-                  label: 'View Details',
-                  onTap: null,
-                ),
-
-                const Spacer(),
-
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: tokens.surface.withOpacity(0.35),
-                    borderRadius: BorderRadius.circular(tokens.radius),
-                    border: Border.all(color: tokens.border, width: 1),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: onListen,
+                      icon: const Icon(Icons.play_arrow, size: 18),
+                      label: const Text('Listen'),
+                    ),
                   ),
-                  child: Row(
+                  const SizedBox(height: 12),
+                  Row(
                     children: [
-                      Icon(Icons.verified_user_outlined,
-                          size: 18,
-                          color: theme.iconTheme.color?.withOpacity(0.85)),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: onRename,
+                          icon: const Icon(Icons.edit, size: 18),
+                          label: const Text('Rename'),
+                        ),
+                      ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Text(
-                          'Status: ${selected!.status}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            fontWeight: FontWeight.w700,
+                        child: OutlinedButton.icon(
+                          onPressed: onDelete,
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.error,
                           ),
+                          label: const Text('Delete'),
                         ),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  Text(
+                    'Voice',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Consumer(
+                    builder: (context, ref, _) {
+                      return ref.watch(voicesProvider).when(
+                            loading: () => const SizedBox(height: 36),
+                            error: (_, __) => const SizedBox(height: 36),
+                            data: (voices) {
+                              final allowed = {'Adam', 'Bella'};
+                              final filtered = voices
+                                  .where((v) => allowed.contains(v.displayName))
+                                  .toList();
+
+                              final selectedVoice =
+                                  ref.watch(selectedVoiceIdProvider);
+                              final current =
+                                  filtered.any((v) => v.id == selectedVoice)
+                                      ? selectedVoice
+                                      : (filtered.isNotEmpty
+                                          ? filtered.first.id
+                                          : selectedVoice);
+
+                              if (current != selectedVoice &&
+                                  filtered.isNotEmpty) {
+                                ref
+                                    .read(selectedVoiceIdProvider.notifier)
+                                    .select(current);
+                              }
+
+                              return SizedBox(
+                                height: 40,
+                                child: DropdownButtonFormField<String>(
+                                  value: current,
+                                  items: filtered
+                                      .map(
+                                        (v) => DropdownMenuItem(
+                                          value: v.id,
+                                          child: Text(v.displayName),
+                                        ),
+                                      )
+                                      .toList(),
+                                  onChanged: (value) {
+                                    if (value == null) return;
+                                    ref
+                                        .read(selectedVoiceIdProvider.notifier)
+                                        .select(value);
+                                  },
+                                  decoration: InputDecoration(
+                                    isDense: true,
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(
+                                          tokens.radius - 6),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                    },
+                  ),
+                  const SizedBox(height: 22),
+                  Text(
+                    'Quick Actions',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _QuickAction(
+                    icon: Icons.play_circle_outline,
+                    label: 'Play from Start',
+                    onTap: onListen,
+                  ),
+                  const SizedBox(height: 10),
+                  _QuickAction(
+                    icon: Icons.graphic_eq,
+                    label: 'Generate Audio',
+                    onTap: null,
+                  ),
+                  const SizedBox(height: 10),
+                  _QuickAction(
+                    icon: Icons.info_outline,
+                    label: 'View Details',
+                    onTap: null,
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: tokens.surface.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(tokens.radius),
+                      border: Border.all(color: tokens.border, width: 1),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.verified_user_outlined,
+                            size: 18,
+                            color: theme.iconTheme.color?.withOpacity(0.85)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Status: ${selected!.status}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
     );
   }
@@ -631,7 +744,8 @@ class _QuickAction extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: theme.iconTheme.color?.withOpacity(0.85)),
+            Icon(icon,
+                size: 18, color: theme.iconTheme.color?.withOpacity(0.85)),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

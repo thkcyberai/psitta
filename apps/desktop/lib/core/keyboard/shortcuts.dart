@@ -46,20 +46,20 @@ class SearchLibraryIntent extends Intent {
 final Map<ShortcutActivator, Intent> psittaShortcuts = {
   // Playback
   const SingleActivator(LogicalKeyboardKey.space): const PlayPauseIntent(),
-  const SingleActivator(LogicalKeyboardKey.arrowRight,
-      control: true): const SkipForwardIntent(),
-  const SingleActivator(LogicalKeyboardKey.arrowLeft,
-      control: true): const SkipBackwardIntent(),
-  const SingleActivator(LogicalKeyboardKey.equal,
-      control: true): const SpeedUpIntent(),
-  const SingleActivator(LogicalKeyboardKey.minus,
-      control: true): const SpeedDownIntent(),
+  const SingleActivator(LogicalKeyboardKey.arrowRight, control: true):
+      const SkipForwardIntent(),
+  const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
+      const SkipBackwardIntent(),
+  const SingleActivator(LogicalKeyboardKey.equal, control: true):
+      const SpeedUpIntent(),
+  const SingleActivator(LogicalKeyboardKey.minus, control: true):
+      const SpeedDownIntent(),
 
   // Navigation
-  const SingleActivator(LogicalKeyboardKey.keyO,
-      control: true): const UploadDocumentIntent(),
-  const SingleActivator(LogicalKeyboardKey.backslash,
-      control: true): const ToggleSidebarIntent(),
-  const SingleActivator(LogicalKeyboardKey.keyF,
-      control: true): const SearchLibraryIntent(),
+  const SingleActivator(LogicalKeyboardKey.keyO, control: true):
+      const UploadDocumentIntent(),
+  const SingleActivator(LogicalKeyboardKey.backslash, control: true):
+      const ToggleSidebarIntent(),
+  const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+      const SearchLibraryIntent(),
 };

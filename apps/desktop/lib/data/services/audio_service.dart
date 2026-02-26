@@ -123,7 +123,14 @@ class AudioService {
         // Instant play from cache — no synthesizing indicator
         cacheHit = true;
         await _player.setFilePath(filePath);
-      print('DEBUG_AUDIO file=' + filePath + ' speed=' + speed.toString() + ' playerSpeed=' + _player.speed.toString() + ' duration=' + (_player.duration?.toString() ?? 'null'));
+        print('DEBUG_AUDIO file=' +
+            filePath +
+            ' speed=' +
+            speed.toString() +
+            ' playerSpeed=' +
+            _player.speed.toString() +
+            ' duration=' +
+            (_player.duration?.toString() ?? 'null'));
         await _player.setSpeed(speed);
         print(
           'playChunk: speed=$speed playerSpeed=${_player.speed} cacheHit=$cacheHit',
@@ -168,6 +175,7 @@ class AudioService {
       return false;
     }
   }
+
   Future<void> play() => _player.play();
   Future<void> pause() => _player.pause();
 

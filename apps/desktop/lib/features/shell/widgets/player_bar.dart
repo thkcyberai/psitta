@@ -15,8 +15,6 @@ final totalChunksProvider = StateProvider<int>((ref) => 0);
 final activeDocumentIdProvider = StateProvider<String?>((ref) => null);
 final activeChunkIdsProvider = StateProvider<List<String>>((ref) => []);
 
-
-
 /// Player Bar with real audio playback via just_audio.
 class PlayerBar extends ConsumerWidget {
   const PlayerBar({super.key});
@@ -140,25 +138,29 @@ class PlayerBar extends ConsumerWidget {
                                     ? Icons.pause_circle_filled
                                     : Icons.play_circle_filled,
                                 size: 38,
-                                color: hasActiveSession
-                                    ? AppColors.primary
-                                    : null,
+                                color:
+                                    hasActiveSession ? AppColors.primary : null,
                               ),
                               onPressed: hasActiveSession
                                   ? () {
-                                      if (!isPlaying && (audioService.duration == null || audioService.position == Duration.zero)) {
-                                        final chunkIds = ref
-                                            .read(activeChunkIdsProvider);
-                                        final docId = ref
-                                            .read(activeDocumentIdProvider);
-                                        final idx = ref.read(
-                                            currentChunkIndexProvider);
+                                      if (!isPlaying &&
+                                          (audioService.duration == null ||
+                                              audioService.position ==
+                                                  Duration.zero)) {
+                                        final chunkIds =
+                                            ref.read(activeChunkIdsProvider);
+                                        final docId =
+                                            ref.read(activeDocumentIdProvider);
+                                        final idx =
+                                            ref.read(currentChunkIndexProvider);
                                         if (docId != null &&
                                             idx < chunkIds.length) {
-                                          final voiceId = ref
-                                              .read(selectedVoiceIdProvider);
-                                          final speed = ref.read(selectedSpeedProvider);
-                                          final volume = ref.read(selectedVolumeProvider);
+                                          final voiceId =
+                                              ref.read(selectedVoiceIdProvider);
+                                          final speed =
+                                              ref.read(selectedSpeedProvider);
+                                          final volume =
+                                              ref.read(selectedVolumeProvider);
                                           audioService.playChunk(
                                             documentId: docId,
                                             chunkId: chunkIds[idx],
@@ -254,13 +256,15 @@ class PlayerBar extends ConsumerWidget {
         final voiceId = ref.read(selectedVoiceIdProvider);
         final speed = ref.read(selectedSpeedProvider);
         final volume = ref.read(selectedVolumeProvider);
-        audioService.playChunk(
+        audioService
+            .playChunk(
           documentId: docId,
           chunkId: chunkIds[nextIdx],
           voiceId: voiceId,
           speed: speed,
           volume: volume,
-        ).then((_) {
+        )
+            .then((_) {
           // Prefetch the chunk after next
           if (nextIdx + 1 < chunkIds.length) {
             audioService.prefetchChunk(
@@ -364,8 +368,6 @@ class _SpeedButton extends StatelessWidget {
     );
   }
 }
-
-
 
 /// Volume button with vertical slider popup.
 class _VolumeButton extends StatefulWidget {

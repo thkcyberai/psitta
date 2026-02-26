@@ -76,9 +76,7 @@ class AppShell extends StatelessWidget {
                 ],
               ),
             ),
-
             Divider(height: 1, color: tokens.divider),
-
             const SizedBox(
               height: AppConstants.playerBarHeight,
               child: PlayerBar(),

@@ -55,13 +55,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final audioService = ref.read(audioServiceProvider);
     final speed = ref.read(selectedSpeedProvider);
     final volume = ref.read(selectedVolumeProvider);
-    audioService.playChunk(
+    audioService
+        .playChunk(
       documentId: widget.documentId,
       chunkId: chunkIds[index],
       voiceId: voiceId,
       speed: speed,
       volume: volume,
-    ).then((_) {
+    )
+        .then((_) {
       // Prefetch next chunk while current one plays
       if (index + 1 < chunkIds.length) {
         audioService.prefetchChunk(
@@ -77,7 +79,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   String _voiceName(WidgetRef ref) {
     final voicesAsync = ref.watch(voicesProvider);
     final selectedId = ref.watch(selectedVoiceIdProvider);
-    String name = selectedId.length >= 8 ? selectedId.substring(0, 8) : selectedId;
+    String name =
+        selectedId.length >= 8 ? selectedId.substring(0, 8) : selectedId;
     voicesAsync.whenData((voices) {
       for (final voice in voices) {
         if (voice.id == selectedId) {
@@ -106,8 +109,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           children: [
             const Icon(Icons.error_outline, size: 48, color: AppColors.error),
             const SizedBox(height: 16),
-            Text("Failed to load document",
-                style: theme.textTheme.titleMedium),
+            Text("Failed to load document", style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             Text("$err", style: theme.textTheme.bodySmall),
             const SizedBox(height: 16),
@@ -151,7 +153,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             final voiceId = ref.read(selectedVoiceIdProvider);
             _playAndPrefetch(chunkIds, 0, voiceId);
           }
-
         });
 
         final currentIndex = activeChunkIndex.clamp(0, chunks.length - 1);
@@ -159,11 +160,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final chunkMaps = chunks.map<Map<String, String>>((c) {
           final m = c as Map<String, dynamic>;
           return {
-            "title": (m["title"] ??
-                    "Section ${(m["sequence_index"] ?? 0) + 1}")
+            "title": (m["title"] ?? "Section ${(m["sequence_index"] ?? 0) + 1}")
                 .toString(),
-            "preview":
-                _truncate((m["text_content"] ?? "").toString(), 80),
+            "preview": _truncate((m["text_content"] ?? "").toString(), 80),
           };
         }).toList();
 
@@ -179,9 +178,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 SizedBox(
                   width: 280,
                   child: Container(
-                    color: isDark
-                        ? AppColors.sidebarDark
-                        : AppColors.sidebarLight,
+                    color:
+                        isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -211,8 +209,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   Expanded(
                                     child: Text(
                                       'Voice: ${_voiceName(ref)}',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color: AppColors.primary,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -234,8 +232,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ref
                                   .read(currentChunkIndexProvider.notifier)
                                   .state = index;
-                              final chunkIds =
-                                  ref.read(activeChunkIdsProvider);
+                              final chunkIds = ref.read(activeChunkIdsProvider);
                               if (index < chunkIds.length) {
                                 final voiceId =
                                     ref.read(selectedVoiceIdProvider);
@@ -295,8 +292,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 right: 0,
                 child: Container(
                   color: AppColors.primary.withOpacity(0.9),
-                  padding: const EdgeInsets.symmetric(
-                      vertical: 8, horizontal: 16),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
