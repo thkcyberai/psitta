@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../core/state/now_reading.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
@@ -22,6 +25,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Look up real document title from documents provider
       final docs = ref.read(documentsProvider).valueOrNull;
@@ -38,6 +42,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ref.read(activeDocumentIdProvider.notifier).state = widget.documentId;
     });
 
+    // Debug: verify UI actually sees chunk index changes during playback.
+    ref.listenManual<int>(currentChunkIndexProvider, (prev, next) {
+      if (prev != next) {
+        // ignore: avoid_print
+        print('[PlayerScreen] currentChunkIndexProvider: $prev -> $next');
+      }
+    });
+
     // Listen for voice changes and re-play current chunk with new voice
     ref.listenManual<String>(selectedVoiceIdProvider, (previous, next) {
       if (previous != null && previous != next) {
@@ -48,6 +60,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
       }
     });
+  }
+
+  @override
+  void dispose() {
+    // Clear wallboard when leaving player.
+    ref.read(nowReadingTextProvider.notifier).state = '';
+    super.dispose();
   }
 
   /// Play a chunk and prefetch the next one in the background.
@@ -92,6 +111,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return name;
   }
 
+  /// v1 wallboard text: chunk-level excerpt (no word timestamps yet).
+  void _publishNowReading({
+    required String chunkTitle,
+    required String chunkText,
+    required int currentIndex,
+    required int total,
+  }) {
+    final excerpt = _truncate(chunkText, 140);
+    final line = '$chunkTitle • ${currentIndex + 1}/$total • $excerpt';
+    ref.read(nowReadingTextProvider.notifier).state = line;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -100,6 +131,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final activeChunkIndex = ref.watch(currentChunkIndexProvider);
     final isSynthesizing =
         ref.watch(isSynthesizingProvider).valueOrNull ?? false;
+
+    final uri = GoRouterState.of(context).uri;
+    final autoplayParam = uri.queryParameters['autoplay']?.toLowerCase().trim();
+    final shouldAutoPlay = !(autoplayParam == '0' || autoplayParam == 'false');
 
     return chunksAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -147,11 +182,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ref.read(activeChunkIdsProvider.notifier).state = chunkIds;
           ref.read(totalChunksProvider.notifier).state = chunks.length;
 
-          // Auto-play first chunk when document loads
+          // Auto-play first chunk when document loads (unless autoplay disabled)
           if (_hasAutoPlayed == false && chunkIds.isNotEmpty) {
             _hasAutoPlayed = true;
-            final voiceId = ref.read(selectedVoiceIdProvider);
-            _playAndPrefetch(chunkIds, 0, voiceId);
+            if (shouldAutoPlay) {
+              final voiceId = ref.read(selectedVoiceIdProvider);
+              _playAndPrefetch(chunkIds, 0, voiceId);
+            }
           }
         });
 
@@ -170,6 +207,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final chunkTitle =
             (activeChunk["title"] ?? "Section ${currentIndex + 1}").toString();
         final chunkText = (activeChunk["text_content"] ?? "").toString();
+
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _publishNowReading(
+            chunkTitle: chunkTitle,
+            chunkText: chunkText,
+            currentIndex: currentIndex,
+            total: chunks.length,
+          );
+        });
 
         return Stack(
           children: [
@@ -195,7 +241,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              // Voice name indicator
                               Row(
                                 children: [
                                   Icon(
@@ -232,6 +277,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ref
                                   .read(currentChunkIndexProvider.notifier)
                                   .state = index;
+
+                              final selected =
+                                  chunks[index] as Map<String, dynamic>;
+                              final t =
+                                  (selected["title"] ?? "Section ${index + 1}")
+                                      .toString();
+                              final txt =
+                                  (selected["text_content"] ?? "").toString();
+                              _publishNowReading(
+                                chunkTitle: t,
+                                chunkText: txt,
+                                currentIndex: index,
+                                total: chunks.length,
+                              );
+
                               final chunkIds = ref.read(activeChunkIdsProvider);
                               if (index < chunkIds.length) {
                                 final voiceId =
@@ -268,11 +328,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         const SizedBox(height: 24),
                         Expanded(
                           child: SingleChildScrollView(
-                            child: SelectableText(
-                              chunkText,
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                height: 1.8,
-                                fontSize: 16,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) => SizedBox(
+                                width: constraints.maxWidth,
+                                child: SelectableText(
+                                  chunkText,
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    height: 1.8,
+                                    fontSize: 16,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -283,8 +348,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 ),
               ],
             ),
-
-            // Synthesizing overlay — subtle top banner
             if (isSynthesizing)
               Positioned(
                 top: 0,

@@ -29,31 +29,33 @@ class PsittaTokens {
 
   static PsittaTokens of(BuildContext context) {
     final brightness = Theme.of(context).brightness;
+
+    // Creator Studio Dark feel (deep navy + glass)
     if (brightness == Brightness.dark) {
       return const PsittaTokens(
         backgroundGradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color(0xFF070A12),
+            Color(0xFF070A14),
             Color(0xFF070C1C),
-            Color(0xFF0A1533),
-            Color(0xFF070A12),
+            Color(0xFF0B1636),
+            Color(0xFF070A14),
           ],
-          stops: [0.0, 0.35, 0.75, 1.0],
+          stops: [0.0, 0.33, 0.78, 1.0],
         ),
-        headerSurface: Color(0xCC0B1329),
-        surface: Color(0xB30B1329),
-        surface2: Color(0x990B1329),
-        border: Color(0x2A86A9FF),
+        headerSurface: Color(0xCC0C1224),
+        surface: Color(0xB30C1224),
+        surface2: Color(0x990C1224),
+        border: Color(0x262F6BFF),
         divider: Color(0x1EFFFFFF),
-        inputFill: Color(0x2AFFFFFF),
-        glow: Color(0xFF7AA8FF),
-        radius: 14,
+        inputFill: Color(0x1AFFFFFF),
+        glow: Color(0xFF8A7CFF),
+        radius: 18,
       );
     }
 
-    // Light fallback (still slightly “premium”).
+    // Light fallback (premium)
     return const PsittaTokens(
       backgroundGradient: LinearGradient(
         begin: Alignment.topLeft,

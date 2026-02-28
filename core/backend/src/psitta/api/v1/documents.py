@@ -20,6 +20,48 @@ from psitta.dependencies import get_db_session
 
 logger = structlog.get_logger(__name__)
 
+
+def _reflow_pdf_text(text: str) -> str:
+    """Reflow PDF-extracted text.
+    Keeps paragraph breaks (blank lines) but merges single newlines into spaces.
+    """
+    if not text:
+        return ""
+    t = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = t.split("\n")
+    out: list[str] = []
+    buf = ""
+    for line in lines:
+        ln = line.strip()
+        if not ln:
+            if buf.strip():
+                out.append(buf.strip())
+                buf = ""
+            out.append("")
+            continue
+        if buf.endswith("-"):
+            buf = buf[:-1] + ln
+        else:
+            buf = (buf + " " + ln).strip() if buf else ln
+    if buf.strip():
+        out.append(buf.strip())
+    # collapse 3+ blank lines to max 2
+    joined = "\n".join(out)
+    joined = re.sub(r"\n{3,}", "\n\n", joined)
+    return joined
+
+
+def _sanitize_text_for_db(text: str) -> str:
+    """Remove bytes/chars that Postgres TEXT cannot store.
+    - strips NULL bytes (\x00)
+    - strips other control chars except \n \r \t
+    """
+    if not text:
+        return ""
+    text = text.replace("\x00", "")
+    text = "".join(ch for ch in text if (ch >= " " or ch in "\n\r\t"))
+    return text
+
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".md", ".html"})
@@ -149,6 +191,11 @@ async def _process_document(
     if raw_text is None:
         logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
         return 0
+
+
+    raw_text = _sanitize_text_for_db(raw_text)
+    if extension == ".pdf":
+        raw_text = _reflow_pdf_text(raw_text)
 
     chunks = _chunk_markdown(raw_text)
     if not chunks:

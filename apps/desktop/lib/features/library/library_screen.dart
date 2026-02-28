@@ -83,6 +83,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  String _prettySourceType(String sourceType) {
+    final st = sourceType.trim().toLowerCase();
+    switch (st) {
+      case 'pdf':
+        return 'PDF Document';
+      case 'docx':
+        return 'DOCX Document';
+      case 'txt':
+        return 'Text File';
+      case 'md':
+        return 'Markdown';
+      case 'html':
+        return 'HTML';
+      default:
+        return st.toUpperCase();
+    }
+  }
+
   Future<void> _confirmAndDelete(Document doc) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -255,9 +273,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       controller: _searchController,
                       textInputAction: TextInputAction.search,
                       onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                      onChanged: (v) => setState(
-                        () => _searchQuery = v.trim().toLowerCase(),
-                      ),
+                      onChanged: (v) =>
+                          setState(() => _searchQuery = v.trim().toLowerCase()),
                       decoration: InputDecoration(
                         hintText: 'Search documents... (Ctrl+F)',
                         prefixIcon: const Icon(Icons.search, size: 18),
@@ -400,9 +417,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                     final doc = filteredDocs[index];
                                     return DocumentCard(
                                       title: doc.title,
+                                      subtitle:
+                                          _prettySourceType(doc.sourceType),
                                       status: doc.status,
+                                      isSelected: doc.id == _selectedDocId,
                                       onTap: () => setState(
                                           () => _selectedDocId = doc.id),
+                                      onRead: () => context
+                                          .go('/player/${doc.id}?autoplay=0'),
                                       onEdit: () => _rename(doc),
                                       onDelete: () => _confirmAndDelete(doc),
                                     );
@@ -516,9 +538,25 @@ class _LibraryRightPanel extends StatelessWidget {
     final theme = Theme.of(context);
 
     return Container(
+      margin: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: tokens.surface2.withOpacity(0.9),
-        border: Border(left: BorderSide(color: tokens.divider, width: 1)),
+        borderRadius: BorderRadius.circular(tokens.radius),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            tokens.surface.withOpacity(0.92),
+            tokens.surface2.withOpacity(0.88),
+          ],
+        ),
+        border: Border.all(color: tokens.border.withOpacity(0.45), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.30),
+            blurRadius: 26,
+            offset: const Offset(0, 18),
+          ),
+        ],
       ),
       padding: const EdgeInsets.all(18),
       child: selected == null
@@ -549,14 +587,16 @@ class _LibraryRightPanel extends StatelessWidget {
                         child: Text(
                           selected!.sourceType.toUpperCase(),
                           style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.70),
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.70),
                           ),
                         ),
                       ),
                       Text(
                         'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.75),
+                          color: theme.textTheme.bodySmall?.color
+                              ?.withOpacity(0.75),
                         ),
                       ),
                     ],
@@ -565,7 +605,8 @@ class _LibraryRightPanel extends StatelessWidget {
                   Text(
                     'Pages: ${selected!.pageCount}${selected!.wordCount == null ? '' : '  |  Length: ${selected!.wordCount} words'}',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.75),
+                      color:
+                          theme.textTheme.bodySmall?.color?.withOpacity(0.75),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -576,29 +617,6 @@ class _LibraryRightPanel extends StatelessWidget {
                       icon: const Icon(Icons.play_arrow, size: 18),
                       label: const Text('Listen'),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: onRename,
-                          icon: const Icon(Icons.edit, size: 18),
-                          label: const Text('Rename'),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: onDelete,
-                          icon: const Icon(Icons.delete_outline, size: 18),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.error,
-                          ),
-                          label: const Text('Delete'),
-                        ),
-                      ),
-                    ],
                   ),
                   const SizedBox(height: 16),
                   Text(

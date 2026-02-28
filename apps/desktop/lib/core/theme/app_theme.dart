@@ -20,40 +20,141 @@ abstract final class AppTheme {
     }
   }
 
-  static ThemeData get creatorStudioDark => ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        colorSchemeSeed: const Color(0xFF2F6BFF), // dark blue energy
-        scaffoldBackgroundColor: const Color(0xFF0B1220),
-        cardColor: const Color(0xFF111B2E),
-        visualDensity: VisualDensity.comfortable,
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          centerTitle: false,
-          toolbarHeight: 48,
-          backgroundColor: Color(0xFF0B1220),
-        ),
-        dividerTheme: const DividerThemeData(
-          color: Color(0xFF22304A),
-          thickness: 1,
-          space: 1,
-        ),
-        listTileTheme: const ListTileThemeData(
-          dense: true,
-          visualDensity: VisualDensity.compact,
-          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        ),
-        scrollbarTheme: ScrollbarThemeData(
-          thumbVisibility: WidgetStateProperty.all(true),
-          thickness: WidgetStateProperty.all(6),
-        ),
-      );
+  // ─────────────────────────────────────────────────────────────
+  // Skin 1: Creator Studio Dark (matches CreatorStudioDark.png)
+  // ─────────────────────────────────────────────────────────────
+  static ThemeData get creatorStudioDark {
+    const seed = Color(0xFF5B7CFF); // blue
+    const accent = Color(0xFF9B6BFF); // purple
+    const bg = Color(0xFF070A14);
+    const surface = Color(0xFF0C1224);
+    const surface2 = Color(0xFF101A33);
+    const border = Color(0x262F6BFF); // subtle blue border
+    const divider = Color(0x1EFFFFFF);
 
+    final scheme = ColorScheme.fromSeed(
+      seedColor: seed,
+      brightness: Brightness.dark,
+    ).copyWith(
+      primary: seed,
+      secondary: accent,
+      surface: surface,
+      surfaceContainerHighest: surface2,
+      outline: border,
+      outlineVariant: border,
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: bg,
+      canvasColor: bg,
+      cardColor: surface2,
+      visualDensity: VisualDensity.comfortable,
+
+      appBarTheme: const AppBarTheme(
+        elevation: 0,
+        centerTitle: false,
+        toolbarHeight: 52,
+        backgroundColor: bg,
+        foregroundColor: Color(0xFFEAF0FF),
+      ),
+
+      dividerTheme: const DividerThemeData(
+        color: divider,
+        thickness: 1,
+        space: 1,
+      ),
+
+      cardTheme: const CardTheme(
+        elevation: 0,
+        color: surface2,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(18)),
+          side: BorderSide(color: border, width: 1),
+        ),
+      ),
+
+      listTileTheme: const ListTileThemeData(
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+      ),
+
+      // Inputs: glassy fill + soft border
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0x1AFFFFFF),
+        hintStyle: const TextStyle(color: Color(0x99EAF0FF)),
+        labelStyle: const TextStyle(color: Color(0xB3EAF0FF)),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: border, width: 1),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: border, width: 1),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0x665B7CFF), width: 1.2),
+        ),
+      ),
+
+      // Buttons: filled primary + outlined secondary like the skin
+      filledButtonTheme: FilledButtonThemeData(
+        style: ButtonStyle(
+          padding: WidgetStateProperty.all(
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          ),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          backgroundColor: WidgetStateProperty.all(seed),
+          foregroundColor: WidgetStateProperty.all(const Color(0xFFEAF0FF)),
+        ),
+      ),
+
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: ButtonStyle(
+          padding: WidgetStateProperty.all(
+            const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          ),
+          shape: WidgetStateProperty.all(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+          side: WidgetStateProperty.all(const BorderSide(color: border, width: 1)),
+          foregroundColor: WidgetStateProperty.all(const Color(0xFFEAF0FF)),
+        ),
+      ),
+
+      // Slider: blue + purple vibe, subtle inactive track
+      sliderTheme: const SliderThemeData(
+        trackHeight: 3,
+        activeTrackColor: seed,
+        inactiveTrackColor: Color(0x334B5B7C),
+        thumbColor: Color(0xFFEAF0FF),
+        overlayColor: Color(0x225B7CFF),
+        valueIndicatorColor: seed,
+      ),
+
+      scrollbarTheme: ScrollbarThemeData(
+        thumbVisibility: WidgetStateProperty.all(true),
+        thickness: WidgetStateProperty.all(6),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Other skins (unchanged behavior)
+  // ─────────────────────────────────────────────────────────────
   static ThemeData get paperLight => ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        colorSchemeSeed: const Color(0xFF1D4ED8), // calm blue
-        scaffoldBackgroundColor: const Color(0xFFF7F5EF), // paper
+        colorSchemeSeed: const Color(0xFF1D4ED8),
+        scaffoldBackgroundColor: const Color(0xFFF7F5EF),
         cardColor: const Color(0xFFFFFFFF),
         visualDensity: VisualDensity.comfortable,
         appBarTheme: const AppBarTheme(
@@ -81,7 +182,7 @@ abstract final class AppTheme {
   static ThemeData get roseSalmonPastel => ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        colorSchemeSeed: const Color(0xFFE06B6B), // salmon/rose
+        colorSchemeSeed: const Color(0xFFE06B6B),
         scaffoldBackgroundColor: const Color(0xFFFFF7F5),
         cardColor: const Color(0xFFFFFFFF),
         visualDensity: VisualDensity.comfortable,
@@ -110,8 +211,8 @@ abstract final class AppTheme {
   static ThemeData get beigeGoldNavy => ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        colorSchemeSeed: const Color(0xFF0B2A4A), // navy
-        scaffoldBackgroundColor: const Color(0xFFF4EFE5), // beige
+        colorSchemeSeed: const Color(0xFF0B2A4A),
+        scaffoldBackgroundColor: const Color(0xFFF4EFE5),
         cardColor: const Color(0xFFFFFFFF),
         visualDensity: VisualDensity.comfortable,
         appBarTheme: const AppBarTheme(
