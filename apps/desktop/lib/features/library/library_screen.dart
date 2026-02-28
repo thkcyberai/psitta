@@ -543,19 +543,29 @@ class _LibraryRightPanel extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    selected!.sourceType.toUpperCase(),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.textTheme.bodySmall?.color?.withOpacity(0.70),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          selected!.sourceType.toUpperCase(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.textTheme.bodySmall?.color?.withOpacity(0.70),
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.textTheme.bodySmall?.color?.withOpacity(0.75),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   Text(
-                    'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}  |  Pages: ${selected!.pageCount}${selected!.wordCount == null ? '' : '  |  Length: ${selected!.wordCount} words'}',
+                    'Pages: ${selected!.pageCount}${selected!.wordCount == null ? '' : '  |  Length: ${selected!.wordCount} words'}',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.textTheme.bodySmall?.color?.withOpacity(0.75),
+                      color: theme.textTheme.bodySmall?.color?.withOpacity(0.75),
                     ),
                   ),
                   const SizedBox(height: 16),
