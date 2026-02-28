@@ -552,7 +552,7 @@ class _LibraryRightPanel extends StatelessWidget {
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}  |  Pages: ${selected!.pageCount}',
+                    'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}  |  Pages: ${selected!.pageCount}${selected!.wordCount == null ? '' : '  |  Length: ${selected!.wordCount} words'}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color:
                           theme.textTheme.bodySmall?.color?.withOpacity(0.75),

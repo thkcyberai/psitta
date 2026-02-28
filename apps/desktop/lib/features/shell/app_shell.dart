@@ -122,32 +122,6 @@ class _Header extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          SizedBox(
-            width: 320,
-            height: 38,
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: searchHint,
-                prefixIcon: Icon(
-                  Icons.search,
-                  size: 18,
-                  color: theme.iconTheme.color?.withOpacity(0.85),
-                ),
-                filled: true,
-                fillColor: tokens.inputFill,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: tokens.border, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: tokens.glow, width: 1),
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
