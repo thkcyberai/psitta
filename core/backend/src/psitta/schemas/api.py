@@ -83,6 +83,7 @@ class DocumentResponse(StrictSchema):
     source_type: str
     status: str
     page_count: int = Field(ge=0)
+    word_count: int = Field(default=0, ge=0)
     file_size_bytes: int = Field(ge=0)
     chunk_count: int = Field(default=0, ge=0)
     created_at: datetime
