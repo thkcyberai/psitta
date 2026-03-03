@@ -423,15 +423,11 @@ async def get_chunk_audio(
     import os
     from fastapi.responses import FileResponse
 
-    # Check cache first
-    result = await db.execute(
-        text("SELECT storage_key FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
-        {"cid": chunk_id, "vid": voice_id},
-    )
-    row = result.first()
-
-    if row and os.path.exists(row.storage_key):
-        return FileResponse(row.storage_key, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
+    # Check cache first (local + S3)
+    from psitta.services.audio_cache import get_mp3, put_mp3, s3_key_mp3
+    cached = await get_mp3(str(chunk_id), voice_id)
+    if cached:
+        return FileResponse(cached, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
 
     # Cache miss -- synthesize on demand
     logger.info("audio.cache_miss", chunk_id=str(chunk_id), voice_id=voice_id)
@@ -454,12 +450,9 @@ async def get_chunk_audio(
         logger.error("audio.synthesize_failed", error=str(e), voice_id=voice_id)
         raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {e}")
 
-    # Save to disk
-    audio_dir = "/tmp/psitta_audio"
-    os.makedirs(audio_dir, exist_ok=True)
-    storage_key = f"{audio_dir}/{chunk_id}_{voice_id}.mp3"
-    with open(storage_key, "wb") as f:
-        f.write(audio_bytes)
+    # Save to local + S3
+    await put_mp3(str(chunk_id), voice_id, audio_bytes)
+    storage_key = s3_key_mp3(str(chunk_id), voice_id)
 
     # Insert cache record (delete stale row first if file was missing)
     if row:
@@ -489,6 +482,107 @@ async def get_chunk_audio(
     logger.info("audio.synthesized_on_demand", chunk_id=str(chunk_id), voice_id=voice_id, size=len(audio_bytes))
 
     return FileResponse(storage_key, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
+
+
+@router.get("/{document_id}/chunks/{chunk_id}/alignment")
+async def get_chunk_alignment(
+    document_id: UUID,
+    chunk_id: UUID,
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Return alignment (timing) metadata for a chunk+voice.
+
+    This does NOT change the /audio endpoint content-type.
+    Alignment is stored as a sidecar JSON file next to the cached mp3.
+
+    Path:
+      S3: audio/{chunk_id}_{voice_id}.alignment.json
+      Local cache: /tmp/psitta_audio/{chunk_id}_{voice_id}.alignment.json (ephemeral)
+    """
+    import json
+    import os
+
+    from psitta.services.audio_cache import get_alignment, put_alignment, put_mp3, s3_key_mp3
+
+    # If alignment exists in cache (local or S3), return it.
+    cached = await get_alignment(str(chunk_id), voice_id)
+    if cached:
+        return cached
+
+    # Load chunk text
+    chunk_result = await db.execute(
+        text("SELECT text_content FROM document_chunks WHERE id = :cid AND document_id = :did"),
+        {"cid": chunk_id, "did": document_id},
+    )
+    chunk_row = chunk_result.first()
+    if not chunk_row or not chunk_row.text_content:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+
+    # Synthesize with optional alignment
+    from psitta.providers.tts_router import TTSRouter
+
+    tts = TTSRouter()
+    try:
+        audio_bytes, alignment, provider = await tts.synthesize_with_alignment(
+            chunk_row.text_content,
+            voice_id,
+        )
+    except Exception as e:
+        logger.error("audio.alignment_failed", error=str(e), voice_id=voice_id)
+        raise HTTPException(status_code=502, detail=f"TTS alignment failed: {e}")
+
+    # Persist mp3 + alignment to local + S3
+    await put_mp3(str(chunk_id), voice_id, audio_bytes)
+
+    payload = {
+        "document_id": str(document_id),
+        "chunk_id": str(chunk_id),
+        "voice_id": voice_id,
+        "provider": provider,
+        "alignment": alignment,
+    }
+    await put_alignment(str(chunk_id), voice_id, payload)
+
+    # Ensure audio_segments cache record exists/updated (best-effort).
+    # We keep the existing schema; duration is approximate if unknown.
+    try:
+        result = await db.execute(
+            text("SELECT storage_key FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
+            {"cid": chunk_id, "vid": voice_id},
+        )
+        row = result.first()
+        if row:
+            await db.execute(
+                text("DELETE FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
+                {"cid": chunk_id, "vid": voice_id},
+            )
+        from uuid import uuid4 as _uuid4
+
+        await db.execute(
+            text(
+                "INSERT INTO audio_segments (id, document_id, chunk_id, voice_id, speed, storage_key, duration_ms, file_size_bytes, format) "
+                "VALUES (:id, :doc_id, :chunk_id, :voice_id, :speed, :key, :dur, :size, :fmt)"
+            ),
+            {
+                "id": _uuid4(),
+                "doc_id": document_id,
+                "chunk_id": chunk_id,
+                "voice_id": voice_id,
+                "speed": 1.0,
+                "key": s3_key_mp3(str(chunk_id), voice_id),
+                "dur": int(len(audio_bytes) / 24),
+                "size": len(audio_bytes),
+                "fmt": "mp3",
+            },
+        )
+        await db.commit()
+    except Exception as e:
+        logger.warning("audio.alignment_cache_db_failed", error=str(e), chunk_id=str(chunk_id), voice_id=voice_id)
+
+    return payload
+
+
 
 class DocumentUpdateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
