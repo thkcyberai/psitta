@@ -163,10 +163,17 @@ class _ContextHeader extends ConsumerWidget {
           ),
 
           const SizedBox(width: 14),
-          OutlinedButton.icon(
-            onPressed: () => context.go('/player'),
-            icon: const Icon(Icons.play_arrow, size: 18),
-            label: const Text('Resume'),
+          Builder(
+            builder: (context) {
+              final activeDocId = ref.watch(activeDocumentIdProvider);
+              return OutlinedButton.icon(
+                onPressed: activeDocId == null
+                    ? null
+                    : () => context.go('/player/$activeDocId'),
+                icon: const Icon(Icons.play_arrow, size: 18),
+                label: const Text('Resume'),
+              );
+            },
           ),
           const SizedBox(width: 10),
           IconButton(

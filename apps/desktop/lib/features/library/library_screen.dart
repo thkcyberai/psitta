@@ -8,10 +8,12 @@ import '../../core/constants.dart';
 import '../../core/theme/colors.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
+import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../data/models/document.dart';
 import '../shell/app_shell.dart';
 import '../shell/desktop_shell.dart';
+import '../shell/widgets/player_bar.dart';
 import 'widgets/document_card.dart';
 import 'widgets/drop_zone_overlay.dart';
 
@@ -65,6 +67,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     ref.invalidate(documentsProvider);
   }
 
+  /// Big-tech UX: selecting a document in Library should prime the bottom PlayerBar.
+  /// This enables "select document -> press Play" without navigating to Player first.
+  Future<void> _primePlaybackSession(Document doc) async {
+    final audioService = ref.read(audioServiceProvider);
+    // Switching documents should stop prior playback and clear audio source state.
+    await audioService.stop();
+    audioService.reset();
+
+    ref.read(activeDocumentIdProvider.notifier).state = doc.id;
+    ref.read(currentDocTitleProvider.notifier).state = doc.title;
+    ref.read(currentChunkIndexProvider.notifier).state = 0;
+    ref.read(totalChunksProvider.notifier).state = 0;
+    ref.read(activeChunkIdsProvider.notifier).state = const [];
+
+    try {
+      final data = await ref.read(chunksProvider(doc.id).future);
+      final chunks = (data['chunks'] as List<dynamic>?) ?? const [];
+      final ids = chunks
+          .map((c) => ((c as Map<String, dynamic>)['id'] ?? '').toString())
+          .where((id) => id.isNotEmpty)
+          .toList();
+
+      ref.read(activeChunkIdsProvider.notifier).state = ids;
+      ref.read(totalChunksProvider.notifier).state = ids.length;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not load chapters: $e')),
+        );
+      }
+    }
+  }
+
   void _handleDrop(DropDoneDetails details) {
     setState(() => _isDragging = false);
     final files = details.files
@@ -72,11 +107,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           final ext = f.name.split('.').last.toLowerCase();
           return AppConstants.allowedExtensions.contains(ext);
         })
-        .map((f) => PlatformFile(
-              name: f.name,
-              size: 0,
-              path: f.path,
-            ))
+        .map(
+          (f) => PlatformFile(
+            name: f.name,
+            size: 0,
+            path: f.path,
+          ),
+        )
         .toList();
     if (files.isNotEmpty) {
       _uploadFiles(files);
@@ -99,6 +136,58 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       default:
         return st.toUpperCase();
     }
+  }
+
+  void _showDetails(Document doc) {
+    final theme = Theme.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                doc.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _DetailRow(label: 'Type', value: doc.sourceType.toUpperCase()),
+              _DetailRow(
+                label: 'Uploaded',
+                value: doc.createdAt.toLocal().toString().split('.').first,
+              ),
+              _DetailRow(label: 'Pages', value: doc.pageCount.toString()),
+              if (doc.wordCount != null)
+                _DetailRow(
+                  label: 'Word Count',
+                  value: '${doc.wordCount} words',
+                ),
+              _DetailRow(label: 'Status', value: doc.status),
+              _DetailRow(label: 'Document ID', value: doc.id),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _confirmAndDelete(Document doc) async {
@@ -421,10 +510,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                           _prettySourceType(doc.sourceType),
                                       status: doc.status,
                                       isSelected: doc.id == _selectedDocId,
-                                      onTap: () => setState(
-                                          () => _selectedDocId = doc.id),
-                                      onRead: () => context
-                                          .go('/player/${doc.id}?autoplay=0'),
+                                      onTap: () {
+                                        setState(() => _selectedDocId = doc.id);
+                                        _primePlaybackSession(doc);
+                                      },
+                                      onRead: () {
+                                        _primePlaybackSession(doc);
+                                        context
+                                            .go('/player/${doc.id}?autoplay=0');
+                                      },
                                       onEdit: () => _rename(doc),
                                       onDelete: () => _confirmAndDelete(doc),
                                     );
@@ -446,10 +540,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final rightPanel = _LibraryRightPanel(
       selected: selected,
       tokens: tokens,
-      onListen:
-          selected == null ? null : () => context.go('/player/${selected!.id}'),
+      onListen: selected == null
+          ? null
+          : () {
+              _primePlaybackSession(selected!);
+              context.go('/player/${selected!.id}');
+            },
       onRename: selected == null ? null : () => _rename(selected!),
       onDelete: selected == null ? null : () => _confirmAndDelete(selected!),
+      onViewDetails: selected == null ? null : () => _showDetails(selected!),
     );
 
     if (isInDesktopShell) {
@@ -517,6 +616,7 @@ class _LibraryRightPanel extends StatelessWidget {
   final VoidCallback? onListen;
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
+  final VoidCallback? onViewDetails;
 
   const _LibraryRightPanel({
     required this.selected,
@@ -524,6 +624,7 @@ class _LibraryRightPanel extends StatelessWidget {
     required this.onListen,
     required this.onRename,
     required this.onDelete,
+    required this.onViewDetails,
   });
 
   String _fmtDate(DateTime dt) {
@@ -696,47 +797,15 @@ class _LibraryRightPanel extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 10),
-                  _QuickAction(
-                    icon: Icons.play_circle_outline,
-                    label: 'Play from Start',
-                    onTap: onListen,
-                  ),
-                  const SizedBox(height: 10),
-                  _QuickAction(
-                    icon: Icons.graphic_eq,
-                    label: 'Generate Audio',
-                    onTap: null,
-                  ),
+
+
                   const SizedBox(height: 10),
                   _QuickAction(
                     icon: Icons.info_outline,
                     label: 'View Details',
-                    onTap: null,
+                    onTap: onViewDetails,
                   ),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: tokens.surface.withOpacity(0.35),
-                      borderRadius: BorderRadius.circular(tokens.radius),
-                      border: Border.all(color: tokens.border, width: 1),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.verified_user_outlined,
-                            size: 18,
-                            color: theme.iconTheme.color?.withOpacity(0.85)),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Status: ${selected!.status}',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+
                 ],
               ),
             ),
@@ -827,6 +896,42 @@ class _EmptyState extends StatelessWidget {
             onPressed: onUpload,
             icon: const Icon(Icons.upload_file, size: 18),
             label: const Text('Upload'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _DetailRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              label,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.textTheme.bodySmall?.color?.withOpacity(0.65),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: theme.textTheme.bodySmall,
+            ),
           ),
         ],
       ),
