@@ -99,9 +99,8 @@ class DocumentRepository {
   }
 
   /// Archive or unarchive a document (toggles on backend).
-  Future<Document> archiveDocument(String id) async {
-    final response = await _api.dio.patch('/documents/$id/archive');
-    return Document.fromJson(response.data as Map<String, dynamic>);
+  Future<void> archiveDocument(String id) async {
+    await _api.dio.patch('/documents/$id/archive');
   }
 
   /// Download the original file. Returns the response bytes.

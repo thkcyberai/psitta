@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -271,12 +272,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           SnackBar(content: Text('Saved to Downloads: $fileName')),
         );
       }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final msg = e.response?.statusCode == 404
+          ? 'Download unavailable — only documents uploaded after D28 support this.'
+          : 'Download failed: ${e.message}';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Download failed: $e')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Download failed: $e')),
+      );
     }
   }
 

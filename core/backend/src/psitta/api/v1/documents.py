@@ -305,17 +305,13 @@ async def upload_document(
 async def list_documents(
     page: Annotated[int, Query(ge=1)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
-    show_archived: bool = False,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     offset = (page - 1) * size
 
     count_result = await db.execute(
-        text(
-            "SELECT COUNT(*) FROM documents WHERE user_id = :uid AND status != 'deleted' "
-            "AND (status = 'ready' OR (:show_archived AND status = 'archived'))"
-        ),
-        {"uid": DEV_USER_ID, "show_archived": show_archived},
+        text("SELECT COUNT(*) FROM documents WHERE user_id = :uid AND status != 'deleted'"),
+        {"uid": DEV_USER_ID},
     )
     total = count_result.scalar() or 0
 
@@ -323,10 +319,9 @@ async def list_documents(
         text(
             "SELECT id, title, status, source_type, page_count, word_count, created_at "
             "FROM documents WHERE user_id = :uid AND status != 'deleted' "
-            "AND (status = 'ready' OR (:show_archived AND status = 'archived')) "
             "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
         ),
-        {"uid": DEV_USER_ID, "show_archived": show_archived, "lim": size, "off": offset},
+        {"uid": DEV_USER_ID, "lim": size, "off": offset},
     )
 
     items = [

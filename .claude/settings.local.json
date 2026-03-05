@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(flutter analyze:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(docker compose:*)"
     ],
     "deny": [],
     "ask": []
