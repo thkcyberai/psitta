@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import base64
+from typing import Any
+
 import httpx
 import structlog
 
@@ -37,23 +40,11 @@ class ElevenLabsTTSProvider:
         self.api_key = settings.ELEVENLABS_API_KEY.get_secret_value()
         self.model = settings.ELEVENLABS_MODEL
 
-    async def synthesize(
-        self,
-        text: str,
-        voice_id: str,
-        speed: float = 1.0,
-        output_format: str = "mp3_44100_128",
-    ) -> bytes:
-        """Synthesize text to audio via ElevenLabs API."""
-        if not self.api_key:
-            raise RuntimeError("ELEVENLABS_API_KEY not configured")
+    def _headers(self) -> dict[str, str]:
+        return {"xi-api-key": self.api_key, "Content-Type": "application/json"}
 
-        url = f"{ELEVENLABS_BASE}/text-to-speech/{voice_id}"
-        headers = {
-            "xi-api-key": self.api_key,
-            "Content-Type": "application/json",
-        }
-        payload = {
+    def _payload(self, text: str) -> dict[str, Any]:
+        return {
             "text": text[:5000],
             "model_id": self.model,
             "voice_settings": {
@@ -61,21 +52,35 @@ class ElevenLabsTTSProvider:
                 "similarity_boost": 0.75,
             },
         }
+
+    async def synthesize(
+        self,
+        text: str,
+        voice_id: str,
+        speed: float = 1.0,
+        output_format: str = "mp3_44100_128",
+    ) -> bytes:
+        """Synthesize text to audio via ElevenLabs API (audio only)."""
+        if not self.api_key:
+            raise RuntimeError("ELEVENLABS_API_KEY not configured")
+
+        url = f"{ELEVENLABS_BASE}/text-to-speech/{voice_id}"
         params = {"output_format": output_format}
 
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(url, json=payload, headers=headers, params=params)
+                response = await client.post(
+                    url,
+                    json=self._payload(text),
+                    headers=self._headers(),
+                    params=params,
+                )
         except httpx.RequestError as exc:
             logger.error("elevenlabs.synthesize.network_error", error=str(exc))
             raise TTSProviderError("elevenlabs", f"Network error: {exc}", status_code=None) from exc
 
         if response.status_code != 200:
-            logger.error(
-                "elevenlabs.synthesize.failed",
-                status=response.status_code,
-                body=response.text[:200],
-            )
+            logger.error("elevenlabs.synthesize.failed", status=response.status_code, body=response.text[:200])
             raise TTSProviderError(
                 "elevenlabs",
                 f"ElevenLabs API error: {response.status_code}",
@@ -84,6 +89,58 @@ class ElevenLabsTTSProvider:
 
         logger.info("elevenlabs.synthesize.ok", voice_id=voice_id, chars=len(text))
         return response.content
+
+    async def synthesize_with_timestamps(
+        self,
+        text: str,
+        voice_id: str,
+        output_format: str = "mp3_44100_128",
+    ) -> tuple[bytes, dict[str, Any] | None]:
+        """Synthesize text and return character-level timing alignment.
+
+        Uses ElevenLabs /with-timestamps endpoint.
+        Returns:
+          - audio bytes (decoded from audio_base64)
+          - alignment payload (alignment + normalized_alignment), or None if missing
+        """
+        if not self.api_key:
+            raise RuntimeError("ELEVENLABS_API_KEY not configured")
+
+        url = f"{ELEVENLABS_BASE}/text-to-speech/{voice_id}/with-timestamps"
+        params = {"output_format": output_format}
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    url,
+                    json=self._payload(text),
+                    headers=self._headers(),
+                    params=params,
+                )
+        except httpx.RequestError as exc:
+            logger.error("elevenlabs.timestamps.network_error", error=str(exc))
+            raise TTSProviderError("elevenlabs", f"Network error: {exc}", status_code=None) from exc
+
+        if response.status_code != 200:
+            logger.error("elevenlabs.timestamps.failed", status=response.status_code, body=response.text[:200])
+            raise TTSProviderError(
+                "elevenlabs",
+                f"ElevenLabs API error: {response.status_code}",
+                status_code=response.status_code,
+            )
+
+        data = response.json()
+        audio_b64 = data.get("audio_base64")
+        if not audio_b64:
+            return b"", None
+
+        audio_bytes = base64.b64decode(audio_b64)
+        alignment = {
+            "alignment": data.get("alignment"),
+            "normalized_alignment": data.get("normalized_alignment"),
+        }
+        logger.info("elevenlabs.timestamps.ok", voice_id=voice_id, chars=len(text), audio_size=len(audio_bytes))
+        return audio_bytes, alignment
 
     async def get_voices(self) -> list[dict]:
         """Fetch available voices from ElevenLabs API."""

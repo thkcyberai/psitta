@@ -20,7 +20,7 @@ class PlaybackSession {
 
   factory PlaybackSession.fromJson(Map<String, dynamic> json) =>
       PlaybackSession(
-        id: json['id'] as String,
+        id: json['session_id'] as String,
         documentId: json['document_id'] as String,
         voiceId: json['voice_id'] as String,
         speed: (json['speed'] as num).toDouble(),

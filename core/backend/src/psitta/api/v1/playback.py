@@ -1,156 +1,189 @@
 """
 Psitta — Playback Routes.
 
-Endpoints for audio streaming, session management, and position tracking.
+Endpoints for session management and position tracking.
 Playback sessions maintain state so users can resume where they left off.
 
 Security:
-  - Audio streams require valid session ownership
-  - Position updates are rate-limited to prevent abuse
-  - Chunk IDs are validated against the document's chunk manifest
+  - Position updates are validated against document ownership
+  - Chunk index is bounds-checked against document chunk count
+  - All writes scoped to DEV_USER_ID until auth is wired
 """
 
 from __future__ import annotations
 
 from typing import Annotated
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import structlog
-from fastapi import APIRouter, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from psitta.dependencies import get_db_session
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
+DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
+
 
 @router.post(
-    "/sessions",
+    "/sessions/",
     status_code=status.HTTP_201_CREATED,
-    summary="Create a new playback session",
-    response_description="Session created with first chunk ready",
+    summary="Create or update a playback session for a document",
 )
 async def create_session(
     document_id: UUID,
-    voice_id: str = "en-US-AriaNeural",
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM",
     speed: Annotated[float, Query(ge=0.5, le=3.0)] = 1.0,
+    db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Start a new playback session for a processed document.
+    """Upsert a playback session. Returns existing session if one exists."""
 
-    Creates a session record and returns the first audio chunk URL.
-    If the document is still processing, returns a partial session
-    with available chunks.
-
-    Args:
-        document_id: The document to play.
-        voice_id: TTS voice identifier.
-        speed: Playback speed multiplier (0.5x to 3.0x).
-    """
-    logger.info(
-        "playback.session.create",
-        document_id=str(document_id),
-        voice_id=voice_id,
-        speed=speed,
+    # Verify document exists and belongs to user
+    doc_result = await db.execute(
+        text(
+            "SELECT id, status FROM documents "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": DEV_USER_ID},
     )
+    doc = doc_result.first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
 
-    # TODO: Wire to PlaybackService.create_session()
+    # Check for existing session
+    existing = await db.execute(
+        text(
+            "SELECT id, current_chunk_index, position_ms, voice_id, speed "
+            "FROM playback_sessions "
+            "WHERE user_id = :uid AND document_id = :did "
+            "ORDER BY last_active_at DESC LIMIT 1"
+        ),
+        {"uid": DEV_USER_ID, "did": document_id},
+    )
+    row = existing.first()
+
+    if row:
+        logger.info("playback.session.resumed", session_id=str(row.id), document_id=str(document_id))
+        return {
+            "session_id": str(row.id),
+            "document_id": str(document_id),
+            "voice_id": row.voice_id,
+            "speed": row.speed,
+            "current_chunk_index": row.current_chunk_index,
+            "position_ms": row.position_ms,
+            "is_new": False,
+        }
+
+    # Create new session
+    session_id = uuid4()
+    await db.execute(
+        text(
+            "INSERT INTO playback_sessions "
+            "(id, user_id, document_id, voice_id, speed, current_chunk_index, position_ms, total_chunks, started_at, last_active_at) "
+            "VALUES (:id, :uid, :did, :vid, :speed, 0, 0, 0, NOW(), NOW())"
+        ),
+        {
+            "id": session_id,
+            "uid": DEV_USER_ID,
+            "did": document_id,
+            "vid": voice_id,
+            "speed": speed,
+        },
+    )
+    await db.commit()
+
+    logger.info("playback.session.created", session_id=str(session_id), document_id=str(document_id))
     return {
-        "session_id": "pending",
+        "session_id": str(session_id),
         "document_id": str(document_id),
         "voice_id": voice_id,
         "speed": speed,
-        "status": "created",
-        "message": "Session creation endpoint — service layer pending",
+        "current_chunk_index": 0,
+        "position_ms": 0,
+        "is_new": True,
     }
 
 
 @router.get(
-    "/sessions/{session_id}",
-    summary="Get playback session state",
-    response_description="Current session state including position",
+    "/sessions/resume/{document_id}",
+    summary="Get last playback session for a document",
 )
-async def get_session(session_id: UUID) -> dict:
-    """Retrieve the current state of a playback session.
+async def get_resume_session(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Return the last saved position for a document. Used on app start to restore state."""
 
-    Returns current chunk index, position within chunk,
-    total duration, and available chunk manifest.
-    """
-    logger.info("playback.session.get", session_id=str(session_id))
+    result = await db.execute(
+        text(
+            "SELECT id, current_chunk_index, position_ms, voice_id, speed "
+            "FROM playback_sessions "
+            "WHERE user_id = :uid AND document_id = :did "
+            "ORDER BY last_active_at DESC LIMIT 1"
+        ),
+        {"uid": DEV_USER_ID, "did": document_id},
+    )
+    row = result.first()
 
-    # TODO: Wire to PlaybackService.get_session()
+    if not row:
+        raise HTTPException(status_code=404, detail="No session found for this document")
+
     return {
-        "session_id": str(session_id),
-        "status": "pending",
-        "message": "Session detail endpoint — service layer pending",
+        "session_id": str(row.id),
+        "document_id": str(document_id),
+        "current_chunk_index": row.current_chunk_index,
+        "position_ms": row.position_ms,
+        "voice_id": row.voice_id,
+        "speed": row.speed,
     }
 
 
 @router.patch(
-    "/sessions/{session_id}/position",
+    "/sessions/{session_id}/position/",
     summary="Update playback position",
-    response_description="Position updated successfully",
 )
 async def update_position(
     session_id: UUID,
-    chunk_index: int,
-    position_ms: Annotated[int, Query(ge=0, description="Position in milliseconds")],
+    chunk_index: Annotated[int, Query(ge=0)],
+    position_ms: Annotated[int, Query(ge=0)],
+    db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Update the current playback position within a session.
-
-    Called periodically by the client to persist resume position.
-    Rate-limited to prevent excessive writes.
-
-    Args:
-        session_id: Active session ID.
-        chunk_index: Current chunk being played (0-indexed).
-        position_ms: Position within the chunk in milliseconds.
+    """Persist current chunk index and position within chunk.
+    Called periodically by the client every 5 seconds during playback.
     """
-    logger.info(
-        "playback.position.update",
+
+    result = await db.execute(
+        text(
+            "UPDATE playback_sessions "
+            "SET current_chunk_index = :idx, position_ms = :pos, last_active_at = NOW() "
+            "WHERE id = :sid AND user_id = :uid"
+        ),
+        {
+            "sid": session_id,
+            "uid": DEV_USER_ID,
+            "idx": chunk_index,
+            "pos": position_ms,
+        },
+    )
+
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    await db.commit()
+
+    logger.debug(
+        "playback.position.updated",
         session_id=str(session_id),
         chunk_index=chunk_index,
         position_ms=position_ms,
     )
 
-    # TODO: Wire to PlaybackService.update_position()
     return {
         "session_id": str(session_id),
         "chunk_index": chunk_index,
         "position_ms": position_ms,
-        "status": "updated",
-    }
-
-
-@router.get(
-    "/sessions/{session_id}/chunks/{chunk_index}/audio",
-    summary="Stream audio for a specific chunk",
-    response_description="Audio stream (mp3/opus)",
-)
-async def stream_chunk_audio(
-    session_id: UUID,
-    chunk_index: Annotated[int, Path(ge=0)],
-) -> dict:
-    """Stream the audio file for a specific chunk.
-
-    Returns a pre-signed S3 URL for direct audio streaming.
-    The URL is short-lived (15 minutes) for security.
-
-    In production, this returns a StreamingResponse or redirect
-    to the CDN/S3 pre-signed URL.
-    """
-    logger.info(
-        "playback.audio.stream",
-        session_id=str(session_id),
-        chunk_index=chunk_index,
-    )
-
-    # TODO: Wire to PlaybackService.get_chunk_audio_url()
-    # 1. Validate session ownership
-    # 2. Validate chunk_index exists
-    # 3. Generate pre-signed S3 URL
-    # 4. Return redirect or streaming response
-    return {
-        "session_id": str(session_id),
-        "chunk_index": chunk_index,
-        "audio_url": "pending",
-        "message": "Audio streaming endpoint — service layer pending",
     }

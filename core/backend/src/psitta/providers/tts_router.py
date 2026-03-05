@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import structlog
+from typing import Any
+
 from psitta.config import Settings, get_settings
 from psitta.providers.tts_errors import TTSProviderError
 
@@ -38,6 +40,7 @@ class TTSRouter:
         if el_key:
             try:
                 from psitta.providers.tts_elevenlabs import ElevenLabsTTSProvider
+
                 self._elevenlabs = ElevenLabsTTSProvider()
                 logger.info("tts_router.elevenlabs.ready")
             except Exception as e:
@@ -47,6 +50,7 @@ class TTSRouter:
         if az_key and settings.AZURE_TTS_REGION:
             try:
                 from psitta.providers.tts_azure import AzureTTSProvider
+
                 self._azure = AzureTTSProvider(settings)
                 logger.info("tts_router.azure.ready", region=settings.AZURE_TTS_REGION)
             except Exception as e:
@@ -54,6 +58,7 @@ class TTSRouter:
 
         try:
             from psitta.providers.tts_edge import EdgeTTSProvider
+
             self._edge = EdgeTTSProvider()
             logger.info("tts_router.edge.ready")
         except Exception as e:
@@ -134,7 +139,7 @@ class TTSRouter:
         speed: float = 1.0,
         output_format: str = "mp3_44100_128",
     ) -> bytes:
-        """Synthesize text with provider selection + failover."""
+        """Synthesize text with provider selection + failover (audio only)."""
         primary = self._provider_selected
         provider = self._get_provider(primary)
         if provider is None:
@@ -162,6 +167,61 @@ class TTSRouter:
                 speed=speed,
                 output_format=output_format,
             )
+
+    async def synthesize_with_alignment(
+        self,
+        text: str,
+        voice_id: str,
+        output_format: str = "mp3_44100_128",
+    ) -> tuple[bytes, dict[str, Any] | None, str]:
+        """Synthesize text and return optional alignment data.
+
+        Contract:
+          - audio_bytes always returned on success
+          - alignment is provider-specific JSON or None
+          - provider_name indicates which provider produced the result
+
+        For now:
+          - ElevenLabs uses /with-timestamps (character-level alignment)
+          - Azure/Edge return alignment=None
+        """
+        primary = self._provider_selected
+        provider = self._get_provider(primary)
+        if provider is None:
+            raise RuntimeError(f"No TTS provider configured (selected={primary})")
+
+        if primary == "elevenlabs" and self._elevenlabs:
+            try:
+                audio, alignment = await self._elevenlabs.synthesize_with_timestamps(
+                    text=text,
+                    voice_id=voice_id,
+                    output_format=output_format,
+                )
+                if not audio:
+                    # Treat empty audio as a failure to keep invariants tight.
+                    raise RuntimeError("ElevenLabs returned empty audio for timestamps synthesis")
+                logger.info(
+                    "tts_router.ok",
+                    provider="elevenlabs",
+                    voice_id=voice_id,
+                    size=len(audio),
+                    alignment="yes" if alignment else "no",
+                )
+                return audio, alignment, "elevenlabs"
+            except TTSProviderError as e:
+                logger.warning(
+                    "tts_router.primary_failed",
+                    provider="elevenlabs",
+                    status_code=e.status_code,
+                    error=str(e),
+                )
+                # Fallback to audio-only path
+            except Exception as e:
+                logger.warning("tts_router.timestamps_failed", provider="elevenlabs", error=str(e))
+
+        # Fallback: audio only (no alignment)
+        audio = await self.synthesize(text=text, voice_id=voice_id, output_format=output_format)
+        return audio, None, primary
 
     async def _fallback_synthesize(
         self,
@@ -214,8 +274,9 @@ class TTSRouter:
             logger.info("tts_router.ok", provider="elevenlabs", voice_id=voice_id, size=len(audio))
             return audio
         if provider == "azure":
-            from psitta.providers.tts_router_maps import elevenlabs_to_azure
             from psitta.models.domain import ToneCategory
+            from psitta.providers.tts_router_maps import elevenlabs_to_azure
+
             azure_voice = elevenlabs_to_azure(voice_id)
             audio = await self._azure.synthesize(
                 text=text,

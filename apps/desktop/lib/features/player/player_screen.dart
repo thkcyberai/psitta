@@ -23,6 +23,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _hasAutoPlayed = false;
   ProviderSubscription<int>? _chunkIndexSub;
   ProviderSubscription<String>? _voiceSub;
+  String? _sessionId;
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       ref.read(activeDocumentIdProvider.notifier).state = widget.documentId;
       // Title resolved immediately if docs already loaded, or via listener below
       _resolveTitle();
+      _initSession();
     });
 
     // Listen for documentsProvider to finish loading and update title
@@ -51,6 +53,42 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  int _restorePositionMs = 0;
+
+  Future<void> _initSession() async {
+    try {
+      final repo = ref.read(playbackRepositoryProvider);
+      final voiceId = ref.read(selectedVoiceIdProvider);
+      final speed = ref.read(selectedSpeedProvider);
+      final session = await repo.createSession(
+        documentId: widget.documentId,
+        voiceId: voiceId,
+        speed: speed,
+      );
+      _sessionId = session.id;
+
+      // Restore chunk index from last session
+      if (!_hasAutoPlayed && session.currentChunkIndex > 0) {
+        ref.read(currentChunkIndexProvider.notifier).state =
+            session.currentChunkIndex;
+      }
+
+      // Store position for seek-after-play
+      _restorePositionMs = session.positionMs;
+
+      // Start tracking immediately — don't wait for autoplay
+      final audioService = ref.read(audioServiceProvider);
+      final idx = ref.read(currentChunkIndexProvider);
+      audioService.startPositionTracking(
+        sessionId: session.id,
+        chunkIndex: idx,
+        repository: repo,
+      );
+    } catch (e) {
+      print('[PlayerScreen] Session init failed: $e');
+    }
+  }
+
   void _resolveTitle() {
     final docs = ref.read(documentsProvider).valueOrNull;
     if (docs == null) return;
@@ -68,6 +106,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void dispose() {
     _chunkIndexSub?.close();
     _voiceSub?.close();
+    ref.read(audioServiceProvider).stopPositionTracking();
     ref.read(nowReadingTextProvider.notifier).state = '';
     super.dispose();
   }
@@ -167,6 +206,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 speed: speed,
                 volume: volume,
               );
+              // Seek to restored position after audio loads
+              if (_restorePositionMs > 0) {
+                final restoreMs = _restorePositionMs;
+                _restorePositionMs = 0;
+                audioService.playingStream
+                    .firstWhere((playing) => playing)
+                    .then((_) {
+                  audioService.seek(Duration(milliseconds: restoreMs));
+                }).catchError((_) {});
+              }
             }
           }
         });
@@ -323,6 +372,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               final audioService = ref.read(audioServiceProvider);
                               audioService.reset();
                               ref.read(currentChunkIndexProvider.notifier).state = index;
+                              audioService.updateTrackingChunk(index);
                             },
                           ),
                         ),

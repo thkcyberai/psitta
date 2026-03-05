@@ -42,3 +42,38 @@ final chunksProvider = FutureProvider.autoDispose
   final repo = ref.watch(documentRepositoryProvider);
   return repo.getChunks(documentId);
 });
+
+class AlignmentKey {
+  final String documentId;
+  final String chunkId;
+  final String voiceId;
+
+  const AlignmentKey({
+    required this.documentId,
+    required this.chunkId,
+    required this.voiceId,
+  });
+
+  @override
+  bool operator ==(Object other) {
+    return other is AlignmentKey &&
+        other.documentId == documentId &&
+        other.chunkId == chunkId &&
+        other.voiceId == voiceId;
+  }
+
+  @override
+  int get hashCode => Object.hash(documentId, chunkId, voiceId);
+}
+
+/// Fetch alignment for a specific chunk + voice.
+/// Backend returns: { document_id, chunk_id, voice_id, provider, alignment }.
+final chunkAlignmentProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, AlignmentKey>((ref, key) async {
+  final repo = ref.watch(documentRepositoryProvider);
+  return repo.getChunkAlignment(
+    documentId: key.documentId,
+    chunkId: key.chunkId,
+    voiceId: key.voiceId,
+  );
+});

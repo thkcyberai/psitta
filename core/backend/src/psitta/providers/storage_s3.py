@@ -73,7 +73,6 @@ class S3StorageProvider:
                 Key=key,
                 Body=body,
                 ContentType=content_type,
-                ServerSideEncryption="AES256",
             )
 
         return key

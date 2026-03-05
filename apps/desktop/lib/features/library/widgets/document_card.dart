@@ -3,17 +3,9 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/psitta_tokens.dart';
 
-/// Document card — displayed in the library grid.
-///
-/// Creator Studio Dark look:
-/// - glass gradient fill
-/// - inner top highlight
-/// - soft shadow
-/// - selected glow + stronger border
-/// - status pill (Ready/Processing/Failed)
 class DocumentCard extends StatelessWidget {
   final String title;
-  final String subtitle; // e.g. "PDF Document" / "DOCX Document"
+  final String subtitle;
   final String status;
   final bool isSelected;
 
@@ -64,6 +56,14 @@ class DocumentCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = PsittaTokens.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final titleColor =
+        theme.colorScheme.onSurface.withOpacity(isDark ? 0.95 : 0.92);
+    final subColor =
+        theme.colorScheme.onSurfaceVariant.withOpacity(isDark ? 0.80 : 0.78);
+    final menuColor =
+        theme.colorScheme.onSurfaceVariant.withOpacity(isDark ? 0.85 : 0.80);
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(tokens.radius),
@@ -79,7 +79,6 @@ class DocumentCard extends StatelessWidget {
             decoration: _cardDecoration(tokens),
             child: Stack(
               children: [
-                // Inner top highlight (glass edge)
                 Positioned.fill(
                   child: IgnorePointer(
                     child: DecoratedBox(
@@ -89,7 +88,7 @@ class DocumentCard extends StatelessWidget {
                           begin: Alignment.topCenter,
                           end: Alignment.center,
                           colors: [
-                            Colors.white.withOpacity(0.10),
+                            Colors.white.withOpacity(isDark ? 0.10 : 0.14),
                             Colors.transparent,
                           ],
                           stops: const [0.0, 0.55],
@@ -98,7 +97,6 @@ class DocumentCard extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -115,12 +113,12 @@ class DocumentCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: theme.textTheme.bodyLarge?.copyWith(
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.textPrimaryDark,
+                                color: titleColor,
                               ),
                             ),
                           ),
                           const SizedBox(width: 10),
-                          _statusPill(tokens),
+                          _statusPill(tokens, theme),
                           const SizedBox(width: 8),
                           PopupMenuButton<String>(
                             tooltip: 'Actions',
@@ -166,8 +164,7 @@ class DocumentCard extends StatelessWidget {
                               child: Icon(
                                 Icons.more_horiz,
                                 size: 18,
-                                color: AppColors.textSecondaryDark
-                                    .withOpacity(0.9),
+                                color: menuColor,
                               ),
                             ),
                           ),
@@ -179,7 +176,7 @@ class DocumentCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.textSecondaryDark,
+                          color: subColor,
                         ),
                       ),
                     ],
@@ -193,22 +190,27 @@ class DocumentCard extends StatelessWidget {
     );
   }
 
-  Widget _statusPill(PsittaTokens tokens) {
-    // Default: purple/blue studio pill
-    // Selected + ready: green confirmation pill
+  Widget _statusPill(PsittaTokens tokens, ThemeData theme) {
     final bool readyAndSelected = status == 'ready' && isSelected;
+    final isDark = theme.brightness == Brightness.dark;
 
-    final Color bg = readyAndSelected
-        ? const Color(0xFF1D3B2B) // deep green tint
-        : const Color(0xFF1B2340); // deep studio tint
+    final Color bg = isDark
+        ? (readyAndSelected ? const Color(0xFF1D3B2B) : const Color(0xFF1B2340))
+        : (readyAndSelected
+            ? tokens.glow.withOpacity(0.22)
+            : theme.colorScheme.surface.withOpacity(0.90));
 
     final Color border = readyAndSelected
-        ? AppColors.success.withOpacity(0.45)
-        : tokens.glow.withOpacity(0.28);
+        ? (isDark
+            ? AppColors.success.withOpacity(0.45)
+            : tokens.glow.withOpacity(0.45))
+        : tokens.border.withOpacity(isDark ? 0.30 : 0.55);
 
     final Color fg = readyAndSelected
-        ? AppColors.success
-        : AppColors.textPrimaryDark.withOpacity(0.92);
+        ? (isDark
+            ? AppColors.success
+            : theme.colorScheme.onSurface.withOpacity(0.92))
+        : theme.colorScheme.onSurface.withOpacity(isDark ? 0.92 : 0.86);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -237,7 +239,6 @@ class DocumentCard extends StatelessWidget {
   BoxDecoration _cardDecoration(PsittaTokens tokens) {
     final baseBorder = tokens.border.withOpacity(isSelected ? 0.50 : 0.32);
 
-    // Make selected glow more discrete than before.
     final fill = isSelected
         ? LinearGradient(
             begin: Alignment.topLeft,
@@ -245,7 +246,7 @@ class DocumentCard extends StatelessWidget {
             colors: [
               tokens.surface.withOpacity(0.98),
               tokens.surface2.withOpacity(0.92),
-              tokens.glow.withOpacity(0.06), // was 0.10
+              tokens.glow.withOpacity(0.06),
             ],
             stops: const [0.0, 0.78, 1.0],
           )
@@ -264,13 +265,13 @@ class DocumentCard extends StatelessWidget {
       border: Border.all(color: baseBorder, width: 1),
       boxShadow: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.38),
-          blurRadius: 28,
-          offset: const Offset(0, 18),
+          color: Colors.black.withOpacity(0.18),
+          blurRadius: 22,
+          offset: const Offset(0, 14),
         ),
         if (isSelected)
           BoxShadow(
-            color: tokens.glow.withOpacity(0.14), // was 0.22
+            color: tokens.glow.withOpacity(0.14),
             blurRadius: 26,
             offset: const Offset(0, 10),
           ),
