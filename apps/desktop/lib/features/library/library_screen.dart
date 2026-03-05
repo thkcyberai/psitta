@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -214,6 +216,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final repo = ref.read(documentRepositoryProvider);
     try {
       await repo.deleteDocument(doc.id);
+      final activeId = ref.read(activeDocumentIdProvider);
+      if (activeId == doc.id) {
+        ref.read(activeDocumentIdProvider.notifier).state = null;
+        ref.read(currentDocTitleProvider.notifier).state = '';
+      }
       ref.invalidate(documentsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -224,6 +231,50 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Delete failed: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _archiveDocument(Document doc) async {
+    try {
+      final repo = ref.read(documentRepositoryProvider);
+      await repo.archiveDocument(doc.id);
+      ref.invalidate(documentsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to archive: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _downloadDocument(Document doc) async {
+    try {
+      final repo = ref.read(documentRepositoryProvider);
+      final bytes = await repo.downloadDocument(doc.id);
+      if (bytes.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Original file not available for download')),
+          );
+        }
+        return;
+      }
+      // Save to Downloads folder
+      final fileName = '${doc.title}.${doc.sourceType}';
+      final downloadsPath = '${Platform.environment['USERPROFILE']}/Downloads/$fileName';
+      await File(downloadsPath).writeAsBytes(bytes);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved to Downloads: $fileName')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed: $e')),
         );
       }
     }
@@ -521,6 +572,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       },
                                       onEdit: () => _rename(doc),
                                       onDelete: () => _confirmAndDelete(doc),
+                                      onArchive: () => _archiveDocument(doc),
+                                      onDownload: () => _downloadDocument(doc),
                                     );
                                   },
                                 );

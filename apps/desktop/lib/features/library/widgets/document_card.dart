@@ -13,6 +13,8 @@ class DocumentCard extends StatelessWidget {
   final VoidCallback onRead;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final VoidCallback? onArchive;
+  final VoidCallback? onDownload;
 
   const DocumentCard({
     super.key,
@@ -24,6 +26,8 @@ class DocumentCard extends StatelessWidget {
     required this.onRead,
     required this.onEdit,
     required this.onDelete,
+    this.onArchive,
+    this.onDownload,
   });
 
   IconData get _statusIcon => switch (status) {
@@ -123,9 +127,26 @@ class DocumentCard extends StatelessWidget {
                           PopupMenuButton<String>(
                             tooltip: 'Actions',
                             onSelected: (value) {
-                              if (value == 'read') onRead();
-                              if (value == 'edit') onEdit();
-                              if (value == 'delete') onDelete();
+                              switch (value) {
+                                case 'read':
+                                  onRead();
+                                  break;
+                                case 'edit':
+                                  onEdit();
+                                  break;
+                                case 'delete':
+                                  onDelete();
+                                  break;
+                                case 'archive':
+                                  onArchive?.call();
+                                  break;
+                                case 'download':
+                                  onDownload?.call();
+                                  break;
+                                case 'add_to_project':
+                                  // D29 - stub
+                                  break;
+                              }
                             },
                             itemBuilder: (context) => const [
                               PopupMenuItem(
@@ -155,6 +176,37 @@ class DocumentCard extends StatelessWidget {
                                     Icon(Icons.delete_outline, size: 18),
                                     SizedBox(width: 10),
                                     Text('Delete'),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuDivider(),
+                              PopupMenuItem<String>(
+                                value: 'archive',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.archive_outlined, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Archive'),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem<String>(
+                                value: 'download',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.download_outlined, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Download'),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem<String>(
+                                value: 'add_to_project',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.folder_outlined, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Add to Project'),
                                   ],
                                 ),
                               ),

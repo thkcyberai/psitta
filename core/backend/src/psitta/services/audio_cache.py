@@ -152,3 +152,55 @@ def s3_key_mp3(chunk_id: str, voice_id: str) -> str:
     Always use this for DB storage_key — never the local /tmp path.
     """
     return _s3_mp3(chunk_id, voice_id)
+
+
+def _local_raw(doc_id: str, extension: str) -> str:
+    return f"{AUDIO_DIR}/raw_{doc_id}{extension}"
+
+
+def _s3_raw(doc_id: str, extension: str) -> str:
+    return f"uploads/{doc_id}{extension}"
+
+
+async def put_raw_file(doc_id: str, extension: str, file_bytes: bytes) -> str:
+    """Save original uploaded file to local + S3. Returns local path."""
+    _ensure_dir()
+    local = _local_raw(doc_id, extension)
+    with open(local, "wb") as f:
+        f.write(file_bytes)
+
+    s3 = _get_s3()
+    if s3:
+        try:
+            from psitta.config import get_settings
+            bucket = get_settings().S3_BUCKET_NAME
+            await s3.put_object(bucket, _s3_raw(doc_id, extension), file_bytes, "application/octet-stream")
+            logger.info("audio_cache.raw.saved_s3", doc_id=doc_id, size=len(file_bytes))
+        except Exception as e:
+            logger.warning("audio_cache.raw.s3_write_failed", error=str(e), doc_id=doc_id)
+
+    return local
+
+
+async def get_raw_file(doc_id: str, extension: str) -> str | None:
+    """Return local path to original file if available. None on miss."""
+    _ensure_dir()
+    local = _local_raw(doc_id, extension)
+
+    if os.path.exists(local) and os.path.getsize(local) > 0:
+        return local
+
+    s3 = _get_s3()
+    if s3:
+        try:
+            from psitta.config import get_settings
+            bucket = get_settings().S3_BUCKET_NAME
+            data = await s3.get_object(bucket, _s3_raw(doc_id, extension))
+            with open(local, "wb") as f:
+                f.write(data)
+            logger.info("audio_cache.raw.s3_hit", doc_id=doc_id)
+            return local
+        except Exception:
+            pass
+
+    return None

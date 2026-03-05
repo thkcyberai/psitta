@@ -256,6 +256,9 @@ async def upload_document(
     file_size = len(file_bytes)
 
     doc_id = uuid4()
+
+    from psitta.services.audio_cache import put_raw_file
+    await put_raw_file(str(doc_id), extension, file_bytes)
     title = filename.rsplit(".", 1)[0] if "." in filename else filename
     source_type = extension.lstrip(".")
     storage_key = f"uploads/{doc_id}{extension}"
@@ -302,13 +305,17 @@ async def upload_document(
 async def list_documents(
     page: Annotated[int, Query(ge=1)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
+    show_archived: bool = False,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     offset = (page - 1) * size
 
     count_result = await db.execute(
-        text("SELECT COUNT(*) FROM documents WHERE user_id = :uid AND status != 'deleted'"),
-        {"uid": DEV_USER_ID},
+        text(
+            "SELECT COUNT(*) FROM documents WHERE user_id = :uid AND status != 'deleted' "
+            "AND (status = 'ready' OR (:show_archived AND status = 'archived'))"
+        ),
+        {"uid": DEV_USER_ID, "show_archived": show_archived},
     )
     total = count_result.scalar() or 0
 
@@ -316,9 +323,10 @@ async def list_documents(
         text(
             "SELECT id, title, status, source_type, page_count, word_count, created_at "
             "FROM documents WHERE user_id = :uid AND status != 'deleted' "
+            "AND (status = 'ready' OR (:show_archived AND status = 'archived')) "
             "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
         ),
-        {"uid": DEV_USER_ID, "lim": size, "off": offset},
+        {"uid": DEV_USER_ID, "show_archived": show_archived, "lim": size, "off": offset},
     )
 
     items = [
@@ -647,3 +655,60 @@ async def delete_document(
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
     logger.info("document.deleted", doc_id=str(document_id))
+
+
+@router.patch("/{document_id}/archive", status_code=status.HTTP_200_OK)
+async def archive_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Toggle document between archived and ready status."""
+    result = await db.execute(
+        text(
+            "SELECT status FROM documents "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": DEV_USER_ID},
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+    new_status = "ready" if row.status == "archived" else "archived"
+    await db.execute(
+        text(
+            "UPDATE documents SET status = :st, updated_at = NOW() "
+            "WHERE id = :did AND user_id = :uid"
+        ),
+        {"st": new_status, "did": document_id, "uid": DEV_USER_ID},
+    )
+    await db.commit()
+    logger.info("document.archived", doc_id=str(document_id), new_status=new_status)
+    return {"id": str(document_id), "status": new_status}
+
+
+@router.get("/{document_id}/download")
+async def download_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+) -> FileResponse:
+    """Serve the original uploaded file for download."""
+    result = await db.execute(
+        text(
+            "SELECT title, source_type, storage_key FROM documents "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": DEV_USER_ID},
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+    from psitta.services.audio_cache import get_raw_file
+    file_path = await get_raw_file(str(document_id), f".{row.source_type}")
+    if not file_path:
+        raise HTTPException(status_code=404, detail="Original file not available for download")
+    filename = f"{row.title}.{row.source_type}"
+    return FileResponse(
+        file_path,
+        media_type="application/octet-stream",
+        filename=filename,
+    )
