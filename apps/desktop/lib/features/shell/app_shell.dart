@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
+import '../../data/services/audio_service.dart';
 import 'widgets/player_bar.dart';
 import 'widgets/sidebar_nav.dart';
 
@@ -111,9 +112,6 @@ class _ContextHeader extends ConsumerWidget {
     final uri = GoRouterState.of(context).uri;
 
     final crumb = _breadcrumbFromLocation(uri);
-    final nowReading = ref.watch(nowReadingTextProvider);
-
-    final wallboard = nowReading.trim().isEmpty ? crumb : nowReading.trim();
 
     return Container(
       height: 64,
@@ -135,30 +133,11 @@ class _ContextHeader extends ConsumerWidget {
           ),
           const SizedBox(width: 14),
 
-          // Wallboard strip (one line, center)
+          // Now Playing strip
           Expanded(
             child: Align(
               alignment: Alignment.center,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 760),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                decoration: BoxDecoration(
-                  color: tokens.inputFill,
-                  borderRadius: BorderRadius.circular(tokens.radius),
-                  border: Border.all(
-                      color: tokens.border.withOpacity(0.40), width: 1),
-                ),
-                child: Text(
-                  wallboard,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.92),
-                  ),
-                ),
-              ),
+              child: _NowPlayingStrip(crumb: crumb),
             ),
           ),
 
@@ -182,6 +161,101 @@ class _ContextHeader extends ConsumerWidget {
             icon: Icon(
               Icons.settings_outlined,
               color: theme.iconTheme.color?.withOpacity(0.90),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NowPlayingStrip extends ConsumerWidget {
+  final String crumb;
+  const _NowPlayingStrip({required this.crumb});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nowReading = ref.watch(nowReadingTextProvider);
+    final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ?? false;
+    final docTitle = ref.watch(currentDocTitleProvider);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final isActive = nowReading.trim().isNotEmpty;
+
+    if (!isActive) {
+      // Idle state — plain breadcrumb
+      return Container(
+        constraints: const BoxConstraints(maxWidth: 760),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: theme.colorScheme.outline.withOpacity(0.2),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          crumb,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w500,
+            color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
+          ),
+        ),
+      );
+    }
+
+    // Active state — glowing Now Playing pill
+    final tokens = PsittaTokens.of(context);
+    final goldColor = tokens.glow;
+    final glowColor = goldColor.withOpacity(isDark ? 0.35 : 0.20);
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeInOut,
+      constraints: const BoxConstraints(maxWidth: 760),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            goldColor.withOpacity(isDark ? 0.18 : 0.12),
+            goldColor.withOpacity(isDark ? 0.08 : 0.05),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: goldColor.withOpacity(0.6), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: glowColor,
+            blurRadius: 12,
+            spreadRadius: 2,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isPlaying ? Icons.graphic_eq : Icons.music_note,
+            size: 15,
+            color: goldColor,
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              nowReading.trim(),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: goldColor,
+                letterSpacing: 0.1,
+              ),
             ),
           ),
         ],
