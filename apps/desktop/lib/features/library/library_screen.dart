@@ -478,6 +478,18 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           const SizedBox(height: 12),
                           searchField,
                           const SizedBox(height: 12),
+                          Consumer(
+                            builder: (context, ref, _) {
+                              final showArchived = ref.watch(showArchivedProvider);
+                              return FilterChip(
+                                label: const Text('Show Archived'),
+                                selected: showArchived,
+                                onSelected: (val) =>
+                                    ref.read(showArchivedProvider.notifier).state = val,
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
                             child: FilledButton.icon(
@@ -520,6 +532,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           child: searchField,
                         ),
                         const SizedBox(width: 12),
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final showArchived = ref.watch(showArchivedProvider);
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                label: const Text('Show Archived'),
+                                selected: showArchived,
+                                onSelected: (val) =>
+                                    ref.read(showArchivedProvider.notifier).state = val,
+                              ),
+                            );
+                          },
+                        ),
                         FilledButton.icon(
                           onPressed: _isUploading ? null : _handleFilePick,
                           icon: const Icon(Icons.upload_file, size: 18),

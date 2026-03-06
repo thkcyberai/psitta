@@ -24,10 +24,13 @@ final playbackRepositoryProvider = Provider<PlaybackRepository>((ref) {
 
 // ── Data Providers ─────────────────────────────────────────────
 /// Fetches document list from API. Invalidate after upload/delete.
+final showArchivedProvider = StateProvider<bool>((ref) => false);
+
 final documentsProvider =
     FutureProvider.autoDispose<List<Document>>((ref) async {
   final repo = ref.watch(documentRepositoryProvider);
-  return repo.listDocuments();
+  final showArchived = ref.watch(showArchivedProvider);
+  return repo.listDocuments(showArchived: showArchived);
 });
 
 /// Fetches voice catalog from API.

@@ -9,10 +9,11 @@ class DocumentRepository {
   DocumentRepository(this._api);
 
   /// List all documents for the current user.
-  Future<List<Document>> listDocuments({int page = 1, int limit = 20}) async {
+  Future<List<Document>> listDocuments({int page = 1, int limit = 20, bool showArchived = false}) async {
     final response = await _api.dio.get('/documents/', queryParameters: {
       'page': page,
       'limit': limit,
+      'show_archived': showArchived,
     });
     final items = response.data['items'] as List<dynamic>;
     return items
