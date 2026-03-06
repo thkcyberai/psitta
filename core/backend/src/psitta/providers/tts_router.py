@@ -160,13 +160,14 @@ class TTSRouter:
                 status_code=e.status_code,
                 error=str(e),
             )
-            return await self._fallback_synthesize(
+            audio, _ = await self._fallback_synthesize(
                 primary=primary,
                 text=text,
                 voice_id=voice_id,
                 speed=speed,
                 output_format=output_format,
             )
+            return audio
 
     async def synthesize_with_alignment(
         self,
@@ -220,8 +221,11 @@ class TTSRouter:
                 logger.warning("tts_router.timestamps_failed", provider="elevenlabs", error=str(e))
 
         # Fallback: audio only (no alignment)
-        audio = await self.synthesize(text=text, voice_id=voice_id, output_format=output_format)
-        return audio, None, primary
+        audio, actual_provider = await self._fallback_synthesize(
+            primary=primary, text=text, voice_id=voice_id,
+            speed=1.0, output_format=output_format,
+        )
+        return audio, None, actual_provider
 
     async def _fallback_synthesize(
         self,
@@ -230,29 +234,31 @@ class TTSRouter:
         voice_id: str,
         speed: float,
         output_format: str,
-    ) -> bytes:
+    ) -> tuple[bytes, str]:
         fallback = self._fallback_selected
         if fallback:
             provider = self._get_provider(fallback)
             if provider:
                 logger.info("tts_router.fallback", from_provider=primary, to_provider=fallback)
-                return await self._synthesize_with_provider(
+                audio = await self._synthesize_with_provider(
                     provider=fallback,
                     text=text,
                     voice_id=voice_id,
                     speed=speed,
                     output_format=output_format,
                 )
+                return audio, fallback
 
         if primary != "edge" and self._edge:
             logger.info("tts_router.fallback", from_provider=primary, to_provider="edge")
-            return await self._synthesize_with_provider(
+            audio = await self._synthesize_with_provider(
                 provider="edge",
                 text=text,
                 voice_id=voice_id,
                 speed=speed,
                 output_format=output_format,
             )
+            return audio, "edge"
 
         raise RuntimeError(f"TTS failed: no fallback available (primary={primary})")
 
