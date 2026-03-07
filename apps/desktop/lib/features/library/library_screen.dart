@@ -288,7 +288,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _assignToProject(Document doc) async {
-    final projects = ref.read(projectsProvider).valueOrNull ?? [];
+    final projects = await ref.read(projectsProvider.future);
     if (projects.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
