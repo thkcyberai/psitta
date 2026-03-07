@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/colors.dart';
+import '../../data/providers/providers.dart';
 import '../../data/services/preferences_service.dart';
 
 /// Settings Screen — user preferences and app configuration.
@@ -64,15 +66,31 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 16),
                   _SectionHeader(title: 'Playback'),
-                  const ListTile(
-                    title: Text('Default Voice'),
-                    subtitle: Text('Rachel'),
-                    trailing: Icon(Icons.chevron_right),
+                  ListTile(
+                    title: const Text('Default Voice'),
+                    subtitle: Text(ref.watch(selectedVoiceIdProvider)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.go('/voices'),
                   ),
-                  const ListTile(
-                    title: Text('Playback Speed'),
-                    subtitle: Text('1.0x'),
-                    trailing: Icon(Icons.chevron_right),
+                  ListTile(
+                    title: const Text('Playback Speed'),
+                    trailing: DropdownButton<double>(
+                      value: ref.watch(selectedSpeedProvider),
+                      underline: const SizedBox(),
+                      items: const [
+                        DropdownMenuItem(value: 0.75, child: Text('0.75x')),
+                        DropdownMenuItem(value: 1.0, child: Text('1.0x')),
+                        DropdownMenuItem(value: 1.25, child: Text('1.25x')),
+                        DropdownMenuItem(value: 1.5, child: Text('1.5x')),
+                        DropdownMenuItem(value: 1.75, child: Text('1.75x')),
+                        DropdownMenuItem(value: 2.0, child: Text('2.0x')),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref.read(selectedSpeedProvider.notifier).select(val);
+                        }
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
                   _SectionHeader(title: 'Storage'),

@@ -7,6 +7,7 @@ import '../../features/player/player_landing_screen.dart';
 import '../../features/projects/projects_screen.dart';
 import '../../features/projects/project_detail_screen.dart';
 import '../../features/settings/settings_screen.dart';
+import '../../features/voices/voice_selector_screen.dart';
 
 /// Desktop routing configuration.
 ///
@@ -67,6 +68,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/settings',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: SettingsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/voices',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: VoiceSelectorScreen(),
             ),
           ),
         ],
