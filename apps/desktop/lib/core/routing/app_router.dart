@@ -5,6 +5,7 @@ import '../../features/library/library_screen.dart';
 import '../../features/player/player_screen.dart';
 import '../../features/player/player_landing_screen.dart';
 import '../../features/projects/projects_screen.dart';
+import '../../features/projects/project_detail_screen.dart';
 import '../../features/settings/settings_screen.dart';
 
 /// Desktop routing configuration.
@@ -37,6 +38,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => NoTransitionPage(
               child: PlayerScreen(
                 documentId: state.pathParameters['documentId']!,
+                originProjectId: state.uri.queryParameters['projectId'],
+                originProjectName: state.uri.queryParameters['projectName'],
               ),
             ),
           ),
@@ -45,6 +48,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => const NoTransitionPage(
               child: ProjectsScreen(),
             ),
+            routes: [
+              GoRoute(
+                path: ':projectId',
+                builder: (context, state) {
+                  final projectId = state.pathParameters['projectId']!;
+                  final projectName =
+                      state.uri.queryParameters['projectName'] ?? 'Project';
+                  return ProjectDetailScreen(
+                    projectId: projectId,
+                    projectName: projectName,
+                  );
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: '/settings',

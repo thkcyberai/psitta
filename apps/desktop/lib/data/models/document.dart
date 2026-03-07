@@ -9,6 +9,7 @@ class Document {
   final String sourceType;
   final int? pageCount;
   final int? wordCount;
+  final String? projectId;
   final DateTime createdAt;
 
   const Document({
@@ -18,6 +19,7 @@ class Document {
     required this.sourceType,
     this.pageCount,
     this.wordCount,
+    this.projectId,
     required this.createdAt,
   });
 
@@ -28,6 +30,7 @@ class Document {
         sourceType: json['source_type'] as String,
         pageCount: json['page_count'] as int?,
         wordCount: (json['word_count'] ?? json['wordCount']) as int?,
+        projectId: json['project_id'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
       );
 }

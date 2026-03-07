@@ -14,6 +14,7 @@ import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../data/models/document.dart';
+import '../../data/repositories/project_repository.dart';
 import '../shell/app_shell.dart';
 import '../shell/desktop_shell.dart';
 import '../shell/widgets/player_bar.dart';
@@ -283,6 +284,61 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Download failed: $e')),
       );
+    }
+  }
+
+  Future<void> _assignToProject(Document doc) async {
+    final projects = ref.read(projectsProvider).valueOrNull ?? [];
+    if (projects.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'No projects yet. Create one in the Projects section.'),
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    final selected = await showDialog<Project>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Add to Project'),
+        children: projects
+            .map((p) => SimpleDialogOption(
+                  onPressed: () => Navigator.of(ctx).pop(p),
+                  child: Text(p.name),
+                ))
+            .toList(),
+      ),
+    );
+    if (selected == null) return;
+    try {
+      final repo = ref.read(documentRepositoryProvider);
+      await repo.assignToProject(doc.id, selected.id);
+      ref.invalidate(documentsProvider);
+      ref.invalidate(projectsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to assign project: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _removeFromProject(Document doc) async {
+    try {
+      final repo = ref.read(documentRepositoryProvider);
+      await repo.assignToProject(doc.id, null);
+      ref.invalidate(documentsProvider);
+      ref.invalidate(projectsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to remove from project: $e')),
+        );
+      }
     }
   }
 
@@ -606,6 +662,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       onDelete: () => _confirmAndDelete(doc),
                                       onArchive: () => _archiveDocument(doc),
                                       onDownload: () => _downloadDocument(doc),
+                                      currentProjectId: doc.projectId,
+                                      onAssignProject: () => _assignToProject(doc),
+                                      onRemoveProject: () => _removeFromProject(doc),
                                     );
                                   },
                                 );

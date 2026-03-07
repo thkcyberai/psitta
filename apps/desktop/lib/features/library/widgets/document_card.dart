@@ -15,6 +15,9 @@ class DocumentCard extends StatelessWidget {
   final VoidCallback onDelete;
   final VoidCallback? onArchive;
   final VoidCallback? onDownload;
+  final VoidCallback? onAssignProject;
+  final VoidCallback? onRemoveProject;
+  final String? currentProjectId;
 
   const DocumentCard({
     super.key,
@@ -28,6 +31,9 @@ class DocumentCard extends StatelessWidget {
     required this.onDelete,
     this.onArchive,
     this.onDownload,
+    this.onAssignProject,
+    this.onRemoveProject,
+    this.currentProjectId,
   });
 
   IconData get _statusIcon => switch (status) {
@@ -143,13 +149,16 @@ class DocumentCard extends StatelessWidget {
                                 case 'download':
                                   onDownload?.call();
                                   break;
-                                case 'add_to_project':
-                                  // D29 - stub
+                                case 'assign_project':
+                                  onAssignProject?.call();
+                                  break;
+                                case 'remove_project':
+                                  onRemoveProject?.call();
                                   break;
                               }
                             },
-                            itemBuilder: (context) => const [
-                              PopupMenuItem(
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
                                 value: 'read',
                                 child: Row(
                                   children: [
@@ -159,7 +168,7 @@ class DocumentCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              PopupMenuItem(
+                              const PopupMenuItem(
                                 value: 'edit',
                                 child: Row(
                                   children: [
@@ -169,7 +178,7 @@ class DocumentCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              PopupMenuItem(
+                              const PopupMenuItem(
                                 value: 'delete',
                                 child: Row(
                                   children: [
@@ -179,8 +188,8 @@ class DocumentCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              PopupMenuDivider(),
-                              PopupMenuItem<String>(
+                              const PopupMenuDivider(),
+                              const PopupMenuItem<String>(
                                 value: 'archive',
                                 child: Row(
                                   children: [
@@ -190,7 +199,7 @@ class DocumentCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              PopupMenuItem<String>(
+                              const PopupMenuItem<String>(
                                 value: 'download',
                                 child: Row(
                                   children: [
@@ -200,16 +209,34 @@ class DocumentCard extends StatelessWidget {
                                   ],
                                 ),
                               ),
-                              PopupMenuItem<String>(
-                                value: 'add_to_project',
-                                child: Row(
-                                  children: [
+                              const PopupMenuDivider(),
+                              if (currentProjectId == null)
+                                const PopupMenuItem<String>(
+                                  value: 'assign_project',
+                                  child: Row(children: [
                                     Icon(Icons.folder_outlined, size: 18),
                                     SizedBox(width: 8),
                                     Text('Add to Project'),
-                                  ],
+                                  ]),
+                                )
+                              else ...[
+                                const PopupMenuItem<String>(
+                                  value: 'assign_project',
+                                  child: Row(children: [
+                                    Icon(Icons.drive_file_move_outlined, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Move to Project'),
+                                  ]),
                                 ),
-                              ),
+                                const PopupMenuItem<String>(
+                                  value: 'remove_project',
+                                  child: Row(children: [
+                                    Icon(Icons.folder_off_outlined, size: 18),
+                                    SizedBox(width: 8),
+                                    Text('Remove from Project'),
+                                  ]),
+                                ),
+                              ],
                             ],
                             child: Padding(
                               padding: const EdgeInsets.all(4),

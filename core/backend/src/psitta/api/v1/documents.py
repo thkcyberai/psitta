@@ -321,7 +321,7 @@ async def list_documents(
 
     rows = await db.execute(
         text(
-            "SELECT id, title, status, source_type, page_count, word_count, created_at "
+            "SELECT id, title, status, source_type, page_count, word_count, created_at, project_id "
             "FROM documents WHERE user_id = :uid "
             "AND status != 'deleted' AND (:show_archived OR status != 'archived') "
             "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
@@ -338,6 +338,7 @@ async def list_documents(
             "page_count": r.page_count,
             "word_count": getattr(r, "word_count", 0),
             "created_at": r.created_at.isoformat() if r.created_at else None,
+            "project_id": str(r.project_id) if r.project_id else None,
         }
         for r in rows
     ]
@@ -684,6 +685,39 @@ async def archive_document(
     await db.commit()
     logger.info("document.archived", doc_id=str(document_id), new_status=new_status)
     return {"id": str(document_id), "status": new_status}
+
+
+@router.patch("/{document_id}/project")
+async def assign_project(
+    document_id: str,
+    body: dict,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Assign or remove a document from a project.
+    Body: {"project_id": "<uuid>"} to assign, {"project_id": null} to remove.
+    """
+    project_id = body.get("project_id")
+    # Verify document exists and belongs to dev user
+    row = await db.execute(
+        text("SELECT id FROM documents WHERE id = :id AND user_id = :uid AND status != 'deleted'"),
+        {"id": document_id, "uid": DEV_USER_ID},
+    )
+    if not row.mappings().first():
+        raise HTTPException(status_code=404, detail="Document not found")
+    # Verify project exists if assigning
+    if project_id is not None:
+        proj_row = await db.execute(
+            text("SELECT id FROM projects WHERE id = :id AND user_id = :uid"),
+            {"id": project_id, "uid": DEV_USER_ID},
+        )
+        if not proj_row.mappings().first():
+            raise HTTPException(status_code=404, detail="Project not found")
+    await db.execute(
+        text("UPDATE documents SET project_id = :pid WHERE id = :id"),
+        {"pid": project_id, "id": document_id},
+    )
+    await db.commit()
+    return {"id": document_id, "project_id": project_id}
 
 
 @router.get("/{document_id}/download")

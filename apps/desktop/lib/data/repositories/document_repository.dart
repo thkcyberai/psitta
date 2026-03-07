@@ -104,6 +104,14 @@ class DocumentRepository {
     await _api.dio.patch('/documents/$id/archive');
   }
 
+  /// Assign or remove a document from a project.
+  Future<void> assignToProject(String id, String? projectId) async {
+    await _api.dio.patch(
+      '/documents/$id/project',
+      data: {'project_id': projectId},
+    );
+  }
+
   /// Download the original file. Returns the response bytes.
   Future<List<int>> downloadDocument(String id) async {
     final response = await _api.dio.get<List<int>>(

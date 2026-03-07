@@ -13,7 +13,14 @@ import 'widgets/word_highlight_view.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
   final String documentId;
-  const PlayerScreen({super.key, required this.documentId});
+  final String? originProjectId;
+  final String? originProjectName;
+  const PlayerScreen({
+    super.key,
+    required this.documentId,
+    this.originProjectId,
+    this.originProjectName,
+  });
 
   @override
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
@@ -387,11 +394,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          chunkTitle,
-                          style: theme.textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
+                        Row(
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.arrow_back),
+                              tooltip: widget.originProjectId != null
+                                  ? widget.originProjectName ?? 'Project'
+                                  : 'Library',
+                              onPressed: () {
+                                if (widget.originProjectId != null) {
+                                  context.go(
+                                    '/projects/${widget.originProjectId}'
+                                    '?projectName=${Uri.encodeComponent(widget.originProjectName ?? 'Project')}',
+                                  );
+                                } else {
+                                  context.go('/');
+                                }
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                chunkTitle,
+                                style: theme.textTheme.headlineSmall?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         Row(
