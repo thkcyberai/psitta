@@ -12,16 +12,16 @@ import 'widgets/sidebar_nav.dart';
 
 /// AppShell — persistent desktop layout with header, sidebar, optional right panel, and pinned player bar.
 class AppShell extends ConsumerWidget {
-  final Widget content;
-  final Widget? rightPanel;
-  final bool isSidebarCollapsed;
-
   const AppShell({
     super.key,
     required this.content,
     required this.isSidebarCollapsed,
     this.rightPanel,
   });
+
+  final Widget content;
+  final Widget? rightPanel;
+  final bool isSidebarCollapsed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -85,9 +85,9 @@ class AppShell extends ConsumerWidget {
 }
 
 class _ContextHeader extends ConsumerWidget {
-  final PsittaTokens tokens;
-
   const _ContextHeader({required this.tokens});
+
+  final PsittaTokens tokens;
 
   String _breadcrumbFromLocation(Uri uri) {
     final seg = uri.pathSegments;
@@ -184,14 +184,13 @@ class _ContextHeader extends ConsumerWidget {
 }
 
 class _NowPlayingStrip extends ConsumerWidget {
-  final String crumb;
   const _NowPlayingStrip({required this.crumb});
+  final String crumb;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final nowReading = ref.watch(nowReadingTextProvider);
     final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ?? false;
-    final docTitle = ref.watch(currentDocTitleProvider);
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final isActive = nowReading.trim().isNotEmpty;
@@ -202,7 +201,7 @@ class _NowPlayingStrip extends ConsumerWidget {
         constraints: const BoxConstraints(maxWidth: 760),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceVariant.withOpacity(0.4),
+          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.4),
           borderRadius: BorderRadius.circular(24),
           border: Border.all(
             color: theme.colorScheme.outline.withOpacity(0.2),

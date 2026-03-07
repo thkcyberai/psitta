@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:dio/dio.dart';
 import '../../core/constants.dart';
 
@@ -9,8 +11,6 @@ import '../../core/constants.dart';
 /// - Auth token injection (TODO: wire to auth provider)
 /// - Error interceptor for consistent error handling
 class ApiClient {
-  late final Dio _dio;
-
   ApiClient() {
     _dio = Dio(BaseOptions(
       baseUrl: AppConstants.apiBaseUrl,
@@ -24,9 +24,11 @@ class ApiClient {
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: true,
-      logPrint: (msg) => print('[API] $msg'), // TODO: Use proper logger
+      logPrint: (msg) => developer.log('$msg', name: 'API'),
     ));
   }
+
+  late final Dio _dio;
 
   Dio get dio => _dio;
 

@@ -33,7 +33,7 @@ class SettingsScreen extends ConsumerWidget {
               constraints: const BoxConstraints(maxWidth: 600),
               child: ListView(
                 children: [
-                  _SectionHeader(title: 'Appearance'),
+                  const _SectionHeader(title: 'Appearance'),
                   ListTile(
                     title: const Text('Theme'),
                     subtitle: Text(selectedTheme),
@@ -65,7 +65,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _SectionHeader(title: 'Playback'),
+                  const _SectionHeader(title: 'Playback'),
                   ListTile(
                     title: const Text('Default Voice'),
                     subtitle: Text(
@@ -104,7 +104,7 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  _SectionHeader(title: 'Storage'),
+                  const _SectionHeader(title: 'Storage'),
                   const ListTile(
                     title: Text('Auto-Delete Documents'),
                     subtitle: Text('After 60 days'),
@@ -116,7 +116,7 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: Icon(Icons.chevron_right),
                   ),
                   const SizedBox(height: 16),
-                  _SectionHeader(title: 'Account'),
+                  const _SectionHeader(title: 'Account'),
                   const ListTile(
                     title: Text('Subscription'),
                     subtitle: Text('Free tier — 3 documents/month'),
@@ -147,8 +147,8 @@ class SettingsScreen extends ConsumerWidget {
 }
 
 class _SectionHeader extends StatelessWidget {
-  final String title;
   const _SectionHeader({required this.title});
+  final String title;
 
   @override
   Widget build(BuildContext context) {

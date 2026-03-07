@@ -2,13 +2,6 @@
 ///
 /// TODO: Generate with freezed + json_serializable.
 class Voice {
-  final String id;
-  final String displayName;
-  final String language;
-  final String gender;
-  final String tier;
-  final String? sampleUrl;
-
   const Voice({
     required this.id,
     required this.displayName,
@@ -26,4 +19,11 @@ class Voice {
         tier: json['tier'] as String,
         sampleUrl: json['sample_url'] as String?,
       );
+
+  final String id;
+  final String displayName;
+  final String language;
+  final String gender;
+  final String tier;
+  final String? sampleUrl;
 }

@@ -303,21 +303,21 @@ class PlayerBar extends ConsumerWidget {
 
 /// Speed selector button — tap to cycle, long-press for menu.
 class _SpeedButton extends StatelessWidget {
-  final bool enabled;
-  final WidgetRef ref;
-  final AudioService audioService;
-
   const _SpeedButton({
     required this.enabled,
     required this.ref,
     required this.audioService,
   });
 
+  final bool enabled;
+  final WidgetRef ref;
+  final AudioService audioService;
+
   @override
   Widget build(BuildContext context) {
     final speed = ref.watch(selectedSpeedProvider);
     final theme = Theme.of(context);
-    final speeds = const [1.0, 1.5, 2.0];
+    const speeds = [1.0, 1.5, 2.0];
 
     return PopupMenuButton<double>(
       enabled: enabled,
@@ -371,15 +371,15 @@ class _SpeedButton extends StatelessWidget {
 
 /// Volume button with vertical slider popup.
 class _VolumeButton extends StatefulWidget {
-  final bool enabled;
-  final WidgetRef ref;
-  final AudioService audioService;
-
   const _VolumeButton({
     required this.enabled,
     required this.ref,
     required this.audioService,
   });
+
+  final bool enabled;
+  final WidgetRef ref;
+  final AudioService audioService;
 
   @override
   State<_VolumeButton> createState() => _VolumeButtonState();
@@ -484,15 +484,15 @@ class _VolumeButtonState extends State<_VolumeButton> {
 /// Uses Consumer to ensure rebuilds when volume state changes,
 /// since OverlayEntry lives outside the normal Riverpod widget tree.
 class _VolumeSlider extends StatefulWidget {
-  final WidgetRef ref;
-  final AudioService audioService;
-  final VoidCallback onChanged;
-
   const _VolumeSlider({
     required this.ref,
     required this.audioService,
     required this.onChanged,
   });
+
+  final WidgetRef ref;
+  final AudioService audioService;
+  final VoidCallback onChanged;
 
   @override
   State<_VolumeSlider> createState() => _VolumeSliderState();

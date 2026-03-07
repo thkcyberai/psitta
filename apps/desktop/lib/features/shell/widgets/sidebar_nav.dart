@@ -6,9 +6,9 @@ import 'player_bar.dart';
 import '../../../core/theme/psitta_tokens.dart';
 
 class SidebarNav extends StatelessWidget {
-  final bool isCollapsed;
-
   const SidebarNav({super.key, required this.isCollapsed});
+
+  final bool isCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -53,9 +53,9 @@ class SidebarNav extends StatelessWidget {
 }
 
 class _BrandHeader extends StatelessWidget {
-  final bool isCollapsed;
-
   const _BrandHeader({required this.isCollapsed});
+
+  final bool isCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -92,9 +92,9 @@ class _BrandHeader extends StatelessWidget {
 }
 
 class _BrandFooter extends StatelessWidget {
-  final bool isCollapsed;
-
   const _BrandFooter({required this.isCollapsed});
+
+  final bool isCollapsed;
 
   @override
   Widget build(BuildContext context) {
@@ -132,15 +132,15 @@ class _BrandFooter extends StatelessWidget {
 }
 
 class _NavItem extends ConsumerWidget {
-  final String label;
-  final IconData icon;
-  final String route;
-
   const _NavItem({
     required this.label,
     required this.icon,
     required this.route,
   });
+
+  final String label;
+  final IconData icon;
+  final String route;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -208,12 +208,6 @@ class _NavItem extends ConsumerWidget {
 }
 
 class _GradientIcon extends StatelessWidget {
-  final IconData icon;
-  final double size;
-  final bool isMuted;
-  final Color a;
-  final Color b;
-
   const _GradientIcon({
     required this.icon,
     required this.size,
@@ -221,6 +215,12 @@ class _GradientIcon extends StatelessWidget {
     required this.a,
     required this.b,
   });
+
+  final IconData icon;
+  final double size;
+  final bool isMuted;
+  final Color a;
+  final Color b;
 
   @override
   Widget build(BuildContext context) {

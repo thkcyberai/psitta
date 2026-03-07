@@ -3,15 +3,6 @@
 /// TODO: Generate with freezed + json_serializable.
 /// Run: dart run build_runner build
 class Document {
-  final String id;
-  final String title;
-  final String status;
-  final String sourceType;
-  final int? pageCount;
-  final int? wordCount;
-  final String? projectId;
-  final DateTime createdAt;
-
   const Document({
     required this.id,
     required this.title,
@@ -33,4 +24,13 @@ class Document {
         projectId: json['project_id'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
       );
+
+  final String id;
+  final String title;
+  final String status;
+  final String sourceType;
+  final int? pageCount;
+  final int? wordCount;
+  final String? projectId;
+  final DateTime createdAt;
 }

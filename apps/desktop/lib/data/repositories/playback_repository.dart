@@ -3,8 +3,8 @@ import '../models/playback_session.dart';
 
 /// Playback repository — session creation, position persistence, and resume.
 class PlaybackRepository {
-  final ApiClient _api;
   PlaybackRepository(this._api);
+  final ApiClient _api;
 
   /// Create or resume a playback session for a document.
   Future<PlaybackSession> createSession({

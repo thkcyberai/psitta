@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -77,7 +78,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final audioService = ref.read(audioServiceProvider);
     // Switching documents should stop prior playback and clear audio source state.
     await audioService.stop();
-    audioService.reset();
+    unawaited(audioService.reset());
 
     ref.read(activeDocumentIdProvider.notifier).state = doc.id;
     ref.read(currentDocTitleProvider.notifier).state = doc.title;
@@ -417,7 +418,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off, size: 48, color: AppColors.error),
+              const Icon(Icons.cloud_off, size: 48, color: AppColors.error),
               const SizedBox(height: 12),
               Text(
                 'Could not load documents',
@@ -724,12 +725,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 }
 
 class _LibraryBody extends StatelessWidget {
-  final bool isDragging;
-  final VoidCallback onDragEntered;
-  final VoidCallback onDragExited;
-  final void Function(DropDoneDetails) onDrop;
-  final Widget child;
-
   const _LibraryBody({
     required this.isDragging,
     required this.onDragEntered,
@@ -737,6 +732,12 @@ class _LibraryBody extends StatelessWidget {
     required this.onDrop,
     required this.child,
   });
+
+  final bool isDragging;
+  final VoidCallback onDragEntered;
+  final VoidCallback onDragExited;
+  final void Function(DropDoneDetails) onDrop;
+  final Widget child;
 
   @override
   Widget build(BuildContext context) {
@@ -755,13 +756,6 @@ class _LibraryBody extends StatelessWidget {
 }
 
 class _LibraryRightPanel extends StatelessWidget {
-  final Document? selected;
-  final PsittaTokens tokens;
-  final VoidCallback? onListen;
-  final VoidCallback? onRename;
-  final VoidCallback? onDelete;
-  final VoidCallback? onViewDetails;
-
   const _LibraryRightPanel({
     required this.selected,
     required this.tokens,
@@ -770,6 +764,13 @@ class _LibraryRightPanel extends StatelessWidget {
     required this.onDelete,
     required this.onViewDetails,
   });
+
+  final Document? selected;
+  final PsittaTokens tokens;
+  final VoidCallback? onListen;
+  final VoidCallback? onRename;
+  final VoidCallback? onDelete;
+  final VoidCallback? onViewDetails;
 
   String _fmtDate(DateTime dt) {
     final y = dt.year.toString().padLeft(4, '0');
@@ -958,15 +959,15 @@ class _LibraryRightPanel extends StatelessWidget {
 }
 
 class _QuickAction extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
   const _QuickAction({
     required this.icon,
     required this.label,
     required this.onTap,
   });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1009,8 +1010,8 @@ class _QuickAction extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  final VoidCallback onUpload;
   const _EmptyState({required this.onUpload});
+  final VoidCallback onUpload;
 
   @override
   Widget build(BuildContext context) {
@@ -1019,7 +1020,7 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.description_outlined,
+          const Icon(Icons.description_outlined,
               size: 64, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
@@ -1048,10 +1049,10 @@ class _EmptyState extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
+  const _DetailRow({required this.label, required this.value});
+
   final String label;
   final String value;
-
-  const _DetailRow({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {

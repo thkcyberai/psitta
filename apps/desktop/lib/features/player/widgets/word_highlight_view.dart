@@ -5,9 +5,9 @@ import '../../../core/theme/colors.dart';
 import '../../../data/services/audio_service.dart';
 
 class _WordSpan {
+  const _WordSpan(this.start, this.end);
   final int start;
   final int end;
-  const _WordSpan(this.start, this.end);
 }
 
 /// Renders chunk text with the currently-spoken word highlighted.
@@ -44,10 +44,10 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
 
     int i = 0;
     while (i < text.length) {
-      while (i < text.length && !isWordChar(text[i])) i++;
+      while (i < text.length && !isWordChar(text[i])) { i++; }
       if (i >= text.length) break;
       final start = i;
-      while (i < text.length && isWordChar(text[i])) i++;
+      while (i < text.length && isWordChar(text[i])) { i++; }
       spans.add(_WordSpan(start, i));
     }
     return spans;

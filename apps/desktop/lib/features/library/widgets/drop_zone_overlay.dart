@@ -27,7 +27,7 @@ class DropZoneOverlay extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                const Icon(
                   Icons.file_download_outlined,
                   size: 48,
                   color: AppColors.primary,

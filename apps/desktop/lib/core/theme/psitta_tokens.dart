@@ -5,16 +5,6 @@ import 'package:flutter/material.dart';
 ///
 /// Keep these tokens stable. Evolve carefully to avoid UI drift.
 class PsittaTokens {
-  final Gradient backgroundGradient;
-  final Color headerSurface;
-  final Color surface;
-  final Color surface2;
-  final Color border;
-  final Color divider;
-  final Color inputFill;
-  final Color glow;
-  final double radius;
-
   const PsittaTokens({
     required this.backgroundGradient,
     required this.headerSurface,
@@ -26,6 +16,16 @@ class PsittaTokens {
     required this.glow,
     required this.radius,
   });
+
+  final Gradient backgroundGradient;
+  final Color headerSurface;
+  final Color surface;
+  final Color surface2;
+  final Color border;
+  final Color divider;
+  final Color inputFill;
+  final Color glow;
+  final double radius;
 
   static PsittaTokens of(BuildContext context) {
     final theme = Theme.of(context);

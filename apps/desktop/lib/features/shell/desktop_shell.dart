@@ -11,9 +11,9 @@ final sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
 /// The shell never rebuilds when navigating — only the content
 /// area changes. Sidebar and player bar are persistent.
 class DesktopShell extends ConsumerWidget {
-  final Widget child;
-
   const DesktopShell({super.key, required this.child});
+
+  final Widget child;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

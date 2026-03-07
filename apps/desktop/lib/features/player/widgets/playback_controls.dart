@@ -6,12 +6,6 @@ import '../../../core/theme/colors.dart';
 /// Used by both the player screen and the player bar.
 /// Desktop-optimized: keyboard shortcut tooltips on each button.
 class PlaybackControls extends StatelessWidget {
-  final bool isPlaying;
-  final VoidCallback onPlayPause;
-  final VoidCallback onSkipForward;
-  final VoidCallback onSkipBackward;
-  final double iconSize;
-
   const PlaybackControls({
     super.key,
     required this.isPlaying,
@@ -20,6 +14,12 @@ class PlaybackControls extends StatelessWidget {
     required this.onSkipBackward,
     this.iconSize = 38,
   });
+
+  final bool isPlaying;
+  final VoidCallback onPlayPause;
+  final VoidCallback onSkipForward;
+  final VoidCallback onSkipBackward;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {

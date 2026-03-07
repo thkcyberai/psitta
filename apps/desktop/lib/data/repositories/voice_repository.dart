@@ -3,8 +3,8 @@ import '../models/voice.dart';
 
 /// Voice repository — API communication for voice catalog.
 class VoiceRepository {
-  final ApiClient _api;
   VoiceRepository(this._api);
+  final ApiClient _api;
 
   /// List available TTS voices.
   Future<List<Voice>> listVoices({String? language, String? tier}) async {

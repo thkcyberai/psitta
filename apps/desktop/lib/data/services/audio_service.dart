@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -270,7 +271,7 @@ class AudioService {
       chunkIndex: _activeChunkIndex,
       positionMs: _player.position.inMilliseconds,
     ).catchError((Object e) {
-      print('Position save failed: ' + e.toString());
+      debugPrint('Position save failed: $e');
     });
   }
 

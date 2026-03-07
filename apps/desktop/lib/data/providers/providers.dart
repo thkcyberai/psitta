@@ -60,15 +60,15 @@ final chunksProvider = FutureProvider.autoDispose
 });
 
 class AlignmentKey {
-  final String documentId;
-  final String chunkId;
-  final String voiceId;
-
   const AlignmentKey({
     required this.documentId,
     required this.chunkId,
     required this.voiceId,
   });
+
+  final String documentId;
+  final String chunkId;
+  final String voiceId;
 
   @override
   bool operator ==(Object other) {

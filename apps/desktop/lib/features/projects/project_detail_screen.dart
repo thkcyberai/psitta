@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/api/api_client.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
 import '../shell/widgets/player_bar.dart';
@@ -18,14 +17,14 @@ final projectDocumentsProvider =
 });
 
 class ProjectDetailScreen extends ConsumerWidget {
-  final String projectId;
-  final String projectName;
-
   const ProjectDetailScreen({
     super.key,
     required this.projectId,
     required this.projectName,
   });
+
+  final String projectId;
+  final String projectName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

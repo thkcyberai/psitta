@@ -4,9 +4,9 @@ import '../models/document.dart';
 
 /// Document repository — API communication for document operations.
 class DocumentRepository {
-  final ApiClient _api;
-
   DocumentRepository(this._api);
+
+  final ApiClient _api;
 
   /// List all documents for the current user.
   Future<List<Document>> listDocuments({int page = 1, int limit = 20, bool showArchived = false}) async {

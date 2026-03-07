@@ -1,11 +1,6 @@
 import '../api/api_client.dart';
 
 class Project {
-  final String id;
-  final String name;
-  final int documentCount;
-  final String createdAt;
-
   const Project({
     required this.id,
     required this.name,
@@ -19,11 +14,16 @@ class Project {
         documentCount: (json['document_count'] as num?)?.toInt() ?? 0,
         createdAt: json['created_at'] as String? ?? '',
       );
+
+  final String id;
+  final String name;
+  final int documentCount;
+  final String createdAt;
 }
 
 class ProjectRepository {
-  final ApiClient _api;
   ProjectRepository(this._api);
+  final ApiClient _api;
 
   Future<List<Project>> listProjects() async {
     final response = await _api.dio.get('/projects/');

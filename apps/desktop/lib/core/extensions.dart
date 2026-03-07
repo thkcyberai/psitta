@@ -1,4 +1,4 @@
-/// Dart extension methods used across the app.
+// Dart extension methods used across the app.
 
 extension DurationFormatting on Duration {
   /// Formats duration as player timestamp: "1:05:30" or "05:30".

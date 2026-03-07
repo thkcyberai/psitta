@@ -4,21 +4,6 @@ import '../../../core/theme/colors.dart';
 import '../../../core/theme/psitta_tokens.dart';
 
 class DocumentCard extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final String status;
-  final bool isSelected;
-
-  final VoidCallback onTap;
-  final VoidCallback onRead;
-  final VoidCallback onEdit;
-  final VoidCallback onDelete;
-  final VoidCallback? onArchive;
-  final VoidCallback? onDownload;
-  final VoidCallback? onAssignProject;
-  final VoidCallback? onRemoveProject;
-  final String? currentProjectId;
-
   const DocumentCard({
     super.key,
     required this.title,
@@ -35,6 +20,20 @@ class DocumentCard extends StatelessWidget {
     this.onRemoveProject,
     this.currentProjectId,
   });
+
+  final String title;
+  final String subtitle;
+  final String status;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final VoidCallback onRead;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final VoidCallback? onArchive;
+  final VoidCallback? onDownload;
+  final VoidCallback? onAssignProject;
+  final VoidCallback? onRemoveProject;
+  final String? currentProjectId;
 
   IconData get _statusIcon => switch (status) {
         'ready' => Icons.check,

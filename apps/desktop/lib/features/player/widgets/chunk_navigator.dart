@@ -7,16 +7,16 @@ import '../../../core/theme/colors.dart';
 /// active chunk highlighted with primary color accent.
 /// Scrolls to keep active chunk visible during playback.
 class ChunkNavigator extends StatelessWidget {
-  final List<Map<String, String>> chunks;
-  final int activeIndex;
-  final ValueChanged<int> onChunkSelected;
-
   const ChunkNavigator({
     super.key,
     required this.chunks,
     required this.activeIndex,
     required this.onChunkSelected,
   });
+
+  final List<Map<String, String>> chunks;
+  final int activeIndex;
+  final ValueChanged<int> onChunkSelected;
 
   @override
   Widget build(BuildContext context) {

@@ -11,15 +11,16 @@ import 'widgets/chunk_navigator.dart';
 import 'widgets/word_highlight_view.dart';
 
 class PlayerScreen extends ConsumerStatefulWidget {
-  final String documentId;
-  final String? originProjectId;
-  final String? originProjectName;
   const PlayerScreen({
     super.key,
     required this.documentId,
     this.originProjectId,
     this.originProjectName,
   });
+
+  final String documentId;
+  final String? originProjectId;
+  final String? originProjectName;
 
   @override
   ConsumerState<PlayerScreen> createState() => _PlayerScreenState();
@@ -29,7 +30,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _hasAutoPlayed = false;
   ProviderSubscription<int>? _chunkIndexSub;
   ProviderSubscription<String>? _voiceSub;
-  String? _sessionId;
 
   @override
   void initState() {
@@ -48,7 +48,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     _chunkIndexSub = ref.listenManual<int>(currentChunkIndexProvider, (prev, next) {
       if (prev != next) {
-        print('[PlayerScreen] currentChunkIndexProvider: $prev -> $next');
+        debugPrint('[PlayerScreen] currentChunkIndexProvider: $prev -> $next');
       }
     });
 
@@ -71,8 +71,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         voiceId: voiceId,
         speed: speed,
       );
-      _sessionId = session.id;
-
       // Restore chunk index from last session
       if (!_hasAutoPlayed && session.currentChunkIndex > 0) {
         ref.read(currentChunkIndexProvider.notifier).state =
@@ -91,7 +89,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         repository: repo,
       );
     } catch (e) {
-      print('[PlayerScreen] Session init failed: $e');
+      debugPrint('[PlayerScreen] Session init failed: $e');
     }
   }
 

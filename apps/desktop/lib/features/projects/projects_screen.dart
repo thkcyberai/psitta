@@ -151,8 +151,8 @@ class ProjectsScreen extends ConsumerWidget {
 // ── Project Card ──────────────────────────────────────────────────────────────
 
 class _ProjectCard extends ConsumerWidget {
-  final Project project;
   const _ProjectCard({required this.project});
+  final Project project;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -202,8 +202,8 @@ class _ProjectCard extends ConsumerWidget {
 // ── Project Context Menu ──────────────────────────────────────────────────────
 
 class _ProjectMenu extends ConsumerWidget {
-  final Project project;
   const _ProjectMenu({required this.project});
+  final Project project;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

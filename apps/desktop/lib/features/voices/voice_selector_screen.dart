@@ -86,12 +86,6 @@ class VoiceSelectorScreen extends ConsumerWidget {
 }
 
 class _VoiceCell extends StatelessWidget {
-  final String displayName;
-  final String language;
-  final String gender;
-  final bool isSelected;
-  final VoidCallback onTap;
-
   const _VoiceCell({
     required this.displayName,
     required this.language,
@@ -99,6 +93,12 @@ class _VoiceCell extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
   });
+
+  final String displayName;
+  final String language;
+  final String gender;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +173,16 @@ class _VoiceCell extends StatelessWidget {
 }
 
 class VoiceAvatarPainter extends CustomPainter {
+  VoiceAvatarPainter({
+    required this.isFemale,
+    required this.isSelected,
+    required this.primaryColor,
+    required this.primaryContainer,
+    required this.secondaryColor,
+    required this.secondaryContainer,
+    required this.surfaceHighest,
+  });
+
   static const _skinLight = Color(0xFFFFE0C8);
   static const _skinMid = Color(0xFFFFBFA0);
 
@@ -183,16 +193,6 @@ class VoiceAvatarPainter extends CustomPainter {
   final Color secondaryColor;
   final Color secondaryContainer;
   final Color surfaceHighest;
-
-  VoiceAvatarPainter({
-    required this.isFemale,
-    required this.isSelected,
-    required this.primaryColor,
-    required this.primaryContainer,
-    required this.secondaryColor,
-    required this.secondaryContainer,
-    required this.surfaceHighest,
-  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -379,5 +379,5 @@ class VoiceAvatarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(VoiceAvatarPainter old) => false;
+  bool shouldRepaint(VoiceAvatarPainter oldDelegate) => false;
 }
