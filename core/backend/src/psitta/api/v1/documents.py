@@ -519,6 +519,19 @@ async def get_chunk_alignment(
     if cached:
         return cached
 
+    # Non-ElevenLabs voices cannot produce alignment data.
+    # Skip synthesis entirely and cache a null-alignment payload.
+    if voice_id.startswith("en-") and voice_id.endswith("Neural"):
+        payload = {
+            "document_id": str(document_id),
+            "chunk_id": str(chunk_id),
+            "voice_id": voice_id,
+            "provider": "azure",
+            "alignment": None,
+        }
+        await put_alignment(str(chunk_id), voice_id, payload)
+        return payload
+
     # Load chunk text
     chunk_result = await db.execute(
         text("SELECT text_content FROM document_chunks WHERE id = :cid AND document_id = :did"),
@@ -540,6 +553,18 @@ async def get_chunk_alignment(
     except Exception as e:
         logger.error("audio.alignment_failed", error=str(e), voice_id=voice_id)
         raise HTTPException(status_code=502, detail=f"TTS alignment failed: {e}")
+
+    # Only ElevenLabs produces valid alignment timestamps.
+    # If a fallback provider was used, discard alignment to prevent
+    # mismatched timestamps against audio from a different provider.
+    if provider != "elevenlabs" and alignment is not None:
+        logger.warning(
+            "audio.alignment_discarded",
+            provider=provider,
+            voice_id=voice_id,
+            reason="alignment only valid for elevenlabs",
+        )
+        alignment = None
 
     # Persist mp3 + alignment to local + S3
     await put_mp3(str(chunk_id), voice_id, audio_bytes)

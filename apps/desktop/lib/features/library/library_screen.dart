@@ -877,9 +877,9 @@ class _LibraryRightPanel extends StatelessWidget {
                             loading: () => const SizedBox(height: 36),
                             error: (_, __) => const SizedBox(height: 36),
                             data: (voices) {
-                              final allowed = {'Adam', 'Bella'};
+                              
                               final filtered = voices
-                                  .where((v) => allowed.contains(v.displayName))
+                                  
                                   .toList();
 
                               final selectedVoice =
