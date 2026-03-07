@@ -77,7 +77,7 @@ class _BrandHeader extends StatelessWidget {
           if (!isCollapsed) ...[
             const SizedBox(width: 12),
             Text(
-              'Creator Studio',
+              'The Reading Nook',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.onSurface.withOpacity(0.92),

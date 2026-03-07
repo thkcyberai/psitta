@@ -6,6 +6,7 @@ import '../../core/constants.dart';
 import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/services/audio_service.dart';
+import '../../data/services/preferences_service.dart';
 import 'widgets/player_bar.dart';
 import 'widgets/sidebar_nav.dart';
 
@@ -124,12 +125,25 @@ class _ContextHeader extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Text(
-            'Psitta',
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Psitta',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              Text(
+                ref.watch(selectedThemeNameProvider),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
           ),
           const SizedBox(width: 14),
 

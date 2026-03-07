@@ -68,7 +68,18 @@ class SettingsScreen extends ConsumerWidget {
                   _SectionHeader(title: 'Playback'),
                   ListTile(
                     title: const Text('Default Voice'),
-                    subtitle: Text(ref.watch(selectedVoiceIdProvider)),
+                    subtitle: Text(
+                      ref.watch(voicesProvider).whenOrNull(
+                            data: (voices) {
+                              final id = ref.watch(selectedVoiceIdProvider);
+                              for (final v in voices) {
+                                if (v.id == id) return v.displayName;
+                              }
+                              return null;
+                            },
+                          ) ??
+                          'Select a voice',
+                    ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => context.go('/voices'),
                   ),

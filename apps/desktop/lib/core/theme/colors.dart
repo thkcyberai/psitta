@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 /// subtle surface distinctions for multi-pane layouts.
 abstract final class AppColors {
   // ── Primary ──────────────────────────────────────────────────
-  // Creator Studio Dark accent direction: blue -> purple
+  // Midnight accent direction: blue -> purple
   static const primary = Color(0xFF5B7CFF);
   static const primaryLight = Color(0xFF86A9FF);
   static const primaryDark = Color(0xFF2F56FF);

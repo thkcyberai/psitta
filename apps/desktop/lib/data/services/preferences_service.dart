@@ -3,10 +3,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Theme names shown to the user.
 abstract final class ThemeNames {
-  static const creatorStudioDark = 'Creator Studio Dark';
-  static const paperLight = 'Paper Light';
-  static const roseSalmonPastel = 'Rose Salmon Pastel';
-  static const beigeGoldNavy = 'Beige Gold Navy';
+  static const creatorStudioDark = 'Midnight';
+  static const paperLight = 'Parchment';
+  static const roseSalmonPastel = 'Rose';
+  static const beigeGoldNavy = 'Amber';
 
   static const all = <String>[
     creatorStudioDark,

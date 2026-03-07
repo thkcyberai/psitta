@@ -30,7 +30,7 @@ class PsittaTokens {
   static PsittaTokens of(BuildContext context) {
     final theme = Theme.of(context);
 
-    // Creator Studio Dark feel (deep navy + glass)
+    // Midnight feel (deep navy + glass)
     if (theme.brightness == Brightness.dark) {
       return const PsittaTokens(
         backgroundGradient: LinearGradient(
@@ -58,7 +58,7 @@ class PsittaTokens {
     // Light skins are selected via ThemeData (AppTheme.*) by setting distinct scaffold backgrounds.
     final bg = theme.scaffoldBackgroundColor.value;
 
-    // ── Skin: Rose Salmon Pastel (matches RoseSalmonPastel.png) ──
+    // ── Skin: Rose (matches RoseSalmonPastel.png) ──
     if (bg == const Color(0xFFFFF7F5).value) {
       return const PsittaTokens(
         backgroundGradient: LinearGradient(
@@ -72,7 +72,7 @@ class PsittaTokens {
           ],
           stops: [0.0, 0.35, 0.78, 1.0],
         ),
-        headerSurface: Color(0xFDF7F4FF),
+        headerSurface: Color(0xFFFFF7F4),
         surface: Color(0xFFFDF7F4),
         surface2: Color(0xFFF7EFEE),
         border: Color(0x33E7BDB2), // warm border
@@ -83,7 +83,7 @@ class PsittaTokens {
       );
     }
 
-    // ── Skin: Paper Light (matches PaperLight.png) ──
+    // ── Skin: Parchment (matches PaperLight.png) ──
     if (bg == const Color(0xFFF7F5EF).value) {
       return const PsittaTokens(
         backgroundGradient: LinearGradient(
@@ -108,7 +108,7 @@ class PsittaTokens {
       );
     }
 
-    // ── Skin: Beige Gold Navy (matches BeigeGold.png) ──
+    // ── Skin: Amber (matches BeigeGold.png) ──
     if (bg == const Color(0xFFF4EFE5).value) {
       return const PsittaTokens(
         backgroundGradient: LinearGradient(

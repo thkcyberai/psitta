@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/state/now_reading.dart';
-import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
@@ -147,7 +146,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final chunksAsync = ref.watch(chunksProvider(widget.documentId));
     final activeChunkIndex = ref.watch(currentChunkIndexProvider);
     final isSynthesizing = ref.watch(isSynthesizingProvider).valueOrNull ?? false;
@@ -162,7 +160,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.error),
+            Icon(Icons.error_outline, size: 48, color: theme.colorScheme.error),
             const SizedBox(height: 16),
             Text('Failed to load document', style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -183,7 +181,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.article_outlined, size: 48, color: AppColors.textSecondary),
+                Icon(Icons.article_outlined, size: 48, color: theme.colorScheme.onSurfaceVariant),
                 const SizedBox(height: 16),
                 Text('No content available', style: theme.textTheme.titleMedium),
               ],
@@ -292,14 +290,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         height: 12,
                         child: CircularProgressIndicator(
                           strokeWidth: 1.5,
-                          color: AppColors.primary.withOpacity(0.6),
+                          color: theme.colorScheme.primary.withOpacity(0.6),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         'Loading word highlighting\u2026',
                         style: theme.textTheme.bodySmall?.copyWith(
-                          color: AppColors.primary.withOpacity(0.7),
+                          color: theme.colorScheme.primary.withOpacity(0.7),
                         ),
                       ),
                     ],
@@ -328,7 +326,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 SizedBox(
                   width: 280,
                   child: Container(
-                    color: isDark ? AppColors.sidebarDark : AppColors.sidebarLight,
+                    color: theme.colorScheme.surfaceContainerLow,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -349,16 +347,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   Icon(
                                     Icons.record_voice_over,
                                     size: 14,
-                                    color: isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondary,
+                                    color: theme.colorScheme.onSurfaceVariant,
                                   ),
                                   const SizedBox(width: 4),
                                   Expanded(
                                     child: Text(
                                       'Voice: ${_voiceName(ref)}',
                                       style: theme.textTheme.bodySmall?.copyWith(
-                                        color: AppColors.primary,
+                                        color: theme.colorScheme.primary,
                                         fontWeight: FontWeight.w500,
                                       ),
                                       maxLines: 1,
@@ -429,7 +425,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             Text(
                               'Chunk ${currentIndex + 1} of ${chunks.length}',
                               style: theme.textTheme.bodySmall?.copyWith(
-                                color: AppColors.textSecondary,
+                                color: theme.colorScheme.onSurfaceVariant,
                               ),
                             ),
                             if (hasAlignment) ...[
@@ -437,13 +433,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               Icon(
                                 Icons.auto_awesome,
                                 size: 12,
-                                color: AppColors.primary.withOpacity(0.7),
+                                color: theme.colorScheme.primary.withOpacity(0.7),
                               ),
                               const SizedBox(width: 3),
                               Text(
                                 'Word sync',
                                 style: theme.textTheme.bodySmall?.copyWith(
-                                  color: AppColors.primary.withOpacity(0.7),
+                                  color: theme.colorScheme.primary.withOpacity(0.7),
                                   fontSize: 11,
                                 ),
                               ),
@@ -473,9 +469,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 left: 0,
                 right: 0,
                 child: Container(
-                  color: AppColors.primary.withOpacity(0.9),
+                  color: theme.colorScheme.primaryContainer,
                   padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  child: const Row(
+                  child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       SizedBox(
@@ -483,14 +479,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: Colors.white,
+                          color: theme.colorScheme.onPrimaryContainer,
                         ),
                       ),
-                      SizedBox(width: 10),
+                      const SizedBox(width: 10),
                       Text(
                         'Synthesizing audio\u2026',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: theme.colorScheme.onPrimaryContainer,
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
                         ),

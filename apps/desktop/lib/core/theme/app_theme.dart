@@ -7,13 +7,13 @@ import 'package:flutter/material.dart';
 abstract final class AppTheme {
   static ThemeData forName(String themeName) {
     switch (themeName) {
-      case 'Creator Studio Dark':
+      case 'Midnight':
         return creatorStudioDark;
-      case 'Paper Light':
+      case 'Parchment':
         return paperLight;
-      case 'Rose Salmon Pastel':
+      case 'Rose':
         return roseSalmonPastel;
-      case 'Beige Gold Navy':
+      case 'Amber':
         return beigeGoldNavy;
       default:
         return creatorStudioDark;
@@ -21,7 +21,7 @@ abstract final class AppTheme {
   }
 
   // ─────────────────────────────────────────────────────────────
-  // Skin 1: Creator Studio Dark (matches CreatorStudioDark.png)
+  // Skin 1: Midnight (matches CreatorStudioDark.png)
   // ─────────────────────────────────────────────────────────────
   static ThemeData get creatorStudioDark {
     const seed = Color(0xFF5B7CFF); // blue
