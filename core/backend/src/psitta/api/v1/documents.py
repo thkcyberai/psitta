@@ -17,6 +17,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_db_session
+from psitta.schemas.api import ChunkResponse, ChunkUpdateRequest, ResynthesizeResponse
 
 logger = structlog.get_logger(__name__)
 
@@ -390,7 +391,8 @@ async def get_document_chunks(
 
     rows = await db.execute(
         text(
-            "SELECT id, sequence_index, chunk_type, text_content, tone, page_number, character_count, metadata_json "
+            "SELECT id, sequence_index, chunk_type, text_content, tone, page_number, character_count, metadata_json, "
+            "is_edited, edited_at, original_text "
             "FROM document_chunks WHERE document_id = :did "
             "ORDER BY sequence_index"
         ),
@@ -410,6 +412,9 @@ async def get_document_chunks(
                 "tone": r.tone,
                 "page_number": r.page_number,
                 "character_count": r.character_count,
+                "is_edited": getattr(r, "is_edited", False),
+                "edited_at": r.edited_at.isoformat() if getattr(r, "edited_at", None) else None,
+                "original_text": getattr(r, "original_text", None),
             }
         )
 
@@ -616,6 +621,137 @@ async def get_chunk_alignment(
 
     return payload
 
+
+async def _invalidate_chunk_audio_cache(chunk_id: UUID, db: AsyncSession) -> None:
+    """Delete all audio_segments rows for a chunk so next request re-synthesizes."""
+    await db.execute(
+        text("DELETE FROM audio_segments WHERE chunk_id = :cid"),
+        {"cid": chunk_id},
+    )
+    # Also delete local cache files if they exist
+    import glob as _glob
+    import os
+    from psitta.services.audio_cache import AUDIO_DIR
+    pattern = os.path.join(AUDIO_DIR, f"{chunk_id}_*")
+    for path in _glob.glob(pattern):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+
+@router.patch("/{document_id}/chunks/{chunk_id}", response_model=ChunkResponse)
+async def update_chunk_text(
+    document_id: UUID,
+    chunk_id: UUID,
+    request: ChunkUpdateRequest,
+    db: AsyncSession = Depends(get_db_session),
+) -> ChunkResponse:
+    """Update the text content of a chunk. Stores original text on first edit."""
+    result = await db.execute(
+        text(
+            "SELECT id, sequence_index, chunk_type, text_content, tone, page_number, "
+            "character_count, is_edited, edited_at, original_text "
+            "FROM document_chunks WHERE id = :cid AND document_id = :did"
+        ),
+        {"cid": chunk_id, "did": document_id},
+    )
+    chunk = result.first()
+    if not chunk:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+
+    import re as _re
+    import unicodedata
+
+    # Normalize unicode, remove invisible characters that break TTS
+    new_text = request.text.strip()
+    new_text = new_text.replace('\u200B', '').replace('\u200C', '')
+    new_text = new_text.replace('\u200D', '').replace('\u00AD', '')
+    new_text = new_text.replace('\uFEFF', '').replace('\u00A0', ' ')
+    new_text = _re.sub(r' {2,}', ' ', new_text)
+    new_text = unicodedata.normalize('NFC', new_text)
+
+    now = datetime.now(timezone.utc)
+
+    # Store original text on first edit only
+    if not chunk.is_edited:
+        await db.execute(
+            text(
+                "UPDATE document_chunks "
+                "SET text_content = :txt, character_count = :chars, "
+                "is_edited = true, edited_at = :now, original_text = :orig "
+                "WHERE id = :cid"
+            ),
+            {
+                "cid": chunk_id,
+                "txt": new_text,
+                "chars": len(new_text),
+                "now": now,
+                "orig": chunk.text_content,
+            },
+        )
+    else:
+        await db.execute(
+            text(
+                "UPDATE document_chunks "
+                "SET text_content = :txt, character_count = :chars, edited_at = :now "
+                "WHERE id = :cid"
+            ),
+            {"cid": chunk_id, "txt": new_text, "chars": len(new_text), "now": now},
+        )
+
+    # Invalidate audio cache for this chunk
+    await _invalidate_chunk_audio_cache(chunk_id, db)
+
+    await db.commit()
+
+    logger.info("chunk.updated", chunk_id=str(chunk_id), document_id=str(document_id))
+
+    return ChunkResponse(
+        id=str(chunk.id),
+        sequence_index=chunk.sequence_index,
+        chunk_type=chunk.chunk_type if isinstance(chunk.chunk_type, str) else str(chunk.chunk_type),
+        text_content=new_text,
+        tone=chunk.tone if isinstance(chunk.tone, str) else str(chunk.tone),
+        page_number=chunk.page_number,
+        character_count=len(new_text),
+        is_edited=True,
+        edited_at=now,
+        original_text=chunk.original_text if chunk.is_edited else chunk.text_content,
+    )
+
+
+@router.post("/{document_id}/chunks/{chunk_id}/resynthesize", response_model=ResynthesizeResponse)
+async def resynthesize_chunk(
+    document_id: UUID,
+    chunk_id: UUID,
+    voice_id: str = Query(default="21m00Tcm4TlvDq8ikWAM"),
+    speed: float = Query(default=1.0),
+    db: AsyncSession = Depends(get_db_session),
+) -> ResynthesizeResponse:
+    """Re-synthesize audio for an edited chunk using its current text_content."""
+    result = await db.execute(
+        text(
+            "SELECT id FROM document_chunks WHERE id = :cid AND document_id = :did"
+        ),
+        {"cid": chunk_id, "did": document_id},
+    )
+    if not result.first():
+        raise HTTPException(status_code=404, detail="Chunk not found")
+
+    # Invalidate cache so next audio request re-synthesizes
+    await _invalidate_chunk_audio_cache(chunk_id, db)
+    await db.commit()
+
+    audio_url = f"/api/v1/documents/{document_id}/chunks/{chunk_id}/audio?voice_id={voice_id}&speed={speed}"
+
+    logger.info("chunk.resynthesize", chunk_id=str(chunk_id), voice_id=voice_id)
+
+    return ResynthesizeResponse(
+        chunk_id=str(chunk_id),
+        audio_url=audio_url,
+        message="Cache invalidated. Next audio request will re-synthesize with updated text.",
+    )
 
 
 class DocumentUpdateRequest(BaseModel):

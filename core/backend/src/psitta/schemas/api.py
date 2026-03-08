@@ -15,6 +15,7 @@ Security:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -222,3 +223,28 @@ class UserPreferencesUpdate(StrictSchema):
     )
     notifications_enabled: bool | None = None
     auto_delete_days: int | None = Field(default=None, ge=0, le=365)
+
+
+# ── Chunks ────────────────────────────────────────────────────────────
+
+class ChunkUpdateRequest(BaseModel):
+    text: str
+
+
+class ChunkResponse(BaseModel):
+    id: str
+    sequence_index: int
+    chunk_type: str
+    text_content: str
+    tone: str
+    page_number: int
+    character_count: int
+    is_edited: bool = False
+    edited_at: Optional[datetime] = None
+    original_text: Optional[str] = None
+
+
+class ResynthesizeResponse(BaseModel):
+    chunk_id: str
+    audio_url: str
+    message: str

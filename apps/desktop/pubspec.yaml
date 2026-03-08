@@ -35,6 +35,9 @@ dependencies:
   freezed_annotation: ^2.4.0
   json_annotation: ^4.9.0
 
+  # Rich text editing
+  flutter_quill: ^10.8.4
+
   # Utilities
   path: ^1.9.0
   path_provider: ^2.1.5
@@ -50,6 +53,12 @@ dev_dependencies:
   json_serializable: ^6.8.0
   mockito: ^5.4.0
   mocktail: ^1.0.0
+
+dependency_overrides:
+  # quill_native_bridge_windows 0.0.2 uses removed top-level GMEM_MOVEABLE constant.
+  # Local copy patches it to GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE for win32 5.x compat.
+  quill_native_bridge_windows:
+    path: local_overrides/quill_native_bridge_windows
 
 flutter:
   uses-material-design: true

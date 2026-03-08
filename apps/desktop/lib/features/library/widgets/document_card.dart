@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/psitta_tokens.dart';
@@ -19,6 +20,7 @@ class DocumentCard extends StatelessWidget {
     this.onAssignProject,
     this.onRemoveProject,
     this.currentProjectId,
+    this.documentId,
   });
 
   final String title;
@@ -34,6 +36,7 @@ class DocumentCard extends StatelessWidget {
   final VoidCallback? onAssignProject;
   final VoidCallback? onRemoveProject;
   final String? currentProjectId;
+  final String? documentId;
 
   IconData get _statusIcon => switch (status) {
         'ready' => Icons.check,
@@ -139,6 +142,12 @@ class DocumentCard extends StatelessWidget {
                                 case 'edit':
                                   onEdit();
                                   break;
+                                case 'edit_document':
+                                  if (documentId != null) {
+                                    context.push(
+                                        '/editor/$documentId?title=${Uri.encodeComponent(title)}');
+                                  }
+                                  break;
                                 case 'delete':
                                   onDelete();
                                   break;
@@ -174,6 +183,17 @@ class DocumentCard extends StatelessWidget {
                                     Icon(Icons.edit, size: 18),
                                     SizedBox(width: 10),
                                     Text('Rename'),
+                                  ],
+                                ),
+                              ),
+                              PopupMenuItem(
+                                value: 'edit_document',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.edit_note_outlined, size: 16,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                    const SizedBox(width: 8),
+                                    const Text('Edit Document'),
                                   ],
                                 ),
                               ),

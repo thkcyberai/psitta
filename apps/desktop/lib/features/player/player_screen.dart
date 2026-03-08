@@ -6,6 +6,7 @@ import '../../core/state/now_reading.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
+import '../editor/chunk_editor_widget.dart';
 import '../shell/widgets/player_bar.dart';
 import 'widgets/chunk_navigator.dart';
 import 'widgets/word_highlight_view.dart';
@@ -415,6 +416,32 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                 ),
                               ),
                             ),
+                            IconButton(
+                              icon: Icon(Icons.edit_outlined,
+                                  size: 18,
+                                  color: theme.colorScheme.onSurfaceVariant),
+                              tooltip: 'Edit this chunk',
+                              onPressed: () =>
+                                  _openChunkEditor(context, chunkId, chunkText),
+                            ),
+                            if (activeChunk['is_edited'] == true)
+                              IconButton(
+                                icon: Icon(Icons.refresh_outlined,
+                                    size: 18,
+                                    color: theme.colorScheme.tertiary),
+                                tooltip: 'Re-synthesize voice for this chunk',
+                                onPressed: () async {
+                                  final audioService =
+                                      ref.read(audioServiceProvider);
+                                  await audioService.forceReloadChunk(
+                                    documentId: widget.documentId,
+                                    chunkId: chunkId,
+                                    voiceId: voiceId,
+                                  );
+                                  ref.invalidate(
+                                      chunksProvider(widget.documentId));
+                                },
+                              ),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -496,6 +523,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ],
         );
       },
+    );
+  }
+
+  void _openChunkEditor(BuildContext context, String chunkId, String chunkText) {
+    final audioService = ref.read(audioServiceProvider);
+    audioService.pause();
+
+    final voiceId = ref.read(selectedVoiceIdProvider);
+    final speed = ref.read(selectedSpeedProvider);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ChunkEditorWidget(
+        documentId: widget.documentId,
+        chunkId: chunkId,
+        initialText: chunkText,
+        voiceId: voiceId,
+        speed: speed,
+        onSaved: () {
+          ref.invalidate(chunksProvider(widget.documentId));
+        },
+      ),
     );
   }
 

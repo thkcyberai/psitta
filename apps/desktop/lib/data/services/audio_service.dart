@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/constants.dart';
@@ -229,6 +230,58 @@ class AudioService {
       await _player.seek(Duration.zero);
     } catch (_) {}
     _synthesizingController.add(false);
+  }
+
+  /// Removes a chunk from the in-memory cache and deletes its local temp file.
+  /// Call after a chunk has been re-synthesized so next play fetches fresh audio.
+  Future<void> invalidateChunkCache(String chunkId) async {
+    _fileCache.removeWhere((key, _) => key.startsWith(chunkId));
+    _inflight.removeWhere((key, _) => key.startsWith(chunkId));
+
+    try {
+      final tmpDir = await getTemporaryDirectory();
+      final dir = Directory(tmpDir.path);
+      final files = dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => path.basename(f.path).startsWith('psitta_$chunkId'));
+      for (final file in files) {
+        await file.delete();
+      }
+    } catch (_) {
+      // Best-effort — in-memory eviction is enough
+    }
+  }
+
+  /// Invalidates cache for a chunk then immediately re-downloads fresh audio.
+  /// Call after re-synthesis to guarantee player gets updated audio.
+  Future<void> forceReloadChunk({
+    required String documentId,
+    required String chunkId,
+    required String voiceId,
+  }) async {
+    // 1. Clear specific cache key first
+    final cacheKey = '${chunkId}_$voiceId';
+    _fileCache.remove(cacheKey);
+    unawaited(_inflight.remove(cacheKey));
+
+    // 2. Delete temp file directly
+    try {
+      final tmpDir = await getTemporaryDirectory();
+      final filePath = '${tmpDir.path}/psitta_${chunkId}_$voiceId.mp3';
+      final file = File(filePath);
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
+
+    // 3. Also run full invalidation for any other voice variants
+    await invalidateChunkCache(chunkId);
+
+    // 4. Now prefetch fresh audio
+    await prefetchChunk(
+      documentId: documentId,
+      chunkId: chunkId,
+      voiceId: voiceId,
+    );
   }
 
   // Position Tracking

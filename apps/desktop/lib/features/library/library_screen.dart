@@ -666,6 +666,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       currentProjectId: doc.projectId,
                                       onAssignProject: () => _assignToProject(doc),
                                       onRemoveProject: () => _removeFromProject(doc),
+                                      documentId: doc.id,
                                     );
                                   },
                                 );

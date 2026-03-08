@@ -6,6 +6,7 @@ import '../../features/player/player_screen.dart';
 import '../../features/player/player_landing_screen.dart';
 import '../../features/projects/projects_screen.dart';
 import '../../features/projects/project_detail_screen.dart';
+import '../../features/editor/document_editor_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/voices/voice_selector_screen.dart';
 
@@ -16,6 +17,10 @@ import '../../features/voices/voice_selector_screen.dart';
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/library',
+    redirect: (context, state) {
+      if (state.uri.toString() == '/') return '/library';
+      return null;
+    },
     routes: [
       ShellRoute(
         builder: (context, state, child) {
@@ -75,6 +80,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             pageBuilder: (context, state) => const NoTransitionPage(
               child: VoiceSelectorScreen(),
             ),
+          ),
+          GoRoute(
+            path: '/editor/:documentId',
+            pageBuilder: (context, state) {
+              final documentId = state.pathParameters['documentId']!;
+              final documentTitle =
+                  state.uri.queryParameters['title'];
+              return NoTransitionPage(
+                child: DocumentEditorScreen(
+                  documentId: documentId,
+                  documentTitle: documentTitle,
+                ),
+              );
+            },
           ),
         ],
       ),

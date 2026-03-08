@@ -1,0 +1,35 @@
+name: quill_native_bridge_windows
+description: "Windows implementation of the quill_native_bridge plugin."
+version: 0.0.2
+homepage: https://github.com/FlutterQuill/quill-native-bridge/tree/main/quill_native_bridge_windows
+repository: https://github.com/FlutterQuill/quill-native-bridge/tree/main/quill_native_bridge_windows
+issue_tracker: https://github.com/FlutterQuill/quill-native-bridge/issues?q=is%3Aissue+is%3Aopen+label%3A%22platform-windows%22
+documentation: https://github.com/FlutterQuill/quill-native-bridge/tree/main/quill_native_bridge_windows
+topics: [clipboard, os-integration, quill-native-bridge, quill, flutter-quill]
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  quill_native_bridge_platform_interface: ^0.0.1
+  win32: ^5.5.0
+  ffi: ^2.1.0
+  file_selector_windows: ^0.9.1+5
+  file_selector_platform_interface: ^2.4.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  mockito: ^5.4.4
+  build_runner: ^2.4.13
+
+flutter:
+  plugin:
+    implements: quill_native_bridge
+    platforms:
+      windows:
+        dartPluginClass: QuillNativeBridgeWindows
+        fileName: quill_native_bridge_windows.dart
