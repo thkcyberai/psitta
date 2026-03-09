@@ -465,15 +465,14 @@ async def get_chunk_audio(
         raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {e}")
 
     # Save to local + S3
-    await put_mp3(str(chunk_id), voice_id, audio_bytes)
+    local_path = await put_mp3(str(chunk_id), voice_id, audio_bytes)
     storage_key = s3_key_mp3(str(chunk_id), voice_id)
 
-    # Insert cache record (delete stale row first if file was missing)
-    if row:
-        await db.execute(
-            text("DELETE FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
-            {"cid": chunk_id, "vid": voice_id},
-        )
+    # Insert cache record (delete stale row first to avoid unique constraint)
+    await db.execute(
+        text("DELETE FROM audio_segments WHERE chunk_id = :cid AND voice_id = :vid"),
+        {"cid": chunk_id, "vid": voice_id},
+    )
     from uuid import uuid4 as _uuid4
     await db.execute(
         text(
@@ -495,7 +494,7 @@ async def get_chunk_audio(
     await db.commit()
     logger.info("audio.synthesized_on_demand", chunk_id=str(chunk_id), voice_id=voice_id, size=len(audio_bytes))
 
-    return FileResponse(storage_key, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
+    return FileResponse(local_path, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
 
 
 @router.get("/{document_id}/chunks/{chunk_id}/alignment")
@@ -623,21 +622,48 @@ async def get_chunk_alignment(
 
 
 async def _invalidate_chunk_audio_cache(chunk_id: UUID, db: AsyncSession) -> None:
-    """Delete all audio_segments rows for a chunk so next request re-synthesizes."""
-    await db.execute(
-        text("DELETE FROM audio_segments WHERE chunk_id = :cid"),
-        {"cid": chunk_id},
-    )
-    # Also delete local cache files if they exist
+    """Delete all audio_segments rows for a chunk so next request re-synthesizes.
+
+    Clears all three cache layers:
+      1. S3/MinIO objects (mp3 + alignment sidecar)
+      2. Local /tmp cache files
+      3. Database audio_segments rows
+    """
     import glob as _glob
     import os
     from psitta.services.audio_cache import AUDIO_DIR
+
+    logger.info("cache_invalidation.start", chunk_id=str(chunk_id))
+
+    # 1. Delete ALL S3 objects with prefix audio/{chunk_id}_
+    #    This doesn't depend on audio_segments DB rows existing.
+    try:
+        from psitta.config import get_settings
+        from psitta.providers.storage_s3 import S3StorageProvider
+        s3 = S3StorageProvider(get_settings())
+        bucket = get_settings().S3_BUCKET_NAME
+        prefix = f"audio/{chunk_id}_"
+        deleted_count = await s3.delete_by_prefix(bucket, prefix)
+        logger.info("cache_invalidation.s3_done", chunk_id=str(chunk_id), prefix=prefix, deleted=deleted_count)
+    except Exception as e:
+        logger.error("cache_invalidation.s3_failed", chunk_id=str(chunk_id), error=str(e))
+
+    # 2. Delete local cache files
     pattern = os.path.join(AUDIO_DIR, f"{chunk_id}_*")
-    for path in _glob.glob(pattern):
+    matched = _glob.glob(pattern)
+    logger.info("cache_invalidation.local_files", pattern=pattern, matched=matched)
+    for path in matched:
         try:
             os.remove(path)
-        except OSError:
-            pass
+        except OSError as e:
+            logger.error("cache_invalidation.local_delete_failed", path=path, error=str(e))
+
+    # 3. Delete DB rows
+    result = await db.execute(
+        text("DELETE FROM audio_segments WHERE chunk_id = :cid"),
+        {"cid": chunk_id},
+    )
+    logger.info("cache_invalidation.db_delete", chunk_id=str(chunk_id), rows_deleted=result.rowcount)
 
 
 @router.patch("/{document_id}/chunks/{chunk_id}", response_model=ChunkResponse)

@@ -13,8 +13,9 @@ class DocumentEditorRepository {
     required String chunkId,
     required String text,
   }) async {
+    final url = '/documents/$documentId/chunks/$chunkId';
     final response = await _api.dio.patch(
-      '/documents/$documentId/chunks/$chunkId',
+      url,
       data: {'text': text},
     );
     return response.data as Map<String, dynamic>;

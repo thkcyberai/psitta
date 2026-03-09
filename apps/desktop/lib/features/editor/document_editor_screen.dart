@@ -6,7 +6,7 @@ import 'chunk_editor_widget.dart';
 import 'chunk_editor_provider.dart';
 
 /// Provider for fetching all chunks of a document.
-final documentChunksProvider = FutureProvider.family<
+final documentChunksProvider = FutureProvider.autoDispose.family<
     List<Map<String, dynamic>>, String>((ref, documentId) async {
   final repo = ref.watch(documentEditorRepositoryProvider);
   return repo.fetchChunks(documentId: documentId);

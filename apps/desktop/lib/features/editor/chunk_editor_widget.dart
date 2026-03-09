@@ -1,9 +1,6 @@
-import 'dart:async' show unawaited;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../data/services/audio_service.dart';
 import 'chunk_editor_provider.dart';
 
 class ChunkEditorWidget extends ConsumerStatefulWidget {
@@ -76,30 +73,39 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
   }
 
   Future<void> _onSave() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Update Audio'),
+        content: const Text(
+          'Saving this change will regenerate the audio for this chunk, '
+          'which will use TTS credits. You will need to replay from the '
+          'beginning of this chunk to hear the updated audio.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
     final notifier = ref.read(chunkEditorProvider.notifier);
-    final success = await notifier.saveAndResynthesize(
+    final success = await notifier.saveChunkText(
       documentId: widget.documentId,
       chunkId: widget.chunkId,
       plainText: _plainText,
-      voiceId: widget.voiceId,
-      speed: widget.speed,
     );
     if (success && mounted) {
-      // Grab refs before popping (context/ref invalid after pop)
-      final audioService = ref.read(audioServiceProvider);
-      final docId = widget.documentId;
-      final chunkId = widget.chunkId;
-      final voiceId = widget.voiceId;
-
       widget.onSaved?.call();
       Navigator.of(context).pop();
-
-      // Reload audio in background — don't block the UI
-      unawaited(audioService.forceReloadChunk(
-        documentId: docId,
-        chunkId: chunkId,
-        voiceId: voiceId,
-      ));
     }
   }
 
@@ -109,7 +115,6 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
     final state = ref.watch(chunkEditorProvider);
 
     final isLoading = state.isSaving;
-    final statusLabel = state.isSaving ? 'Saving changes...' : null;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.65,
@@ -158,8 +163,8 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
           QuillSimpleToolbar(
             controller: _controller,
             configurations: QuillSimpleToolbarConfigurations(
-              showBoldButton: true,
-              showItalicButton: true,
+              showBoldButton: false,
+              showItalicButton: false,
               showSmallButton: false,
               showUnderLineButton: false,
               showStrikeThrough: false,
@@ -175,7 +180,7 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
               showLink: false,
               showUndo: true,
               showRedo: true,
-              showFontSize: true,
+              showFontSize: false,
               showHeaderStyle: false,
               showAlignmentButtons: false,
               showDirection: false,
@@ -244,7 +249,7 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
               child: Text(state.error!,
                   style: TextStyle(color: cs.error, fontSize: 12)),
             ),
-          if (statusLabel != null)
+          if (isLoading)
             Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -256,7 +261,7 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
                       strokeWidth: 2, color: cs.primary),
                 ),
                 const SizedBox(width: 8),
-                Text(statusLabel,
+                Text('Saving changes...',
                     style: TextStyle(color: cs.primary, fontSize: 12)),
               ]),
             ),
@@ -285,9 +290,9 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
                             child: CircularProgressIndicator(
                                 strokeWidth: 2, color: cs.onPrimary),
                           )
-                        : const Icon(Icons.sync, size: 16),
+                        : const Icon(Icons.save, size: 16),
                     label: Text(
-                        isLoading ? 'Please wait...' : 'Save & Re-synthesize'),
+                        isLoading ? 'Saving...' : 'Save & Update Audio'),
                   ),
                 ),
               ],

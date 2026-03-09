@@ -32,11 +32,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   ProviderSubscription<int>? _chunkIndexSub;
   ProviderSubscription<String>? _voiceSub;
 
+  // Captured early so dispose() can use them without ref.read()
+  AudioService? _audioService;
+  StateController<String>? _nowReadingController;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(activeDocumentIdProvider.notifier).state = widget.documentId;
+      _audioService = ref.read(audioServiceProvider);
+      _nowReadingController = ref.read(nowReadingTextProvider.notifier);
       // Title resolved immediately if docs already loaded, or via listener below
       _resolveTitle();
       _initSession();
@@ -111,8 +117,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void dispose() {
     _chunkIndexSub?.close();
     _voiceSub?.close();
-    ref.read(audioServiceProvider).stopPositionTracking();
-    ref.read(nowReadingTextProvider.notifier).state = '';
+    _audioService?.stopPositionTracking();
+    _nowReadingController?.state = '';
     super.dispose();
   }
 
@@ -261,7 +267,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final hasAlignment =
             alignmentPayload != null && alignmentPayload['alignment'] != null;
         final isFetchingAlignment = alignmentAsync.isLoading;
-
         // WordHighlightView owns the audioPositionProvider watch internally.
         // PlayerScreen does NOT watch position — only WordHighlightView
         // rebuilds on every tick (~10/s). Everything else stays still.
@@ -430,16 +435,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     size: 18,
                                     color: theme.colorScheme.tertiary),
                                 tooltip: 'Re-synthesize voice for this chunk',
-                                onPressed: () async {
+                                onPressed: () {
                                   final audioService =
                                       ref.read(audioServiceProvider);
-                                  await audioService.forceReloadChunk(
-                                    documentId: widget.documentId,
-                                    chunkId: chunkId,
-                                    voiceId: voiceId,
-                                  );
-                                  ref.invalidate(
-                                      chunksProvider(widget.documentId));
+                                  audioService.invalidateChunkCache(chunkId);
+                                  ref.invalidate(chunkAlignmentProvider(
+                                    AlignmentKey(
+                                      documentId: widget.documentId,
+                                      chunkId: chunkId,
+                                      voiceId: voiceId,
+                                    ),
+                                  ));
                                 },
                               ),
                           ],
@@ -544,7 +550,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         voiceId: voiceId,
         speed: speed,
         onSaved: () {
+          // 1. Clear Flutter-side audio cache BEFORE provider invalidation
+          //    so playChunk won't serve stale audio from _fileCache.
+          final audio = ref.read(audioServiceProvider);
+          audio.invalidateChunkCache(chunkId);
+
+          // 2. Invalidate providers — triggers the same flow as first-time
+          //    playback: chunkAlignmentProvider re-fetches GET /alignment,
+          //    backend sees cache miss, synthesizes fresh audio + alignment.
           ref.invalidate(chunksProvider(widget.documentId));
+          ref.invalidate(chunkAlignmentProvider(AlignmentKey(
+            documentId: widget.documentId,
+            chunkId: chunkId,
+            voiceId: voiceId,
+          )));
         },
       ),
     );

@@ -96,6 +96,20 @@ class S3StorageProvider:
 
         return True
 
+    async def delete_by_prefix(self, bucket: str, prefix: str) -> int:
+        """Delete all objects matching a prefix. Returns count of deleted objects."""
+        logger.info("storage.s3.delete_by_prefix", bucket=bucket, prefix=prefix)
+        deleted = 0
+        async with await self._get_client() as client:
+            paginator = client.get_paginator("list_objects_v2")
+            async for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    await client.delete_object(Bucket=bucket, Key=key)
+                    logger.info("storage.s3.delete_by_prefix.deleted", key=key)
+                    deleted += 1
+        return deleted
+
     async def generate_presigned_url(
         self,
         bucket: str,

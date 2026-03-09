@@ -260,12 +260,18 @@ class AudioService {
     required String chunkId,
     required String voiceId,
   }) async {
-    // 1. Clear specific cache key first
+    // 1. Stop player and clear its source so it releases the old file handle.
+    try {
+      await _player.stop();
+      await _player.setAudioSource(AudioSource.uri(Uri.dataFromString('')));
+    } catch (_) {}
+
+    // 2. Clear specific cache key first
     final cacheKey = '${chunkId}_$voiceId';
     _fileCache.remove(cacheKey);
     unawaited(_inflight.remove(cacheKey));
 
-    // 2. Delete temp file directly
+    // 3. Delete temp file directly
     try {
       final tmpDir = await getTemporaryDirectory();
       final filePath = '${tmpDir.path}/psitta_${chunkId}_$voiceId.mp3';
@@ -273,10 +279,10 @@ class AudioService {
       if (await file.exists()) await file.delete();
     } catch (_) {}
 
-    // 3. Also run full invalidation for any other voice variants
+    // 4. Also run full invalidation for any other voice variants
     await invalidateChunkCache(chunkId);
 
-    // 4. Now prefetch fresh audio
+    // 5. Now prefetch fresh audio
     await prefetchChunk(
       documentId: documentId,
       chunkId: chunkId,
