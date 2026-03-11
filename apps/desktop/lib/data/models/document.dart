@@ -11,6 +11,8 @@ class Document {
     this.pageCount,
     this.wordCount,
     this.projectId,
+    this.coverType,
+    this.coverValue,
     required this.createdAt,
   });
 
@@ -22,6 +24,8 @@ class Document {
         pageCount: json['page_count'] as int?,
         wordCount: (json['word_count'] ?? json['wordCount']) as int?,
         projectId: json['project_id'] as String?,
+        coverType: json['cover_type'] as String?,
+        coverValue: json['cover_value'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
       );
 
@@ -32,5 +36,7 @@ class Document {
   final int? pageCount;
   final int? wordCount;
   final String? projectId;
+  final String? coverType;
+  final String? coverValue;
   final DateTime createdAt;
 }

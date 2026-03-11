@@ -120,4 +120,51 @@ class DocumentRepository {
     );
     return response.data ?? [];
   }
+
+  /// Export document as a branded DOCX. Returns the file bytes.
+  Future<List<int>> exportDocument(
+    String id, {
+    bool includeCover = true,
+    bool includeFooter = true,
+  }) async {
+    final response = await _api.dio.get<List<int>>(
+      '/documents/$id/export',
+      queryParameters: {
+        'cover': includeCover,
+        'footer': includeFooter,
+      },
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return response.data ?? [];
+  }
+
+  /// Update document cover to a built-in illustration.
+  Future<Document> setCoverBuiltin(String id, String illustrationId) async {
+    final response = await _api.dio.patch('/documents/$id', data: {
+      'cover_type': 'builtin',
+      'cover_value': illustrationId,
+    });
+    return Document.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Remove document cover.
+  Future<Document> removeCover(String id) async {
+    final response = await _api.dio.patch('/documents/$id', data: {
+      'cover_type': null,
+      'cover_value': null,
+    });
+    return Document.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Upload a custom cover image.
+  Future<Document> uploadCover(String id, String filePath) async {
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath),
+    });
+    final response = await _api.dio.post(
+      '/documents/$id/cover',
+      data: formData,
+    );
+    return Document.fromJson(response.data as Map<String, dynamic>);
+  }
 }

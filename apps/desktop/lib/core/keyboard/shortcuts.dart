@@ -40,6 +40,10 @@ class SearchLibraryIntent extends Intent {
   const SearchLibraryIntent();
 }
 
+class HelpShortcutsIntent extends Intent {
+  const HelpShortcutsIntent();
+}
+
 // ── Shortcut Map ───────────────────────────────────────────────
 /// Default keyboard shortcuts for the desktop app.
 /// Follows platform conventions (Ctrl on Windows, Cmd on macOS).
@@ -50,10 +54,6 @@ final Map<ShortcutActivator, Intent> psittaShortcuts = {
       const SkipForwardIntent(),
   const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
       const SkipBackwardIntent(),
-  const SingleActivator(LogicalKeyboardKey.equal, control: true):
-      const SpeedUpIntent(),
-  const SingleActivator(LogicalKeyboardKey.minus, control: true):
-      const SpeedDownIntent(),
 
   // Navigation
   const SingleActivator(LogicalKeyboardKey.keyO, control: true):
@@ -62,4 +62,6 @@ final Map<ShortcutActivator, Intent> psittaShortcuts = {
       const ToggleSidebarIntent(),
   const SingleActivator(LogicalKeyboardKey.keyF, control: true):
       const SearchLibraryIntent(),
+  const SingleActivator(LogicalKeyboardKey.slash, control: true):
+      const HelpShortcutsIntent(),
 };

@@ -22,16 +22,24 @@ class WordHighlightView extends ConsumerStatefulWidget {
     super.key,
     required this.chunkText,
     required this.alignmentPayload,
+    this.onActiveWordChanged,
+    this.enableContextMenu = false,
+    this.audioService,
   });
 
   final String chunkText;
   final Map<String, dynamic> alignmentPayload;
+  final void Function(int wordIndex, int totalWords)? onActiveWordChanged;
+  final bool enableContextMenu;
+  final AudioService? audioService;
 
   @override
   ConsumerState<WordHighlightView> createState() => _WordHighlightViewState();
 }
 
 class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
+  int _prevActiveWord = -1;
+
   List<_WordSpan> _computeWordSpans(String text) {
     final spans = <_WordSpan>[];
     bool isWordChar(String ch) {
@@ -125,6 +133,15 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
 
     final activeWord = _wordIndexFromCharIndex(spans, charIdx);
 
+    if (activeWord != _prevActiveWord) {
+      _prevActiveWord = activeWord;
+      if (widget.onActiveWordChanged != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          widget.onActiveWordChanged?.call(activeWord, spans.length);
+        });
+      }
+    }
+
     final highlightStyle = baseStyle?.copyWith(
       backgroundColor: AppColors.primary.withOpacity(isDark ? 0.35 : 0.22),
       color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
@@ -156,6 +173,49 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
       ));
     }
 
-    return SelectableText.rich(TextSpan(children: children));
+    return SelectableText.rich(
+      TextSpan(children: children),
+      contextMenuBuilder: widget.enableContextMenu
+          ? (context, editableTextState) {
+              return AdaptiveTextSelectionToolbar.buttonItems(
+                anchors: editableTextState.contextMenuAnchors,
+                buttonItems: [
+                  ContextMenuButtonItem(
+                    label: 'Listen from here',
+                    onPressed: () {
+                      ContextMenuController.removeAny();
+                      _seekToSelection(editableTextState);
+                    },
+                  ),
+                ],
+              );
+            }
+          : null,
+    );
+  }
+
+  void _seekToSelection(EditableTextState editableTextState) {
+    final selection = editableTextState.currentTextEditingValue.selection;
+    if (!selection.isValid || selection.isCollapsed) return;
+
+    final charIndex = selection.start;
+
+    final alignmentBlock = widget.alignmentPayload['alignment'];
+    if (alignmentBlock is! Map) return;
+
+    final normalized = alignmentBlock['normalized_alignment'];
+    if (normalized is! Map) return;
+
+    final startTimes = normalized['character_start_times_seconds'];
+    if (startTimes is! List || charIndex >= startTimes.length) return;
+
+    final seconds = (startTimes[charIndex] as num).toDouble();
+    final ms = (seconds * 1000).round();
+
+    final audio = widget.audioService;
+    if (audio == null) return;
+    audio.pause();
+    audio.seek(Duration(milliseconds: ms));
+    audio.play();
   }
 }

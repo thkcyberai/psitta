@@ -1,9 +1,13 @@
 import uuid
 from typing import Annotated
+
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from psitta.dependencies import get_db_session
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -14,7 +18,7 @@ DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 async def _get_project_or_404(project_id: str, db: AsyncSession) -> dict:
     row = await db.execute(
-        text("SELECT id, user_id, name, created_at FROM projects WHERE id = :id"),
+        text("SELECT id, user_id, name, created_at, cover_document_id FROM projects WHERE id = :id"),
         {"id": project_id},
     )
     project = row.mappings().first()
@@ -49,6 +53,9 @@ async def create_project(
     project["id"] = str(project["id"])
     project["created_at"] = project["created_at"].isoformat()
     project["document_count"] = 0
+    project["cover_document_id"] = None
+    project["cover_type"] = None
+    project["cover_value"] = None
     return project
 
 
@@ -58,13 +65,18 @@ async def list_projects(
 ):
     rows = await db.execute(
         text("""
-            SELECT p.id, p.name, p.created_at,
-                   COUNT(d.id) AS document_count
+            SELECT p.id, p.name, p.created_at, p.cover_document_id,
+                   COUNT(d.id) AS document_count,
+                   cd.cover_type AS cover_doc_cover_type,
+                   cd.cover_value AS cover_doc_cover_value
             FROM projects p
             LEFT JOIN documents d
                 ON d.project_id = p.id AND d.status != 'deleted'
+            LEFT JOIN documents cd
+                ON cd.id = p.cover_document_id
             WHERE p.user_id = :uid
-            GROUP BY p.id, p.name, p.created_at
+            GROUP BY p.id, p.name, p.created_at, p.cover_document_id,
+                     cd.cover_type, cd.cover_value
             ORDER BY p.created_at DESC
         """),
         {"uid": DEV_USER_ID},
@@ -76,28 +88,58 @@ async def list_projects(
             "name": row["name"],
             "created_at": row["created_at"].isoformat(),
             "document_count": row["document_count"],
+            "cover_document_id": str(row["cover_document_id"]) if row["cover_document_id"] else None,
+            "cover_type": row["cover_doc_cover_type"],
+            "cover_value": row["cover_doc_cover_value"],
         })
     return result
 
 
 @router.patch("/{project_id}")
-async def rename_project(
+async def update_project(
     project_id: str,
     body: dict,
     db: AsyncSession = Depends(get_db_session),
 ):
     await _get_project_or_404(project_id, db)
-    name = (body.get("name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=422, detail="name is required")
+
+    set_parts: list[str] = []
+    params: dict = {"id": project_id}
+
+    if "name" in body:
+        name = (body["name"] or "").strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="name is required")
+        set_parts.append("name = :name")
+        params["name"] = name
+
+    if "cover_document_id" in body:
+        cover_doc_id = body["cover_document_id"]
+        if cover_doc_id is not None:
+            # Verify the document exists
+            doc_row = await db.execute(
+                text("SELECT id FROM documents WHERE id = :did AND status != 'deleted'"),
+                {"did": cover_doc_id},
+            )
+            if not doc_row.first():
+                raise HTTPException(status_code=404, detail="Cover document not found")
+        set_parts.append("cover_document_id = :cover_doc_id")
+        params["cover_doc_id"] = cover_doc_id
+
+    if not set_parts:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    set_parts.append("updated_at = now()")
+    set_clause = ", ".join(set_parts)
+
     await db.execute(
-        text(
-            "UPDATE projects SET name = :name, updated_at = now() WHERE id = :id"
-        ),
-        {"name": name, "id": project_id},
+        text(f"UPDATE projects SET {set_clause} WHERE id = :id"),
+        params,
     )
     await db.commit()
-    return {"id": project_id, "name": name}
+
+    logger.info("project.updated", project_id=project_id, fields=list(body.keys()))
+    return {"id": project_id, **{k: v for k, v in body.items() if k in ("name", "cover_document_id")}}
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -129,7 +171,8 @@ async def list_project_documents(
     rows = await db.execute(
         text("""
             SELECT id, title, source_type, status, page_count,
-                   file_size_bytes, created_at, project_id
+                   file_size_bytes, created_at, project_id,
+                   cover_type, cover_value
             FROM documents
             WHERE project_id = :pid
               AND status != 'deleted'
@@ -148,5 +191,7 @@ async def list_project_documents(
             "file_size_bytes": row["file_size_bytes"],
             "created_at": row["created_at"].isoformat(),
             "project_id": str(row["project_id"]) if row["project_id"] else None,
+            "cover_type": row["cover_type"],
+            "cover_value": row["cover_value"],
         })
     return result

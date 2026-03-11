@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/state/now_reading.dart';
+import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
+import '../../widgets/document_cover.dart';
 import '../editor/chunk_editor_widget.dart';
 import '../shell/widgets/player_bar.dart';
 import 'widgets/chunk_navigator.dart';
@@ -35,6 +38,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // Captured early so dispose() can use them without ref.read()
   AudioService? _audioService;
   StateController<String>? _nowReadingController;
+
+  final ScrollController _contentScrollController = ScrollController();
+  bool _userScrolling = false;
 
   @override
   void initState() {
@@ -115,11 +121,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    _contentScrollController.dispose();
     _chunkIndexSub?.close();
     _voiceSub?.close();
     _audioService?.stopPositionTracking();
-    _nowReadingController?.state = '';
+    // Defer provider modification past the current build frame to avoid
+    // "Tried to modify a provider while the widget tree was building".
+    final controller = _nowReadingController;
+    if (controller != null) {
+      Future.microtask(() => controller.state = '');
+    }
     super.dispose();
+  }
+
+  Document? _resolveDocument(WidgetRef ref) {
+    final docs = ref.watch(documentsProvider).valueOrNull;
+    if (docs == null) return null;
+    for (final doc in docs) {
+      if (doc.id == widget.documentId) return doc;
+    }
+    return null;
   }
 
   String _voiceName(WidgetRef ref) {
@@ -135,6 +156,50 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
     });
     return name;
+  }
+
+  void _onActiveWordChanged(int wordIndex, int totalWords) {
+    if (_userScrolling) return;
+    if (!_contentScrollController.hasClients) return;
+    final maxExtent = _contentScrollController.position.maxScrollExtent;
+    if (maxExtent <= 0) return;
+
+    final fraction = wordIndex / (totalWords - 1).clamp(1, totalWords);
+    if (fraction > 0.90) {
+      _contentScrollController.animateTo(
+        maxExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+      return;
+    }
+    final target = fraction * maxExtent;
+    final current = _contentScrollController.offset;
+    if ((target - current).abs() < 4) return;
+
+    _contentScrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _scrollFromPosition(Duration position, Duration duration) {
+    if (_userScrolling) return;
+    if (!_contentScrollController.hasClients) return;
+    final maxExtent = _contentScrollController.position.maxScrollExtent;
+    if (maxExtent <= 0) return;
+
+    final fraction = position.inMilliseconds / duration.inMilliseconds;
+    final target = fraction > 0.90 ? maxExtent : fraction * maxExtent;
+    final current = _contentScrollController.offset;
+    if ((target - current).abs() < 50) return;
+
+    _contentScrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   void _publishNowReading({
@@ -158,6 +223,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final uri = GoRouterState.of(context).uri;
     final autoplayParam = uri.queryParameters['autoplay']?.toLowerCase().trim();
     final shouldAutoPlay = !(autoplayParam == '0' || autoplayParam == 'false');
+    final swhParam = uri.queryParameters['swh']?.toLowerCase().trim();
+    final swhEnabled = !(swhParam == '0' || swhParam == 'false');
+
+    // When SWH is OFF, drive auto-scroll from audio position fraction.
+    // When SWH is ON, _onActiveWordChanged handles scroll instead.
+    if (!swhEnabled) {
+      ref.listen<AsyncValue<Duration>>(audioPositionProvider, (_, next) {
+        final position = next.valueOrNull;
+        if (position == null) return;
+        final duration = ref.read(audioDurationProvider).valueOrNull;
+        if (duration == null || duration.inMilliseconds == 0) return;
+        _scrollFromPosition(position, duration);
+      });
+    }
 
     return chunksAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -271,13 +350,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // PlayerScreen does NOT watch position — only WordHighlightView
         // rebuilds on every tick (~10/s). Everything else stays still.
         Widget textWidget;
-        if (hasAlignment) {
+        if (hasAlignment && swhEnabled) {
           textWidget = WordHighlightView(
             // ValueKey forces a fresh widget when chunk or voice changes
             // so WordHighlightView never carries stale alignment data.
             key: ValueKey('${chunkId}_$voiceId'),
             chunkText: chunkText,
             alignmentPayload: alignmentPayload,
+            onActiveWordChanged: _onActiveWordChanged,
+            enableContextMenu: true,
+            audioService: _audioService,
           );
         } else {
           textWidget = Column(
@@ -323,6 +405,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           };
         }).toList();
 
+        // Resolve document model for cover data
+        final activeDoc = _resolveDocument(ref);
+
         return Stack(
           children: [
             Row(
@@ -334,6 +419,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // Document cover image
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                          child: Center(
+                            child: SizedBox(
+                              width: 220,
+                              child: Material(
+                                elevation: 2,
+                                borderRadius: BorderRadius.circular(12),
+                                clipBehavior: Clip.antiAlias,
+                                color: Colors.transparent,
+                                child: DocumentCover(
+                                  coverType: activeDoc?.coverType,
+                                  coverValue: activeDoc?.coverValue,
+                                  documentId: widget.documentId,
+                                  size: DocumentCoverSize.player,
+                                  sourceType: activeDoc?.sourceType,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Document title below cover
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                          child: Text(
+                            activeDoc?.title ?? '',
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        const Divider(height: 1),
                         Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
@@ -479,11 +602,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         ),
                         const SizedBox(height: 24),
                         Expanded(
-                          child: SingleChildScrollView(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) => SizedBox(
-                                width: constraints.maxWidth,
-                                child: textWidget,
+                          child: NotificationListener<ScrollNotification>(
+                            onNotification: (notification) {
+                              if (notification is UserScrollNotification) {
+                                _userScrolling =
+                                    notification.direction != ScrollDirection.idle;
+                              }
+                              return false;
+                            },
+                            child: SingleChildScrollView(
+                              controller: _contentScrollController,
+                              padding: const EdgeInsets.only(bottom: 120),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) => SizedBox(
+                                  width: constraints.maxWidth,
+                                  child: textWidget,
+                                ),
                               ),
                             ),
                           ),

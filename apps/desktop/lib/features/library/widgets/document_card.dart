@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/psitta_tokens.dart';
+import '../../../widgets/document_cover.dart';
 
 class DocumentCard extends StatelessWidget {
   const DocumentCard({
@@ -19,8 +20,13 @@ class DocumentCard extends StatelessWidget {
     this.onDownload,
     this.onAssignProject,
     this.onRemoveProject,
+    this.onChangeCover,
     this.currentProjectId,
     this.documentId,
+    this.projectPath,
+    this.coverType,
+    this.coverValue,
+    this.sourceType,
   });
 
   final String title;
@@ -35,8 +41,13 @@ class DocumentCard extends StatelessWidget {
   final VoidCallback? onDownload;
   final VoidCallback? onAssignProject;
   final VoidCallback? onRemoveProject;
+  final VoidCallback? onChangeCover;
   final String? currentProjectId;
   final String? documentId;
+  final String? projectPath;
+  final String? coverType;
+  final String? coverValue;
+  final String? sourceType;
 
   IconData get _statusIcon => switch (status) {
         'ready' => Icons.check,
@@ -116,7 +127,21 @@ class DocumentCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(_fileIcon, size: 26, color: tokens.glow),
+                          if (coverType != null && documentId != null)
+                            SizedBox(
+                              width: 52,
+                              height: 52,
+                              child: DocumentCover(
+                                coverType: coverType,
+                                coverValue: coverValue,
+                                documentId: documentId!,
+                                size: DocumentCoverSize.thumbnail,
+                                sourceType: sourceType,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            )
+                          else
+                            Icon(_fileIcon, size: 26, color: tokens.glow),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
@@ -132,140 +157,7 @@ class DocumentCard extends StatelessWidget {
                           const SizedBox(width: 10),
                           _statusPill(tokens, theme),
                           const SizedBox(width: 8),
-                          PopupMenuButton<String>(
-                            tooltip: 'Actions',
-                            onSelected: (value) {
-                              switch (value) {
-                                case 'read':
-                                  onRead();
-                                  break;
-                                case 'edit':
-                                  onEdit();
-                                  break;
-                                case 'edit_document':
-                                  if (documentId != null) {
-                                    context.push(
-                                        '/editor/$documentId?title=${Uri.encodeComponent(title)}');
-                                  }
-                                  break;
-                                case 'delete':
-                                  onDelete();
-                                  break;
-                                case 'archive':
-                                  onArchive?.call();
-                                  break;
-                                case 'download':
-                                  onDownload?.call();
-                                  break;
-                                case 'assign_project':
-                                  onAssignProject?.call();
-                                  break;
-                                case 'remove_project':
-                                  onRemoveProject?.call();
-                                  break;
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(
-                                value: 'read',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.chrome_reader_mode, size: 18),
-                                    SizedBox(width: 10),
-                                    Text('Read'),
-                                  ],
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.edit, size: 18),
-                                    SizedBox(width: 10),
-                                    Text('Rename'),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuItem(
-                                value: 'edit_document',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.edit_note_outlined, size: 16,
-                                      color: Theme.of(context).colorScheme.onSurfaceVariant),
-                                    const SizedBox(width: 8),
-                                    const Text('Edit Document'),
-                                  ],
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.delete_outline, size: 18),
-                                    SizedBox(width: 10),
-                                    Text('Delete'),
-                                  ],
-                                ),
-                              ),
-                              const PopupMenuDivider(),
-                              const PopupMenuItem<String>(
-                                value: 'archive',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.archive_outlined, size: 18),
-                                    SizedBox(width: 8),
-                                    Text('Archive'),
-                                  ],
-                                ),
-                              ),
-                              const PopupMenuItem<String>(
-                                value: 'download',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.download_outlined, size: 18),
-                                    SizedBox(width: 8),
-                                    Text('Download'),
-                                  ],
-                                ),
-                              ),
-                              const PopupMenuDivider(),
-                              if (currentProjectId == null)
-                                const PopupMenuItem<String>(
-                                  value: 'assign_project',
-                                  child: Row(children: [
-                                    Icon(Icons.folder_outlined, size: 18),
-                                    SizedBox(width: 8),
-                                    Text('Add to Project'),
-                                  ]),
-                                )
-                              else ...[
-                                const PopupMenuItem<String>(
-                                  value: 'assign_project',
-                                  child: Row(children: [
-                                    Icon(Icons.drive_file_move_outlined, size: 18),
-                                    SizedBox(width: 8),
-                                    Text('Move to Project'),
-                                  ]),
-                                ),
-                                const PopupMenuItem<String>(
-                                  value: 'remove_project',
-                                  child: Row(children: [
-                                    Icon(Icons.folder_off_outlined, size: 18),
-                                    SizedBox(width: 8),
-                                    Text('Remove from Project'),
-                                  ]),
-                                ),
-                              ],
-                            ],
-                            child: Padding(
-                              padding: const EdgeInsets.all(4),
-                              child: Icon(
-                                Icons.more_horiz,
-                                size: 18,
-                                color: menuColor,
-                              ),
-                            ),
-                          ),
+                          _buildMenu(context, menuColor),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -277,6 +169,27 @@ class DocumentCard extends StatelessWidget {
                           color: subColor,
                         ),
                       ),
+                      if (projectPath != null) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.folder_outlined,
+                                size: 12, color: subColor.withOpacity(0.7)),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                projectPath!,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  fontSize: 11,
+                                  color: subColor.withOpacity(0.7),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -284,6 +197,139 @@ class DocumentCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildMenu(BuildContext context, Color menuColor) {
+    return PopupMenuButton<String>(
+      tooltip: 'Actions',
+      onSelected: (value) {
+        switch (value) {
+          case 'read':
+            onRead();
+            break;
+          case 'edit':
+            onEdit();
+            break;
+          case 'edit_document':
+            if (documentId != null) {
+              context.push(
+                  '/editor/$documentId?title=${Uri.encodeComponent(title)}');
+            }
+            break;
+          case 'delete':
+            onDelete();
+            break;
+          case 'archive':
+            onArchive?.call();
+            break;
+          case 'download':
+            onDownload?.call();
+            break;
+          case 'change_cover':
+            onChangeCover?.call();
+            break;
+          case 'assign_project':
+            onAssignProject?.call();
+            break;
+          case 'remove_project':
+            onRemoveProject?.call();
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'read',
+          child: Row(children: [
+            Icon(Icons.chrome_reader_mode, size: 18),
+            SizedBox(width: 10),
+            Text('Read'),
+          ]),
+        ),
+        const PopupMenuItem(
+          value: 'edit',
+          child: Row(children: [
+            Icon(Icons.edit, size: 18),
+            SizedBox(width: 10),
+            Text('Rename'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'edit_document',
+          child: Row(children: [
+            Icon(Icons.edit_note_outlined,
+                size: 16,
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            const Text('Edit Document'),
+          ]),
+        ),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Row(children: [
+            Icon(Icons.delete_outline, size: 18),
+            SizedBox(width: 10),
+            Text('Delete'),
+          ]),
+        ),
+        const PopupMenuItem<String>(
+          value: 'change_cover',
+          child: Row(children: [
+            Icon(Icons.image_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('Change Cover'),
+          ]),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<String>(
+          value: 'archive',
+          child: Row(children: [
+            Icon(Icons.archive_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('Archive'),
+          ]),
+        ),
+        const PopupMenuItem<String>(
+          value: 'download',
+          child: Row(children: [
+            Icon(Icons.download_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('Download'),
+          ]),
+        ),
+        const PopupMenuDivider(),
+        if (currentProjectId == null)
+          const PopupMenuItem<String>(
+            value: 'assign_project',
+            child: Row(children: [
+              Icon(Icons.folder_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('Add to Project'),
+            ]),
+          )
+        else ...[
+          const PopupMenuItem<String>(
+            value: 'assign_project',
+            child: Row(children: [
+              Icon(Icons.drive_file_move_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('Move to Project'),
+            ]),
+          ),
+          const PopupMenuItem<String>(
+            value: 'remove_project',
+            child: Row(children: [
+              Icon(Icons.folder_off_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('Remove from Project'),
+            ]),
+          ),
+        ],
+      ],
+      child: Padding(
+        padding: const EdgeInsets.all(4),
+        child: Icon(Icons.more_horiz, size: 18, color: menuColor),
       ),
     );
   }

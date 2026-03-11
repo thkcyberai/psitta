@@ -38,6 +38,9 @@ dependencies:
   # Rich text editing
   flutter_quill: ^10.8.4
 
+  # SVG rendering
+  flutter_svg: ^2.0.10
+
   # Utilities
   path: ^1.9.0
   path_provider: ^2.1.5
@@ -64,3 +67,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/Logo.png
+    - assets/illustrations/

@@ -6,6 +6,9 @@ class Project {
     required this.name,
     required this.documentCount,
     required this.createdAt,
+    this.coverDocumentId,
+    this.coverType,
+    this.coverValue,
   });
 
   factory Project.fromJson(Map<String, dynamic> json) => Project(
@@ -13,12 +16,18 @@ class Project {
         name: json['name'] as String,
         documentCount: (json['document_count'] as num?)?.toInt() ?? 0,
         createdAt: json['created_at'] as String? ?? '',
+        coverDocumentId: json['cover_document_id'] as String?,
+        coverType: json['cover_type'] as String?,
+        coverValue: json['cover_value'] as String?,
       );
 
   final String id;
   final String name;
   final int documentCount;
   final String createdAt;
+  final String? coverDocumentId;
+  final String? coverType;
+  final String? coverValue;
 }
 
 class ProjectRepository {
@@ -49,6 +58,14 @@ class ProjectRepository {
     await _api.dio.patch(
       '/documents/$documentId/project',
       data: {'project_id': projectId},
+    );
+  }
+
+  /// Set or remove the project cover document.
+  Future<void> setProjectCover(String projectId, String? documentId) async {
+    await _api.dio.patch(
+      '/projects/$projectId',
+      data: {'cover_document_id': documentId},
     );
   }
 }

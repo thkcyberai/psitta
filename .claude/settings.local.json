@@ -3,7 +3,24 @@
     "allow": [
       "Bash(flutter analyze:*)",
       "Bash(cat:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(flutter run:*)",
+      "Bash(flutter pub:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(dart pub:*)",
+      "Read(//c/Users/Admin/AppData/Local/Pub/Cache/hosted/pub.dev/win32-5.10.1/**)",
+      "Read(//c/Users/Admin/AppData/Local/Pub/Cache/hosted/pub.dev/**)",
+      "Bash(flutter build:*)",
+      "Bash(cp:*)",
+      "Bash(taskkill:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker ps:*)",
+      "Bash(python3:*)",
+      "Read(//tmp/**)"
     ],
     "deny": [],
     "ask": []

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/providers/providers.dart';
 import '../../data/repositories/project_repository.dart';
+import '../../widgets/document_cover.dart';
+import 'project_cover_picker_dialog.dart';
 
 class ProjectsScreen extends ConsumerWidget {
   const ProjectsScreen({super.key});
@@ -154,6 +156,9 @@ class _ProjectCard extends ConsumerWidget {
   const _ProjectCard({required this.project});
   final Project project;
 
+  bool get _hasCover =>
+      project.coverDocumentId != null && project.coverType != null;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Card(
@@ -162,39 +167,91 @@ class _ProjectCard extends ConsumerWidget {
         onTap: () => context.go(
           '/projects/${project.id}?projectName=${Uri.encodeComponent(project.name)}',
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        child: _hasCover
+            ? _buildWithCover(context, ref)
+            : _buildDefault(context, ref),
+      ),
+    );
+  }
+
+  Widget _buildDefault(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
-                children: [
-                  Icon(Icons.folder_outlined,
-                      size: 28,
-                      color: Theme.of(context).colorScheme.primary),
-                  const Spacer(),
-                  _ProjectMenu(project: project),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                project.name,
-                style: const TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w600),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
+              Icon(Icons.folder_outlined,
+                  size: 28,
+                  color: Theme.of(context).colorScheme.primary),
               const Spacer(),
-              Text(
-                '${project.documentCount} document${project.documentCount == 1 ? '' : 's'}',
-                style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.outline),
+              _ProjectMenu(project: project),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            project.name,
+            style: const TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w600),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const Spacer(),
+          Text(
+            '${project.documentCount} document${project.documentCount == 1 ? '' : 's'}',
+            style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.outline),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWithCover(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: DocumentCover(
+            coverType: project.coverType,
+            coverValue: project.coverValue,
+            documentId: project.coverDocumentId!,
+            size: DocumentCoverSize.thumbnail,
+            borderRadius: BorderRadius.zero,
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      project.name,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${project.documentCount} doc${project.documentCount == 1 ? '' : 's'}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.outline),
+                    ),
+                  ],
+                ),
               ),
+              _ProjectMenu(project: project),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -211,6 +268,9 @@ class _ProjectMenu extends ConsumerWidget {
       icon: const Icon(Icons.more_vert, size: 18),
       onSelected: (value) async {
         switch (value) {
+          case 'change_cover':
+            await _showCoverPicker(context, ref);
+            break;
           case 'rename':
             await _showRenameDialog(context, ref);
             break;
@@ -220,6 +280,14 @@ class _ProjectMenu extends ConsumerWidget {
         }
       },
       itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: 'change_cover',
+          child: Row(children: [
+            Icon(Icons.image_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('Change Cover'),
+          ]),
+        ),
         PopupMenuItem(
           value: 'rename',
           child: Row(children: [
@@ -239,6 +307,29 @@ class _ProjectMenu extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _showCoverPicker(
+      BuildContext context, WidgetRef ref) async {
+    final result = await showProjectCoverPickerDialog(
+      context: context,
+      ref: ref,
+      projectId: project.id,
+      currentCoverDocumentId: project.coverDocumentId,
+    );
+    if (result != null) {
+      try {
+        final repo = ref.read(projectRepositoryProvider);
+        await repo.setProjectCover(project.id, result.documentId);
+        ref.invalidate(projectsProvider);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to update cover: $e')),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _showRenameDialog(

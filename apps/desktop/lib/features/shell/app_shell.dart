@@ -8,6 +8,7 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import 'widgets/player_bar.dart';
+import 'widgets/shortcuts_panel.dart';
 import 'widgets/sidebar_nav.dart';
 
 /// AppShell — persistent desktop layout with header, sidebar, optional right panel, and pinned player bar.
@@ -169,6 +170,19 @@ class _ContextHeader extends ConsumerWidget {
             },
           ),
           const SizedBox(width: 10),
+          IconButton(
+            tooltip: 'Keyboard Shortcuts (Ctrl+/)',
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => const ShortcutsPanel(),
+            ),
+            icon: Icon(
+              Icons.help_outline,
+              size: 20,
+              color: theme.iconTheme.color?.withOpacity(0.70),
+            ),
+          ),
+          const SizedBox(width: 2),
           IconButton(
             tooltip: 'Settings',
             onPressed: () => context.go('/settings'),

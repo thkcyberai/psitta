@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <g stroke="#CD853F" stroke-width="1.5">
+    <line x1="45" y1="30" x2="90" y2="50"/>
+    <line x1="90" y1="50" x2="140" y2="25"/>
+    <line x1="140" y1="25" x2="165" y2="55"/>
+    <line x1="165" y1="55" x2="120" y2="80"/>
+    <line x1="120" y1="80" x2="90" y2="50"/>
+    <line x1="120" y1="80" x2="60" y2="90"/>
+    <line x1="60" y1="90" x2="45" y2="30"/>
+  </g>
+  <g fill="#8B4513">
+    <circle cx="45" cy="30" r="5"/><circle cx="90" cy="50" r="5"/>
+    <circle cx="140" cy="25" r="5"/><circle cx="165" cy="55" r="5"/>
+    <circle cx="120" cy="80" r="5"/><circle cx="60" cy="90" r="5"/>
+  </g>
+  <g fill="#D2691E">
+    <circle cx="45" cy="30" r="2.5"/><circle cx="90" cy="50" r="2.5"/>
+    <circle cx="140" cy="25" r="2.5"/><circle cx="165" cy="55" r="2.5"/>
+    <circle cx="120" cy="80" r="2.5"/><circle cx="60" cy="90" r="2.5"/>
+  </g>
+</svg>

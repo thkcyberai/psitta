@@ -10,8 +10,9 @@ from typing import Annotated
 from uuid import UUID, uuid4
 
 import structlog
+from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,7 +73,7 @@ TARGET_CHUNK_SIZE = 1500  # characters per chunk
 DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 
-def _extract_text(file_bytes: bytes, extension: str) -> str | None:
+def _extract_text(file_bytes: bytes, extension: str) -> str | list[dict] | None:
     """Extract plain text from supported file types."""
     if extension in TEXT_EXTENSIONS:
         for encoding in ("utf-8", "latin-1", "cp1252"):
@@ -101,13 +102,15 @@ def _extract_text(file_bytes: bytes, extension: str) -> str | None:
             from pypdf import PdfReader
 
             reader = PdfReader(io.BytesIO(file_bytes))
-            parts: list[str] = []
-            for page in reader.pages:
+            pages: list[dict] = []
+            for i, page in enumerate(reader.pages):
                 t = (page.extract_text() or "").strip()
-                if t:
-                    parts.append(t)
-            txt = "\n\n".join(parts).strip()
-            return txt if txt else None
+                if not t:
+                    continue
+                t = _sanitize_text_for_db(_reflow_pdf_text(t))
+                if t.strip():
+                    pages.append({"page_number": i + 1, "text": t})
+            return pages if pages else None
         except Exception:
             return None
 
@@ -181,6 +184,61 @@ def _chunk_markdown(raw_text: str) -> list[dict]:
     return chunks
 
 
+def _chunk_by_pages(pages: list[dict]) -> list[dict]:
+    """Split PDF pages into chunks — one page = one chunk.
+
+    If a page exceeds 5000 characters it is split into sub-chunks.
+    Each chunk dict has: title, text, seq, page_number.
+    """
+    chunks: list[dict] = []
+    seq = 0
+    max_chars = 5000
+
+    for page in pages:
+        page_num = page["page_number"]
+        page_text = page["text"]
+
+        if len(page_text) <= max_chars:
+            chunks.append({
+                "title": f"Page {page_num}",
+                "text": page_text,
+                "seq": seq,
+                "page_number": page_num,
+            })
+            seq += 1
+        else:
+            # Split oversized page on paragraph boundaries
+            paragraphs = re.split(r"\n\s*\n", page_text)
+            buffer = ""
+            part = 1
+            for para in paragraphs:
+                para = para.strip()
+                if not para:
+                    continue
+                if buffer and len(buffer) + len(para) > max_chars:
+                    chunks.append({
+                        "title": f"Page {page_num} (part {part})",
+                        "text": buffer.strip(),
+                        "seq": seq,
+                        "page_number": page_num,
+                    })
+                    seq += 1
+                    part += 1
+                    buffer = para + "\n\n"
+                else:
+                    buffer += para + "\n\n"
+            if buffer.strip():
+                chunks.append({
+                    "title": f"Page {page_num} (part {part})" if part > 1 else f"Page {page_num}",
+                    "text": buffer.strip(),
+                    "seq": seq,
+                    "page_number": page_num,
+                })
+                seq += 1
+
+    return chunks
+
+
 async def _process_document(
     doc_id: UUID,
     file_bytes: bytes,
@@ -188,21 +246,27 @@ async def _process_document(
     db: AsyncSession,
 ) -> int:
     """Extract text, chunk, and insert into document_chunks. Returns chunk count."""
-    raw_text = _extract_text(file_bytes, extension)
-    if raw_text is None:
+    extracted = _extract_text(file_bytes, extension)
+    if extracted is None:
         logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
         return 0
 
-
-    raw_text = _sanitize_text_for_db(raw_text)
     if extension == ".pdf":
-        raw_text = _reflow_pdf_text(raw_text)
+        # extracted is list[dict] with page_number and text (already sanitized/reflowed)
+        pages = extracted
+        chunks = _chunk_by_pages(pages)
+        page_count = len(pages)
+        all_text = " ".join(p["text"] for p in pages)
+    else:
+        raw_text = _sanitize_text_for_db(extracted)
+        chunks = _chunk_markdown(raw_text)
+        page_count = len(chunks)
+        all_text = raw_text
 
-    chunks = _chunk_markdown(raw_text)
     if not chunks:
         return 0
 
-    word_count = len([w for w in re.split(r"\s+", raw_text.strip()) if w])
+    word_count = len([w for w in re.split(r"\s+", all_text.strip()) if w])
 
     insert_chunk_sql = text(
         "INSERT INTO document_chunks "
@@ -223,7 +287,7 @@ async def _process_document(
                 "ctype": "text",
                 "txt": chunk["text"],
                 "tone": "neutral",
-                "page": 1,
+                "page": chunk.get("page_number", 1),
                 "chars": len(chunk["text"]),
                 "meta": meta_json,
             },
@@ -235,7 +299,7 @@ async def _process_document(
             "SET status = :st, page_count = :pc, word_count = :wc, updated_at = NOW() "
             "WHERE id = :did"
         ),
-        {"st": "ready", "pc": len(chunks), "wc": word_count, "did": doc_id},
+        {"st": "ready", "pc": page_count, "wc": word_count, "did": doc_id},
     )
 
     logger.info("document.processed", doc_id=str(doc_id), chunks=len(chunks))
@@ -299,6 +363,8 @@ async def upload_document(
         "source_type": source_type,
         "page_count": chunk_count,
         "created_at": now.isoformat(),
+        "cover_type": None,
+        "cover_value": None,
     }
 
 
@@ -322,7 +388,7 @@ async def list_documents(
 
     rows = await db.execute(
         text(
-            "SELECT id, title, status, source_type, page_count, word_count, created_at, project_id "
+            "SELECT id, title, status, source_type, page_count, word_count, created_at, project_id, cover_type, cover_value "
             "FROM documents WHERE user_id = :uid "
             "AND status != 'deleted' AND (:show_archived OR status != 'archived') "
             "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
@@ -340,6 +406,8 @@ async def list_documents(
             "word_count": getattr(r, "word_count", 0),
             "created_at": r.created_at.isoformat() if r.created_at else None,
             "project_id": str(r.project_id) if r.project_id else None,
+            "cover_type": r.cover_type,
+            "cover_value": r.cover_value,
         }
         for r in rows
     ]
@@ -354,7 +422,7 @@ async def get_document(
 ) -> dict:
     result = await db.execute(
         text(
-            "SELECT id, title, status, source_type, page_count, word_count, file_size_bytes, created_at "
+            "SELECT id, title, status, source_type, page_count, word_count, file_size_bytes, created_at, cover_type, cover_value "
             "FROM documents WHERE id = :did"
         ),
         {"did": document_id},
@@ -372,6 +440,8 @@ async def get_document(
         "word_count": getattr(row, "word_count", 0),
         "file_size_bytes": row.file_size_bytes,
         "created_at": row.created_at.isoformat() if row.created_at else None,
+        "cover_type": row.cover_type,
+        "cover_value": row.cover_value,
     }
 
 
@@ -781,7 +851,9 @@ async def resynthesize_chunk(
 
 
 class DocumentUpdateRequest(BaseModel):
-    title: str = Field(..., min_length=1, max_length=200)
+    title: str | None = Field(None, min_length=1, max_length=200)
+    cover_type: str | None = None
+    cover_value: str | None = None
 
 
 @router.patch("/{document_id}")
@@ -790,21 +862,80 @@ async def update_document(
     payload: DocumentUpdateRequest,
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
-    """Update editable document fields. Currently supports title rename only."""
+    """Update editable document fields (title, cover_type, cover_value)."""
+    # Build dynamic SET clause based on provided fields
+    set_parts: list[str] = []
+    params: dict = {"did": document_id, "uid": DEV_USER_ID}
+    updated_fields: list[str] = []
+
+    if payload.title is not None:
+        set_parts.append("title = :title")
+        params["title"] = payload.title.strip()
+        updated_fields.append("title")
+
+    # Use model_fields_set to detect explicitly-sent fields (including null for "remove")
+    cover_type_sent = 'cover_type' in payload.model_fields_set
+    cover_value_sent = 'cover_value' in payload.model_fields_set
+
+    if cover_type_sent or cover_value_sent:
+        # Fetch current cover info to check if we need to delete old uploaded cover
+        cur_result = await db.execute(
+            text("SELECT cover_type, cover_value FROM documents WHERE id = :did AND user_id = :uid AND status != 'deleted'"),
+            {"did": document_id, "uid": DEV_USER_ID},
+        )
+        cur_row = cur_result.first()
+        if not cur_row:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        old_cover_type = cur_row.cover_type
+        old_cover_value = cur_row.cover_value
+
+        if cover_type_sent:
+            set_parts.append("cover_type = :cover_type")
+            params["cover_type"] = payload.cover_type
+            updated_fields.append("cover_type")
+
+        if cover_value_sent:
+            set_parts.append("cover_value = :cover_value")
+            params["cover_value"] = payload.cover_value
+            updated_fields.append("cover_value")
+
+        # If old cover was uploaded and we're changing away from it, delete from S3
+        new_cover_type = payload.cover_type if cover_type_sent else old_cover_type
+        if old_cover_type == "uploaded" and new_cover_type != "uploaded" and old_cover_value:
+            try:
+                from psitta.config import get_settings
+                from psitta.providers.storage_s3 import S3StorageProvider
+                settings = get_settings()
+                s3 = S3StorageProvider(settings)
+                bucket = settings.S3_BUCKET_NAME
+                await s3.delete_by_prefix(bucket, f"covers/{document_id}.")
+                logger.info("document.cover.s3_deleted", doc_id=str(document_id))
+            except Exception as e:
+                logger.error("document.cover.s3_delete_failed", doc_id=str(document_id), error=str(e))
+
+    if not set_parts:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    set_parts.append("updated_at = NOW()")
+    set_clause = ", ".join(set_parts)
+
     result = await db.execute(
         text(
-            "UPDATE documents "
-            "SET title = :title, updated_at = NOW() "
+            f"UPDATE documents SET {set_clause} "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": DEV_USER_ID, "title": payload.title.strip()},
+        params,
     )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    await db.commit()
+
     row = await db.execute(
         text(
-            "SELECT id, user_id, title, status, source_type, page_count, word_count, file_size_bytes, created_at, updated_at "
+            "SELECT id, user_id, title, status, source_type, page_count, word_count, "
+            "file_size_bytes, created_at, updated_at, cover_type, cover_value "
             "FROM documents WHERE id = :did"
         ),
         {"did": document_id},
@@ -813,7 +944,7 @@ async def update_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    logger.info("document.updated", doc_id=str(document_id), fields=["title"])
+    logger.info("document.updated", doc_id=str(document_id), fields=updated_fields)
 
     return {
         "id": str(doc.id),
@@ -825,7 +956,188 @@ async def update_document(
         "file_size_bytes": doc.file_size_bytes,
         "created_at": doc.created_at.isoformat() if doc.created_at else None,
         "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+        "cover_type": doc.cover_type,
+        "cover_value": doc.cover_value,
     }
+
+
+@router.post("/{document_id}/cover")
+async def upload_cover(
+    document_id: UUID,
+    file: UploadFile,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Upload a cover image for a document."""
+    # Validate document exists
+    doc_result = await db.execute(
+        text(
+            "SELECT id, cover_type, cover_value FROM documents "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": DEV_USER_ID},
+    )
+    doc_row = doc_result.first()
+    if not doc_row:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Validate file type by extension
+    filename = file.filename or "unknown"
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    allowed_image_exts = {"jpeg", "jpg", "gif", "png"}
+    if ext not in allowed_image_exts:
+        raise HTTPException(status_code=415, detail="Unsupported image type. Allowed: jpeg, jpg, gif, png")
+
+    # Validate content type
+    content_type = file.content_type or ""
+    allowed_content_types = {"image/jpeg", "image/jpg", "image/gif", "image/png"}
+    if content_type not in allowed_content_types:
+        raise HTTPException(status_code=415, detail=f"Unsupported content type: {content_type}")
+
+    # Read and validate size (max 2MB)
+    file_bytes = await file.read()
+    max_size = 2 * 1024 * 1024
+    if len(file_bytes) > max_size:
+        raise HTTPException(status_code=413, detail="Image too large. Please use an image under 2MB.")
+
+    # Always resize with Pillow (max 400x400, maintain aspect ratio)
+    try:
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(file_bytes))
+
+        # GIF: extract first frame only, convert to RGBA then save as PNG
+        if ext == "gif":
+            img = img.convert("RGBA")
+            ext = "png"
+
+        # Fit within 400x400 box maintaining aspect ratio
+        max_dim = 400
+        if img.width > max_dim or img.height > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+
+        buf = io.BytesIO()
+        out_format = "PNG" if ext == "png" else "JPEG"
+        save_kwargs = {"quality": 80} if out_format == "JPEG" else {}
+        if out_format == "JPEG" and img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+        img.save(buf, format=out_format, **save_kwargs)
+        file_bytes = buf.getvalue()
+        logger.info("document.cover.resized", doc_id=str(document_id),
+                     width=img.width, height=img.height, format=out_format,
+                     size=len(file_bytes))
+    except ImportError:
+        logger.warning("document.cover.pillow_unavailable", doc_id=str(document_id))
+    except Exception as e:
+        logger.warning("document.cover.resize_failed", doc_id=str(document_id), error=str(e))
+
+    # Delete old cover from S3 if it existed
+    old_cover_type = doc_row.cover_type
+    old_cover_value = doc_row.cover_value
+    if old_cover_type == "uploaded" and old_cover_value:
+        try:
+            from psitta.config import get_settings
+            from psitta.providers.storage_s3 import S3StorageProvider
+            settings = get_settings()
+            s3 = S3StorageProvider(settings)
+            bucket = settings.S3_BUCKET_NAME
+            await s3.delete_by_prefix(bucket, f"covers/{document_id}.")
+            logger.info("document.cover.old_deleted", doc_id=str(document_id))
+        except Exception as e:
+            logger.error("document.cover.old_delete_failed", doc_id=str(document_id), error=str(e))
+
+    # Store in S3
+    storage_key = f"covers/{document_id}.{ext}"
+    content_type_map = {"jpeg": "image/jpeg", "jpg": "image/jpeg", "gif": "image/gif", "png": "image/png"}
+
+    from psitta.config import get_settings
+    from psitta.providers.storage_s3 import S3StorageProvider
+    settings = get_settings()
+    s3 = S3StorageProvider(settings)
+    bucket = settings.S3_BUCKET_NAME
+    await s3.put_object(bucket, storage_key, file_bytes, content_type=content_type_map.get(ext, "image/jpeg"))
+
+    # Update document record
+    await db.execute(
+        text(
+            "UPDATE documents SET cover_type = :ct, cover_value = :cv, updated_at = NOW() "
+            "WHERE id = :did"
+        ),
+        {"ct": "uploaded", "cv": storage_key, "did": document_id},
+    )
+    await db.commit()
+
+    logger.info("document.cover.uploaded", doc_id=str(document_id), key=storage_key, size=len(file_bytes))
+
+    # Return updated document dict
+    row = await db.execute(
+        text(
+            "SELECT id, title, status, source_type, page_count, word_count, "
+            "file_size_bytes, created_at, updated_at, cover_type, cover_value "
+            "FROM documents WHERE id = :did"
+        ),
+        {"did": document_id},
+    )
+    doc = row.first()
+    return {
+        "id": str(doc.id),
+        "title": doc.title,
+        "status": doc.status,
+        "source_type": doc.source_type,
+        "page_count": doc.page_count,
+        "word_count": getattr(doc, "word_count", 0),
+        "file_size_bytes": doc.file_size_bytes,
+        "created_at": doc.created_at.isoformat() if doc.created_at else None,
+        "updated_at": doc.updated_at.isoformat() if doc.updated_at else None,
+        "cover_type": doc.cover_type,
+        "cover_value": doc.cover_value,
+    }
+
+
+@router.get("/{document_id}/cover")
+async def get_cover(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Serve the uploaded cover image for a document."""
+    from fastapi.responses import Response
+
+    result = await db.execute(
+        text(
+            "SELECT cover_type, cover_value FROM documents "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": DEV_USER_ID},
+    )
+    row = result.first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    if row.cover_type != "uploaded" or not row.cover_value:
+        raise HTTPException(status_code=404, detail="No uploaded cover image")
+
+    # Fetch from S3
+    from psitta.config import get_settings
+    from psitta.providers.storage_s3 import S3StorageProvider
+    settings = get_settings()
+    s3 = S3StorageProvider(settings)
+    bucket = settings.S3_BUCKET_NAME
+
+    try:
+        image_bytes = await s3.get_object(bucket, row.cover_value)
+    except Exception as e:
+        logger.error("document.cover.fetch_failed", doc_id=str(document_id), error=str(e))
+        raise HTTPException(status_code=404, detail="Cover image not found in storage")
+
+    # Determine content type from key extension
+    ext = row.cover_value.rsplit(".", 1)[-1].lower() if "." in row.cover_value else "jpeg"
+    content_type_map = {"jpeg": "image/jpeg", "jpg": "image/jpeg", "gif": "image/gif", "png": "image/png"}
+    media_type = content_type_map.get(ext, "image/jpeg")
+
+    return Response(
+        content=image_bytes,
+        media_type=media_type,
+        headers={"Cache-Control": "max-age=3600"},
+    )
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -932,4 +1244,224 @@ async def download_document(
         file_path,
         media_type="application/octet-stream",
         filename=filename,
+    )
+
+
+# ── Branded DOCX export ──────────────────────────────────────────────────────
+
+_LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "logo.png"
+
+
+def _build_branded_docx(
+    *,
+    title: str,
+    chunks: list[dict],
+    project_name: str | None,
+    include_cover: bool,
+    include_footer: bool,
+) -> bytes:
+    """Build a branded DOCX from document chunks and return raw bytes."""
+    from docx import Document as DocxDocument
+    from docx.shared import Pt, Inches, RGBColor, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+
+    doc = DocxDocument()
+
+    # ── Style defaults ────────────────────────────────────────────────
+    style = doc.styles["Normal"]
+    style.font.size = Pt(11)
+    style.font.name = "Calibri"
+    style.paragraph_format.space_after = Pt(6)
+
+    has_logo = _LOGO_PATH.exists()
+
+    # ── Cover page ────────────────────────────────────────────────────
+    if include_cover:
+        # Spacer at top
+        for _ in range(6):
+            doc.add_paragraph()
+
+        # Logo
+        if has_logo:
+            logo_para = doc.add_paragraph()
+            logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            logo_run = logo_para.add_run()
+            logo_run.add_picture(str(_LOGO_PATH), width=Inches(2.0))
+
+            doc.add_paragraph()
+
+        # Title
+        title_para = doc.add_paragraph()
+        title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        title_run = title_para.add_run(title)
+        title_run.bold = True
+        title_run.font.size = Pt(26)
+        title_run.font.color.rgb = RGBColor(0x2B, 0x2B, 0x2B)
+
+        # Project / author
+        if project_name:
+            proj_para = doc.add_paragraph()
+            proj_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            proj_run = proj_para.add_run(project_name)
+            proj_run.font.size = Pt(14)
+            proj_run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+
+        # Date
+        date_para = doc.add_paragraph()
+        date_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        date_run = date_para.add_run(datetime.now(timezone.utc).strftime("%B %d, %Y"))
+        date_run.font.size = Pt(12)
+        date_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+        # Bottom branding
+        for _ in range(4):
+            doc.add_paragraph()
+        brand_para = doc.add_paragraph()
+        brand_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        brand_run = brand_para.add_run("Processed by Psitta")
+        brand_run.font.size = Pt(10)
+        brand_run.font.italic = True
+        brand_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+        # Page break after cover
+        doc.add_page_break()
+
+    # ── Document content ──────────────────────────────────────────────
+    for chunk in chunks:
+        chunk_title = chunk.get("title", "")
+        chunk_text = chunk.get("text_content", "")
+
+        if chunk_title:
+            heading = doc.add_heading(chunk_title, level=2)
+            for run in heading.runs:
+                run.font.color.rgb = RGBColor(0x2B, 0x2B, 0x2B)
+
+        for para_text in chunk_text.split("\n"):
+            stripped = para_text.strip()
+            if stripped:
+                doc.add_paragraph(stripped)
+
+    # ── Footer on every section ───────────────────────────────────────
+    if include_footer:
+        for section in doc.sections:
+            footer = section.footer
+            footer.is_linked_to_previous = False
+            footer_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+            footer_para.clear()
+
+            # Tab stops: left at 0, right at page width - margins
+            page_width = section.page_width - section.left_margin - section.right_margin
+            pPr = footer_para._p.get_or_add_pPr()
+            tabs_elem = pPr.makeelement(qn("w:tabs"), {})
+            # Right-aligned tab at the page width
+            tab_right = tabs_elem.makeelement(qn("w:tab"), {
+                qn("w:val"): "right",
+                qn("w:pos"): str(int(page_width)),
+            })
+            tabs_elem.append(tab_right)
+            pPr.append(tabs_elem)
+
+            # Left side: branding text
+            brand_run = footer_para.add_run("Processed by Psitta — Reading to Listening")
+            brand_run.font.size = Pt(8)
+            brand_run.font.italic = True
+            brand_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+            # Tab to right side
+            tab_run = footer_para.add_run("\t")
+            tab_run.font.size = Pt(8)
+
+            # Page number field
+            page_run = footer_para.add_run()
+            page_run.font.size = Pt(8)
+            page_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+            fld_char_begin = page_run._r.makeelement(qn("w:fldChar"), {qn("w:fldCharType"): "begin"})
+            page_run._r.append(fld_char_begin)
+
+            instr_run = footer_para.add_run()
+            instr_run.font.size = Pt(8)
+            instr_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+            instr_text = instr_run._r.makeelement(qn("w:instrText"), {})
+            instr_text.text = " PAGE "
+            instr_run._r.append(instr_text)
+
+            end_run = footer_para.add_run()
+            end_run.font.size = Pt(8)
+            fld_char_end = end_run._r.makeelement(qn("w:fldChar"), {qn("w:fldCharType"): "end"})
+            end_run._r.append(fld_char_end)
+
+    # ── Serialize to bytes ────────────────────────────────────────────
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+@router.get("/{document_id}/export")
+async def export_document(
+    document_id: UUID,
+    include_cover: bool = Query(True, alias="cover"),
+    include_footer: bool = Query(True, alias="footer"),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Export document as a branded DOCX file."""
+    # Fetch document metadata
+    result = await db.execute(
+        text(
+            "SELECT title, project_id FROM documents "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": DEV_USER_ID},
+    )
+    row = result.mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    doc_title = row["title"]
+    project_id = row["project_id"]
+
+    # Resolve project name
+    project_name = None
+    if project_id:
+        proj_result = await db.execute(
+            text("SELECT name FROM projects WHERE id = :pid"),
+            {"pid": project_id},
+        )
+        proj_row = proj_result.mappings().first()
+        if proj_row:
+            project_name = proj_row["name"]
+
+    # Fetch chunks
+    chunks_result = await db.execute(
+        text(
+            "SELECT sequence_index, text_content, metadata_json "
+            "FROM document_chunks WHERE document_id = :did "
+            "ORDER BY sequence_index"
+        ),
+        {"did": document_id},
+    )
+    chunks = []
+    for r in chunks_result.mappings():
+        meta = r["metadata_json"] if isinstance(r["metadata_json"], dict) else {}
+        chunks.append({
+            "title": meta.get("title", f"Section {r['sequence_index'] + 1}"),
+            "text_content": r["text_content"] or "",
+        })
+
+    if not chunks:
+        raise HTTPException(status_code=404, detail="No content to export")
+
+    docx_bytes = _build_branded_docx(
+        title=doc_title,
+        chunks=chunks,
+        project_name=project_name,
+        include_cover=include_cover,
+        include_footer=include_footer,
+    )
+
+    filename = f"{doc_title}.docx"
+    return StreamingResponse(
+        io.BytesIO(docx_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

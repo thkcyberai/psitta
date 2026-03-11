@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <g fill="#8B4513">
+    <circle cx="40" cy="25" r="4" opacity="0.9"/><circle cx="70" cy="25" r="4" opacity="0.8"/><circle cx="100" cy="25" r="4" opacity="0.7"/><circle cx="130" cy="25" r="4" opacity="0.5"/><circle cx="160" cy="25" r="4" opacity="0.3"/>
+    <circle cx="40" cy="50" r="4" opacity="0.8"/><circle cx="70" cy="50" r="4" opacity="0.7"/><circle cx="100" cy="50" r="4" opacity="0.6"/><circle cx="130" cy="50" r="4" opacity="0.4"/><circle cx="160" cy="50" r="4" opacity="0.2"/>
+    <circle cx="40" cy="75" r="4" opacity="0.7"/><circle cx="70" cy="75" r="4" opacity="0.5"/><circle cx="100" cy="75" r="4" opacity="0.4"/><circle cx="130" cy="75" r="4" opacity="0.2"/><circle cx="160" cy="75" r="4" opacity="0.1"/>
+    <circle cx="40" cy="100" r="4" opacity="0.5"/><circle cx="70" cy="100" r="4" opacity="0.3"/><circle cx="100" cy="100" r="4" opacity="0.2"/><circle cx="130" cy="100" r="4" opacity="0.1"/><circle cx="160" cy="100" r="4" opacity="0.05"/>
+  </g>
+</svg>

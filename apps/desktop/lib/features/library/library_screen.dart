@@ -19,8 +19,18 @@ import '../../data/repositories/project_repository.dart';
 import '../shell/app_shell.dart';
 import '../shell/desktop_shell.dart';
 import '../shell/widgets/player_bar.dart';
+import '../../widgets/document_cover.dart';
+import 'cover_picker_dialog.dart';
 import 'widgets/document_card.dart';
 import 'widgets/drop_zone_overlay.dart';
+
+/// Global FocusNode for the library search field.
+/// Used by keyboard shortcuts (Ctrl+F) to focus the search from any screen.
+final librarySearchFocusProvider = Provider<FocusNode>((ref) {
+  final node = FocusNode(debugLabel: 'librarySearch');
+  ref.onDispose(() => node.dispose());
+  return node;
+});
 
 /// Library Screen — document management with drag-and-drop upload.
 ///
@@ -103,6 +113,35 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         );
       }
     }
+  }
+
+  Future<void> _listenToDocument(Document doc) async {
+    final swhMode = ref.read(selectedSwhModeProvider);
+    bool swhEnabled;
+
+    if (swhMode == SwhMode.always) {
+      swhEnabled = true;
+    } else if (swhMode == SwhMode.never) {
+      swhEnabled = false;
+    } else {
+      // "ask" mode — show dialog
+      final result = await showDialog<_SwhDialogResult>(
+        context: context,
+        builder: (_) => const _SwhChoiceDialog(),
+      );
+      if (result == null || !mounted) return;
+      swhEnabled = result.withSwh;
+      if (result.remember) {
+        await ref
+            .read(selectedSwhModeProvider.notifier)
+            .select(swhEnabled ? SwhMode.always : SwhMode.never);
+      }
+    }
+
+    await _primePlaybackSession(doc);
+    if (!mounted) return;
+    final swhParam = swhEnabled ? '1' : '0';
+    context.go('/player/${doc.id}?autoplay=0&swh=$swhParam');
   }
 
   void _handleDrop(DropDoneDetails details) {
@@ -254,37 +293,93 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _downloadDocument(Document doc) async {
+    // Step 1: Show download options dialog
+    final options = await showDialog<_DownloadOptions>(
+      context: context,
+      builder: (ctx) => _DownloadOptionsDialog(docTitle: doc.title),
+    );
+    if (options == null) return; // user cancelled
+
+    // Step 2: Show native Save As dialog
+    final defaultName = '${doc.title}.docx';
+    final savePath = await FilePicker.platform.saveFile(
+      dialogTitle: 'Save Document',
+      fileName: defaultName,
+      type: FileType.custom,
+      allowedExtensions: ['docx'],
+    );
+    if (savePath == null) return; // user cancelled
+
+    if (!mounted) return;
+
+    // Step 3: Download with progress indication
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 12),
+            Text('Exporting document…'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+      ),
+    );
+
     try {
       final repo = ref.read(documentRepositoryProvider);
-      final bytes = await repo.downloadDocument(doc.id);
+      final bytes = await repo.exportDocument(
+        doc.id,
+        includeCover: options.includeCover,
+        includeFooter: options.includeFooter,
+      );
       if (bytes.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Original file not available for download')),
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(content: Text('Export produced no content')),
           );
-        }
         return;
       }
-      // Save to Downloads folder
-      final fileName = '${doc.title}.${doc.sourceType}';
-      final downloadsPath = '${Platform.environment['USERPROFILE']}/Downloads/$fileName';
-      await File(downloadsPath).writeAsBytes(bytes);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved to Downloads: $fileName')),
+
+      // Ensure .docx extension
+      final finalPath =
+          savePath.endsWith('.docx') ? savePath : '$savePath.docx';
+      await File(finalPath).writeAsBytes(bytes);
+
+      if (!mounted) return;
+      final folder = File(finalPath).parent.path;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Saved to $folder'),
+            action: SnackBarAction(
+              label: 'Open',
+              onPressed: () => Process.run('cmd', ['/c', 'start', '', finalPath]),
+            ),
+            duration: const Duration(seconds: 6),
+          ),
         );
-      }
     } on DioException catch (e) {
       if (!mounted) return;
-      final msg = e.response?.statusCode == 404
-          ? 'Download unavailable — only documents uploaded after D28 support this.'
-          : 'Download failed: ${e.message}';
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(
+          content: Text(e.response?.statusCode == 404
+              ? 'Export unavailable for this document.'
+              : 'Export failed: ${e.message}'),
+        ));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Download failed: $e')),
-      );
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text('Export failed: $e')));
     }
   }
 
@@ -338,6 +433,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to remove from project: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _changeCover(Document doc) async {
+    final result = await showCoverPickerDialog(
+      context: context,
+      currentCoverType: doc.coverType,
+      currentCoverValue: doc.coverValue,
+    );
+    if (result == null || !mounted) return;
+
+    final repo = ref.read(documentRepositoryProvider);
+    try {
+      switch (result) {
+        case CoverPickerBuiltin(:final illustrationId):
+          await repo.setCoverBuiltin(doc.id, illustrationId);
+        case CoverPickerUpload(:final file):
+          await repo.uploadCover(doc.id, file.path);
+        case CoverPickerRemove():
+          await repo.removeCover(doc.id);
+      }
+      // Clear Flutter's image cache so uploaded covers refresh immediately.
+      PaintingBinding.instance.imageCache.clear();
+      ref.invalidate(documentsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update cover: $e')),
         );
       }
     }
@@ -398,6 +523,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final theme = Theme.of(context);
     final tokens = PsittaTokens.of(context);
     final documentsAsync = ref.watch(documentsProvider);
+    final projectsAsync = ref.watch(projectsProvider);
+
+    // Build project ID → name map for path labels
+    final Map<String, String> projectNameMap = {};
+    projectsAsync.whenData((projects) {
+      for (final p in projects) {
+        projectNameMap[p.id] = p.name;
+      }
+    });
 
     Document? selected;
 
@@ -473,6 +607,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     final isNarrow = constraints.maxWidth < 900;
 
                     final searchField = TextField(
+                      focusNode: ref.watch(librarySearchFocusProvider),
                       controller: _searchController,
                       textInputAction: TextInputAction.search,
                       onSubmitted: (_) => FocusScope.of(context).unfocus(),
@@ -644,12 +779,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                   itemCount: filteredDocs.length,
                                   itemBuilder: (context, index) {
                                     final doc = filteredDocs[index];
+                                    final projectName = doc.projectId != null
+                                        ? projectNameMap[doc.projectId]
+                                        : null;
+                                    final path = projectName != null
+                                        ? '/Library/$projectName'
+                                        : '/Library';
                                     return DocumentCard(
                                       title: doc.title,
                                       subtitle:
                                           _prettySourceType(doc.sourceType),
                                       status: doc.status,
                                       isSelected: doc.id == _selectedDocId,
+                                      projectPath: path,
                                       onTap: () {
                                         setState(() => _selectedDocId = doc.id);
                                         _primePlaybackSession(doc);
@@ -666,7 +808,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       currentProjectId: doc.projectId,
                                       onAssignProject: () => _assignToProject(doc),
                                       onRemoveProject: () => _removeFromProject(doc),
+                                      onChangeCover: () => _changeCover(doc),
                                       documentId: doc.id,
+                                      coverType: doc.coverType,
+                                      coverValue: doc.coverValue,
+                                      sourceType: doc.sourceType,
                                     );
                                   },
                                 );
@@ -683,18 +829,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final isInDesktopShell =
         context.findAncestorWidgetOfExactType<DesktopShell>() != null;
 
+    // Resolve project name for the selected document
+    final selectedProjectName = selected?.projectId != null
+        ? projectNameMap[selected!.projectId]
+        : null;
+
     final rightPanel = _LibraryRightPanel(
       selected: selected,
       tokens: tokens,
+      projectName: selectedProjectName,
       onListen: selected == null
           ? null
-          : () {
-              _primePlaybackSession(selected!);
-              context.go('/player/${selected!.id}');
-            },
+          : () => _listenToDocument(selected!),
       onRename: selected == null ? null : () => _rename(selected!),
       onDelete: selected == null ? null : () => _confirmAndDelete(selected!),
       onViewDetails: selected == null ? null : () => _showDetails(selected!),
+      onEditText: selected == null
+          ? null
+          : () => context.push(
+                '/editor/${selected!.id}?title=${Uri.encodeComponent(selected!.title)}'),
+      onAssignProject: selected == null
+          ? null
+          : () => _assignToProject(selected!),
+      onChangeCover: selected == null
+          ? null
+          : () => _changeCover(selected!),
     );
 
     if (isInDesktopShell) {
@@ -764,6 +923,10 @@ class _LibraryRightPanel extends StatelessWidget {
     required this.onRename,
     required this.onDelete,
     required this.onViewDetails,
+    this.onEditText,
+    this.onAssignProject,
+    this.onChangeCover,
+    this.projectName,
   });
 
   final Document? selected;
@@ -772,6 +935,10 @@ class _LibraryRightPanel extends StatelessWidget {
   final VoidCallback? onRename;
   final VoidCallback? onDelete;
   final VoidCallback? onViewDetails;
+  final VoidCallback? onEditText;
+  final VoidCallback? onAssignProject;
+  final VoidCallback? onChangeCover;
+  final String? projectName;
 
   String _fmtDate(DateTime dt) {
     final y = dt.year.toString().padLeft(4, '0');
@@ -783,178 +950,363 @@ class _LibraryRightPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final mutedColor = theme.colorScheme.onSurface.withOpacity(isDark ? 0.55 : 0.50);
 
     return Container(
-      margin: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(tokens.radius),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            tokens.surface.withOpacity(0.92),
-            tokens.surface2.withOpacity(0.88),
+        color: isDark
+            ? tokens.surface.withOpacity(0.60)
+            : tokens.surface.withOpacity(0.85),
+        border: Border(
+          left: BorderSide(
+            color: tokens.border.withOpacity(isDark ? 0.40 : 0.55),
+            width: 1,
+          ),
+        ),
+      ),
+      child: selected == null
+          ? _buildEmptyState(theme, isDark, mutedColor)
+          : _buildSelectedState(context, theme, isDark, mutedColor),
+    );
+  }
+
+  Widget _buildEmptyState(
+      ThemeData theme, bool isDark, Color mutedColor) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Opacity(
+              opacity: 0.25,
+              child: Image.asset(
+                'assets/branding/Logo.png',
+                width: 72,
+                height: 72,
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Select a document',
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: mutedColor,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Click on a document to see its details',
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: mutedColor.withOpacity(0.70),
+              ),
+            ),
           ],
         ),
-        border: Border.all(color: tokens.border.withOpacity(0.45), width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.30),
-            blurRadius: 26,
-            offset: const Offset(0, 18),
+      ),
+    );
+  }
+
+  Widget _buildSelectedState(
+      BuildContext context, ThemeData theme, bool isDark, Color mutedColor) {
+    final doc = selected!;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── HEADER ──
+          Text(
+            doc.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+              height: 1.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: tokens.glow.withOpacity(isDark ? 0.15 : 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: tokens.glow.withOpacity(isDark ? 0.30 : 0.25),
+                    width: 1,
+                  ),
+                ),
+                child: Text(
+                  doc.sourceType.toUpperCase(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: tokens.glow,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _fmtDate(doc.createdAt.toLocal()),
+                  style: theme.textTheme.bodySmall?.copyWith(color: mutedColor),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Pages: ${doc.pageCount ?? '—'}${doc.wordCount == null ? '' : '  ·  ${doc.wordCount} words'}',
+            style: theme.textTheme.bodySmall?.copyWith(color: mutedColor),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── COVER ART ──
+          GestureDetector(
+            onTap: onChangeCover,
+            child: Stack(
+              children: [
+                DocumentCover(
+                  coverType: doc.coverType,
+                  coverValue: doc.coverValue,
+                  documentId: doc.id,
+                  size: DocumentCoverSize.detail,
+                  sourceType: doc.sourceType,
+                  borderRadius: BorderRadius.circular(tokens.radius - 4),
+                ),
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (isDark ? Colors.black : Colors.white)
+                          .withOpacity(0.70),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.image_outlined,
+                            size: 14, color: mutedColor),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Change',
+                          style: TextStyle(
+                              fontSize: 11, color: mutedColor),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── PRIMARY ACTION ──
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: FilledButton.icon(
+              onPressed: onListen,
+              icon: const Icon(Icons.play_arrow, size: 20),
+              label: const Text('Listen'),
+            ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── VOICE SELECTOR ──
+          Text(
+            'Voice',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: mutedColor,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Consumer(
+            builder: (context, ref, _) {
+              return ref.watch(voicesProvider).when(
+                    loading: () => const SizedBox(height: 40),
+                    error: (_, __) => const SizedBox(height: 40),
+                    data: (voices) {
+                      final filtered = voices.toList();
+
+                      final selectedVoice =
+                          ref.watch(selectedVoiceIdProvider);
+                      final current =
+                          filtered.any((v) => v.id == selectedVoice)
+                              ? selectedVoice
+                              : (filtered.isNotEmpty
+                                  ? filtered.first.id
+                                  : selectedVoice);
+
+                      if (current != selectedVoice &&
+                          filtered.isNotEmpty) {
+                        ref
+                            .read(selectedVoiceIdProvider.notifier)
+                            .select(current);
+                      }
+
+                      return SizedBox(
+                        height: 40,
+                        child: DropdownButtonFormField<String>(
+                          value: current,
+                          items: filtered
+                              .map(
+                                (v) => DropdownMenuItem(
+                                  value: v.id,
+                                  child: Text(v.displayName),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            ref
+                                .read(selectedVoiceIdProvider.notifier)
+                                .select(value);
+                          },
+                          decoration: InputDecoration(
+                            isDense: true,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                  tokens.radius - 6),
+                            ),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 10,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+            },
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── METADATA ──
+          Text(
+            'Details',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: mutedColor,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _MetadataRow(
+            icon: Icons.folder_outlined,
+            label: 'Project',
+            value: projectName ?? 'Not assigned',
+            tokens: tokens,
+          ),
+          const SizedBox(height: 6),
+          _MetadataRow(
+            icon: doc.status == 'ready'
+                ? Icons.check_circle_outline
+                : Icons.hourglass_top,
+            label: 'Status',
+            value: doc.status == 'ready'
+                ? 'Ready'
+                : doc.status[0].toUpperCase() + doc.status.substring(1),
+            tokens: tokens,
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── QUICK ACTIONS ──
+          Text(
+            'Quick Actions',
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: mutedColor,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _QuickAction(
+            icon: Icons.info_outline,
+            label: 'View Details',
+            onTap: onViewDetails,
+          ),
+          const SizedBox(height: 6),
+          _QuickAction(
+            icon: Icons.edit_note_outlined,
+            label: 'Edit Text',
+            onTap: onEditText,
+          ),
+          const SizedBox(height: 6),
+          _QuickAction(
+            icon: doc.projectId != null
+                ? Icons.drive_file_move_outlined
+                : Icons.folder_outlined,
+            label: doc.projectId != null ? 'Change Project' : 'Add to Project',
+            onTap: onAssignProject,
           ),
         ],
       ),
-      padding: const EdgeInsets.all(18),
-      child: selected == null
-          ? Center(
-              child: Text(
-                'Select a document',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.textTheme.bodyMedium?.color?.withOpacity(0.75),
-                ),
-              ),
-            )
-          : SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    selected!.title,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          selected!.sourceType.toUpperCase(),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.textTheme.bodySmall?.color
-                                ?.withOpacity(0.70),
-                          ),
-                        ),
-                      ),
-                      Text(
-                        'Uploaded: ${_fmtDate(selected!.createdAt.toLocal())}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.textTheme.bodySmall?.color
-                              ?.withOpacity(0.75),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Pages: ${selected!.pageCount}${selected!.wordCount == null ? '' : '  |  Length: ${selected!.wordCount} words'}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color:
-                          theme.textTheme.bodySmall?.color?.withOpacity(0.75),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: onListen,
-                      icon: const Icon(Icons.play_arrow, size: 18),
-                      label: const Text('Listen'),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Voice',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Consumer(
-                    builder: (context, ref, _) {
-                      return ref.watch(voicesProvider).when(
-                            loading: () => const SizedBox(height: 36),
-                            error: (_, __) => const SizedBox(height: 36),
-                            data: (voices) {
-                              
-                              final filtered = voices
-                                  
-                                  .toList();
+    );
+  }
+}
 
-                              final selectedVoice =
-                                  ref.watch(selectedVoiceIdProvider);
-                              final current =
-                                  filtered.any((v) => v.id == selectedVoice)
-                                      ? selectedVoice
-                                      : (filtered.isNotEmpty
-                                          ? filtered.first.id
-                                          : selectedVoice);
+class _MetadataRow extends StatelessWidget {
+  const _MetadataRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.tokens,
+  });
 
-                              if (current != selectedVoice &&
-                                  filtered.isNotEmpty) {
-                                ref
-                                    .read(selectedVoiceIdProvider.notifier)
-                                    .select(current);
-                              }
+  final IconData icon;
+  final String label;
+  final String value;
+  final PsittaTokens tokens;
 
-                              return SizedBox(
-                                height: 40,
-                                child: DropdownButtonFormField<String>(
-                                  value: current,
-                                  items: filtered
-                                      .map(
-                                        (v) => DropdownMenuItem(
-                                          value: v.id,
-                                          child: Text(v.displayName),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) {
-                                    if (value == null) return;
-                                    ref
-                                        .read(selectedVoiceIdProvider.notifier)
-                                        .select(value);
-                                  },
-                                  decoration: InputDecoration(
-                                    isDense: true,
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(
-                                          tokens.radius - 6),
-                                    ),
-                                    contentPadding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 10,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                    },
-                  ),
-                  const SizedBox(height: 22),
-                  Text(
-                    'Quick Actions',
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final mutedColor = theme.colorScheme.onSurface.withOpacity(isDark ? 0.55 : 0.50);
 
-
-                  const SizedBox(height: 10),
-                  _QuickAction(
-                    icon: Icons.info_outline,
-                    label: 'View Details',
-                    onTap: onViewDetails,
-                  ),
-
-                ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: mutedColor),
+          const SizedBox(width: 8),
+          Text(
+            '$label: ',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: mutedColor,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withOpacity(isDark ? 0.80 : 0.75),
               ),
             ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1081,6 +1433,140 @@ class _DetailRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Download Options ──────────────────────────────────────────────────────────
+
+class _DownloadOptions {
+  const _DownloadOptions({
+    required this.includeCover,
+    required this.includeFooter,
+  });
+  final bool includeCover;
+  final bool includeFooter;
+}
+
+class _DownloadOptionsDialog extends StatefulWidget {
+  const _DownloadOptionsDialog({required this.docTitle});
+  final String docTitle;
+
+  @override
+  State<_DownloadOptionsDialog> createState() => _DownloadOptionsDialogState();
+}
+
+class _DownloadOptionsDialogState extends State<_DownloadOptionsDialog> {
+  bool _includeCover = true;
+  bool _includeFooter = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('Download Options'),
+      content: SizedBox(
+        width: 340,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.docTitle,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Export as a branded DOCX file.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+            const SizedBox(height: 20),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Include cover page'),
+              subtitle: const Text('Title page with document name and date'),
+              value: _includeCover,
+              onChanged: (v) => setState(() => _includeCover = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Include Psitta footer'),
+              subtitle: const Text('Branding and page numbers on every page'),
+              value: _includeFooter,
+              onChanged: (v) => setState(() => _includeFooter = v),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          icon: const Icon(Icons.download, size: 18),
+          label: const Text('Download'),
+          onPressed: () => Navigator.of(context).pop(
+            _DownloadOptions(
+              includeCover: _includeCover,
+              includeFooter: _includeFooter,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── SWH Choice Dialog ─────────────────────────────────────────────────────────
+
+class _SwhDialogResult {
+  const _SwhDialogResult({required this.withSwh, required this.remember});
+  final bool withSwh;
+  final bool remember;
+}
+
+class _SwhChoiceDialog extends StatefulWidget {
+  const _SwhChoiceDialog();
+
+  @override
+  State<_SwhChoiceDialog> createState() => _SwhChoiceDialogState();
+}
+
+class _SwhChoiceDialogState extends State<_SwhChoiceDialog> {
+  bool _remember = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('How would you like to listen?'),
+      content: CheckboxListTile(
+        contentPadding: EdgeInsets.zero,
+        value: _remember,
+        onChanged: (v) => setState(() => _remember = v ?? false),
+        title: const Text('Remember my choice'),
+        controlAffinity: ListTileControlAffinity.leading,
+      ),
+      actions: [
+        OutlinedButton(
+          onPressed: () => Navigator.of(context).pop(
+            _SwhDialogResult(withSwh: false, remember: _remember),
+          ),
+          child: const Text('Without Word Highlight'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(
+            _SwhDialogResult(withSwh: true, remember: _remember),
+          ),
+          child: const Text('With Word Highlight'),
+        ),
+      ],
     );
   }
 }

@@ -108,12 +108,15 @@ class PlayerBar extends ConsumerWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.skip_previous, size: 22),
-                      onPressed: hasActiveSession
-                          ? () => _skipBackward(ref, audioService)
-                          : null,
-                      tooltip: 'Previous chunk',
+                    Tooltip(
+                      message: 'Skip Backward  Ctrl+\u2190',
+                      waitDuration: const Duration(milliseconds: 600),
+                      child: IconButton(
+                        icon: const Icon(Icons.skip_previous, size: 22),
+                        onPressed: hasActiveSession
+                            ? () => _skipBackward(ref, audioService)
+                            : null,
+                      ),
                     ),
                     const SizedBox(width: 8),
 
@@ -132,59 +135,67 @@ class PlayerBar extends ConsumerWidget {
                                 ),
                               ),
                             )
-                          : IconButton(
-                              icon: Icon(
-                                isPlaying
-                                    ? Icons.pause_circle_filled
-                                    : Icons.play_circle_filled,
-                                size: 38,
-                                color:
-                                    hasActiveSession ? AppColors.primary : null,
-                              ),
-                              onPressed: hasActiveSession
-                                  ? () {
-                                      if (!isPlaying &&
-                                          (audioService.duration == null ||
-                                              audioService.position ==
-                                                  Duration.zero)) {
-                                        final chunkIds =
-                                            ref.read(activeChunkIdsProvider);
-                                        final docId =
-                                            ref.read(activeDocumentIdProvider);
-                                        final idx =
-                                            ref.read(currentChunkIndexProvider);
-                                        if (docId != null &&
-                                            idx < chunkIds.length) {
-                                          final voiceId =
-                                              ref.read(selectedVoiceIdProvider);
-                                          final speed =
-                                              ref.read(selectedSpeedProvider);
-                                          final volume =
-                                              ref.read(selectedVolumeProvider);
-                                          audioService.playChunk(
-                                            documentId: docId,
-                                            chunkId: chunkIds[idx],
-                                            voiceId: voiceId,
-                                            speed: speed,
-                                            volume: volume,
-                                          );
+                          : Tooltip(
+                              message: isPlaying
+                                  ? 'Pause  Space'
+                                  : 'Play  Space',
+                              waitDuration: const Duration(milliseconds: 600),
+                              child: IconButton(
+                                icon: Icon(
+                                  isPlaying
+                                      ? Icons.pause_circle_filled
+                                      : Icons.play_circle_filled,
+                                  size: 38,
+                                  color:
+                                      hasActiveSession ? AppColors.primary : null,
+                                ),
+                                onPressed: hasActiveSession
+                                    ? () {
+                                        if (!isPlaying &&
+                                            (audioService.duration == null ||
+                                                audioService.position ==
+                                                    Duration.zero)) {
+                                          final chunkIds =
+                                              ref.read(activeChunkIdsProvider);
+                                          final docId =
+                                              ref.read(activeDocumentIdProvider);
+                                          final idx =
+                                              ref.read(currentChunkIndexProvider);
+                                          if (docId != null &&
+                                              idx < chunkIds.length) {
+                                            final voiceId =
+                                                ref.read(selectedVoiceIdProvider);
+                                            final speed =
+                                                ref.read(selectedSpeedProvider);
+                                            final volume =
+                                                ref.read(selectedVolumeProvider);
+                                            audioService.playChunk(
+                                              documentId: docId,
+                                              chunkId: chunkIds[idx],
+                                              voiceId: voiceId,
+                                              speed: speed,
+                                              volume: volume,
+                                            );
+                                          }
+                                        } else {
+                                          audioService.togglePlayPause();
                                         }
-                                      } else {
-                                        audioService.togglePlayPause();
                                       }
-                                    }
-                                  : null,
-                              tooltip: 'Play/Pause (Space)',
+                                    : null,
+                              ),
                             ),
                     ),
 
                     const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(Icons.skip_next, size: 22),
-                      onPressed: hasActiveSession
-                          ? () => _skipForward(ref, audioService)
-                          : null,
-                      tooltip: 'Next chunk',
+                    Tooltip(
+                      message: 'Skip Forward  Ctrl+\u2192',
+                      waitDuration: const Duration(milliseconds: 600),
+                      child: IconButton(
+                        icon: const Icon(Icons.skip_next, size: 22),
+                        onPressed: hasActiveSession
+                            ? () => _skipForward(ref, audioService)
+                            : null,
+                      ),
                     ),
                   ],
                 ),
@@ -321,7 +332,7 @@ class _SpeedButton extends StatelessWidget {
 
     return PopupMenuButton<double>(
       enabled: enabled,
-      tooltip: 'Playback speed',
+      tooltip: 'Playback Speed',
       offset: const Offset(0, -280),
       onSelected: (newSpeed) async {
         await ref.read(selectedSpeedProvider.notifier).select(newSpeed);

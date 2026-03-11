@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120">
+  <path d="M85,20 L85,65 L65,95 Q60,105 75,105 L125,105 Q140,105 135,95 L115,65 L115,20" fill="none" stroke="#8B4513" stroke-width="2.5"/>
+  <line x1="80" y1="20" x2="120" y2="20" stroke="#8B4513" stroke-width="2.5"/>
+  <path d="M65,95 Q80,80 100,90 Q120,100 135,95 L125,105 Q140,105 75,105 Q60,105 65,95 Z" fill="#D2691E" opacity="0.6"/>
+  <line x1="85" y1="40" x2="115" y2="40" stroke="#CD853F" stroke-width="1.5"/>
+</svg>

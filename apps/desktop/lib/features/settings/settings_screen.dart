@@ -5,6 +5,11 @@ import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/preferences_service.dart';
 
+String _autoDeleteLabel(int? days) =>
+    days == null ? 'Never' : 'After $days days';
+
+String _cacheSizeLabel(int mb) => mb >= 1024 ? '${mb ~/ 1024} GB' : '$mb MB';
+
 /// Settings Screen — user preferences and app configuration.
 ///
 /// Desktop layout: single-column settings list with sections.
@@ -15,6 +20,7 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final selectedTheme = ref.watch(selectedThemeNameProvider);
+    final swhMode = ref.watch(selectedSwhModeProvider);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -104,16 +110,74 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const _SectionHeader(title: 'Storage'),
-                  const ListTile(
-                    title: Text('Auto-Delete Documents'),
-                    subtitle: Text('After 60 days'),
-                    trailing: Icon(Icons.chevron_right),
+                  const _SectionHeader(title: 'Sync Word Highlight'),
+                  RadioListTile<String>(
+                    title: const Text('Read with S.W.H'),
+                    value: SwhMode.always,
+                    groupValue: swhMode,
+                    onChanged: (v) => ref
+                        .read(selectedSwhModeProvider.notifier)
+                        .select(v!),
                   ),
-                  const ListTile(
-                    title: Text('Cache Size'),
-                    subtitle: Text('256 MB'),
-                    trailing: Icon(Icons.chevron_right),
+                  RadioListTile<String>(
+                    title: const Text('Read without S.W.H'),
+                    value: SwhMode.never,
+                    groupValue: swhMode,
+                    onChanged: (v) => ref
+                        .read(selectedSwhModeProvider.notifier)
+                        .select(v!),
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Will decide before Listen'),
+                    value: SwhMode.ask,
+                    groupValue: swhMode,
+                    onChanged: (v) => ref
+                        .read(selectedSwhModeProvider.notifier)
+                        .select(v!),
+                  ),
+                  const SizedBox(height: 16),
+                  const _SectionHeader(title: 'Storage'),
+                  ListTile(
+                    title: const Text('Auto-Delete Documents'),
+                    trailing: DropdownButton<int?>(
+                      value: ref.watch(selectedAutoDeleteProvider),
+                      underline: const SizedBox(),
+                      items: AutoDeletePreferenceNotifier.options
+                          .map(
+                            (d) => DropdownMenuItem<int?>(
+                              value: d,
+                              child: Text(_autoDeleteLabel(d)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) {
+                        ref
+                            .read(selectedAutoDeleteProvider.notifier)
+                            .select(val);
+                      },
+                    ),
+                  ),
+                  ListTile(
+                    title: const Text('Cache Size'),
+                    trailing: DropdownButton<int>(
+                      value: ref.watch(selectedCacheSizeProvider),
+                      underline: const SizedBox(),
+                      items: CacheSizePreferenceNotifier.options
+                          .map(
+                            (s) => DropdownMenuItem<int>(
+                              value: s,
+                              child: Text(_cacheSizeLabel(s)),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (val) {
+                        if (val != null) {
+                          ref
+                              .read(selectedCacheSizeProvider.notifier)
+                              .select(val);
+                        }
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
                   const _SectionHeader(title: 'Account'),

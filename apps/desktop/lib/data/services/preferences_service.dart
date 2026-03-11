@@ -137,3 +137,109 @@ final selectedVolumeProvider =
     StateNotifierProvider<VolumePreferenceNotifier, double>(
   (ref) => VolumePreferenceNotifier(),
 );
+
+/// Sync Word Highlight mode values.
+abstract final class SwhMode {
+  static const always = 'always';
+  static const never = 'never';
+  static const ask = 'ask';
+  static const all = <String>[always, never, ask];
+}
+
+/// Persists the user's SWH (Sync Word Highlight) preference.
+class SwhPreferenceNotifier extends StateNotifier<String> {
+  SwhPreferenceNotifier() : super(SwhMode.ask) {
+    _load();
+  }
+
+  static const _key = 'swh_mode';
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_key);
+    if (saved != null && SwhMode.all.contains(saved)) {
+      state = saved;
+    }
+  }
+
+  Future<void> select(String mode) async {
+    if (!SwhMode.all.contains(mode)) return;
+    state = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, mode);
+  }
+}
+
+/// Selected SWH mode — persisted via SharedPreferences.
+final selectedSwhModeProvider =
+    StateNotifierProvider<SwhPreferenceNotifier, String>(
+  (ref) => SwhPreferenceNotifier(),
+);
+
+/// Persists the user's auto-delete preference across sessions.
+class AutoDeletePreferenceNotifier extends StateNotifier<int?> {
+  AutoDeletePreferenceNotifier() : super(_defaultDays) {
+    _load();
+  }
+
+  static const _key = 'auto_delete_days';
+  static const int? _defaultDays = null;
+
+  /// Available options (null = Never).
+  static const options = <int?>[null, 30, 60, 90, 180];
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.containsKey(_key)) {
+      final saved = prefs.getInt(_key);
+      // saved == -1 means "Never" (null) since SharedPreferences can't store null
+      state = (saved == null || saved == -1) ? null : saved;
+    }
+  }
+
+  Future<void> select(int? days) async {
+    state = days;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_key, days ?? -1);
+  }
+}
+
+/// Selected auto-delete interval — persisted via SharedPreferences.
+final selectedAutoDeleteProvider =
+    StateNotifierProvider<AutoDeletePreferenceNotifier, int?>(
+  (ref) => AutoDeletePreferenceNotifier(),
+);
+
+/// Persists the user's cache size preference across sessions.
+class CacheSizePreferenceNotifier extends StateNotifier<int> {
+  CacheSizePreferenceNotifier() : super(_defaultSize) {
+    _load();
+  }
+
+  static const _key = 'cache_size_mb';
+  static const _defaultSize = 256;
+
+  /// Available options in MB.
+  static const options = <int>[128, 256, 512, 1024];
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getInt(_key);
+    if (saved != null && options.contains(saved)) {
+      state = saved;
+    }
+  }
+
+  Future<void> select(int mb) async {
+    if (!options.contains(mb)) return;
+    state = mb;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_key, mb);
+  }
+}
+
+/// Selected cache size — persisted via SharedPreferences.
+final selectedCacheSizeProvider =
+    StateNotifierProvider<CacheSizePreferenceNotifier, int>(
+  (ref) => CacheSizePreferenceNotifier(),
+);

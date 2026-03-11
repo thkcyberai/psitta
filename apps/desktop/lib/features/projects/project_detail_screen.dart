@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
+import '../../data/repositories/project_repository.dart';
+import '../../widgets/document_cover.dart';
 import '../shell/widgets/player_bar.dart';
 
 final projectDocumentsProvider =
@@ -100,10 +102,35 @@ class ProjectDetailScreen extends ConsumerWidget {
       itemBuilder: (context, i) {
         final doc = docs[i];
         return ListTile(
-          leading: _sourceIcon(doc.sourceType),
+          leading: _docLeading(doc),
           title: Text(doc.title),
           subtitle: Text(doc.status),
-          trailing: const Icon(Icons.play_circle_outline),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _DocContextMenu(
+                doc: doc,
+                projectId: projectId,
+                projectName: projectName,
+              ),
+              IconButton(
+                icon: const Icon(Icons.play_circle_outline),
+                tooltip: 'Play',
+                onPressed: () {
+                  ref.read(activeDocumentIdProvider.notifier).state =
+                      doc.id;
+                  ref.read(currentDocTitleProvider.notifier).state =
+                      doc.title;
+                  context.go(
+                    '/player/${doc.id}'
+                    '?origin=project'
+                    '&projectId=$projectId'
+                    '&projectName=${Uri.encodeComponent(projectName)}',
+                  );
+                },
+              ),
+            ],
+          ),
           onTap: () {
             ref.read(activeDocumentIdProvider.notifier).state = doc.id;
             ref.read(currentDocTitleProvider.notifier).state =
@@ -120,13 +147,254 @@ class ProjectDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget _sourceIcon(String? sourceType) {
-    final icon = switch (sourceType) {
+  Widget _docLeading(Document doc) {
+    if (doc.coverType != null) {
+      return SizedBox(
+        width: 36,
+        height: 36,
+        child: DocumentCover(
+          coverType: doc.coverType,
+          coverValue: doc.coverValue,
+          documentId: doc.id,
+          size: DocumentCoverSize.mini,
+          sourceType: doc.sourceType,
+          borderRadius: BorderRadius.circular(6),
+        ),
+      );
+    }
+    final icon = switch (doc.sourceType) {
       'pdf' => Icons.picture_as_pdf_outlined,
       'docx' => Icons.article_outlined,
       'txt' => Icons.text_snippet_outlined,
       _ => Icons.insert_drive_file_outlined,
     };
     return Icon(icon);
+  }
+}
+
+// ── Document Context Menu ────────────────────────────────────────────────────
+
+class _DocContextMenu extends ConsumerWidget {
+  const _DocContextMenu({
+    required this.doc,
+    required this.projectId,
+    required this.projectName,
+  });
+
+  final Document doc;
+  final String projectId;
+  final String projectName;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, size: 18),
+      tooltip: 'More options',
+      onSelected: (value) async {
+        switch (value) {
+          case 'rename':
+            await _showRenameDialog(context, ref);
+            break;
+          case 'move':
+            await _showMoveDialog(context, ref);
+            break;
+          case 'remove':
+            await _confirmRemove(context, ref);
+            break;
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'rename',
+          child: Row(children: [
+            Icon(Icons.edit_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('Rename'),
+          ]),
+        ),
+        const PopupMenuItem(
+          value: 'move',
+          child: Row(children: [
+            Icon(Icons.drive_file_move_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('Move to Project'),
+          ]),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'remove',
+          child: Row(children: [
+            Icon(Icons.delete_outlined, size: 18, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Remove', style: TextStyle(color: Colors.red)),
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showRenameDialog(
+      BuildContext context, WidgetRef ref) async {
+    final controller = TextEditingController(text: doc.title);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename Document'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration:
+              const InputDecoration(border: OutlineInputBorder()),
+          onSubmitted: (_) => Navigator.of(ctx).pop(true),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && controller.text.trim().isNotEmpty) {
+      try {
+        final repo = ref.read(documentRepositoryProvider);
+        await repo.renameDocument(doc.id, controller.text.trim());
+        ref.invalidate(projectDocumentsProvider(projectId));
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to rename: $e')),
+          );
+        }
+      }
+    }
+    controller.dispose();
+  }
+
+  Future<void> _showMoveDialog(
+      BuildContext context, WidgetRef ref) async {
+    // Fetch all projects
+    List<Project> allProjects;
+    try {
+      final repo = ref.read(projectRepositoryProvider);
+      allProjects = await repo.listProjects();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load projects: $e')),
+        );
+      }
+      return;
+    }
+
+    // Filter out the current project
+    final otherProjects =
+        allProjects.where((p) => p.id != projectId).toList();
+
+    if (otherProjects.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'No other projects available. Create another project first.'),
+          ),
+        );
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
+
+    final targetProject = await showDialog<Project>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Move to Project'),
+        content: SizedBox(
+          width: 340,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: otherProjects.length,
+            itemBuilder: (_, i) {
+              final p = otherProjects[i];
+              return ListTile(
+                leading: const Icon(Icons.folder_outlined),
+                title: Text(p.name),
+                subtitle: Text(
+                  '${p.documentCount} document${p.documentCount == 1 ? '' : 's'}',
+                ),
+                onTap: () => Navigator.of(ctx).pop(p),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (targetProject == null) return;
+
+    try {
+      // Move = unassign from current + assign to target
+      final repo = ref.read(projectRepositoryProvider);
+      await repo.assignToProject(doc.id, targetProject.id);
+      ref.invalidate(projectDocumentsProvider(projectId));
+      ref.invalidate(projectsProvider);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to move document: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmRemove(
+      BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove from Project'),
+        content: Text(
+          "Remove '${doc.title}' from '$projectName'? "
+          'The document will remain in your Library.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style:
+                FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      try {
+        // Unassign document from project (set project_id to null)
+        final repo = ref.read(projectRepositoryProvider);
+        await repo.assignToProject(doc.id, null);
+        ref.invalidate(projectDocumentsProvider(projectId));
+        ref.invalidate(projectsProvider);
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to remove document: $e')),
+          );
+        }
+      }
+    }
   }
 }

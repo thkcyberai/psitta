@@ -1,7 +1,16 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/constants.dart';
 import '../../core/keyboard/shortcuts.dart';
+import '../../data/providers/providers.dart';
+import '../../data/services/audio_service.dart';
+import '../../data/services/preferences_service.dart';
+import '../library/library_screen.dart';
 import 'app_shell.dart';
+import 'widgets/player_bar.dart';
+import 'widgets/shortcuts_panel.dart';
 
 /// Sidebar collapsed state — persists across navigation.
 final sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
@@ -29,8 +38,145 @@ class DesktopShell extends ConsumerWidget {
               return null;
             },
           ),
-          // Playback actions wired in player_bar.dart via ref
-          // Upload action wired in library_screen.dart
+          PlayPauseIntent: CallbackAction<PlayPauseIntent>(
+            onInvoke: (_) {
+              final audioService = ref.read(audioServiceProvider);
+              final isPlaying =
+                  ref.read(audioPlayingProvider).valueOrNull ?? false;
+              if (isPlaying) {
+                audioService.pause();
+              } else {
+                // If no audio source loaded, try to play current chunk
+                if (audioService.duration == null ||
+                    audioService.position == Duration.zero) {
+                  final chunkIds = ref.read(activeChunkIdsProvider);
+                  final docId = ref.read(activeDocumentIdProvider);
+                  final idx = ref.read(currentChunkIndexProvider);
+                  if (docId != null && idx < chunkIds.length) {
+                    final voiceId = ref.read(selectedVoiceIdProvider);
+                    final speed = ref.read(selectedSpeedProvider);
+                    final volume = ref.read(selectedVolumeProvider);
+                    audioService.playChunk(
+                      documentId: docId,
+                      chunkId: chunkIds[idx],
+                      voiceId: voiceId,
+                      speed: speed,
+                      volume: volume,
+                    );
+                  }
+                } else {
+                  audioService.play();
+                }
+              }
+              return null;
+            },
+          ),
+          SkipForwardIntent: CallbackAction<SkipForwardIntent>(
+            onInvoke: (_) {
+              final audioService = ref.read(audioServiceProvider);
+              final chunkIds = ref.read(activeChunkIdsProvider);
+              final current = ref.read(currentChunkIndexProvider);
+              if (current < chunkIds.length - 1) {
+                final nextIdx = current + 1;
+                ref.read(currentChunkIndexProvider.notifier).state = nextIdx;
+                final docId = ref.read(activeDocumentIdProvider);
+                if (docId != null) {
+                  final voiceId = ref.read(selectedVoiceIdProvider);
+                  final speed = ref.read(selectedSpeedProvider);
+                  final volume = ref.read(selectedVolumeProvider);
+                  audioService
+                      .playChunk(
+                    documentId: docId,
+                    chunkId: chunkIds[nextIdx],
+                    voiceId: voiceId,
+                    speed: speed,
+                    volume: volume,
+                  )
+                      .then((_) {
+                    if (nextIdx + 1 < chunkIds.length) {
+                      audioService.prefetchChunk(
+                        documentId: docId,
+                        chunkId: chunkIds[nextIdx + 1],
+                        voiceId: voiceId,
+                      );
+                    }
+                  });
+                }
+              }
+              return null;
+            },
+          ),
+          SkipBackwardIntent: CallbackAction<SkipBackwardIntent>(
+            onInvoke: (_) {
+              final audioService = ref.read(audioServiceProvider);
+              final chunkIds = ref.read(activeChunkIdsProvider);
+              final current = ref.read(currentChunkIndexProvider);
+              if (current > 0) {
+                final prevIdx = current - 1;
+                ref.read(currentChunkIndexProvider.notifier).state = prevIdx;
+                final docId = ref.read(activeDocumentIdProvider);
+                if (docId != null) {
+                  final voiceId = ref.read(selectedVoiceIdProvider);
+                  final speed = ref.read(selectedSpeedProvider);
+                  final volume = ref.read(selectedVolumeProvider);
+                  audioService.playChunk(
+                    documentId: docId,
+                    chunkId: chunkIds[prevIdx],
+                    voiceId: voiceId,
+                    speed: speed,
+                    volume: volume,
+                  );
+                }
+              }
+              return null;
+            },
+          ),
+          UploadDocumentIntent: CallbackAction<UploadDocumentIntent>(
+            onInvoke: (_) {
+              // Navigate to library first, then open file picker
+              GoRouter.of(context).go('/library');
+              FilePicker.platform
+                  .pickFiles(
+                type: FileType.custom,
+                allowedExtensions: AppConstants.allowedExtensions,
+                allowMultiple: true,
+              )
+                  .then((result) async {
+                if (result != null && result.files.isNotEmpty) {
+                  final repo = ref.read(documentRepositoryProvider);
+                  for (final file in result.files) {
+                    if (file.path == null) continue;
+                    try {
+                      await repo.uploadDocument(file.path!);
+                    } catch (_) {
+                      // Best-effort — errors are non-fatal here
+                    }
+                  }
+                  ref.invalidate(documentsProvider);
+                }
+              });
+              return null;
+            },
+          ),
+          SearchLibraryIntent: CallbackAction<SearchLibraryIntent>(
+            onInvoke: (_) {
+              GoRouter.of(context).go('/library');
+              // Request focus on the search field after navigation settles
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                ref.read(librarySearchFocusProvider).requestFocus();
+              });
+              return null;
+            },
+          ),
+          HelpShortcutsIntent: CallbackAction<HelpShortcutsIntent>(
+            onInvoke: (_) {
+              showDialog(
+                context: context,
+                builder: (_) => const ShortcutsPanel(),
+              );
+              return null;
+            },
+          ),
         },
         child: Focus(
           autofocus: true,

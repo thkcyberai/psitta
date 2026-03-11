@@ -1,0 +1,404 @@
+import 'dart:math';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../data/providers/providers.dart';
+import '../../data/services/preferences_service.dart';
+
+class VoiceSelectorScreen extends ConsumerWidget {
+  const VoiceSelectorScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final voicesAsync = ref.watch(voicesProvider);
+    final selectedId = ref.watch(selectedVoiceIdProvider);
+
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                TextButton.icon(
+                  icon: const Icon(Icons.arrow_back, size: 16),
+                  label: const Text('Settings'),
+                  onPressed: () => context.go('/settings'),
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Default Voice',
+                  style: TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Select the voice used for new documents.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            Expanded(
+              child: voicesAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Center(child: Text('Error: $e')),
+                data: (voices) => voices.isEmpty
+                    ? const Center(child: Text('No voices available'))
+                    : GridView.builder(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 4,
+                          childAspectRatio: 0.85,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
+                        itemCount: voices.length,
+                        itemBuilder: (context, i) {
+                          final v = voices[i];
+                          final isSelected = v.id == selectedId;
+                          return _VoiceCell(
+                            displayName: v.displayName,
+                            language: v.language,
+                            gender: v.gender,
+                            isSelected: isSelected,
+                            onTap: () {
+                              ref
+                                  .read(selectedVoiceIdProvider.notifier)
+                                  .select(v.id);
+                              context.go('/settings');
+                            },
+                          );
+                        },
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _VoiceCell extends StatelessWidget {
+  final String displayName;
+  final String language;
+  final String gender;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _VoiceCell({
+    required this.displayName,
+    required this.language,
+    required this.gender,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: isSelected
+              ? cs.primaryContainer
+              : cs.surfaceContainerHighest,
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: isSelected
+                        ? Border.all(color: cs.primary, width: 3)
+                        : null,
+                  ),
+                  padding: EdgeInsets.all(isSelected ? 0 : 3),
+                  child: VoiceAvatar(
+                    gender: gender,
+                    seed: displayName,
+                    size: 72,
+                  ),
+                ),
+                if (isSelected)
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: cs.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: cs.surface,
+                          width: 2,
+                        ),
+                      ),
+                      padding: const EdgeInsets.all(2),
+                      child: Icon(
+                        Icons.check,
+                        size: 14,
+                        color: cs.onPrimary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              displayName,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              language,
+              style: TextStyle(
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class VoiceAvatar extends StatelessWidget {
+  final String gender;
+  final String seed;
+  final double size;
+
+  const VoiceAvatar({
+    super.key,
+    required this.gender,
+    required this.seed,
+    this.size = 72,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isFemale = gender == 'female';
+
+    return ClipOval(
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: CustomPaint(
+          painter: _AvatarPainter(
+            hairColor: isFemale ? cs.primary : cs.secondary,
+            skinColor: const Color(0xFFFFDBAC),
+            bgColor: cs.surfaceContainerHighest,
+            isFemale: isFemale,
+            seed: seed,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AvatarPainter extends CustomPainter {
+  final Color hairColor;
+  final Color skinColor;
+  final Color bgColor;
+  final bool isFemale;
+  final String seed;
+
+  _AvatarPainter({
+    required this.hairColor,
+    required this.skinColor,
+    required this.bgColor,
+    required this.isFemale,
+    required this.seed,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final cx = w / 2;
+
+    // Background
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()..color = bgColor,
+    );
+
+    // Seed-based variation for slight differences between avatars
+    final seedHash = seed.hashCode;
+    final eyeSpacing = 7.0 + (seedHash % 3);
+
+    // --- Body / Shoulders ---
+    final bodyPaint = Paint()..color = hairColor.withOpacity(0.85);
+    final shoulderWidth = isFemale ? w * 0.38 : w * 0.44;
+    final shoulderY = h * 0.78;
+    final bodyPath = Path();
+    bodyPath.moveTo(cx - shoulderWidth, h);
+    bodyPath.quadraticBezierTo(
+      cx - shoulderWidth, shoulderY,
+      cx, shoulderY - (isFemale ? 4 : 2),
+    );
+    bodyPath.quadraticBezierTo(
+      cx + shoulderWidth, shoulderY,
+      cx + shoulderWidth, h,
+    );
+    bodyPath.close();
+    canvas.drawPath(bodyPath, bodyPaint);
+
+    // Neck
+    final neckPaint = Paint()..color = skinColor;
+    final neckW = w * 0.1;
+    final neckTop = h * 0.58;
+    canvas.drawRect(
+      Rect.fromLTRB(cx - neckW, neckTop, cx + neckW, h * 0.8),
+      neckPaint,
+    );
+
+    // --- Head ---
+    final headRadius = w * 0.24;
+    final headCy = h * 0.4;
+    canvas.drawCircle(
+      Offset(cx, headCy),
+      headRadius,
+      Paint()..color = skinColor,
+    );
+
+    // --- Hair ---
+    final hairPaint = Paint()..color = hairColor;
+
+    if (isFemale) {
+      // Long hair: top cap + two side curves flowing down
+      // Top hair cap
+      final topHair = Path();
+      topHair.addArc(
+        Rect.fromCircle(center: Offset(cx, headCy), radius: headRadius + 2),
+        pi,
+        pi,
+      );
+      topHair.lineTo(cx + headRadius + 2, headCy - 2);
+      topHair.quadraticBezierTo(
+        cx + headRadius + 2, headCy - headRadius * 0.5,
+        cx, headCy - headRadius - 4,
+      );
+      topHair.quadraticBezierTo(
+        cx - headRadius - 2, headCy - headRadius * 0.5,
+        cx - headRadius - 2, headCy - 2,
+      );
+      topHair.close();
+      canvas.drawPath(topHair, hairPaint);
+
+      // Left hair strand
+      final leftHair = Path();
+      leftHair.moveTo(cx - headRadius - 1, headCy - 4);
+      leftHair.quadraticBezierTo(
+        cx - headRadius - 6, headCy + headRadius * 1.2,
+        cx - headRadius + 2, h * 0.82,
+      );
+      leftHair.lineTo(cx - headRadius + 7, h * 0.82);
+      leftHair.quadraticBezierTo(
+        cx - headRadius + 2, headCy + headRadius * 0.8,
+        cx - headRadius + 2, headCy,
+      );
+      leftHair.close();
+      canvas.drawPath(leftHair, hairPaint);
+
+      // Right hair strand
+      final rightHair = Path();
+      rightHair.moveTo(cx + headRadius + 1, headCy - 4);
+      rightHair.quadraticBezierTo(
+        cx + headRadius + 6, headCy + headRadius * 1.2,
+        cx + headRadius - 2, h * 0.82,
+      );
+      rightHair.lineTo(cx + headRadius - 7, h * 0.82);
+      rightHair.quadraticBezierTo(
+        cx + headRadius - 2, headCy + headRadius * 0.8,
+        cx + headRadius - 2, headCy,
+      );
+      rightHair.close();
+      canvas.drawPath(rightHair, hairPaint);
+    } else {
+      // Short hair: flat-top arc
+      final topHair = Path();
+      final hairTop = headCy - headRadius - 3;
+      topHair.moveTo(cx - headRadius - 1, headCy);
+      topHair.lineTo(cx - headRadius - 1, hairTop + 4);
+      topHair.quadraticBezierTo(
+        cx - headRadius + 2, hairTop,
+        cx, hairTop - 1,
+      );
+      topHair.quadraticBezierTo(
+        cx + headRadius - 2, hairTop,
+        cx + headRadius + 1, hairTop + 4,
+      );
+      topHair.lineTo(cx + headRadius + 1, headCy);
+      topHair.arcTo(
+        Rect.fromCircle(center: Offset(cx, headCy), radius: headRadius + 1),
+        0,
+        -pi,
+        false,
+      );
+      topHair.close();
+      canvas.drawPath(topHair, hairPaint);
+    }
+
+    // --- Eyes ---
+    final eyePaint = Paint()..color = const Color(0xFF3D3D3D);
+    final eyeY = headCy + 2;
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(cx - eyeSpacing, eyeY),
+        width: 4,
+        height: 5,
+      ),
+      eyePaint,
+    );
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(cx + eyeSpacing, eyeY),
+        width: 4,
+        height: 5,
+      ),
+      eyePaint,
+    );
+
+    // --- Mouth ---
+    final mouthPaint = Paint()
+      ..color = const Color(0xFFE08080)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    final mouthY = headCy + headRadius * 0.45;
+    final mouthW = isFemale ? 5.0 : 4.0;
+    final mouthPath = Path();
+    mouthPath.moveTo(cx - mouthW, mouthY);
+    mouthPath.quadraticBezierTo(cx, mouthY + 3, cx + mouthW, mouthY);
+    canvas.drawPath(mouthPath, mouthPaint);
+  }
+
+  @override
+  bool shouldRepaint(_AvatarPainter old) =>
+      hairColor != old.hairColor ||
+      skinColor != old.skinColor ||
+      bgColor != old.bgColor ||
+      isFemale != old.isFemale ||
+      seed != old.seed;
+}
