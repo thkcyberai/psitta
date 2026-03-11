@@ -77,3 +77,4 @@ cd
 ls
 core/backend/powershell.exe
 Devlog/
+*.bak*
