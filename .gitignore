@@ -78,3 +78,7 @@ ls
 core/backend/powershell.exe
 Devlog/
 *.bak*
+terraform.tfvars
+.terraform/
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup
