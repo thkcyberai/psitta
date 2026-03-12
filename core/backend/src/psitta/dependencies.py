@@ -19,6 +19,10 @@ import structlog
 from fastapi import Depends
 
 from psitta.config import Settings, get_settings
+from psitta.middleware.auth import TokenClaims  # noqa: F401 — re-export for convenience
+from psitta.middleware.auth import get_current_user  # noqa: F401
+from psitta.middleware.auth import require_permission  # noqa: F401
+from psitta.middleware.auth import require_role  # noqa: F401
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 

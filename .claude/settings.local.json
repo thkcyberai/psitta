@@ -20,7 +20,8 @@
       "Bash(docker exec:*)",
       "Bash(docker ps:*)",
       "Bash(python3:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(cp \"C:/products/psitta/core/backend/src/psitta/config.py\" \"C:/products/psitta/core/backend/src/psitta/config.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/dependencies.py\" \"C:/products/psitta/core/backend/src/psitta/dependencies.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/main.py\" \"C:/products/psitta/core/backend/src/psitta/main.py.bak\")"
     ],
     "deny": [],
     "ask": []

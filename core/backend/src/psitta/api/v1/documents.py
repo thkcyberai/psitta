@@ -17,7 +17,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.dependencies import get_db_session
+from psitta.dependencies import get_current_user, get_db_session
+from psitta.middleware.auth import TokenClaims
 from psitta.schemas.api import ChunkResponse, ChunkUpdateRequest, ResynthesizeResponse
 
 logger = structlog.get_logger(__name__)
@@ -69,9 +70,6 @@ router = APIRouter()
 ALLOWED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".md", ".html"})
 TEXT_EXTENSIONS = frozenset({".txt", ".md", ".html"})
 TARGET_CHUNK_SIZE = 1500  # characters per chunk
-
-DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
-
 
 def _extract_text(file_bytes: bytes, extension: str) -> str | list[dict] | None:
     """Extract plain text from supported file types."""
@@ -310,6 +308,7 @@ async def _process_document(
 async def upload_document(
     file: UploadFile,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ) -> dict:
     filename = file.filename or "unknown"
     extension = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -338,7 +337,7 @@ async def upload_document(
         ),
         {
             "id": doc_id,
-            "user_id": DEV_USER_ID,
+            "user_id": claims.sub,
             "title": title,
             "source_type": source_type,
             "status": "uploaded",
@@ -374,7 +373,9 @@ async def list_documents(
     size: Annotated[int, Query(ge=1, le=100)] = 20,
     show_archived: bool = False,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ) -> dict:
+    user_id = claims.sub
     offset = (page - 1) * size
 
     count_result = await db.execute(
@@ -382,7 +383,7 @@ async def list_documents(
             "SELECT COUNT(*) FROM documents WHERE user_id = :uid "
             "AND status != 'deleted' AND (:show_archived OR status != 'archived')"
         ),
-        {"uid": DEV_USER_ID, "show_archived": show_archived},
+        {"uid": user_id, "show_archived": show_archived},
     )
     total = count_result.scalar() or 0
 
@@ -393,7 +394,7 @@ async def list_documents(
             "AND status != 'deleted' AND (:show_archived OR status != 'archived') "
             "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
         ),
-        {"uid": DEV_USER_ID, "show_archived": show_archived, "lim": size, "off": offset},
+        {"uid": user_id, "show_archived": show_archived, "lim": size, "off": offset},
     )
 
     items = [
@@ -861,11 +862,13 @@ async def update_document(
     document_id: UUID,
     payload: DocumentUpdateRequest,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ) -> dict:
     """Update editable document fields (title, cover_type, cover_value)."""
+    user_id = claims.sub
     # Build dynamic SET clause based on provided fields
     set_parts: list[str] = []
-    params: dict = {"did": document_id, "uid": DEV_USER_ID}
+    params: dict = {"did": document_id, "uid": user_id}
     updated_fields: list[str] = []
 
     if payload.title is not None:
@@ -881,7 +884,7 @@ async def update_document(
         # Fetch current cover info to check if we need to delete old uploaded cover
         cur_result = await db.execute(
             text("SELECT cover_type, cover_value FROM documents WHERE id = :did AND user_id = :uid AND status != 'deleted'"),
-            {"did": document_id, "uid": DEV_USER_ID},
+            {"did": document_id, "uid": user_id},
         )
         cur_row = cur_result.first()
         if not cur_row:
@@ -966,15 +969,17 @@ async def upload_cover(
     document_id: UUID,
     file: UploadFile,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ) -> dict:
     """Upload a cover image for a document."""
+    user_id = claims.sub
     # Validate document exists
     doc_result = await db.execute(
         text(
             "SELECT id, cover_type, cover_value FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": DEV_USER_ID},
+        {"did": document_id, "uid": user_id},
     )
     doc_row = doc_result.first()
     if not doc_row:
@@ -1097,16 +1102,18 @@ async def upload_cover(
 async def get_cover(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ):
     """Serve the uploaded cover image for a document."""
     from fastapi.responses import Response
 
+    user_id = claims.sub
     result = await db.execute(
         text(
             "SELECT cover_type, cover_value FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": DEV_USER_ID},
+        {"did": document_id, "uid": user_id},
     )
     row = result.first()
     if not row:
@@ -1144,13 +1151,15 @@ async def get_cover(
 async def delete_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ) -> None:
+    user_id = claims.sub
     result = await db.execute(
         text(
             "UPDATE documents SET status = 'deleted', updated_at = NOW() "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": DEV_USER_ID},
+        {"did": document_id, "uid": user_id},
     )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1161,14 +1170,16 @@ async def delete_document(
 async def archive_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ) -> dict:
     """Toggle document between archived and ready status."""
+    user_id = claims.sub
     result = await db.execute(
         text(
             "SELECT status FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": DEV_USER_ID},
+        {"did": document_id, "uid": user_id},
     )
     row = result.first()
     if not row:
@@ -1179,7 +1190,7 @@ async def archive_document(
             "UPDATE documents SET status = :st, updated_at = NOW() "
             "WHERE id = :did AND user_id = :uid"
         ),
-        {"st": new_status, "did": document_id, "uid": DEV_USER_ID},
+        {"st": new_status, "did": document_id, "uid": user_id},
     )
     await db.commit()
     logger.info("document.archived", doc_id=str(document_id), new_status=new_status)
@@ -1191,15 +1202,17 @@ async def assign_project(
     document_id: str,
     body: dict,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ):
     """Assign or remove a document from a project.
     Body: {"project_id": "<uuid>"} to assign, {"project_id": null} to remove.
     """
+    user_id = claims.sub
     project_id = body.get("project_id")
-    # Verify document exists and belongs to dev user
+    # Verify document exists and belongs to authenticated user
     row = await db.execute(
         text("SELECT id FROM documents WHERE id = :id AND user_id = :uid AND status != 'deleted'"),
-        {"id": document_id, "uid": DEV_USER_ID},
+        {"id": document_id, "uid": user_id},
     )
     if not row.mappings().first():
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1207,7 +1220,7 @@ async def assign_project(
     if project_id is not None:
         proj_row = await db.execute(
             text("SELECT id FROM projects WHERE id = :id AND user_id = :uid"),
-            {"id": project_id, "uid": DEV_USER_ID},
+            {"id": project_id, "uid": user_id},
         )
         if not proj_row.mappings().first():
             raise HTTPException(status_code=404, detail="Project not found")
@@ -1223,14 +1236,16 @@ async def assign_project(
 async def download_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ) -> FileResponse:
     """Serve the original uploaded file for download."""
+    user_id = claims.sub
     result = await db.execute(
         text(
             "SELECT title, source_type, storage_key FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": DEV_USER_ID},
+        {"did": document_id, "uid": user_id},
     )
     row = result.first()
     if not row:
@@ -1403,15 +1418,17 @@ async def export_document(
     include_cover: bool = Query(True, alias="cover"),
     include_footer: bool = Query(True, alias="footer"),
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ):
     """Export document as a branded DOCX file."""
+    user_id = claims.sub
     # Fetch document metadata
     result = await db.execute(
         text(
             "SELECT title, project_id FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": DEV_USER_ID},
+        {"did": document_id, "uid": user_id},
     )
     row = result.mappings().first()
     if not row:

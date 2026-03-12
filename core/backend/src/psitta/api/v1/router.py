@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from psitta.api.v1.auth import router as auth_router
 from psitta.api.v1.documents import router as documents_router
 from psitta.api.v1.playback import router as playback_router
 from psitta.api.v1.voices import router as voices_router
@@ -21,6 +22,13 @@ from psitta.api.v1.tts import router as tts_router
 from psitta.api.v1.projects import router as projects_router
 
 v1_router = APIRouter()
+
+# ── Authentication ────────────────────────────────────────────────────
+v1_router.include_router(
+    auth_router,
+    prefix="/auth",
+    tags=["auth"],
+)
 
 # ── Document Management ────────────────────────────────────────────────
 v1_router.include_router(

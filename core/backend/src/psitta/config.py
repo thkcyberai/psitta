@@ -82,6 +82,24 @@ class Settings(BaseSettings):
     VISION_PROVIDER: Literal["anthropic", "stub"] = "stub"
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
 
+    # ── Auth0 ───────────────────────────────────────────────────────────
+    AUTH0_DOMAIN: str = "dev-8wmplwcxsoyhlcw1.us.auth0.com"
+    AUTH0_AUDIENCE: str = "https://api.psitta.app"
+    AUTH0_ALGORITHMS: str = "RS256"
+    AUTH0_ISSUER: str = ""  # Computed from domain if empty
+
+    @property
+    def auth0_issuer(self) -> str:
+        """Build Auth0 issuer URL from domain."""
+        if self.AUTH0_ISSUER:
+            return self.AUTH0_ISSUER
+        return f"https://{self.AUTH0_DOMAIN}/"
+
+    @property
+    def auth0_jwks_url(self) -> str:
+        """Build Auth0 JWKS endpoint URL."""
+        return f"https://{self.AUTH0_DOMAIN}/.well-known/jwks.json"
+
     # ── Rate Limiting ──────────────────────────────────────────────────
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW_SECONDS: int = 60

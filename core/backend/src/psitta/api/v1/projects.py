@@ -5,24 +5,24 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from psitta.dependencies import get_db_session
+
+from psitta.dependencies import get_current_user, get_db_session
+from psitta.middleware.auth import TokenClaims
 
 logger = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
-DEV_USER_ID = "00000000-0000-0000-0000-000000000001"
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _get_project_or_404(project_id: str, db: AsyncSession) -> dict:
+async def _get_project_or_404(project_id: str, user_id: str, db: AsyncSession) -> dict:
     row = await db.execute(
         text("SELECT id, user_id, name, created_at, cover_document_id FROM projects WHERE id = :id"),
         {"id": project_id},
     )
     project = row.mappings().first()
-    if not project or project["user_id"] != DEV_USER_ID:
+    if not project or project["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Project not found")
     return dict(project)
 
@@ -33,7 +33,9 @@ async def _get_project_or_404(project_id: str, db: AsyncSession) -> dict:
 async def create_project(
     body: dict,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ):
+    user_id = claims.sub
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
@@ -42,7 +44,7 @@ async def create_project(
         text(
             "INSERT INTO projects (id, user_id, name) VALUES (:id, :uid, :name)"
         ),
-        {"id": project_id, "uid": DEV_USER_ID, "name": name},
+        {"id": project_id, "uid": user_id, "name": name},
     )
     await db.commit()
     row = await db.execute(
@@ -62,7 +64,9 @@ async def create_project(
 @router.get("/")
 async def list_projects(
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ):
+    user_id = claims.sub
     rows = await db.execute(
         text("""
             SELECT p.id, p.name, p.created_at, p.cover_document_id,
@@ -79,7 +83,7 @@ async def list_projects(
                      cd.cover_type, cd.cover_value
             ORDER BY p.created_at DESC
         """),
-        {"uid": DEV_USER_ID},
+        {"uid": user_id},
     )
     result = []
     for row in rows.mappings():
@@ -100,8 +104,9 @@ async def update_project(
     project_id: str,
     body: dict,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_project_or_404(project_id, claims.sub, db)
 
     set_parts: list[str] = []
     params: dict = {"id": project_id}
@@ -146,8 +151,9 @@ async def update_project(
 async def delete_project(
     project_id: str,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_project_or_404(project_id, claims.sub, db)
     # Unassign all docs first (project_id → null)
     await db.execute(
         text(
@@ -166,8 +172,9 @@ async def delete_project(
 async def list_project_documents(
     project_id: str,
     db: AsyncSession = Depends(get_db_session),
+    claims: TokenClaims = Depends(get_current_user),
 ):
-    await _get_project_or_404(project_id, db)
+    await _get_project_or_404(project_id, claims.sub, db)
     rows = await db.execute(
         text("""
             SELECT id, title, source_type, status, page_count,

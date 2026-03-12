@@ -49,6 +49,7 @@ class UserTier(str, enum.Enum):
     FREE = "free"
     PRO = "pro"
     ENTERPRISE = "enterprise"
+    ADMIN = "admin"
 
 
 class ChunkType(str, enum.Enum):

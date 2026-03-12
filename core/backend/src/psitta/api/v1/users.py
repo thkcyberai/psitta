@@ -16,7 +16,13 @@ from __future__ import annotations
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from psitta.dependencies import get_current_user as get_auth_user, get_db_session
+from psitta.middleware.auth import TokenClaims
+from psitta.middleware.rbac import get_tier_limits
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -28,25 +34,46 @@ router = APIRouter()
     summary="Get current user's profile",
     response_description="User profile and preferences",
 )
-async def get_current_user() -> dict:
+async def get_current_user_profile(
+    claims: TokenClaims = Depends(get_auth_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
     """Retrieve the authenticated user's profile.
 
     Returns display name, email (masked), subscription tier,
     usage stats, and preferences.
     """
-    logger.info("users.profile.get")
+    logger.info("users.profile.get", sub=claims.sub)
 
-    # TODO: Wire to auth dependency + user service
+    result = await db.execute(
+        text("SELECT id, display_name, tier, email FROM users WHERE auth0_user_id = :sub"),
+        {"sub": claims.sub},
+    )
+    user = result.mappings().first()
+
+    if not user:
+        return {
+            "id": claims.sub,
+            "display_name": claims.email.split("@")[0] if claims.email else "User",
+            "tier": "free",
+            "email": claims.email,
+            "usage": {"documents_this_month": 0, "documents_limit": 3, "storage_used_mb": 0},
+        }
+
+    tier = user["tier"]
+    limits = get_tier_limits(tier)
+
     return {
-        "id": "pending",
-        "display_name": "pending",
-        "tier": "free",
+        "id": str(user["id"]),
+        "display_name": user["display_name"],
+        "tier": tier,
+        "email": user["email"],
         "usage": {
             "documents_this_month": 0,
-            "documents_limit": 3,
+            "documents_limit": limits.documents_per_month,
             "storage_used_mb": 0,
+            "storage_limit_mb": limits.storage_mb,
         },
-        "message": "User profile endpoint — auth + service layer pending",
     }
 
 
