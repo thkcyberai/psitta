@@ -70,6 +70,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       if (file.path == null) continue;
       try {
         await repo.uploadDocument(file.path!);
+      } on DioException catch (e) {
+        if (mounted) {
+          String msg = 'Upload failed: ${file.name}';
+          final statusCode = e.response?.statusCode;
+          if (statusCode == 402 || statusCode == 403) {
+            try {
+              final data = e.response?.data;
+              if (data is Map && data['detail'] is Map) {
+                msg = data['detail']['message'] as String? ?? msg;
+              }
+            } catch (_) {}
+          }
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg)),
+          );
+        }
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

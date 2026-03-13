@@ -20,6 +20,7 @@ from psitta.api.v1.voices import router as voices_router
 from psitta.api.v1.users import router as users_router
 from psitta.api.v1.tts import router as tts_router
 from psitta.api.v1.projects import router as projects_router
+from psitta.api.v1.subscriptions import router as subscriptions_router
 
 v1_router = APIRouter()
 
@@ -61,6 +62,11 @@ v1_router.include_router(
 # ── Projects ──────────────────────────────────────────────────────────
 v1_router.include_router(
     projects_router,
+)
+
+# ── Subscriptions ─────────────────────────────────────────────────────
+v1_router.include_router(
+    subscriptions_router,
 )
 
 # ── TTS Diagnostics ────────────────────────────────────────────────────

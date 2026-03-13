@@ -21,7 +21,8 @@
       "Bash(docker ps:*)",
       "Bash(python3:*)",
       "Read(//tmp/**)",
-      "Bash(cp \"C:/products/psitta/core/backend/src/psitta/config.py\" \"C:/products/psitta/core/backend/src/psitta/config.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/dependencies.py\" \"C:/products/psitta/core/backend/src/psitta/dependencies.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/main.py\" \"C:/products/psitta/core/backend/src/psitta/main.py.bak\")"
+      "Bash(cp \"C:/products/psitta/core/backend/src/psitta/config.py\" \"C:/products/psitta/core/backend/src/psitta/config.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/dependencies.py\" \"C:/products/psitta/core/backend/src/psitta/dependencies.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/main.py\" \"C:/products/psitta/core/backend/src/psitta/main.py.bak\")",
+      "Bash(cp \"C:/products/psitta/core/backend/src/psitta/api/v1/router.py\" \"C:/products/psitta/core/backend/src/psitta/api/v1/router.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/api/v1/documents.py\" \"C:/products/psitta/core/backend/src/psitta/api/v1/documents.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/dependencies.py\" \"C:/products/psitta/core/backend/src/psitta/dependencies.py.bak\")"
     ],
     "deny": [],
     "ask": []

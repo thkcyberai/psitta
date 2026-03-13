@@ -321,6 +321,9 @@ async def upload_document(
 
     doc_id = uuid4()
 
+    from psitta.services.subscription_service import check_and_increment_doc_quota
+    await check_and_increment_doc_quota(db, UUID(claims.sub))
+
     from psitta.services.audio_cache import put_raw_file
     await put_raw_file(str(doc_id), extension, file_bytes)
     title = filename.rsplit(".", 1)[0] if "." in filename else filename

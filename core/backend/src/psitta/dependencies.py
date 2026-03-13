@@ -24,7 +24,17 @@ from psitta.middleware.auth import get_current_user  # noqa: F401
 from psitta.middleware.auth import require_permission  # noqa: F401
 from psitta.middleware.auth import require_role  # noqa: F401
 
+from uuid import UUID
+
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+# ── Current User ID ───────────────────────────────────────────────────
+async def get_current_user_id(
+    claims: TokenClaims = Depends(get_current_user),
+) -> UUID:
+    """Extract and return just the user UUID from the auth claims."""
+    return UUID(claims.sub)
 
 
 # ── Settings Dependency ────────────────────────────────────────────────
