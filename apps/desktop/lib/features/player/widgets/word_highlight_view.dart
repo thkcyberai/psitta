@@ -97,15 +97,25 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
     return (spans.length - 1).clamp(0, spans.length - 1);
   }
 
-  @override
-  void initState() {
-    super.initState();
-    // Listen via addListener pattern is unsafe here; we use didChangeDependencies
+  // ── Context menu builder ───────────────────────────────────────────────────
+  Widget _buildContextMenu(
+      BuildContext ctx, EditableTextState editableTextState) {
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: editableTextState.contextMenuAnchors,
+      buttonItems: [
+        ContextMenuButtonItem(
+          label: 'Listen from here',
+          onPressed: () {
+            ContextMenuController.removeAny();
+            _seekToSelection(editableTextState);
+          },
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Safe watch — ConsumerState guards against defunct element
     final position =
         ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero;
 
@@ -116,19 +126,51 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
       fontSize: 16,
     );
 
+    final cmBuilder =
+        widget.enableContextMenu ? _buildContextMenu : null;
+
     final alignmentBlock = widget.alignmentPayload['alignment'];
+    final spans = _computeWordSpans(widget.chunkText);
+
+    // ── No alignment data (Edge/Azure): drive scroll by position ratio ──
     if (alignmentBlock is! Map) {
-      return SelectableText(widget.chunkText, style: baseStyle);
+      if (spans.isNotEmpty && widget.onActiveWordChanged != null) {
+        final audio = widget.audioService;
+        final durationMs = audio?.duration?.inMilliseconds ?? 0;
+        final posMs = position.inMilliseconds;
+        if (durationMs > 0) {
+          final ratio = (posMs / durationMs).clamp(0.0, 1.0);
+          final estimatedWord = (ratio * (spans.length - 1)).round();
+          if (estimatedWord != _prevActiveWord) {
+            _prevActiveWord = estimatedWord;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              widget.onActiveWordChanged?.call(estimatedWord, spans.length);
+            });
+          }
+        }
+      }
+      return SelectableText(
+        widget.chunkText,
+        style: baseStyle,
+        contextMenuBuilder: cmBuilder,
+      );
     }
 
-    final spans = _computeWordSpans(widget.chunkText);
     if (spans.isEmpty) {
-      return SelectableText(widget.chunkText, style: baseStyle);
+      return SelectableText(
+        widget.chunkText,
+        style: baseStyle,
+        contextMenuBuilder: cmBuilder,
+      );
     }
 
     final charIdx = _charIndexAtMs(alignmentBlock, position.inMilliseconds);
     if (charIdx == null) {
-      return SelectableText(widget.chunkText, style: baseStyle);
+      return SelectableText(
+        widget.chunkText,
+        style: baseStyle,
+        contextMenuBuilder: cmBuilder,
+      );
     }
 
     final activeWord = _wordIndexFromCharIndex(spans, charIdx);
@@ -175,45 +217,44 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
 
     return SelectableText.rich(
       TextSpan(children: children),
-      contextMenuBuilder: widget.enableContextMenu
-          ? (context, editableTextState) {
-              return AdaptiveTextSelectionToolbar.buttonItems(
-                anchors: editableTextState.contextMenuAnchors,
-                buttonItems: [
-                  ContextMenuButtonItem(
-                    label: 'Listen from here',
-                    onPressed: () {
-                      ContextMenuController.removeAny();
-                      _seekToSelection(editableTextState);
-                    },
-                  ),
-                ],
-              );
-            }
-          : null,
+      contextMenuBuilder: cmBuilder,
     );
   }
 
   void _seekToSelection(EditableTextState editableTextState) {
     final selection = editableTextState.currentTextEditingValue.selection;
-    if (!selection.isValid || selection.isCollapsed) return;
+    if (!selection.isValid) return;
 
+    // Use start of selection (works for both cursor click and drag-select)
     final charIndex = selection.start;
-
-    final alignmentBlock = widget.alignmentPayload['alignment'];
-    if (alignmentBlock is! Map) return;
-
-    final normalized = alignmentBlock['normalized_alignment'];
-    if (normalized is! Map) return;
-
-    final startTimes = normalized['character_start_times_seconds'];
-    if (startTimes is! List || charIndex >= startTimes.length) return;
-
-    final seconds = (startTimes[charIndex] as num).toDouble();
-    final ms = (seconds * 1000).round();
-
     final audio = widget.audioService;
     if (audio == null) return;
+
+    final alignmentBlock = widget.alignmentPayload['alignment'];
+
+    if (alignmentBlock is Map) {
+      // ── Alignment available (ElevenLabs): seek by character timestamp ──
+      final normalized = alignmentBlock['normalized_alignment'];
+      if (normalized is Map) {
+        final startTimes = normalized['character_start_times_seconds'];
+        if (startTimes is List && charIndex < startTimes.length) {
+          final seconds = (startTimes[charIndex] as num).toDouble();
+          final ms = (seconds * 1000).round();
+          audio.pause();
+          audio.seek(Duration(milliseconds: ms));
+          audio.play();
+          return;
+        }
+      }
+    }
+
+    // ── No alignment (Edge/Azure): estimate by character ratio ──────────
+    final totalChars = widget.chunkText.length;
+    if (totalChars == 0) return;
+    final ratio = charIndex / totalChars;
+    final durationMs = audio.duration?.inMilliseconds ?? 0;
+    if (durationMs == 0) return;
+    final ms = (ratio * durationMs).round();
     audio.pause();
     audio.seek(Duration(milliseconds: ms));
     audio.play();

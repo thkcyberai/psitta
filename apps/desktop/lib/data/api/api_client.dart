@@ -17,6 +17,7 @@ class ApiClient {
       connectTimeout: AppConstants.httpTimeout,
       receiveTimeout: AppConstants.httpTimeout,
       headers: {
+        'Authorization': 'Bearer dev-bypass-token',
         'Accept': 'application/json',
       },
     ));

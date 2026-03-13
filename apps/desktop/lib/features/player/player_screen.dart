@@ -389,9 +389,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     ],
                   ),
                 ),
-              SelectableText(
-                chunkText,
-                style: theme.textTheme.bodyLarge?.copyWith(height: 1.8, fontSize: 16),
+              WordHighlightView(
+                key: ValueKey('${chunkId}_${voiceId}_plain'),
+                chunkText: chunkText,
+                alignmentPayload: const {},
+                onActiveWordChanged: _onActiveWordChanged,
+                enableContextMenu: true,
+                audioService: _audioService,
               ),
             ],
           );

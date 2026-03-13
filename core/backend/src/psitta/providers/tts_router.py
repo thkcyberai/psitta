@@ -236,29 +236,35 @@ class TTSRouter:
         output_format: str,
     ) -> tuple[bytes, str]:
         fallback = self._fallback_selected
-        if fallback:
+        if fallback and fallback != "edge":
             provider = self._get_provider(fallback)
             if provider:
-                logger.info("tts_router.fallback", from_provider=primary, to_provider=fallback)
+                try:
+                    logger.info("tts_router.fallback", from_provider=primary, to_provider=fallback)
+                    audio = await self._synthesize_with_provider(
+                        provider=fallback,
+                        text=text,
+                        voice_id=voice_id,
+                        speed=speed,
+                        output_format=output_format,
+                    )
+                    return audio, fallback
+                except Exception as e:
+                    logger.warning("tts_router.fallback_failed", provider=fallback, error=str(e))
+
+        if primary != "edge" and self._edge:
+            try:
+                logger.info("tts_router.fallback", from_provider=primary, to_provider="edge")
                 audio = await self._synthesize_with_provider(
-                    provider=fallback,
+                    provider="edge",
                     text=text,
                     voice_id=voice_id,
                     speed=speed,
                     output_format=output_format,
                 )
-                return audio, fallback
-
-        if primary != "edge" and self._edge:
-            logger.info("tts_router.fallback", from_provider=primary, to_provider="edge")
-            audio = await self._synthesize_with_provider(
-                provider="edge",
-                text=text,
-                voice_id=voice_id,
-                speed=speed,
-                output_format=output_format,
-            )
-            return audio, "edge"
+                return audio, "edge"
+            except Exception as e:
+                logger.warning("tts_router.edge_failed", error=str(e))
 
         raise RuntimeError(f"TTS failed: no fallback available (primary={primary})")
 
