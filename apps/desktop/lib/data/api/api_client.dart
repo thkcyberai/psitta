@@ -2,13 +2,14 @@ import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
 import '../../core/constants.dart';
+import '../services/auth_service.dart';
 
 /// Psitta API client — centralized HTTP layer.
 ///
 /// All API calls go through this client. Handles:
 /// - Base URL configuration
 /// - Request/response timeouts
-/// - Auth token injection (TODO: wire to auth provider)
+/// - Auth token injection from secure storage (falls back to dev bypass)
 /// - Error interceptor for consistent error handling
 class ApiClient {
   ApiClient() {
@@ -17,8 +18,17 @@ class ApiClient {
       connectTimeout: AppConstants.httpTimeout,
       receiveTimeout: AppConstants.httpTimeout,
       headers: {
-        'Authorization': 'Bearer dev-bypass-token',
         'Accept': 'application/json',
+      },
+    ));
+
+    // Inject auth token on every request.
+    _dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        final token = await _authService.getAccessToken();
+        options.headers['Authorization'] =
+            'Bearer ${token ?? 'dev-bypass-token'}';
+        handler.next(options);
       },
     ));
 
@@ -29,6 +39,7 @@ class ApiClient {
     ));
   }
 
+  final AuthService _authService = AuthService();
   late final Dio _dio;
 
   Dio get dio => _dio;

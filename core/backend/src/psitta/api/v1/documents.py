@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.dependencies import get_current_user, get_db_session
+from psitta.dependencies import get_current_user_id, get_db_session
 from psitta.middleware.auth import TokenClaims
 from psitta.schemas.api import ChunkResponse, ChunkUpdateRequest, ResynthesizeResponse
 
@@ -308,7 +308,7 @@ async def _process_document(
 async def upload_document(
     file: UploadFile,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     filename = file.filename or "unknown"
     extension = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
@@ -322,7 +322,7 @@ async def upload_document(
     doc_id = uuid4()
 
     from psitta.services.subscription_service import check_and_increment_doc_quota
-    await check_and_increment_doc_quota(db, UUID(claims.sub))
+    await check_and_increment_doc_quota(db, user_id)
 
     from psitta.services.audio_cache import put_raw_file
     await put_raw_file(str(doc_id), extension, file_bytes)
@@ -340,7 +340,7 @@ async def upload_document(
         ),
         {
             "id": doc_id,
-            "user_id": claims.sub,
+            "user_id": user_id,
             "title": title,
             "source_type": source_type,
             "status": "uploaded",
@@ -376,9 +376,8 @@ async def list_documents(
     size: Annotated[int, Query(ge=1, le=100)] = 20,
     show_archived: bool = False,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
-    user_id = claims.sub
     offset = (page - 1) * size
 
     count_result = await db.execute(
@@ -865,10 +864,9 @@ async def update_document(
     document_id: UUID,
     payload: DocumentUpdateRequest,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     """Update editable document fields (title, cover_type, cover_value)."""
-    user_id = claims.sub
     # Build dynamic SET clause based on provided fields
     set_parts: list[str] = []
     params: dict = {"did": document_id, "uid": user_id}
@@ -972,10 +970,9 @@ async def upload_cover(
     document_id: UUID,
     file: UploadFile,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     """Upload a cover image for a document."""
-    user_id = claims.sub
     # Validate document exists
     doc_result = await db.execute(
         text(
@@ -1105,12 +1102,11 @@ async def upload_cover(
 async def get_cover(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ):
     """Serve the uploaded cover image for a document."""
     from fastapi.responses import Response
 
-    user_id = claims.sub
     result = await db.execute(
         text(
             "SELECT cover_type, cover_value FROM documents "
@@ -1154,9 +1150,8 @@ async def get_cover(
 async def delete_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> None:
-    user_id = claims.sub
     result = await db.execute(
         text(
             "UPDATE documents SET status = 'deleted', updated_at = NOW() "
@@ -1173,10 +1168,9 @@ async def delete_document(
 async def archive_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     """Toggle document between archived and ready status."""
-    user_id = claims.sub
     result = await db.execute(
         text(
             "SELECT status FROM documents "
@@ -1205,12 +1199,11 @@ async def assign_project(
     document_id: str,
     body: dict,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ):
     """Assign or remove a document from a project.
     Body: {"project_id": "<uuid>"} to assign, {"project_id": null} to remove.
     """
-    user_id = claims.sub
     project_id = body.get("project_id")
     # Verify document exists and belongs to authenticated user
     row = await db.execute(
@@ -1239,10 +1232,9 @@ async def assign_project(
 async def download_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> FileResponse:
     """Serve the original uploaded file for download."""
-    user_id = claims.sub
     result = await db.execute(
         text(
             "SELECT title, source_type, storage_key FROM documents "
@@ -1421,10 +1413,9 @@ async def export_document(
     include_cover: bool = Query(True, alias="cover"),
     include_footer: bool = Query(True, alias="footer"),
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ):
     """Export document as a branded DOCX file."""
-    user_id = claims.sub
     # Fetch document metadata
     result = await db.execute(
         text(

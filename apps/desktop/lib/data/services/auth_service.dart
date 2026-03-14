@@ -1,100 +1,207 @@
-import 'package:auth0_flutter/auth0_flutter.dart';
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 
-/// Auth0 configuration constants.
-const _auth0Domain = 'dev-8wmplwcxsoyhlcw1.us.auth0.com';
-const _auth0ClientId = 'o4YisrJYWrsPMSiNZ6o2yuUpn0lgulyh';
-const _auth0Audience = 'https://api.psitta.app';
+// ── Auth0 Configuration ──────────────────────────────────────────────
+const auth0Domain = 'dev-8wmplwcxsoyhlcw1.us.auth0.com';
+const auth0ClientId = 'o4YisrJYWrsPMSiNZ6o2yuUpn0lgulyh';
+const auth0Audience = 'https://api.psitta.app';
+const auth0RedirectUri = 'http://localhost:8080/callback';
+const auth0Scopes = 'openid profile email offline_access';
 
-/// Manages Auth0 authentication lifecycle.
+// ── Secure Storage Keys ──────────────────────────────────────────────
+const _accessTokenKey = 'access_token';
+const _refreshTokenKey = 'refresh_token';
+
+/// Manages Auth0 authentication for Windows desktop.
 ///
-/// Handles login, logout, token refresh, and secure storage
-/// of credentials. Tokens are persisted in flutter_secure_storage
-/// so users don't need to log in on every app start.
+/// The login UI is handled by an embedded WebView (see LoginScreen).
+/// This service provides PKCE helpers, token exchange, session restore,
+/// logout, and token access.
 class AuthService {
-  AuthService()
-      : _auth0 = Auth0(_auth0Domain, _auth0ClientId),
-        _storage = const FlutterSecureStorage();
+  AuthService() : _storage = const FlutterSecureStorage();
 
-  final Auth0 _auth0;
   final FlutterSecureStorage _storage;
 
-  static const _accessTokenKey = 'psitta_access_token';
-  static const _refreshTokenKey = 'psitta_refresh_token';
+  // ── PKCE Helpers (public — used by LoginScreen) ────────────────────
 
-  Credentials? _credentials;
+  /// Generate a cryptographically random string for PKCE code_verifier.
+  static String generateCodeVerifier() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(32, (_) => random.nextInt(256));
+    return base64UrlEncode(bytes).replaceAll('=', '');
+  }
 
-  /// The current access token, or null if not authenticated.
-  String? get accessToken => _credentials?.accessToken;
+  /// Derive the S256 code_challenge from a code_verifier.
+  static String generateCodeChallenge(String verifier) {
+    final bytes = utf8.encode(verifier);
+    final digest = sha256.convert(bytes);
+    return base64UrlEncode(digest.bytes).replaceAll('=', '');
+  }
 
-  /// The current user's ID token claims.
-  UserProfile? get userProfile => _credentials?.user;
+  /// Generate a random state string for CSRF protection.
+  static String generateState() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    return base64UrlEncode(bytes).replaceAll('=', '');
+  }
 
-  /// Whether the user is currently authenticated.
-  bool get isAuthenticated => _credentials != null;
+  /// Build the Auth0 /authorize URL with PKCE parameters.
+  static Uri buildAuthorizeUrl({
+    required String codeChallenge,
+    required String state,
+  }) {
+    return Uri.https(auth0Domain, '/authorize', {
+      'response_type': 'code',
+      'client_id': auth0ClientId,
+      'redirect_uri': auth0RedirectUri,
+      'scope': auth0Scopes,
+      'audience': auth0Audience,
+      'state': state,
+      'code_challenge': codeChallenge,
+      'code_challenge_method': 'S256',
+    });
+  }
+
+  // ── Token Exchange ─────────────────────────────────────────────────
+
+  /// Exchange an authorization code for tokens.
+  ///
+  /// Called by LoginScreen after the WebView intercepts the callback URL.
+  /// Validates the returned state, then POSTs to Auth0 /oauth/token.
+  Future<void> exchangeCodeForTokens({
+    required String code,
+    required String state,
+    required String expectedState,
+    required String codeVerifier,
+  }) async {
+    if (state != expectedState) {
+      throw Exception('OAuth state mismatch — possible CSRF attack');
+    }
+
+    final dio = Dio();
+    try {
+      final response = await dio.post(
+        'https://$auth0Domain/oauth/token',
+        data: {
+          'grant_type': 'authorization_code',
+          'client_id': auth0ClientId,
+          'code': code,
+          'redirect_uri': auth0RedirectUri,
+          'code_verifier': codeVerifier,
+        },
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+        ),
+      );
+
+      final body = response.data as Map<String, dynamic>;
+      final accessToken = body['access_token'] as String?;
+      final refreshToken = body['refresh_token'] as String?;
+
+      if (accessToken == null) {
+        throw Exception('No access_token in token response');
+      }
+
+      await _storage.write(key: _accessTokenKey, value: accessToken);
+      if (refreshToken != null) {
+        await _storage.write(key: _refreshTokenKey, value: refreshToken);
+      }
+    } finally {
+      dio.close();
+    }
+  }
+
+  // ── Session Restore ────────────────────────────────────────────────
 
   /// Attempt to restore a session from stored credentials.
   ///
-  /// Returns true if a valid session was restored.
+  /// Returns true if a valid (non-expired) access token exists.
+  /// If the access token is expired but a refresh token is available,
+  /// attempts a refresh_token grant to get a new access token.
   Future<bool> tryRestoreSession() async {
-    final storedToken = await _storage.read(key: _accessTokenKey);
-    if (storedToken == null) return false;
+    final token = await _storage.read(key: _accessTokenKey);
+    if (token == null) return false;
+
+    // Token still valid — session restored.
+    if (!JwtDecoder.isExpired(token)) return true;
+
+    // Token expired — try refresh.
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    if (refreshToken == null) {
+      await _clearStorage();
+      return false;
+    }
 
     try {
-      _credentials = await _auth0.api.renewCredentials(
-        refreshToken: await _storage.read(key: _refreshTokenKey) ?? '',
-      );
-      await _persistCredentials();
-      return true;
+      final dio = Dio();
+      try {
+        final response = await dio.post(
+          'https://$auth0Domain/oauth/token',
+          data: {
+            'grant_type': 'refresh_token',
+            'client_id': auth0ClientId,
+            'refresh_token': refreshToken,
+          },
+          options: Options(
+            contentType: Headers.formUrlEncodedContentType,
+          ),
+        );
+
+        final body = response.data as Map<String, dynamic>;
+        final newAccessToken = body['access_token'] as String?;
+        final newRefreshToken = body['refresh_token'] as String?;
+
+        if (newAccessToken == null) {
+          await _clearStorage();
+          return false;
+        }
+
+        await _storage.write(key: _accessTokenKey, value: newAccessToken);
+        if (newRefreshToken != null) {
+          await _storage.write(key: _refreshTokenKey, value: newRefreshToken);
+        }
+        return true;
+      } finally {
+        dio.close();
+      }
     } catch (_) {
-      await _clearCredentials();
+      await _clearStorage();
       return false;
     }
   }
 
-  /// Launch the Auth0 Universal Login flow.
+  // ── Logout ─────────────────────────────────────────────────────────
+
+  /// Clear stored credentials.
   ///
-  /// Returns the authenticated user's credentials.
-  Future<Credentials> login() async {
-    _credentials = await _auth0.webAuthentication().login(
-      audience: _auth0Audience,
-      scopes: {'openid', 'profile', 'email', 'offline_access'},
-    );
-    await _persistCredentials();
-    return _credentials!;
-  }
-
-  /// Log the user out and clear stored credentials.
+  /// Navigation to /login is handled by the AuthStateNotifier listener
+  /// in the router, so no browser or URL launch is needed here.
   Future<void> logout() async {
-    try {
-      await _auth0.webAuthentication().logout();
-    } catch (_) {
-      // Best-effort: clear local state even if Auth0 logout fails
-    }
-    _credentials = null;
-    await _clearCredentials();
+    await _clearStorage();
   }
 
-  Future<void> _persistCredentials() async {
-    if (_credentials == null) return;
-    await _storage.write(
-      key: _accessTokenKey,
-      value: _credentials!.accessToken,
-    );
-    if (_credentials!.refreshToken != null) {
-      await _storage.write(
-        key: _refreshTokenKey,
-        value: _credentials!.refreshToken!,
-      );
-    }
+  // ── Token Access ───────────────────────────────────────────────────
+
+  /// Read the current access token from secure storage.
+  Future<String?> getAccessToken() async {
+    return _storage.read(key: _accessTokenKey);
   }
 
-  Future<void> _clearCredentials() async {
+  // ── Helpers ────────────────────────────────────────────────────────
+
+  Future<void> _clearStorage() async {
     await _storage.delete(key: _accessTokenKey);
     await _storage.delete(key: _refreshTokenKey);
   }
 }
+
+// ── Riverpod Providers ───────────────────────────────────────────────
 
 /// Riverpod provider for the auth service singleton.
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
@@ -108,15 +215,9 @@ final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>(
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
 class AuthState {
-  const AuthState({
-    required this.status,
-    this.accessToken,
-    this.userProfile,
-  });
+  const AuthState({required this.status});
 
   final AuthStatus status;
-  final String? accessToken;
-  final UserProfile? userProfile;
 }
 
 class AuthStateNotifier extends StateNotifier<AuthState> {
@@ -129,24 +230,15 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
 
   Future<void> _init() async {
     final restored = await _authService.tryRestoreSession();
-    if (restored) {
-      state = AuthState(
-        status: AuthStatus.authenticated,
-        accessToken: _authService.accessToken,
-        userProfile: _authService.userProfile,
-      );
-    } else {
-      state = const AuthState(status: AuthStatus.unauthenticated);
-    }
+    state = AuthState(
+      status: restored
+          ? AuthStatus.authenticated
+          : AuthStatus.unauthenticated,
+    );
   }
 
   Future<void> login() async {
-    final credentials = await _authService.login();
-    state = AuthState(
-      status: AuthStatus.authenticated,
-      accessToken: credentials.accessToken,
-      userProfile: credentials.user,
-    );
+    state = const AuthState(status: AuthStatus.authenticated);
   }
 
   Future<void> logout() async {

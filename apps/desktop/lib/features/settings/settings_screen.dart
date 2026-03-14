@@ -1,14 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
+import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
 
 String _autoDeleteLabel(int? days) =>
     days == null ? 'Never' : 'After $days days';
 
 String _cacheSizeLabel(int mb) => mb >= 1024 ? '${mb ~/ 1024} GB' : '$mb MB';
+
+/// Fetches the current user's subscription summary from the backend.
+final subscriptionSummaryProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final response = await api.dio.get('/users/me/subscription');
+  return response.data as Map<String, dynamic>;
+});
 
 /// Settings Screen — user preferences and app configuration.
 ///
@@ -39,6 +49,11 @@ class SettingsScreen extends ConsumerWidget {
               constraints: const BoxConstraints(maxWidth: 600),
               child: ListView(
                 children: [
+                  const _SectionHeader(title: 'Account'),
+                  const _AccountTile(),
+                  const _SubscriptionTile(),
+                  _LogoutTile(),
+                  const SizedBox(height: 16),
                   const _SectionHeader(title: 'Appearance'),
                   ListTile(
                     title: const Text('Theme'),
@@ -180,12 +195,6 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const _SectionHeader(title: 'Account'),
-                  const ListTile(
-                    title: Text('Subscription'),
-                    subtitle: Text('Free tier — 3 documents/month'),
-                    trailing: Icon(Icons.chevron_right),
-                  ),
                   const ListTile(
                     title: Text('API Server'),
                     subtitle: Text('http://localhost:8000'),
@@ -206,6 +215,84 @@ class SettingsScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Shows the user's email decoded from the stored JWT access token.
+class _AccountTile extends ConsumerWidget {
+  const _AccountTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<String?>(
+      future: ref.read(authServiceProvider).getAccessToken(),
+      builder: (context, snapshot) {
+        String email = 'Not signed in';
+        if (snapshot.hasData && snapshot.data != null) {
+          try {
+            final claims = JwtDecoder.decode(snapshot.data!);
+            email = (claims['https://psitta.app/email'] as String?) ??
+                (claims['email'] as String?) ??
+                'Unknown';
+          } catch (_) {
+            email = 'Unknown';
+          }
+        }
+        return ListTile(
+          leading: const Icon(Icons.person_outline),
+          title: const Text('Email'),
+          subtitle: Text(email),
+        );
+      },
+    );
+  }
+}
+
+/// Shows the user's current plan and monthly doc usage.
+class _SubscriptionTile extends ConsumerWidget {
+  const _SubscriptionTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sub = ref.watch(subscriptionSummaryProvider);
+    return sub.when(
+      loading: () => const ListTile(
+        leading: Icon(Icons.card_membership_outlined),
+        title: Text('Subscription'),
+        subtitle: Text('Loading...'),
+      ),
+      error: (_, __) => const ListTile(
+        leading: Icon(Icons.card_membership_outlined),
+        title: Text('Subscription'),
+        subtitle: Text('Could not load plan info'),
+      ),
+      data: (data) {
+        final planId = data['plan_id'] ?? 'free';
+        final used = data['docs_this_month'] ?? 0;
+        final limit = data['docs_limit'] ?? 0;
+        final limitLabel = limit == -1 ? 'unlimited' : '$limit';
+        return ListTile(
+          leading: const Icon(Icons.card_membership_outlined),
+          title: Text('Plan: $planId'),
+          subtitle: Text('Documents this month: $used / $limitLabel'),
+        );
+      },
+    );
+  }
+}
+
+/// Logout button that signs out and redirects to /login.
+class _LogoutTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return ListTile(
+      leading: const Icon(Icons.logout, color: Colors.red),
+      title: const Text('Logout', style: TextStyle(color: Colors.red)),
+      onTap: () async {
+        await ref.read(authStateProvider.notifier).logout();
+        if (context.mounted) context.go('/login');
+      },
     );
   }
 }

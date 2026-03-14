@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../data/services/auth_service.dart';
+import '../../features/auth/login_screen.dart';
 import '../../features/shell/desktop_shell.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/player/player_screen.dart';
@@ -14,14 +16,32 @@ import '../../features/voices/voice_selector_screen.dart';
 ///
 /// Uses [ShellRoute] to maintain a persistent desktop shell
 /// (sidebar + player bar) while swapping the main content area.
+/// The /login route sits outside the shell.
 final appRouterProvider = Provider<GoRouter>((ref) {
+  final authState = ref.watch(authStateProvider);
+
   return GoRouter(
-    initialLocation: '/library',
+    initialLocation: authState.status == AuthStatus.authenticated
+        ? '/library'
+        : '/login',
     redirect: (context, state) {
+      final loggedIn = authState.status == AuthStatus.authenticated;
+      final onLogin = state.uri.toString() == '/login';
+
+      // Not logged in and not already on login → go to login.
+      if (!loggedIn && !onLogin) return '/login';
+      // Logged in but on login page → go to library.
+      if (loggedIn && onLogin) return '/library';
       if (state.uri.toString() == '/') return '/library';
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/login',
+        pageBuilder: (context, state) => const NoTransitionPage(
+          child: LoginScreen(),
+        ),
+      ),
       ShellRoute(
         builder: (context, state, child) {
           return DesktopShell(child: child);

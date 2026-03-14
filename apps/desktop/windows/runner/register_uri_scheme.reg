@@ -1,0 +1,15 @@
+Windows Registry Editor Version 5.00
+
+; Register com.psitta.app as a custom URI scheme for Auth0 login callback.
+; Run this file once (double-click) to enable Auth0 redirect on Windows.
+
+[HKEY_CURRENT_USER\Software\Classes\com.psitta.app]
+@="URL:Psitta App"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\com.psitta.app\shell]
+
+[HKEY_CURRENT_USER\Software\Classes\com.psitta.app\shell\open]
+
+[HKEY_CURRENT_USER\Software\Classes\com.psitta.app\shell\open\command]
+@="\"cmd\" /c \"echo Auth0 callback received\""

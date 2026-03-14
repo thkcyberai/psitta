@@ -24,7 +24,9 @@ dependencies:
 
   # Authentication (Auth0)
   auth0_flutter: ^1.7.0
-  flutter_secure_storage: ^9.2.0
+  flutter_secure_storage: ^9.2.2
+  jwt_decoder: ^2.0.1
+  webview_windows: ^0.4.0
 
   # Audio playback
   just_audio: ^0.9.39
@@ -44,6 +46,9 @@ dependencies:
 
   # SVG rendering
   flutter_svg: ^2.0.10
+
+  # Crypto (PKCE code challenge)
+  crypto: ^3.0.0
 
   # Utilities
   path: ^1.9.0

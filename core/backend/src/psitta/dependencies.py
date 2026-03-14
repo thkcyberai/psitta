@@ -17,6 +17,7 @@ from typing import AsyncGenerator
 
 import structlog
 from fastapi import Depends
+from sqlalchemy import text
 
 from psitta.config import Settings, get_settings
 from psitta.middleware.auth import TokenClaims  # noqa: F401 — re-export for convenience
@@ -24,23 +25,10 @@ from psitta.middleware.auth import get_current_user  # noqa: F401
 from psitta.middleware.auth import require_permission  # noqa: F401
 from psitta.middleware.auth import require_role  # noqa: F401
 
-from uuid import UUID
+from uuid import UUID, uuid4
+from datetime import datetime, timezone
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
-
-
-# ── Current User ID ───────────────────────────────────────────────────
-async def get_current_user_id(
-    claims: TokenClaims = Depends(get_current_user),
-) -> UUID:
-    """Extract and return just the user UUID from the auth claims."""
-    return UUID(claims.sub)
-
-
-# ── Settings Dependency ────────────────────────────────────────────────
-async def get_app_settings() -> Settings:
-    """Inject application settings into route handlers."""
-    return get_settings()
 
 
 # ── Database Session ───────────────────────────────────────────────────
@@ -56,6 +44,55 @@ async def get_db_session() -> AsyncGenerator:  # type: ignore[type-arg]
             raise
         finally:
             await session.close()
+
+
+# ── Current User ID ───────────────────────────────────────────────────
+async def get_current_user_id(
+    claims: TokenClaims = Depends(get_current_user),
+    db=Depends(get_db_session),
+) -> UUID:
+    """Look up the user by auth0_user_id, auto-provisioning if not found."""
+    sub = claims.sub
+
+    # Look up existing user
+    result = await db.execute(
+        text("SELECT id FROM users WHERE auth0_user_id = :sub"),
+        {"sub": sub},
+    )
+    row = result.fetchone()
+    if row is not None:
+        return row[0]
+
+    # Auto-provision new user
+    new_id = uuid4()
+    email = getattr(claims, "email", None) or f"{sub.replace('|', '_')}@auth0.local"
+    display_name = getattr(claims, "name", None) or email.split("@")[0]
+    now = datetime.now(timezone.utc)
+
+    await db.execute(
+        text(
+            "INSERT INTO users (id, external_id, email, display_name, auth0_user_id, tier, is_active, created_at, updated_at) "
+            "VALUES (:id, :external_id, :email, :display_name, :auth0_user_id, 'free', true, :now, :now)"
+        ),
+        {
+            "id": new_id,
+            "external_id": str(new_id),
+            "email": email,
+            "display_name": display_name,
+            "auth0_user_id": sub,
+            "now": now,
+        },
+    )
+    await db.flush()
+
+    logger.info("user.provisioned", auth0_sub=sub, user_id=str(new_id))
+    return new_id
+
+
+# ── Settings Dependency ────────────────────────────────────────────────
+async def get_app_settings() -> Settings:
+    """Inject application settings into route handlers."""
+    return get_settings()
 
 
 async def get_redis():  # type: ignore[no-untyped-def]
