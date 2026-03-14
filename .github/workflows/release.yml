@@ -1,8 +1,9 @@
 # ══════════════════════════════════════════════════════════════════════
 # Psitta — Release Pipeline
 #
-# Triggers: tag push matching v* (e.g., v0.1.0, v1.0.0-rc.1)
-# Actions:  build → push to GHCR → create GitHub Release
+# Triggers:
+#   - Tag push matching v* (e.g., v0.1.0) → build, push GHCR, GitHub Release
+#   - Push to develop → build, push ECR :latest, redeploy ECS
 # ══════════════════════════════════════════════════════════════════════
 
 name: Release
@@ -11,19 +12,69 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - develop
 
 permissions:
+  id-token: write
   contents: write
   packages: write
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/api
+  ECR_REGISTRY: 808765744063.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPOSITORY: psitta-api
+  AWS_REGION: us-east-1
 
 jobs:
-  # ── Build & Push Container ─────────────────────────────────────────
+  # ── Deploy to ECR + ECS on develop push ─────────────────────────────
+  deploy-dev:
+    name: Deploy to ECS (develop)
+    if: github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::808765744063:role/github-actions-psitta
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push to ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: ./core/backend
+          target: runtime
+          push: true
+          tags: |
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Force new ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster psitta-cluster \
+            --service psitta-api \
+            --force-new-deployment
+
+  # ── Build & Push Container (tag release) ────────────────────────────
   release:
     name: Build & Release
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -100,39 +151,50 @@ jobs:
             ${{ steps.changelog.outputs.changelog }}
 
             ## Container Image
-```bash
+            ```bash
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
-```
+            ```
 
             ## Upgrade
-```bash
+            ```bash
             docker compose -f docker-compose.yml -f compose.prod.yml pull
             docker compose -f docker-compose.yml -f compose.prod.yml up -d
-```
+            ```
           draft: false
           prerelease: ${{ contains(github.ref_name, 'rc') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'alpha') }}
           generate_release_notes: true
 
-  # ── Post-Release: Deploy ───────────────────────────────────────────
+  # ── Post-Release: Deploy to ECS (tag release) ──────────────────────
   deploy:
-    name: Deploy
+    name: Deploy (production)
     needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: production
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::808765744063:role/github-actions-psitta
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Deploy notification
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Push release image to ECR
         run: |
-          echo "🚀 Psitta ${{ github.ref_name }} released"
-          echo ""
-          echo "TODO: Wire deployment target here"
-          echo "Options:"
-          echo "  - AWS ECS: update task definition with new image tag"
-          echo "  - Kubernetes: kubectl set image deployment/psitta-api"
-          echo "  - Fly.io: fly deploy --image ghcr.io/..."
-          echo ""
-          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME#v}"
+          VERSION=${GITHUB_REF_NAME#v}
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION} ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${VERSION}
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION} ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${VERSION}
+          docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
+
+      - name: Force new ECS deployment
+        run: |
+          aws ecs update-service \
+            --cluster psitta-cluster \
+            --service psitta-api \
+            --force-new-deployment
