@@ -4,7 +4,7 @@
 /// player bar height for multi-pane layout calculations.
 abstract final class AppConstants {
   // ── API ──────────────────────────────────────────────────────
-  static const String apiBaseUrl = 'http://localhost:8000/api/v1';
+  static const String apiBaseUrl = 'https://api.psitta.ai/api/v1';
   static const Duration httpTimeout = Duration(seconds: 30);
 
   // ── Playback ─────────────────────────────────────────────────
