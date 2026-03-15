@@ -340,7 +340,7 @@ async def upload_document(
         ),
         {
             "id": doc_id,
-            "user_id": user_id,
+            "user_id": str(user_id),
             "title": title,
             "source_type": source_type,
             "status": "uploaded",
@@ -385,7 +385,7 @@ async def list_documents(
             "SELECT COUNT(*) FROM documents WHERE user_id = :uid "
             "AND status != 'deleted' AND (:show_archived OR status != 'archived')"
         ),
-        {"uid": user_id, "show_archived": show_archived},
+        {"uid": str(user_id), "show_archived": show_archived},
     )
     total = count_result.scalar() or 0
 
@@ -396,7 +396,7 @@ async def list_documents(
             "AND status != 'deleted' AND (:show_archived OR status != 'archived') "
             "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
         ),
-        {"uid": user_id, "show_archived": show_archived, "lim": size, "off": offset},
+        {"uid": str(user_id), "show_archived": show_archived, "lim": size, "off": offset},
     )
 
     items = [
@@ -869,7 +869,7 @@ async def update_document(
     """Update editable document fields (title, cover_type, cover_value)."""
     # Build dynamic SET clause based on provided fields
     set_parts: list[str] = []
-    params: dict = {"did": document_id, "uid": user_id}
+    params: dict = {"did": document_id, "uid": str(user_id)}
     updated_fields: list[str] = []
 
     if payload.title is not None:
@@ -885,7 +885,7 @@ async def update_document(
         # Fetch current cover info to check if we need to delete old uploaded cover
         cur_result = await db.execute(
             text("SELECT cover_type, cover_value FROM documents WHERE id = :did AND user_id = :uid AND status != 'deleted'"),
-            {"did": document_id, "uid": user_id},
+            {"did": document_id, "uid": str(user_id)},
         )
         cur_row = cur_result.first()
         if not cur_row:
@@ -979,7 +979,7 @@ async def upload_cover(
             "SELECT id, cover_type, cover_value FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": user_id},
+        {"did": document_id, "uid": str(user_id)},
     )
     doc_row = doc_result.first()
     if not doc_row:
@@ -1112,7 +1112,7 @@ async def get_cover(
             "SELECT cover_type, cover_value FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": user_id},
+        {"did": document_id, "uid": str(user_id)},
     )
     row = result.first()
     if not row:
@@ -1157,7 +1157,7 @@ async def delete_document(
             "UPDATE documents SET status = 'deleted', updated_at = NOW() "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": user_id},
+        {"did": document_id, "uid": str(user_id)},
     )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1176,7 +1176,7 @@ async def archive_document(
             "SELECT status FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": user_id},
+        {"did": document_id, "uid": str(user_id)},
     )
     row = result.first()
     if not row:
@@ -1187,7 +1187,7 @@ async def archive_document(
             "UPDATE documents SET status = :st, updated_at = NOW() "
             "WHERE id = :did AND user_id = :uid"
         ),
-        {"st": new_status, "did": document_id, "uid": user_id},
+        {"st": new_status, "did": document_id, "uid": str(user_id)},
     )
     await db.commit()
     logger.info("document.archived", doc_id=str(document_id), new_status=new_status)
@@ -1208,7 +1208,7 @@ async def assign_project(
     # Verify document exists and belongs to authenticated user
     row = await db.execute(
         text("SELECT id FROM documents WHERE id = :id AND user_id = :uid AND status != 'deleted'"),
-        {"id": document_id, "uid": user_id},
+        {"id": document_id, "uid": str(user_id)},
     )
     if not row.mappings().first():
         raise HTTPException(status_code=404, detail="Document not found")
@@ -1216,7 +1216,7 @@ async def assign_project(
     if project_id is not None:
         proj_row = await db.execute(
             text("SELECT id FROM projects WHERE id = :id AND user_id = :uid"),
-            {"id": project_id, "uid": user_id},
+            {"id": project_id, "uid": str(user_id)},
         )
         if not proj_row.mappings().first():
             raise HTTPException(status_code=404, detail="Project not found")
@@ -1240,7 +1240,7 @@ async def download_document(
             "SELECT title, source_type, storage_key FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": user_id},
+        {"did": document_id, "uid": str(user_id)},
     )
     row = result.first()
     if not row:
@@ -1422,7 +1422,7 @@ async def export_document(
             "SELECT title, project_id FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": user_id},
+        {"did": document_id, "uid": str(user_id)},
     )
     row = result.mappings().first()
     if not row:

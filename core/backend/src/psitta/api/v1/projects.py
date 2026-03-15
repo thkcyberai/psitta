@@ -1,13 +1,13 @@
 import uuid
 from typing import Annotated
+from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.dependencies import get_current_user, get_db_session
-from psitta.middleware.auth import TokenClaims
+from psitta.dependencies import get_current_user_id, get_db_session
 
 logger = structlog.get_logger(__name__)
 
@@ -33,9 +33,9 @@ async def _get_project_or_404(project_id: str, user_id: str, db: AsyncSession) -
 async def create_project(
     body: dict,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ):
-    user_id = claims.sub
+    user_id = str(user_id)
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="name is required")
@@ -64,9 +64,9 @@ async def create_project(
 @router.get("/")
 async def list_projects(
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ):
-    user_id = claims.sub
+    user_id = str(user_id)
     rows = await db.execute(
         text("""
             SELECT p.id, p.name, p.created_at, p.cover_document_id,
@@ -104,9 +104,9 @@ async def update_project(
     project_id: str,
     body: dict,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ):
-    await _get_project_or_404(project_id, claims.sub, db)
+    await _get_project_or_404(project_id, str(user_id), db)
 
     set_parts: list[str] = []
     params: dict = {"id": project_id}
@@ -151,9 +151,9 @@ async def update_project(
 async def delete_project(
     project_id: str,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ):
-    await _get_project_or_404(project_id, claims.sub, db)
+    await _get_project_or_404(project_id, str(user_id), db)
     # Unassign all docs first (project_id → null)
     await db.execute(
         text(
@@ -172,9 +172,9 @@ async def delete_project(
 async def list_project_documents(
     project_id: str,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ):
-    await _get_project_or_404(project_id, claims.sub, db)
+    await _get_project_or_404(project_id, str(user_id), db)
     rows = await db.execute(
         text("""
             SELECT id, title, source_type, status, page_count,
