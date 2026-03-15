@@ -52,6 +52,7 @@ class SettingsScreen extends ConsumerWidget {
                   const _SectionHeader(title: 'Account'),
                   const _AccountTile(),
                   const _SubscriptionTile(),
+                  const _ChangePlanTile(),
                   _LogoutTile(),
                   const SizedBox(height: 16),
                   const _SectionHeader(title: 'Appearance'),
@@ -278,6 +279,21 @@ class _SubscriptionTile extends ConsumerWidget {
           subtitle: Text('Documents this month: $used / $limitLabel'),
         );
       },
+    );
+  }
+}
+
+/// Navigate to plan selection screen.
+class _ChangePlanTile extends StatelessWidget {
+  const _ChangePlanTile();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: const Icon(Icons.swap_horiz_outlined),
+      title: const Text('Change Plan'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => context.go('/plan'),
     );
   }
 }

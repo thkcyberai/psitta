@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/services/auth_service.dart';
 import '../../features/auth/login_screen.dart';
+import '../../features/auth/plan_selection_screen.dart';
 import '../../features/shell/desktop_shell.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/player/player_screen.dart';
@@ -47,6 +48,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           return DesktopShell(child: child);
         },
         routes: [
+          GoRoute(
+            path: '/plan',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: PlanSelectionScreen(),
+            ),
+          ),
           GoRoute(
             path: '/library',
             pageBuilder: (context, state) => const NoTransitionPage(

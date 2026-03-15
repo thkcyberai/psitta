@@ -338,9 +338,9 @@ async def create_blank_document(
     await db.execute(
         text(
             "INSERT INTO document_chunks "
-            "(id, document_id, sequence_index, text_content, char_count, created_at, updated_at) "
+            "(id, document_id, sequence_index, text_content, character_count, created_at) "
             "VALUES "
-            "(:id, :doc_id, 0, '', 0, :now, :now)"
+            "(:id, :doc_id, 0, '', 0, :now)"
         ),
         {
             "id": chunk_id,
