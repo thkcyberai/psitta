@@ -52,6 +52,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   String? _selectedDocId;
 
+  Future<void> _handleNewSheet() async {
+    try {
+      final repo = ref.read(documentRepositoryProvider);
+      final result = await repo.createBlankDocument();
+      final docId = result['id']!;
+      ref.invalidate(documentsProvider);
+      if (mounted) {
+        context.go('/player/$docId?autoplay=0&edit=1');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create sheet: $e')),
+        );
+      }
+    }
+  }
+
   Future<void> _handleFilePick() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
@@ -700,6 +718,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _isUploading ? null : _handleNewSheet,
+                              icon: const Icon(Icons.edit_note, size: 18),
+                              label: const Text('New Sheet'),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: double.infinity,
                             child: FilledButton.icon(
                               onPressed: _isUploading ? null : _handleFilePick,
                               icon: const Icon(Icons.upload_file, size: 18),
@@ -754,6 +781,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             );
                           },
                         ),
+                        OutlinedButton.icon(
+                          onPressed: _isUploading ? null : _handleNewSheet,
+                          icon: const Icon(Icons.edit_note, size: 18),
+                          label: const Text('New Sheet'),
+                        ),
+                        const SizedBox(width: 8),
                         FilledButton.icon(
                           onPressed: _isUploading ? null : _handleFilePick,
                           icon: const Icon(Icons.upload_file, size: 18),

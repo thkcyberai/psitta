@@ -30,6 +30,17 @@ class DocumentRepository {
     return Document.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Create a blank document for direct writing.
+  /// Returns a map with 'id' and 'chunk_id'.
+  Future<Map<String, String>> createBlankDocument() async {
+    final response = await _api.dio.post('/documents/blank/');
+    final data = response.data as Map<String, dynamic>;
+    return {
+      'id': data['id'] as String,
+      'chunk_id': data['chunk_id'] as String,
+    };
+  }
+
   /// Delete a document by ID.
   Future<void> deleteDocument(String id) async {
     await _api.dio.delete('/documents/$id');

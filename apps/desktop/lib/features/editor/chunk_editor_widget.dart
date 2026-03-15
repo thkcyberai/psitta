@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/utils/text_sanitizer.dart';
 import 'chunk_editor_provider.dart';
 
 class ChunkEditorWidget extends ConsumerStatefulWidget {
@@ -47,29 +48,7 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
   }
 
   String get _plainText {
-    // Extract plain text from Quill document
-    String text = _controller.document.toPlainText();
-
-    // Remove trailing newline that Quill always appends
-    if (text.endsWith('\n')) {
-      text = text.substring(0, text.length - 1);
-    }
-
-    // Strip invisible/problematic Unicode characters that break TTS
-    text = text
-        .replaceAll('\u200B', '') // zero-width space
-        .replaceAll('\u200C', '') // zero-width non-joiner
-        .replaceAll('\u200D', '') // zero-width joiner
-        .replaceAll('\u00AD', '') // soft hyphen
-        .replaceAll('\u00A0', ' ') // non-breaking space → regular space
-        .replaceAll('\uFEFF', '') // BOM / zero-width no-break space
-        .replaceAll('\r\n', '\n') // normalize line endings
-        .replaceAll('\r', '\n'); // normalize carriage returns
-
-    // Collapse multiple spaces into one
-    text = text.replaceAll(RegExp(r' {2,}'), ' ');
-
-    return text.trim();
+    return sanitizeForTts(_controller.document.toPlainText());
   }
 
   Future<void> _onSave() async {

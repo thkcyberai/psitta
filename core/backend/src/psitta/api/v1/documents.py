@@ -304,6 +304,64 @@ async def _process_document(
     return len(chunks)
 
 
+@router.post("/blank/", status_code=status.HTTP_201_CREATED)
+async def create_blank_document(
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> dict:
+    """Create a blank document with a single empty chunk for direct writing."""
+    from psitta.services.subscription_service import check_and_increment_doc_quota
+
+    await check_and_increment_doc_quota(db, user_id)
+
+    doc_id = uuid4()
+    chunk_id = uuid4()
+    now = datetime.now(timezone.utc)
+
+    await db.execute(
+        text(
+            "INSERT INTO documents "
+            "(id, user_id, title, source_type, status, file_size_bytes, storage_key, page_count, word_count, created_at, updated_at) "
+            "VALUES "
+            "(:id, :user_id, :title, :source_type, :status, 0, '', 1, 0, :now, :now)"
+        ),
+        {
+            "id": doc_id,
+            "user_id": str(user_id),
+            "title": "Untitled Sheet",
+            "source_type": "blank",
+            "status": "ready",
+            "now": now,
+        },
+    )
+
+    await db.execute(
+        text(
+            "INSERT INTO document_chunks "
+            "(id, document_id, sequence_index, title, text_content, char_count, created_at, updated_at) "
+            "VALUES "
+            "(:id, :doc_id, 0, :title, '', 0, :now, :now)"
+        ),
+        {
+            "id": chunk_id,
+            "doc_id": doc_id,
+            "title": "Section 1",
+            "now": now,
+        },
+    )
+
+    logger.info("document.blank.created", doc_id=str(doc_id), chunk_id=str(chunk_id))
+
+    return {
+        "id": str(doc_id),
+        "chunk_id": str(chunk_id),
+        "title": "Untitled Sheet",
+        "status": "ready",
+        "source_type": "blank",
+        "created_at": now.isoformat(),
+    }
+
+
 @router.post("/", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
     file: UploadFile,
