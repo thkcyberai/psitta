@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, text, update
@@ -135,17 +135,17 @@ async def check_and_increment_doc_quota(
             },
         )
 
-    # Upsert usage counter
+    # Upsert usage counter (id is required — generate for new rows)
     ym = _current_year_month()
     await db.execute(
         text("""
-            INSERT INTO usage_counters (user_id, year_month, docs_uploaded, updated_at)
-            VALUES (:uid, :ym, 1, NOW())
+            INSERT INTO usage_counters (id, user_id, year_month, docs_uploaded, updated_at)
+            VALUES (:id, :uid, :ym, 1, NOW())
             ON CONFLICT (user_id, year_month)
             DO UPDATE SET docs_uploaded = usage_counters.docs_uploaded + 1,
                           updated_at = NOW()
         """),
-        {"uid": str(user_id), "ym": ym},
+        {"id": str(uuid4()), "uid": str(user_id), "ym": ym},
     )
     await db.commit()
 
