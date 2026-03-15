@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
+import '../../widgets/user_avatar.dart';
 
 String _autoDeleteLabel(int? days) =>
     days == null ? 'Never' : 'After $days days';
@@ -220,29 +220,30 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-/// Shows the user's email decoded from the stored JWT access token.
+/// Shows the user's avatar, name, and email from the JWT access token.
 class _AccountTile extends ConsumerWidget {
   const _AccountTile();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return FutureBuilder<String?>(
-      future: ref.read(authServiceProvider).getAccessToken(),
-      builder: (context, snapshot) {
-        String email = 'Not signed in';
-        if (snapshot.hasData && snapshot.data != null) {
-          try {
-            final claims = JwtDecoder.decode(snapshot.data!);
-            email = (claims['https://psitta.app/email'] as String?) ??
-                (claims['email'] as String?) ??
-                'Unknown';
-          } catch (_) {
-            email = 'Unknown';
-          }
-        }
+    final profileAsync = UserAvatarWidget.watchProfile(ref);
+
+    return profileAsync.when(
+      loading: () => const ListTile(
+        leading: UserAvatarWidget(size: 40),
+        title: Text('Loading...'),
+      ),
+      error: (_, __) => const ListTile(
+        leading: UserAvatarWidget(size: 40),
+        title: Text('Account'),
+        subtitle: Text('Could not load profile'),
+      ),
+      data: (profile) {
+        final name = profile.name ?? 'User';
+        final email = profile.email ?? 'Unknown';
         return ListTile(
-          leading: const Icon(Icons.person_outline),
-          title: const Text('Email'),
+          leading: const UserAvatarWidget(size: 40),
+          title: Text(name),
           subtitle: Text(email),
         );
       },

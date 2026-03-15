@@ -165,6 +165,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _enterEditMode(String chunkId, String chunkText) {
     final audioService = ref.read(audioServiceProvider);
     audioService.pause();
+    ref.read(isInlineEditingProvider.notifier).state = true;
     setState(() {
       _isEditing = true;
       _editingChunkId = chunkId;
@@ -182,6 +183,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _exitEditMode() {
+    ref.read(isInlineEditingProvider.notifier).state = false;
     setState(() {
       _isEditing = false;
       _editingChunkId = '';

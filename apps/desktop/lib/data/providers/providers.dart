@@ -39,6 +39,10 @@ final projectsProvider = FutureProvider.autoDispose<List<Project>>((ref) async {
 
 final activeProjectIdProvider = StateProvider<String?>((ref) => null);
 
+/// True when player is in inline text editing mode.
+/// Playback keyboard shortcuts are suppressed while editing.
+final isInlineEditingProvider = StateProvider<bool>((ref) => false);
+
 final documentsProvider =
     FutureProvider.autoDispose<List<Document>>((ref) async {
   final repo = ref.watch(documentRepositoryProvider);

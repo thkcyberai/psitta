@@ -16,6 +16,7 @@ import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../data/models/document.dart';
 import '../../data/repositories/project_repository.dart';
+import '../settings/settings_screen.dart';
 import '../shell/app_shell.dart';
 import '../shell/desktop_shell.dart';
 import '../shell/widgets/player_bar.dart';
@@ -558,6 +559,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final tokens = PsittaTokens.of(context);
     final documentsAsync = ref.watch(documentsProvider);
     final projectsAsync = ref.watch(projectsProvider);
+    final subAsync = ref.watch(subscriptionSummaryProvider);
+    final isProTier = subAsync.whenOrNull(
+          data: (data) => data['plan_id'] != 'free',
+        ) ??
+        false;
 
     // Build project ID → name map for path labels
     final Map<String, String> projectNameMap = {};
@@ -718,10 +724,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: _isUploading ? null : _handleNewSheet,
-                              icon: const Icon(Icons.edit_note, size: 18),
-                              label: const Text('New Sheet'),
+                            child: Tooltip(
+                              message: isProTier
+                                  ? ''
+                                  : 'Available on Pro \u2014 Upgrade in Settings',
+                              child: OutlinedButton.icon(
+                                onPressed: _isUploading || !isProTier
+                                    ? null
+                                    : _handleNewSheet,
+                                icon: const Icon(Icons.edit_note, size: 18),
+                                label: const Text('New Sheet'),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 8),
@@ -781,10 +794,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             );
                           },
                         ),
-                        OutlinedButton.icon(
-                          onPressed: _isUploading ? null : _handleNewSheet,
-                          icon: const Icon(Icons.edit_note, size: 18),
-                          label: const Text('New Sheet'),
+                        Tooltip(
+                          message: isProTier
+                              ? ''
+                              : 'Available on Pro \u2014 Upgrade in Settings',
+                          child: OutlinedButton.icon(
+                            onPressed: _isUploading || !isProTier
+                                ? null
+                                : _handleNewSheet,
+                            icon: const Icon(Icons.edit_note, size: 18),
+                            label: const Text('New Sheet'),
+                          ),
                         ),
                         const SizedBox(width: 8),
                         FilledButton.icon(

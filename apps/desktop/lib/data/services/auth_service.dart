@@ -16,6 +16,7 @@ const auth0Scopes = 'openid profile email offline_access';
 
 // ── Secure Storage Keys ──────────────────────────────────────────────
 const _accessTokenKey = 'access_token';
+const _idTokenKey = 'id_token';
 const _refreshTokenKey = 'refresh_token';
 
 /// Manages Auth0 authentication for Windows desktop.
@@ -102,6 +103,7 @@ class AuthService {
 
       final body = response.data as Map<String, dynamic>;
       final accessToken = body['access_token'] as String?;
+      final idToken = body['id_token'] as String?;
       final refreshToken = body['refresh_token'] as String?;
 
       if (accessToken == null) {
@@ -109,6 +111,9 @@ class AuthService {
       }
 
       await _storage.write(key: _accessTokenKey, value: accessToken);
+      if (idToken != null) {
+        await _storage.write(key: _idTokenKey, value: idToken);
+      }
       if (refreshToken != null) {
         await _storage.write(key: _refreshTokenKey, value: refreshToken);
       }
@@ -155,6 +160,7 @@ class AuthService {
 
         final body = response.data as Map<String, dynamic>;
         final newAccessToken = body['access_token'] as String?;
+        final newIdToken = body['id_token'] as String?;
         final newRefreshToken = body['refresh_token'] as String?;
 
         if (newAccessToken == null) {
@@ -163,6 +169,9 @@ class AuthService {
         }
 
         await _storage.write(key: _accessTokenKey, value: newAccessToken);
+        if (newIdToken != null) {
+          await _storage.write(key: _idTokenKey, value: newIdToken);
+        }
         if (newRefreshToken != null) {
           await _storage.write(key: _refreshTokenKey, value: newRefreshToken);
         }
@@ -193,10 +202,17 @@ class AuthService {
     return _storage.read(key: _accessTokenKey);
   }
 
+  /// Read the current ID token from secure storage.
+  /// Contains user profile claims (name, email, picture).
+  Future<String?> getIdToken() async {
+    return _storage.read(key: _idTokenKey);
+  }
+
   // ── Helpers ────────────────────────────────────────────────────────
 
   Future<void> _clearStorage() async {
     await _storage.delete(key: _accessTokenKey);
+    await _storage.delete(key: _idTokenKey);
     await _storage.delete(key: _refreshTokenKey);
   }
 }

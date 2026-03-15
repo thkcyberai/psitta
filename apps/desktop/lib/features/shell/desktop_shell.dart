@@ -27,9 +27,23 @@ class DesktopShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isCollapsed = ref.watch(sidebarCollapsedProvider);
+    final isEditing = ref.watch(isInlineEditingProvider);
+
+    // When editing, remove playback shortcuts so keys (Space, arrows)
+    // propagate naturally to the focused TextField.
+    Map<ShortcutActivator, Intent> shortcuts;
+    if (isEditing) {
+      shortcuts = Map<ShortcutActivator, Intent>.from(psittaShortcuts)
+        ..removeWhere((key, intent) =>
+            intent is PlayPauseIntent ||
+            intent is SkipForwardIntent ||
+            intent is SkipBackwardIntent);
+    } else {
+      shortcuts = psittaShortcuts;
+    }
 
     return Shortcuts(
-      shortcuts: psittaShortcuts,
+      shortcuts: shortcuts,
       child: Actions(
         actions: <Type, Action<Intent>>{
           ToggleSidebarIntent: CallbackAction<ToggleSidebarIntent>(

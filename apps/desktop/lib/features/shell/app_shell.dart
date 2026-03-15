@@ -7,6 +7,7 @@ import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
+import '../../widgets/user_avatar.dart';
 import 'widgets/player_bar.dart';
 import 'widgets/shortcuts_panel.dart';
 import 'widgets/sidebar_nav.dart';
@@ -189,6 +190,14 @@ class _ContextHeader extends ConsumerWidget {
             icon: Icon(
               Icons.settings_outlined,
               color: theme.iconTheme.color?.withOpacity(0.90),
+            ),
+          ),
+          const SizedBox(width: 4),
+          GestureDetector(
+            onTap: () => context.go('/settings'),
+            child: const MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: UserAvatarWidget(size: 32),
             ),
           ),
         ],
