@@ -242,6 +242,7 @@ class ChunkResponse(BaseModel):
     is_edited: bool = False
     edited_at: Optional[datetime] = None
     original_text: Optional[str] = None
+    sentence_boundaries: Optional[list[list[int]]] = None  # [[start, end], ...] char offsets per sentence
 
 
 class ResynthesizeResponse(BaseModel):

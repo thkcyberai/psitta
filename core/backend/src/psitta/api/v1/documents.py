@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
 
+import pysbd
 import structlog
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
@@ -272,9 +273,23 @@ async def _process_document(
         "VALUES (:id, :doc_id, :seq, :ctype, :txt, :tone, :page, :chars, :meta)"
     )
 
+    _segmenter = pysbd.Segmenter(language="en", clean=False)
+
     for chunk in chunks:
         chunk_id = uuid4()
-        meta_json = json.dumps({"title": chunk["title"]})
+        chunk_text = chunk["text"]
+        sentences = _segmenter.segment(chunk_text)
+        boundaries = []
+        cursor = 0
+        for sent in sentences:
+            start = chunk_text.index(sent, cursor)
+            end = start + len(sent)
+            boundaries.append([start, end])
+            cursor = end
+        existing_meta = chunk.get("metadata_json") or {}
+        existing_meta["sentence_boundaries"] = boundaries
+        chunk["metadata_json"] = existing_meta
+        meta_json = json.dumps({"title": chunk["title"], **chunk["metadata_json"]})
 
         await db.execute(
             insert_chunk_sql,
@@ -545,6 +560,7 @@ async def get_document_chunks(
                 "is_edited": getattr(r, "is_edited", False),
                 "edited_at": r.edited_at.isoformat() if getattr(r, "edited_at", None) else None,
                 "original_text": getattr(r, "original_text", None),
+                "sentence_boundaries": meta.get("sentence_boundaries"),
             }
         )
 

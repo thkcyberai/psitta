@@ -65,6 +65,7 @@ dependencies = [
     "python-docx>=1.1.0",
     "Pillow>=11.0.0",
     "pytesseract>=0.3.13",
+    "pysbd>=0.3.4",        # Sentence boundary disambiguation
 
     # ── Utilities ──────────────────────────────────────────────────────
     "tenacity>=9.0.0",
