@@ -243,6 +243,7 @@ class ChunkResponse(BaseModel):
     edited_at: Optional[datetime] = None
     original_text: Optional[str] = None
     sentence_boundaries: Optional[list[list[int]]] = None  # [[start, end], ...] char offsets per sentence
+    formatted_content: Optional[list[dict]] = None  # structured paragraph/run data for rich rendering
 
 
 class ResynthesizeResponse(BaseModel):

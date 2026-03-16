@@ -72,6 +72,131 @@ ALLOWED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".md", ".html"})
 TEXT_EXTENSIONS = frozenset({".txt", ".md", ".html"})
 TARGET_CHUNK_SIZE = 1500  # characters per chunk
 
+def _extract_formatted_docx(file_bytes: bytes) -> tuple[str, list[dict]] | None:
+    """Extract plain text AND formatted_content from a DOCX file.
+
+    Returns (plain_text, formatted_content_list) or None on failure.
+    """
+    try:
+        import docx  # python-docx
+        from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: F401
+
+        doc = docx.Document(io.BytesIO(file_bytes))
+        formatted: list[dict] = []
+        plain_parts: list[str] = []
+
+        for para in doc.paragraphs:
+            para_text = (para.text or "").strip()
+            if not para_text:
+                continue
+
+            # Determine paragraph type
+            style_name = (para.style.name or "").lower() if para.style else ""
+            ptype = "paragraph"
+            level = None
+
+            if style_name.startswith("heading"):
+                ptype = "heading"
+                # Extract level from style name like "Heading 1", "Heading 2"
+                for ch in style_name:
+                    if ch.isdigit():
+                        level = int(ch)
+                        break
+                if level is None:
+                    level = 1
+            elif style_name.startswith("list") or style_name.startswith("bullet"):
+                ptype = "list_item"
+
+            # Extract runs with formatting
+            runs: list[dict] = []
+            for run in para.runs:
+                run_text = run.text or ""
+                if not run_text:
+                    continue
+                run_data: dict = {"text": run_text}
+                if run.bold:
+                    run_data["bold"] = True
+                if run.italic:
+                    run_data["italic"] = True
+                if run.underline:
+                    run_data["underline"] = True
+                if run.font and run.font.size:
+                    run_data["font_size"] = round(run.font.size.pt, 1)
+                runs.append(run_data)
+
+            # If no runs extracted (e.g. field codes), fall back to full text
+            if not runs:
+                runs = [{"text": para_text}]
+
+            entry: dict = {"type": ptype, "runs": runs}
+            if level is not None:
+                entry["level"] = level
+            formatted.append(entry)
+            plain_parts.append(para_text)
+
+        plain = "\n\n".join(plain_parts).strip()
+        return (plain, formatted) if plain else None
+    except Exception:
+        logger.exception("docx.format_extract.failed")
+        return None
+
+
+def _extract_formatted_pdf(file_bytes: bytes) -> tuple[list[dict], list[list[dict]]] | None:
+    """Extract page text AND per-page formatted_content from a PDF.
+
+    Returns (pages_list, per_page_formatted) or None on failure.
+    pages_list items: {"page_number": int, "text": str}
+    per_page_formatted: list of formatted blocks per page.
+    """
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(file_bytes))
+        pages: list[dict] = []
+        per_page_formatted: list[list[dict]] = []
+
+        for i, page in enumerate(reader.pages):
+            raw = (page.extract_text() or "").strip()
+            if not raw:
+                continue
+            clean = _sanitize_text_for_db(_reflow_pdf_text(raw))
+            if not clean.strip():
+                continue
+
+            pages.append({"page_number": i + 1, "text": clean})
+
+            # Build structured paragraphs from the reflowed text
+            paragraphs = re.split(r"\n\s*\n", clean)
+            page_blocks: list[dict] = []
+            for para in paragraphs:
+                para = para.strip()
+                if not para:
+                    continue
+                # Heuristic: short all-caps or title-case lines may be headings
+                ptype = "paragraph"
+                level = None
+                words = para.split()
+                if (
+                    len(words) <= 12
+                    and not para.endswith(".")
+                    and (para.isupper() or para.istitle())
+                ):
+                    ptype = "heading"
+                    level = 1 if para.isupper() else 2
+
+                entry: dict = {"type": ptype, "runs": [{"text": para}]}
+                if level is not None:
+                    entry["level"] = level
+                page_blocks.append(entry)
+
+            per_page_formatted.append(page_blocks)
+
+        return (pages, per_page_formatted) if pages else None
+    except Exception:
+        logger.exception("pdf.format_extract.failed")
+        return None
+
+
 def _extract_text(file_bytes: bytes, extension: str) -> str | list[dict] | None:
     """Extract plain text from supported file types."""
     if extension in TEXT_EXTENSIONS:
@@ -82,36 +207,16 @@ def _extract_text(file_bytes: bytes, extension: str) -> str | list[dict] | None:
                 continue
 
     if extension == ".docx":
-        try:
-            import docx  # python-docx
-
-            doc = docx.Document(io.BytesIO(file_bytes))
-            parts: list[str] = []
-            for para in doc.paragraphs:
-                t = (para.text or "").strip()
-                if t:
-                    parts.append(t)
-            txt = "\n\n".join(parts).strip()
-            return txt if txt else None
-        except Exception:
-            return None
+        result = _extract_formatted_docx(file_bytes)
+        if result:
+            return result[0]  # plain text only for legacy path
+        return None
 
     if extension == ".pdf":
-        try:
-            from pypdf import PdfReader
-
-            reader = PdfReader(io.BytesIO(file_bytes))
-            pages: list[dict] = []
-            for i, page in enumerate(reader.pages):
-                t = (page.extract_text() or "").strip()
-                if not t:
-                    continue
-                t = _sanitize_text_for_db(_reflow_pdf_text(t))
-                if t.strip():
-                    pages.append({"page_number": i + 1, "text": t})
-            return pages if pages else None
-        except Exception:
-            return None
+        result = _extract_formatted_pdf(file_bytes)
+        if result:
+            return result[0]  # pages list only for legacy path
+        return None
 
     return None
 
@@ -245,18 +350,60 @@ async def _process_document(
     db: AsyncSession,
 ) -> int:
     """Extract text, chunk, and insert into document_chunks. Returns chunk count."""
-    extracted = _extract_text(file_bytes, extension)
-    if extracted is None:
-        logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
-        return 0
 
-    if extension == ".pdf":
-        # extracted is list[dict] with page_number and text (already sanitized/reflowed)
-        pages = extracted
+    # ── Extract formatted content alongside plain text ──────────────────
+    formatted_by_chunk: dict[int, list[dict]] = {}  # seq -> formatted blocks
+
+    if extension == ".docx":
+        docx_result = _extract_formatted_docx(file_bytes)
+        if docx_result is None:
+            logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
+            return 0
+        plain_text, all_formatted = docx_result
+        raw_text = _sanitize_text_for_db(plain_text)
+        chunks = _chunk_markdown(raw_text)
+        page_count = len(chunks)
+        all_text = raw_text
+
+        # Map formatted blocks to chunks by matching text content
+        # Each chunk gets the formatted blocks whose text falls within it
+        fmt_cursor = 0
+        for chunk in chunks:
+            chunk_blocks: list[dict] = []
+            chunk_plain = chunk["text"]
+            chars_remaining = len(chunk_plain)
+            while fmt_cursor < len(all_formatted) and chars_remaining > 0:
+                block = all_formatted[fmt_cursor]
+                block_text = "".join(r["text"] for r in block["runs"])
+                chars_remaining -= len(block_text) + 2  # +2 for \n\n separator
+                chunk_blocks.append(block)
+                fmt_cursor += 1
+            formatted_by_chunk[chunk["seq"]] = chunk_blocks
+
+    elif extension == ".pdf":
+        pdf_result = _extract_formatted_pdf(file_bytes)
+        if pdf_result is None:
+            logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
+            return 0
+        pages, per_page_formatted = pdf_result
         chunks = _chunk_by_pages(pages)
         page_count = len(pages)
         all_text = " ".join(p["text"] for p in pages)
+
+        # Map formatted blocks by page number -> chunk seq
+        page_fmt: dict[int, list[dict]] = {}
+        for pg, fmt_blocks in zip(pages, per_page_formatted):
+            page_fmt[pg["page_number"]] = fmt_blocks
+        for chunk in chunks:
+            pn = chunk.get("page_number", 1)
+            if pn in page_fmt:
+                formatted_by_chunk[chunk["seq"]] = page_fmt[pn]
+
     else:
+        extracted = _extract_text(file_bytes, extension)
+        if extracted is None:
+            logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
+            return 0
         raw_text = _sanitize_text_for_db(extracted)
         chunks = _chunk_markdown(raw_text)
         page_count = len(chunks)
@@ -269,8 +416,8 @@ async def _process_document(
 
     insert_chunk_sql = text(
         "INSERT INTO document_chunks "
-        "(id, document_id, sequence_index, chunk_type, text_content, tone, page_number, character_count, metadata_json) "
-        "VALUES (:id, :doc_id, :seq, :ctype, :txt, :tone, :page, :chars, :meta)"
+        "(id, document_id, sequence_index, chunk_type, text_content, tone, page_number, character_count, metadata_json, formatted_content) "
+        "VALUES (:id, :doc_id, :seq, :ctype, :txt, :tone, :page, :chars, :meta, :fmt)"
     )
 
     _segmenter = pysbd.Segmenter(language="en", clean=False)
@@ -291,6 +438,9 @@ async def _process_document(
         chunk["metadata_json"] = existing_meta
         meta_json = json.dumps({"title": chunk["title"], **chunk["metadata_json"]})
 
+        fmt_content = formatted_by_chunk.get(chunk["seq"])
+        fmt_json = json.dumps(fmt_content, ensure_ascii=False) if fmt_content else None
+
         await db.execute(
             insert_chunk_sql,
             {
@@ -303,6 +453,7 @@ async def _process_document(
                 "page": chunk.get("page_number", 1),
                 "chars": len(chunk["text"]),
                 "meta": meta_json,
+                "fmt": fmt_json,
             },
         )
 
@@ -537,7 +688,7 @@ async def get_document_chunks(
     rows = await db.execute(
         text(
             "SELECT id, sequence_index, chunk_type, text_content, tone, page_number, character_count, metadata_json, "
-            "is_edited, edited_at, original_text "
+            "is_edited, edited_at, original_text, formatted_content "
             "FROM document_chunks WHERE document_id = :did "
             "ORDER BY sequence_index"
         ),
@@ -561,6 +712,7 @@ async def get_document_chunks(
                 "edited_at": r.edited_at.isoformat() if getattr(r, "edited_at", None) else None,
                 "original_text": getattr(r, "original_text", None),
                 "sentence_boundaries": meta.get("sentence_boundaries"),
+                "formatted_content": r.formatted_content if hasattr(r, "formatted_content") else None,
             }
         )
 

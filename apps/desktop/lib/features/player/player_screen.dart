@@ -45,6 +45,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   final ScrollController _contentScrollController = ScrollController();
   bool _userScrolling = false;
+  List<dynamic>? _activeSentenceBoundaries;
 
   // ── Inline editing state ─────────────────────────────────────────
   bool _autoEditPending = true; // checked once on first data load
@@ -370,6 +371,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  void _scrollFromSentence(GlobalKey sentenceKey) {
+    if (_userScrolling || _isEditing) return;
+    final ctx = sentenceKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.0,
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.easeInOut,
+    );
+  }
+
   void _scrollFromPosition(Duration position, Duration duration) {
     if (_userScrolling || _isEditing) return;
     if (!_contentScrollController.hasClients) return;
@@ -422,7 +435,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (position == null) return;
         final duration = ref.read(audioDurationProvider).valueOrNull;
         if (duration == null || duration.inMilliseconds == 0) return;
-        _scrollFromPosition(position, duration);
+        if (_activeSentenceBoundaries == null || _activeSentenceBoundaries!.isEmpty) {
+          _scrollFromPosition(position, duration);
+        }
+        // When sentenceBoundaries exist, scroll is driven by onActiveSentenceChanged instead.
       });
     }
 
@@ -502,6 +518,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         final chunkId = (activeChunk['id'] ?? '').toString();
         final chunkTitle = (activeChunk['title'] ?? 'Section ${currentIndex + 1}').toString();
         final chunkText = (activeChunk['text_content'] ?? '').toString();
+        final sentenceBoundaries = activeChunk['sentence_boundaries'] as List<dynamic>?;
+        final formattedContent = activeChunk['formatted_content'] as List<dynamic>?;
+        _activeSentenceBoundaries = sentenceBoundaries;
 
         // If we switched chunks while editing, exit edit mode
         if (_isEditing && _editingChunkId != chunkId) {
@@ -569,7 +588,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             key: ValueKey('${chunkId}_$voiceId'),
             chunkText: chunkText,
             alignmentPayload: alignmentPayload,
+            sentenceBoundaries: sentenceBoundaries,
+            formattedContent: formattedContent,
             onActiveWordChanged: _onActiveWordChanged,
+            onActiveSentenceChanged: _scrollFromSentence,
             enableContextMenu: true,
             audioService: _audioService,
           );
@@ -605,7 +627,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 key: ValueKey('${chunkId}_${voiceId}_plain'),
                 chunkText: chunkText,
                 alignmentPayload: const {},
+                sentenceBoundaries: sentenceBoundaries,
+                formattedContent: formattedContent,
                 onActiveWordChanged: _onActiveWordChanged,
+                onActiveSentenceChanged: _scrollFromSentence,
                 enableContextMenu: true,
                 audioService: _audioService,
               ),
