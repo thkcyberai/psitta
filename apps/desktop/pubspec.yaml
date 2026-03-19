@@ -1,7 +1,5 @@
 name: psitta
-description: >
-  Ultra-natural document narration — listen to any document.
-  Desktop-first application for Windows and macOS.
+description: "Ultra-natural document narration. Listen to any document."
 publish_to: "none"
 version: 0.1.0+1
 
@@ -44,6 +42,9 @@ dependencies:
   # Rich text editing
   flutter_quill: ^10.8.4
 
+  # PDF viewing
+  pdfrx: ^1.0.101
+
   # SVG rendering
   flutter_svg: ^2.0.10
 
@@ -65,12 +66,27 @@ dev_dependencies:
   json_serializable: ^6.8.0
   mockito: ^5.4.0
   mocktail: ^1.0.0
+  msix: ^3.16.7
 
 dependency_overrides:
   # quill_native_bridge_windows 0.0.2 uses removed top-level GMEM_MOVEABLE constant.
   # Local copy patches it to GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE for win32 5.x compat.
   quill_native_bridge_windows:
     path: local_overrides/quill_native_bridge_windows
+
+msix_config:
+  display_name: Psitta
+  publisher_display_name: Facti AI LLC
+  identity_name: com.factiai.psitta
+  msix_version: 1.0.0.0
+  description: "Reading to Listening - ultra-natural document narration"
+  publisher: CN=Facti AI LLC
+  logo_path: assets/branding/OnlyBird.png
+  capabilities: internetClient, privateNetworkClientServer
+  languages: en-us
+  certificate_path: psitta-dev.pfx
+  certificate_password: psitta-dev-2026
+  install_certificate: false
 
 flutter:
   uses-material-design: true

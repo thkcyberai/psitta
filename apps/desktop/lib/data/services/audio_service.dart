@@ -201,6 +201,64 @@ class AudioService {
     }
   }
 
+  /// Load a chunk into the player without starting playback.
+  ///
+  /// Used when the user intentionally jumps to a new reading position while
+  /// paused. This preserves the expected "pending start point" behavior.
+  Future<bool> prepareChunk({
+    required String documentId,
+    required String chunkId,
+    String voiceId = '21m00Tcm4TlvDq8ikWAM',
+    double speed = 1.0,
+    double volume = 1.0,
+  }) async {
+    final token = _nextToken();
+    final cacheKey = '${chunkId}_$voiceId';
+
+    try {
+      await _player.stop();
+    } catch (_) {}
+
+    _synthesizingController.add(true);
+
+    try {
+      final cachedPath = _fileCache[cacheKey];
+      if (cachedPath != null && await File(cachedPath).exists()) {
+        if (!_isLatest(token)) return false;
+        await _player.setFilePath(cachedPath);
+        await _player.setSpeed(speed);
+        await _player.setVolume(volume);
+        return true;
+      }
+
+      String? filePath;
+      if (_inflight.containsKey(cacheKey)) {
+        filePath = await _inflight[cacheKey];
+      } else {
+        filePath = await _downloadToFile(documentId, chunkId, voiceId);
+      }
+
+      if (!_isLatest(token)) return false;
+      if (filePath == null || !await File(filePath).exists()) return false;
+
+      await _player.setFilePath(filePath);
+      await _player.setSpeed(speed);
+      await _player.setVolume(volume);
+      return true;
+    } catch (e) {
+      // ignore: avoid_print
+      print('Prepare chunk failed ($cacheKey): $e');
+      try {
+        await _player.stop();
+      } catch (_) {}
+      return false;
+    } finally {
+      if (_isLatest(token)) {
+        _synthesizingController.add(false);
+      }
+    }
+  }
+
   Future<void> play() => _player.play();
   Future<void> pause() => _player.pause();
 
@@ -325,11 +383,13 @@ class AudioService {
     final repo = _playbackRepo;
     if (sessionId == null || repo == null) return;
     if (!_player.playing && _player.position == Duration.zero) return;
-    repo.updatePosition(
+    repo
+        .updatePosition(
       sessionId: sessionId,
       chunkIndex: _activeChunkIndex,
       positionMs: _player.position.inMilliseconds,
-    ).catchError((Object e) {
+    )
+        .catchError((Object e) {
       debugPrint('Position save failed: $e');
     });
   }

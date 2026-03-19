@@ -68,6 +68,38 @@ class ChunkEditorNotifier extends StateNotifier<ChunkEditorState> {
     return true;
   }
 
+  Future<bool> saveChunkTexts({
+    required String documentId,
+    required Map<String, String> chunkTexts,
+  }) async {
+    state = state.copyWith(isSaving: true, error: null, successMessage: null);
+
+    try {
+      for (final entry in chunkTexts.entries) {
+        await _repository.updateChunkText(
+          documentId: documentId,
+          chunkId: entry.key,
+          text: entry.value,
+        );
+      }
+    } catch (e) {
+      state = state.copyWith(
+        isSaving: false,
+        error: 'Failed to save: $e',
+      );
+      return false;
+    }
+
+    final updated = Set<String>.from(state.editedChunkIds)
+      ..addAll(chunkTexts.keys);
+    state = state.copyWith(
+      isSaving: false,
+      successMessage: 'Document saved. Audio will re-synthesize automatically.',
+      editedChunkIds: updated,
+    );
+    return true;
+  }
+
   void clearStatus() {
     state = state.copyWith(error: null, successMessage: null);
   }

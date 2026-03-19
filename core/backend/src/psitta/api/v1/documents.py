@@ -66,6 +66,192 @@ def _sanitize_text_for_db(text: str) -> str:
     text = "".join(ch for ch in text if (ch >= " " or ch in "\n\r\t"))
     return text
 
+
+def _normalize_sentence_compare(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().casefold()
+
+
+def _normalize_pdf_page_marker(line: str) -> str:
+    stripped = line.strip()
+    stripped = re.sub(r"^[\s\[\](){}<>#*~\-.:|]+", "", stripped)
+    stripped = re.sub(r"[\s\[\](){}<>#*~\-.:|]+$", "", stripped)
+    return stripped
+
+
+def _looks_like_pdf_page_number_line(line: str, page_number: int | None = None) -> bool:
+    stripped = _normalize_pdf_page_marker(line)
+    if not stripped:
+        return False
+    if page_number is not None:
+        if stripped == str(page_number):
+            return True
+        if re.fullmatch(rf"page\s+{page_number}(?:\s+of\s+\d+)?", stripped, re.IGNORECASE):
+            return True
+        if re.fullmatch(rf"{page_number}\s*/\s*\d+", stripped):
+            return True
+    if re.fullmatch(r"page\s+[ivxlcdm]{1,8}", stripped, re.IGNORECASE):
+        return True
+    if re.fullmatch(r"[ivxlcdm]{2,8}", stripped, re.IGNORECASE):
+        return True
+    return bool(re.fullmatch(r"page\s+\d+(?:\s+of\s+\d+)?", stripped, re.IGNORECASE))
+
+
+def _strip_pdf_page_number_prefix(text: str, page_number: int | None = None) -> str:
+    if not text:
+        return ""
+
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    filtered: list[str] = []
+    removed_prefix = False
+
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if idx < 2 and not removed_prefix and _looks_like_pdf_page_number_line(stripped, page_number):
+            removed_prefix = True
+            continue
+        filtered.append(line)
+
+    cleaned = "\n".join(filtered).lstrip()
+    if page_number is not None:
+        cleaned = re.sub(
+            rf"^(?:page\s+)?{page_number}(?:\s+of\s+\d+)?[\s:.\-]+",
+            "",
+            cleaned,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    return cleaned.strip()
+
+
+def _strip_pdf_page_number_suffix(text: str, page_number: int | None = None) -> str:
+    if not text:
+        return ""
+
+    cleaned = text.strip()
+    if page_number is not None:
+        cleaned = re.sub(
+            rf"[\s:.\-]+(?:page\s+)?{page_number}(?:\s+of\s+\d+)?$",
+            "",
+            cleaned,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(
+            rf"[\s:.\-]+{page_number}$",
+            "",
+            cleaned,
+            count=1,
+        )
+    cleaned = re.sub(
+        r"[\s:.\-]+page\s+\d+(?:\s+of\s+\d+)?$",
+        "",
+        cleaned,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    return cleaned.strip()
+
+
+def _strip_pdf_page_number_edge_tokens(text: str, page_number: int | None = None) -> str:
+    if not text:
+        return ""
+
+    cleaned = text.strip()
+    wrapper = r"[\s\[\](){}<>#*~:|.\-]*"
+    start_patterns = [
+        rf"^{wrapper}page\s+\d+(?:\s+of\s+\d+)?{wrapper}\s+",
+        rf"^{wrapper}[ivxlcdm]{{2,8}}{wrapper}\s+",
+    ]
+    end_patterns = [
+        rf"\s+{wrapper}page\s+\d+(?:\s+of\s+\d+)?{wrapper}$",
+        rf"\s+{wrapper}[ivxlcdm]{{2,8}}{wrapper}$",
+    ]
+    if page_number is not None:
+        start_patterns.insert(
+            0,
+            rf"^{wrapper}(?:page\s+)?{page_number}(?:\s+of\s+\d+)?{wrapper}\s+",
+        )
+        end_patterns.insert(
+            0,
+            rf"\s+{wrapper}(?:page\s+)?{page_number}(?:\s+of\s+\d+)?{wrapper}$",
+        )
+
+    for pattern in start_patterns:
+        cleaned = re.sub(pattern, "", cleaned, count=1, flags=re.IGNORECASE)
+    for pattern in end_patterns:
+        cleaned = re.sub(pattern, "", cleaned, count=1, flags=re.IGNORECASE)
+    return cleaned.strip()
+
+
+def _strip_pdf_page_number_lines(text: str, page_number: int | None = None) -> str:
+    if not text:
+        return ""
+
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    filtered: list[str] = []
+    last_index = len(lines) - 1
+
+    for idx, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped:
+            filtered.append(line)
+            continue
+        near_edge = idx < 2 or idx >= max(0, last_index - 1)
+        if near_edge and _looks_like_pdf_page_number_line(stripped, page_number):
+            continue
+        filtered.append(line)
+
+    return "\n".join(filtered)
+
+
+def _drop_duplicate_leading_sentence(text: str) -> str:
+    if not text:
+        return ""
+
+    segmenter = pysbd.Segmenter(language="en", clean=False)
+    sentences = [s for s in segmenter.segment(text) if s and s.strip()]
+    if len(sentences) < 2:
+        return text.strip()
+
+    first = sentences[0].strip()
+    second = sentences[1].strip()
+    if _normalize_sentence_compare(first) != _normalize_sentence_compare(second):
+        return text.strip()
+
+    start = text.find(second)
+    if start <= 0:
+        return text.strip()
+    return text[start:].lstrip()
+
+
+def _clean_pdf_chunk_text(text: str, page_number: int | None = None) -> str:
+    cleaned = _strip_pdf_page_number_lines(text, page_number)
+    cleaned = _sanitize_text_for_db(_reflow_pdf_text(cleaned))
+    cleaned = _strip_pdf_page_number_prefix(cleaned, page_number)
+    cleaned = _strip_pdf_page_number_suffix(cleaned, page_number)
+    cleaned = _strip_pdf_page_number_edge_tokens(cleaned, page_number)
+    cleaned = _drop_duplicate_leading_sentence(cleaned)
+    return _sanitize_text_for_db(cleaned).strip()
+
+
+def _build_sentence_boundaries(text: str) -> list[list[int]]:
+    if not text:
+        return []
+    segmenter = pysbd.Segmenter(language="en", clean=False)
+    sentences = segmenter.segment(text)
+    boundaries: list[list[int]] = []
+    cursor = 0
+    for sent in sentences:
+        if not sent:
+            continue
+        start = text.index(sent, cursor)
+        end = start + len(sent)
+        boundaries.append([start, end])
+        cursor = end
+    return boundaries
+
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".md", ".html"})
@@ -159,7 +345,7 @@ def _extract_formatted_pdf(file_bytes: bytes) -> tuple[list[dict], list[list[dic
             raw = (page.extract_text() or "").strip()
             if not raw:
                 continue
-            clean = _sanitize_text_for_db(_reflow_pdf_text(raw))
+            clean = _clean_pdf_chunk_text(raw, i + 1)
             if not clean.strip():
                 continue
 
@@ -420,19 +606,10 @@ async def _process_document(
         "VALUES (:id, :doc_id, :seq, :ctype, :txt, :tone, :page, :chars, :meta, :fmt)"
     )
 
-    _segmenter = pysbd.Segmenter(language="en", clean=False)
-
     for chunk in chunks:
         chunk_id = uuid4()
         chunk_text = chunk["text"]
-        sentences = _segmenter.segment(chunk_text)
-        boundaries = []
-        cursor = 0
-        for sent in sentences:
-            start = chunk_text.index(sent, cursor)
-            end = start + len(sent)
-            boundaries.append([start, end])
-            cursor = end
+        boundaries = _build_sentence_boundaries(chunk_text)
         existing_meta = chunk.get("metadata_json") or {}
         existing_meta["sentence_boundaries"] = boundaries
         chunk["metadata_json"] = existing_meta
@@ -678,7 +855,7 @@ async def get_document_chunks(
 ) -> dict:
     """Return all chunks for a document, ordered by sequence."""
     doc_result = await db.execute(
-        text("SELECT id, status FROM documents WHERE id = :did"),
+        text("SELECT id, status, source_type FROM documents WHERE id = :did"),
         {"did": document_id},
     )
     doc = doc_result.first()
@@ -696,22 +873,30 @@ async def get_document_chunks(
     )
 
     chunks = []
+    is_pdf_document = (getattr(doc, "source_type", "") or "").lower() == "pdf"
     for r in rows:
         meta = r.metadata_json if isinstance(r.metadata_json, dict) else {}
+        text_content = r.text_content
+        sentence_boundaries = meta.get("sentence_boundaries")
+        character_count = r.character_count
+        if is_pdf_document:
+            text_content = _clean_pdf_chunk_text(r.text_content or "", r.page_number)
+            sentence_boundaries = _build_sentence_boundaries(text_content)
+            character_count = len(text_content)
         chunks.append(
             {
                 "id": str(r.id),
                 "sequence_index": r.sequence_index,
                 "chunk_type": r.chunk_type,
                 "title": meta.get("title", f"Section {r.sequence_index + 1}"),
-                "text_content": r.text_content,
+                "text_content": text_content,
                 "tone": r.tone,
                 "page_number": r.page_number,
-                "character_count": r.character_count,
+                "character_count": character_count,
                 "is_edited": getattr(r, "is_edited", False),
                 "edited_at": r.edited_at.isoformat() if getattr(r, "edited_at", None) else None,
                 "original_text": getattr(r, "original_text", None),
-                "sentence_boundaries": meta.get("sentence_boundaries"),
+                "sentence_boundaries": sentence_boundaries,
                 "formatted_content": r.formatted_content if hasattr(r, "formatted_content") else None,
             }
         )
@@ -732,32 +917,40 @@ async def get_chunk_audio(
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
     """Stream audio for a specific chunk. Auto-synthesizes on cache miss."""
-    import os
     from fastapi.responses import FileResponse
 
-    # Check cache first (local + S3)
     from psitta.services.audio_cache import get_mp3, put_mp3, s3_key_mp3
-    cached = await get_mp3(str(chunk_id), voice_id)
-    if cached:
-        return FileResponse(cached, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
-
-    # Cache miss -- synthesize on demand
-    logger.info("audio.cache_miss", chunk_id=str(chunk_id), voice_id=voice_id)
 
     # Get chunk text
     chunk_result = await db.execute(
-        text("SELECT text_content FROM document_chunks WHERE id = :cid AND document_id = :did"),
+        text(
+            "SELECT c.text_content, c.page_number, d.source_type "
+            "FROM document_chunks c "
+            "JOIN documents d ON d.id = c.document_id "
+            "WHERE c.id = :cid AND c.document_id = :did"
+        ),
         {"cid": chunk_id, "did": document_id},
     )
     chunk_row = chunk_result.first()
     if not chunk_row or not chunk_row.text_content:
         raise HTTPException(status_code=404, detail="Chunk not found")
 
+    source_type = (getattr(chunk_row, "source_type", "") or "").lower()
+    chunk_text = chunk_row.text_content
+    if source_type == "pdf":
+        chunk_text = _clean_pdf_chunk_text(chunk_text, getattr(chunk_row, "page_number", None))
+
+    cached = await get_mp3(str(chunk_id), voice_id)
+    if cached and chunk_text == chunk_row.text_content:
+        return FileResponse(cached, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
+
+    logger.info("audio.cache_miss", chunk_id=str(chunk_id), voice_id=voice_id)
+
     # Synthesize
     from psitta.providers.tts_router import TTSRouter
     tts = TTSRouter()
     try:
-        audio_bytes = await tts.synthesize(chunk_row.text_content, voice_id)
+        audio_bytes = await tts.synthesize(chunk_text, voice_id)
     except Exception as e:
         logger.error("audio.synthesize_failed", error=str(e), voice_id=voice_id)
         raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {e}")
@@ -812,14 +1005,8 @@ async def get_chunk_alignment(
       Local cache: /tmp/psitta_audio/{chunk_id}_{voice_id}.alignment.json (ephemeral)
     """
     import json
-    import os
 
     from psitta.services.audio_cache import get_alignment, put_alignment, put_mp3, s3_key_mp3
-
-    # If alignment exists in cache (local or S3), return it.
-    cached = await get_alignment(str(chunk_id), voice_id)
-    if cached:
-        return cached
 
     # Non-ElevenLabs voices cannot produce alignment data.
     # Skip synthesis entirely and cache a null-alignment payload.
@@ -836,12 +1023,26 @@ async def get_chunk_alignment(
 
     # Load chunk text
     chunk_result = await db.execute(
-        text("SELECT text_content FROM document_chunks WHERE id = :cid AND document_id = :did"),
+        text(
+            "SELECT c.text_content, c.page_number, d.source_type "
+            "FROM document_chunks c "
+            "JOIN documents d ON d.id = c.document_id "
+            "WHERE c.id = :cid AND c.document_id = :did"
+        ),
         {"cid": chunk_id, "did": document_id},
     )
     chunk_row = chunk_result.first()
     if not chunk_row or not chunk_row.text_content:
         raise HTTPException(status_code=404, detail="Chunk not found")
+
+    source_type = (getattr(chunk_row, "source_type", "") or "").lower()
+    chunk_text = chunk_row.text_content
+    if source_type == "pdf":
+        chunk_text = _clean_pdf_chunk_text(chunk_text, getattr(chunk_row, "page_number", None))
+
+    cached = await get_alignment(str(chunk_id), voice_id)
+    if cached and chunk_text == chunk_row.text_content:
+        return cached
 
     # Synthesize with optional alignment
     from psitta.providers.tts_router import TTSRouter
@@ -849,7 +1050,7 @@ async def get_chunk_alignment(
     tts = TTSRouter()
     try:
         audio_bytes, alignment, provider = await tts.synthesize_with_alignment(
-            chunk_row.text_content,
+            chunk_text,
             voice_id,
         )
     except Exception as e:
@@ -964,6 +1165,40 @@ async def _invalidate_chunk_audio_cache(chunk_id: UUID, db: AsyncSession) -> Non
     logger.info("cache_invalidation.db_delete", chunk_id=str(chunk_id), rows_deleted=result.rowcount)
 
 
+def _rebuild_formatted_content_for_chunk(
+    text_content: str,
+    existing_formatted: list[dict] | None,
+) -> list[dict]:
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text_content) if p.strip()]
+    if not paragraphs:
+        return []
+
+    existing_blocks = existing_formatted if isinstance(existing_formatted, list) else []
+    rebuilt: list[dict] = []
+
+    for index, paragraph in enumerate(paragraphs):
+        previous = existing_blocks[index] if index < len(existing_blocks) and isinstance(existing_blocks[index], dict) else {}
+        previous_runs = previous.get("runs") if isinstance(previous.get("runs"), list) else []
+        first_run = previous_runs[0] if previous_runs and isinstance(previous_runs[0], dict) else {}
+
+        block_type = previous.get("type", "paragraph")
+        block: dict = {
+            "type": block_type,
+            "runs": [{
+                "text": paragraph,
+                "bold": bool(first_run.get("bold", False)),
+                "italic": bool(first_run.get("italic", False)),
+                "underline": bool(first_run.get("underline", False)),
+                "font_size": first_run.get("font_size"),
+            }],
+        }
+        if previous.get("level") is not None:
+            block["level"] = previous["level"]
+        rebuilt.append(block)
+
+    return rebuilt
+
+
 @router.patch("/{document_id}/chunks/{chunk_id}", response_model=ChunkResponse)
 async def update_chunk_text(
     document_id: UUID,
@@ -975,7 +1210,7 @@ async def update_chunk_text(
     result = await db.execute(
         text(
             "SELECT id, sequence_index, chunk_type, text_content, tone, page_number, "
-            "character_count, is_edited, edited_at, original_text "
+            "character_count, is_edited, edited_at, original_text, metadata_json, formatted_content "
             "FROM document_chunks WHERE id = :cid AND document_id = :did"
         ),
         {"cid": chunk_id, "did": document_id},
@@ -996,6 +1231,24 @@ async def update_chunk_text(
     new_text = unicodedata.normalize('NFC', new_text)
 
     now = datetime.now(timezone.utc)
+    existing_meta = chunk.metadata_json if isinstance(chunk.metadata_json, dict) else {}
+    segmenter = pysbd.Segmenter(language="en", clean=False)
+    sentences = segmenter.segment(new_text)
+    boundaries: list[list[int]] = []
+    cursor = 0
+    for sentence in sentences:
+        start = new_text.index(sentence, cursor)
+        end = start + len(sentence)
+        boundaries.append([start, end])
+        cursor = end
+
+    updated_meta = {**existing_meta, "sentence_boundaries": boundaries}
+    updated_formatted = _rebuild_formatted_content_for_chunk(
+        new_text,
+        chunk.formatted_content if isinstance(chunk.formatted_content, list) else None,
+    )
+    meta_json = json.dumps(updated_meta, ensure_ascii=False)
+    fmt_json = json.dumps(updated_formatted, ensure_ascii=False) if updated_formatted else None
 
     # Store original text on first edit only
     if not chunk.is_edited:
@@ -1003,6 +1256,8 @@ async def update_chunk_text(
             text(
                 "UPDATE document_chunks "
                 "SET text_content = :txt, character_count = :chars, "
+                "metadata_json = CAST(:meta AS jsonb), "
+                "formatted_content = CAST(:fmt AS jsonb), "
                 "is_edited = true, edited_at = :now, original_text = :orig "
                 "WHERE id = :cid"
             ),
@@ -1010,6 +1265,8 @@ async def update_chunk_text(
                 "cid": chunk_id,
                 "txt": new_text,
                 "chars": len(new_text),
+                "meta": meta_json,
+                "fmt": fmt_json,
                 "now": now,
                 "orig": chunk.text_content,
             },
@@ -1018,10 +1275,20 @@ async def update_chunk_text(
         await db.execute(
             text(
                 "UPDATE document_chunks "
-                "SET text_content = :txt, character_count = :chars, edited_at = :now "
+                "SET text_content = :txt, character_count = :chars, "
+                "metadata_json = CAST(:meta AS jsonb), "
+                "formatted_content = CAST(:fmt AS jsonb), "
+                "edited_at = :now "
                 "WHERE id = :cid"
             ),
-            {"cid": chunk_id, "txt": new_text, "chars": len(new_text), "now": now},
+            {
+                "cid": chunk_id,
+                "txt": new_text,
+                "chars": len(new_text),
+                "meta": meta_json,
+                "fmt": fmt_json,
+                "now": now,
+            },
         )
 
     # Invalidate audio cache for this chunk

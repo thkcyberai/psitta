@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../../../core/utils/text_sanitizer.dart';
 
-/// Inline text editor that replaces WordHighlightView when editing.
+/// Inline text editor that stays inside the DOCX document sheet.
 ///
-/// Shows a plain TextField styled to match the reading view, with a
-/// floating save/discard bar that appears when text has been changed.
+/// The field grows with the document so the outer Player scroll view keeps
+/// owning document-level scrolling, scrollbar behavior, and mouse interaction.
 class InlineChunkEditor extends StatefulWidget {
   const InlineChunkEditor({
     super.key,
@@ -64,16 +64,20 @@ class _InlineChunkEditorState extends State<InlineChunkEditor> {
         TextField(
           controller: widget.controller,
           focusNode: widget.focusNode,
+          keyboardType: TextInputType.multiline,
+          textInputAction: TextInputAction.newline,
           maxLines: null,
-          expands: true,
-          textAlignVertical: TextAlignVertical.top,
+          minLines: 18,
+          scrollPhysics: const NeverScrollableScrollPhysics(),
           enabled: !widget.isSaving,
+          mouseCursor: SystemMouseCursors.text,
           style: theme.textTheme.bodyLarge?.copyWith(
             height: 1.8,
             fontSize: 16,
           ),
           decoration: InputDecoration(
             border: InputBorder.none,
+            isCollapsed: true,
             contentPadding: EdgeInsets.only(
               bottom: _hasChanges ? 72 : 0,
             ),

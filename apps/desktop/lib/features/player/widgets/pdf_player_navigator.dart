@@ -1,0 +1,334 @@
+import 'package:flutter/material.dart';
+import 'package:pdfrx/pdfrx.dart';
+
+class PdfPlayerNavigator extends StatelessWidget {
+  const PdfPlayerNavigator({
+    super.key,
+    required this.controller,
+    this.documentRef,
+    this.outline,
+    this.onOutlineSelected,
+    this.onThumbnailSelected,
+  });
+
+  final PdfViewerController controller;
+  final PdfDocumentRef? documentRef;
+  final List<PdfOutlineNode>? outline;
+  final void Function(PdfOutlineNode node)? onOutlineSelected;
+  final void Function(int pageNumber)? onThumbnailSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return DefaultTabController(
+      length: 2,
+      child: Column(
+        children: [
+          Container(
+            color: theme.colorScheme.surfaceContainerLow,
+            child: TabBar(
+              tabs: const [
+                Tab(icon: Icon(Icons.menu_book_outlined), text: 'Contents'),
+                Tab(icon: Icon(Icons.grid_view_rounded), text: 'Thumbnails'),
+              ],
+              labelStyle: theme.textTheme.labelMedium?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _PdfOutlineView(
+                  outline: outline,
+                  controller: controller,
+                  isLoading: documentRef == null || outline == null,
+                  onOutlineSelected: onOutlineSelected,
+                ),
+                _PdfThumbnailView(
+                  documentRef: documentRef,
+                  controller: controller,
+                  onThumbnailSelected: onThumbnailSelected,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PdfOutlineView extends StatelessWidget {
+  const _PdfOutlineView({
+    required this.outline,
+    required this.controller,
+    required this.isLoading,
+    this.onOutlineSelected,
+  });
+
+  final List<PdfOutlineNode>? outline;
+  final PdfViewerController controller;
+  final bool isLoading;
+  final void Function(PdfOutlineNode node)? onOutlineSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final flatOutline = _flattenOutline(outline, 0).toList();
+
+    if (isLoading) {
+      return const _PdfNavigatorMessage(
+        icon: Icons.menu_book_outlined,
+        title: 'Loading contents',
+        subtitle: 'Reading PDF bookmarks and outline data.',
+        showSpinner: true,
+      );
+    }
+
+    if (flatOutline.isEmpty) {
+      return const _PdfNavigatorMessage(
+        icon: Icons.menu_book_outlined,
+        title: 'No table of contents',
+        subtitle: 'This PDF does not expose bookmark or outline entries.',
+      );
+    }
+
+    return Scrollbar(
+      thumbVisibility: true,
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: flatOutline.length,
+        itemBuilder: (context, index) {
+          final item = flatOutline[index];
+          final canNavigate = item.node.dest != null;
+          final indent = (item.level * 14.0).clamp(0.0, 42.0);
+
+          return InkWell(
+            onTap: canNavigate
+                ? () {
+                    onOutlineSelected?.call(item.node);
+                    if (onOutlineSelected == null) {
+                      controller.goToDest(item.node.dest);
+                    }
+                  }
+                : null,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16 + indent, 10, 16, 10),
+              child: Text(
+                item.node.title,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight:
+                      item.level == 0 ? FontWeight.w600 : FontWeight.w400,
+                  color: canNavigate
+                      ? null
+                      : theme.colorScheme.onSurfaceVariant,
+                ),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Iterable<({PdfOutlineNode node, int level})> _flattenOutline(
+    List<PdfOutlineNode>? nodes,
+    int level,
+  ) sync* {
+    if (nodes == null) return;
+    for (final node in nodes) {
+      yield (node: node, level: level);
+      yield* _flattenOutline(node.children, level + 1);
+    }
+  }
+}
+
+class _PdfThumbnailView extends StatelessWidget {
+  const _PdfThumbnailView({
+    required this.documentRef,
+    required this.controller,
+    this.onThumbnailSelected,
+  });
+
+  final PdfDocumentRef? documentRef;
+  final PdfViewerController controller;
+  final void Function(int pageNumber)? onThumbnailSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    if (documentRef == null) {
+      return const _PdfNavigatorMessage(
+        icon: Icons.grid_view_rounded,
+        title: 'Loading thumbnails',
+        subtitle: 'Preparing page previews for quick navigation.',
+        showSpinner: true,
+      );
+    }
+
+    return PdfDocumentViewBuilder(
+      documentRef: documentRef!,
+      builder: (context, document) {
+        if (document == null) {
+          return const _PdfNavigatorMessage(
+            icon: Icons.grid_view_rounded,
+            title: 'Loading thumbnails',
+            subtitle: 'Preparing page previews for quick navigation.',
+            showSpinner: true,
+          );
+        }
+
+        return AnimatedBuilder(
+          animation: controller,
+          builder: (context, _) {
+            final currentPage = controller.pageNumber ?? 1;
+            return Scrollbar(
+              thumbVisibility: true,
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+                itemCount: document.pages.length,
+                itemBuilder: (context, index) {
+                  final pageNumber = index + 1;
+                  final isActive = currentPage == pageNumber;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(12),
+                      onTap: () {
+                        onThumbnailSelected?.call(pageNumber);
+                        if (onThumbnailSelected == null) {
+                          controller.goToPage(
+                            pageNumber: pageNumber,
+                            anchor: PdfPageAnchor.top,
+                          );
+                        }
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? theme.colorScheme.primary.withOpacity(0.10)
+                              : theme.colorScheme.surface,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isActive
+                                ? theme.colorScheme.primary.withOpacity(0.55)
+                                : theme.colorScheme.outlineVariant,
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            SizedBox(
+                              height: 156,
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Color(0x16000000),
+                                      blurRadius: 10,
+                                      offset: Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: PdfPageView(
+                                    document: document,
+                                    pageNumber: pageNumber,
+                                    alignment: Alignment.center,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Page $pageNumber',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _PdfNavigatorMessage extends StatelessWidget {
+  const _PdfNavigatorMessage({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    this.showSpinner = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool showSpinner;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 34,
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+            if (showSpinner) ...[
+              const SizedBox(height: 14),
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

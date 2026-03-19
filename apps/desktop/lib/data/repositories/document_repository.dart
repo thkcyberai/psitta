@@ -1,4 +1,10 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
 import '../api/api_client.dart';
 import '../models/document.dart';
 
@@ -9,7 +15,8 @@ class DocumentRepository {
   final ApiClient _api;
 
   /// List all documents for the current user.
-  Future<List<Document>> listDocuments({int page = 1, int limit = 20, bool showArchived = false}) async {
+  Future<List<Document>> listDocuments(
+      {int page = 1, int limit = 20, bool showArchived = false}) async {
     final response = await _api.dio.get('/documents/', queryParameters: {
       'page': page,
       'limit': limit,
@@ -91,7 +98,8 @@ class DocumentRepository {
       return {};
     } on DioException catch (e) {
       // ignore: avoid_print
-      print('[DocumentRepository] getChunkAlignment DioException: ${e.message}');
+      print(
+          '[DocumentRepository] getChunkAlignment DioException: ${e.message}');
       return {};
     } catch (e) {
       // ignore: avoid_print
@@ -130,6 +138,29 @@ class DocumentRepository {
       options: Options(responseType: ResponseType.bytes),
     );
     return response.data ?? [];
+  }
+
+  /// Download the original file and persist it to a stable temp path.
+  ///
+  /// This is used by native viewers that prefer a file path over in-memory
+  /// bytes, such as the PDF viewport in the desktop Player.
+  Future<File> downloadDocumentToTempFile(
+    String id, {
+    required String extension,
+  }) async {
+    final bytes = await downloadDocument(id);
+    final tempDir = await getTemporaryDirectory();
+    final docsDir = Directory(p.join(tempDir.path, 'psitta_documents'));
+    if (!docsDir.existsSync()) {
+      docsDir.createSync(recursive: true);
+    }
+
+    final normalizedExt = extension.startsWith('.')
+        ? extension.toLowerCase()
+        : '.${extension.toLowerCase()}';
+    final file = File(p.join(docsDir.path, '$id$normalizedExt'));
+    await file.writeAsBytes(Uint8List.fromList(bytes), flush: true);
+    return file;
   }
 
   /// Export document as a branded DOCX. Returns the file bytes.
