@@ -16,7 +16,9 @@ import '../../widgets/document_cover.dart';
 import '../editor/chunk_editor_provider.dart';
 import '../shell/widgets/player_bar.dart';
 import 'widgets/docx_document_editor.dart';
+import 'widgets/docx_page_layout.dart';
 import 'widgets/docx_document_viewport.dart';
+import 'widgets/docx_player_navigator.dart';
 import 'widgets/document_reading_view.dart';
 import 'widgets/inline_chunk_editor.dart';
 import 'widgets/pdf_document_viewport.dart';
@@ -56,8 +58,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _userScrolling = false;
   List<dynamic>? _activeSentenceBoundaries;
   final Map<String, GlobalKey> _docBlockKeys = {};
+  final Map<int, GlobalKey> _docxPageKeys = {};
   final GlobalKey _docScrollViewportKey = GlobalKey();
-  bool _isDocxMarkerMode = false;
+  int _currentDocxPageNumber = 1;
+  int _docxDragTargetPageNumber = 1;
+  double _docxThumbProgress = 0.0;
   int? _focusedDocxSentenceIndex;
   bool _hasPendingDocxJump = false;
   int? _pendingDocxJumpTargetMs;
@@ -250,7 +255,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     audioService.pause();
     ref.read(isInlineEditingProvider.notifier).state = true;
     setState(() {
-      _isDocxMarkerMode = false;
       _isEditing = true;
       _editingChunkId = chunkId;
       _originalText = chunkText;
@@ -300,7 +304,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
 
     setState(() {
-      _isDocxMarkerMode = false;
       _isEditing = true;
       _editingChunkId = '';
       _originalText = '';
@@ -629,6 +632,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _scrollBlockIntoReadingBand(sentenceKey);
   }
 
+  GlobalKey _pageKeyForDocx(int pageNumber) {
+    return _docxPageKeys.putIfAbsent(pageNumber, () => GlobalKey());
+  }
+
   void _scrollFromPosition(Duration position, Duration duration) {
     if (_userScrolling || _isEditing) return;
     if (!_contentScrollController.hasClients) return;
@@ -735,6 +742,152 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (durationMs <= 0 || chunkTextLength <= 0) return 0;
     final ratio = chunkCharOffset / chunkTextLength;
     return (durationMs * ratio).round();
+  }
+
+  Future<void> _scrollToDocxPage({
+    required List<DocxPageLayoutPage> pages,
+    required int pageNumber,
+  }) async {
+    if (mounted) {
+      final pageProgress = pages.length <= 1
+          ? 0.0
+          : ((pageNumber.clamp(1, pages.length) - 1) / (pages.length - 1))
+              .clamp(0.0, 1.0);
+      setState(() {
+        _currentDocxPageNumber = pageNumber;
+        _docxDragTargetPageNumber = pageNumber;
+        _docxThumbProgress = pageProgress;
+      });
+    }
+    final pageKey = _docxPageKeys[pageNumber];
+    final pageContext = pageKey?.currentContext;
+    if (pageContext != null) {
+      await Scrollable.ensureVisible(
+        pageContext,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeInOutCubic,
+        alignment: 0.02,
+      );
+      return;
+    }
+
+    final page = pages.where((candidate) => candidate.pageNumber == pageNumber);
+    if (page.isEmpty) return;
+    final firstBlock = page.first.blocks.isEmpty ? null : page.first.blocks.first;
+    if (firstBlock == null) return;
+    final blockKey = _docBlockKeys[firstBlock.blockId];
+    if (blockKey != null) {
+      _scrollBlockIntoReadingBand(blockKey, force: true);
+    }
+  }
+
+  void _updateCurrentDocxPage(List<DocxPageLayoutPage> pages) {
+    if (!mounted || pages.isEmpty) return;
+    final viewportCtx = _docScrollViewportKey.currentContext;
+    final viewportBox = viewportCtx?.findRenderObject() as RenderBox?;
+    if (viewportBox == null) return;
+
+    final anchorY = viewportBox.size.height * 0.22;
+    var bestPage = _currentDocxPageNumber;
+    var bestDistance = double.infinity;
+
+    for (final page in pages) {
+      final key = _docxPageKeys[page.pageNumber];
+      final pageCtx = key?.currentContext;
+      final pageBox = pageCtx?.findRenderObject() as RenderBox?;
+      if (pageBox == null) continue;
+
+      final topLeft = pageBox.localToGlobal(Offset.zero, ancestor: viewportBox);
+      final bottomRight = pageBox.localToGlobal(
+        pageBox.size.bottomRight(Offset.zero),
+        ancestor: viewportBox,
+      );
+      final top = topLeft.dy;
+      final bottom = bottomRight.dy;
+
+      if (anchorY >= top && anchorY <= bottom) {
+        bestPage = page.pageNumber;
+        bestDistance = 0;
+        break;
+      }
+
+      final distance =
+          top > anchorY ? (top - anchorY).abs() : (anchorY - bottom).abs();
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        bestPage = page.pageNumber;
+      }
+    }
+
+    final controllerProgress =
+        _contentScrollController.hasClients &&
+            _contentScrollController.position.maxScrollExtent > 0
+        ? (_contentScrollController.offset /
+                _contentScrollController.position.maxScrollExtent)
+            .clamp(0.0, 1.0)
+        : (pages.length <= 1
+              ? 0.0
+              : ((_currentDocxPageNumber.clamp(1, pages.length) - 1) /
+                      (pages.length - 1))
+                  .clamp(0.0, 1.0));
+
+    if (bestPage != _currentDocxPageNumber ||
+        (controllerProgress - _docxThumbProgress).abs() > 0.002) {
+      setState(() {
+        _currentDocxPageNumber = bestPage;
+        _docxDragTargetPageNumber = bestPage;
+        _docxThumbProgress = controllerProgress;
+      });
+    }
+  }
+
+  Future<void> _moveDocxThumbToPosition({
+    required List<DocxPageLayoutPage> pages,
+    required Offset globalPosition,
+    required bool animate,
+  }) async {
+    if (pages.isEmpty) return;
+    final viewportCtx = _docScrollViewportKey.currentContext;
+    final viewportBox = viewportCtx?.findRenderObject() as RenderBox?;
+    if (viewportBox == null) return;
+
+    final viewportTopLeft = viewportBox.localToGlobal(Offset.zero);
+    final localDy =
+        (globalPosition.dy - viewportTopLeft.dy).clamp(0.0, viewportBox.size.height);
+    final ratio = viewportBox.size.height <= 0
+        ? 0.0
+        : (localDy / viewportBox.size.height).clamp(0.0, 0.999999);
+    final pageIndex =
+        (ratio * pages.length).floor().clamp(0, pages.length - 1);
+    final targetPage = pages[pageIndex].pageNumber;
+
+    if (mounted &&
+        ((ratio - _docxThumbProgress).abs() > 0.002 ||
+            targetPage != _docxDragTargetPageNumber)) {
+      setState(() {
+        _docxThumbProgress = ratio;
+        _docxDragTargetPageNumber = targetPage;
+      });
+    }
+
+    if (_contentScrollController.hasClients) {
+      final maxScrollExtent =
+          _contentScrollController.position.maxScrollExtent;
+      final targetOffset = maxScrollExtent <= 0 ? 0.0 : maxScrollExtent * ratio;
+      if (animate) {
+        await _contentScrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      } else {
+        _contentScrollController.jumpTo(targetOffset);
+      }
+      return;
+    }
+
+    if (targetPage == _docxDragTargetPageNumber) return;
+    await _scrollToDocxPage(pages: pages, pageNumber: targetPage);
   }
 
   int? _charIndexAtMsFromAlignmentPayload(
@@ -1068,6 +1221,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required PsittaDocument document,
     required int docOffset,
     String? preferredBlockId,
+    bool autoPlay = true,
   }) async {
     final jumpRequestId = ++_docxJumpRequestSeq;
     final AudioService audioService =
@@ -1127,6 +1281,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       });
     }
 
+    if (!autoPlay && wasPlaying) {
+      await audioService.pause();
+    }
+
     ref.read(currentChunkIndexProvider.notifier).state = targetChunkIndex;
     audioService.updateTrackingChunk(targetChunkIndex);
 
@@ -1161,7 +1319,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await audioService.seek(Duration(milliseconds: targetMs));
     if (jumpRequestId != _docxJumpRequestSeq) return;
 
-    if (wasPlaying) {
+    if (autoPlay && wasPlaying) {
       await audioService.play();
     }
   }
@@ -1202,7 +1360,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             voiceId: voiceId,
           ),
         ).future,
-      ).catchError((_) {}),
+      ).catchError((_) => <String, dynamic>{}),
     );
   }
 
@@ -1469,6 +1627,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         }
 
         // ── Build text content area ──────────────────────────────────
+        final docxPages = isDocxDocument
+            ? paginateDocxDocument(context, psittaDoc)
+            : const <DocxPageLayoutPage>[];
+        final docxBlockPageMap = <String, int>{
+          for (final page in docxPages)
+            for (final block in page.blocks) block.blockId: page.pageNumber,
+        };
+        if (isDocxDocument && !_isEditing && docxPages.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _updateCurrentDocxPage(docxPages);
+          });
+        }
+
         Widget textWidget;
         if (isPdfDocument) {
           textWidget = PdfDocumentViewport(
@@ -1516,6 +1687,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           textWidget = DocxDocumentViewport(
             key: ValueKey('docx_${widget.documentId}_$voiceId'),
             document: psittaDoc,
+            pages: docxPages,
             activeChunkIndex: currentIndex,
             alignmentPayload: alignmentPayload ?? const {},
             focusedSentenceIndex:
@@ -1549,13 +1721,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 : null,
             onActiveSentenceChanged: _scrollFromSentence,
             onActiveWordChanged: _onActiveWordChanged,
-            onMarkerTap: (docOffset) => _jumpToDocumentOffset(
+            onSentenceTap: (docOffset) => _jumpToDocumentOffset(
               document: psittaDoc,
               docOffset: docOffset,
+              autoPlay: false,
             ),
             audioService: _audioService,
-            markerModeEnabled: !_isEditing && _isDocxMarkerMode,
             blockKeys: _docBlockKeys,
+            pageKeys: {
+              for (final page in docxPages) page.pageNumber: _pageKeyForDocx(page.pageNumber),
+            },
           );
         } else if (_isEditing && _editingChunkId == chunkId) {
           // Keep the existing non-DOCX editing fallback unchanged.
@@ -1631,6 +1806,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
         // ── Build document outline from heading blocks ──
         final outlineEntries = <_OutlineEntry>[];
+        final docxContentsEntries = <DocxNavigatorEntry>[];
         for (final block in psittaDoc.blocks) {
           if (block.type == DocBlockType.heading) {
             outlineEntries.add(_OutlineEntry(
@@ -1638,6 +1814,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               title: block.plainText,
               level: block.level ?? 1,
             ));
+            if (isDocxDocument) {
+              docxContentsEntries.add(DocxNavigatorEntry(
+                blockId: block.blockId,
+                title: block.plainText,
+                level: block.level ?? 1,
+                pageNumber: docxBlockPageMap[block.blockId] ?? 1,
+              ));
+            }
           }
         }
 
@@ -1697,7 +1881,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                isPdfDocument ? 'Navigator' : 'Outline',
+                                (isPdfDocument || isDocxDocument)
+                                    ? 'Navigator'
+                                    : 'Outline',
                                 style: theme.textTheme.titleSmall?.copyWith(
                                   fontWeight: FontWeight.w700,
                                 ),
@@ -1756,6 +1942,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                     );
                                   },
                                 )
+                              : isDocxDocument
+                                  ? DocxPlayerNavigator(
+                                      pages: docxPages,
+                                      contents: docxContentsEntries,
+                                      onContentsSelected: (entry) async {
+                                        DocBlock? block;
+                                        for (final candidate
+                                            in psittaDoc.blocks) {
+                                          if (candidate.blockId ==
+                                              entry.blockId) {
+                                            block = candidate;
+                                            break;
+                                          }
+                                        }
+                                        if (block == null) return;
+                                        await _jumpToDocumentOffset(
+                                          document: psittaDoc,
+                                          docOffset: block.textOffset,
+                                          preferredBlockId: entry.blockId,
+                                        );
+                                      },
+                                      onThumbnailSelected: (pageNumber) async {
+                                        await _scrollToDocxPage(
+                                          pages: docxPages,
+                                          pageNumber: pageNumber,
+                                        );
+                                      },
+                                    )
                               : outlineEntries.isEmpty
                                   ? Center(
                                       child: Padding(
@@ -1866,41 +2080,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                               ),
                             ),
                             if (isDocxDocument && !_isEditing) ...[
-                              Tooltip(
-                                preferBelow: false,
-                                verticalOffset: 20,
-                                message: _isDocxMarkerMode
-                                    ? 'Marker jump is on. Click document text while voice is reading to jump narration.'
-                                    : 'Marker jump tool. Turn this on, then click document text while voice is reading to jump narration.',
-                                child: IconButton.filledTonal(
-                                  icon: Icon(
-                                    _isDocxMarkerMode
-                                        ? Icons.close
-                                        : Icons.highlight_alt,
-                                    size: 18,
-                                  ),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: _isDocxMarkerMode
-                                        ? (theme.brightness == Brightness.dark
-                                            ? const Color(0xFF58651F)
-                                            : const Color(0xFFEAF68B))
-                                        : (theme.brightness == Brightness.dark
-                                            ? theme.colorScheme
-                                                .surfaceContainerHigh
-                                            : const Color(0xFFF7F7D8)),
-                                    foregroundColor: _isDocxMarkerMode
-                                        ? (theme.brightness == Brightness.dark
-                                            ? const Color(0xFFF6F8E2)
-                                            : const Color(0xFF4A5B17))
-                                        : theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                  onPressed: () {
-                                    setState(() {
-                                      _isDocxMarkerMode = !_isDocxMarkerMode;
-                                    });
-                                  },
-                                ),
-                              ),
                               IconButton(
                                 icon: Icon(
                                   Icons.edit_outlined,
@@ -1972,35 +2151,114 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         Expanded(
                           child: isPdfDocument
                               ? textWidget
-                              : NotificationListener<ScrollNotification>(
-                                  onNotification: (notification) {
-                                    if (notification
-                                        is UserScrollNotification) {
-                                      _userScrolling = notification.direction !=
-                                          ScrollDirection.idle;
-                                    }
-                                    return false;
-                                  },
-                                  child: Scrollbar(
-                                    controller: _contentScrollController,
-                                    thumbVisibility: isDocxDocument
-                                        ? (_isEditing || _isDocxMarkerMode)
-                                        : null,
-                                    interactive: true,
-                                    child: SingleChildScrollView(
-                                      key: _docScrollViewportKey,
-                                      controller: _contentScrollController,
-                                      padding:
-                                          const EdgeInsets.only(bottom: 120),
-                                      child: LayoutBuilder(
-                                        builder: (context, constraints) =>
-                                            SizedBox(
-                                          width: constraints.maxWidth,
-                                          child: textWidget,
+                              : Stack(
+                                  children: [
+                                    NotificationListener<ScrollNotification>(
+                                      onNotification: (notification) {
+                                        if (notification
+                                            is UserScrollNotification) {
+                                          _userScrolling =
+                                              notification.direction !=
+                                                  ScrollDirection.idle;
+                                        }
+                                        if (isDocxDocument && !_isEditing) {
+                                          WidgetsBinding.instance
+                                              .addPostFrameCallback((_) {
+                                            _updateCurrentDocxPage(docxPages);
+                                          });
+                                        }
+                                        return false;
+                                      },
+                                      child: (isDocxDocument && !_isEditing)
+                                          ? ScrollConfiguration(
+                                              behavior:
+                                                  ScrollConfiguration.of(
+                                                    context,
+                                                  ).copyWith(
+                                                    scrollbars: false,
+                                                  ),
+                                              child: SingleChildScrollView(
+                                                key: _docScrollViewportKey,
+                                                controller:
+                                                    _contentScrollController,
+                                                padding: const EdgeInsets.only(
+                                                    bottom: 120),
+                                                child: LayoutBuilder(
+                                                  builder:
+                                                      (context, constraints) =>
+                                                          SizedBox(
+                                                    width: constraints.maxWidth,
+                                                    child: textWidget,
+                                                  ),
+                                                ),
+                                              ),
+                                            )
+                                          : Scrollbar(
+                                              controller:
+                                                  _contentScrollController,
+                                              thumbVisibility: isDocxDocument
+                                                  ? true
+                                                  : null,
+                                              interactive: true,
+                                              child: SingleChildScrollView(
+                                                key: _docScrollViewportKey,
+                                                controller:
+                                                    _contentScrollController,
+                                                padding: const EdgeInsets.only(
+                                                    bottom: 120),
+                                                child: LayoutBuilder(
+                                                  builder:
+                                                      (context, constraints) =>
+                                                          SizedBox(
+                                                    width: constraints.maxWidth,
+                                                    child: textWidget,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                    ),
+                                    if (isDocxDocument &&
+                                        !_isEditing &&
+                                        docxPages.isNotEmpty)
+                                      Positioned(
+                                        right: 12,
+                                        top: 16,
+                                        bottom: 120,
+                                        child: Align(
+                                          alignment: Alignment.centerRight,
+                                          child: _DocxPageNumberThumb(
+                                            pageNumber: _currentDocxPageNumber
+                                                .clamp(1, docxPages.length),
+                                            totalPages: docxPages.length,
+                                            progress: _docxThumbProgress,
+                                            onTapDown: (details) {
+                                              _moveDocxThumbToPosition(
+                                                pages: docxPages,
+                                                globalPosition:
+                                                    details.globalPosition,
+                                                animate: true,
+                                              );
+                                            },
+                                            onPanStart: (details) {
+                                              _moveDocxThumbToPosition(
+                                                pages: docxPages,
+                                                globalPosition:
+                                                    details.globalPosition,
+                                                animate: false,
+                                              );
+                                            },
+                                            onPanUpdate: (details) {
+                                              _moveDocxThumbToPosition(
+                                                pages: docxPages,
+                                                globalPosition:
+                                                    details.globalPosition,
+                                                animate: false,
+                                              );
+                                            },
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ),
+                                  ],
                                 ),
                         ),
                       ],
@@ -2066,4 +2324,91 @@ class _OutlineEntry {
   final String blockId;
   final String title;
   final int level;
+}
+
+class _DocxPageNumberThumb extends StatelessWidget {
+  const _DocxPageNumberThumb({
+    required this.pageNumber,
+    required this.totalPages,
+    required this.progress,
+    this.onTapDown,
+    this.onPanStart,
+    this.onPanUpdate,
+  });
+
+  final int pageNumber;
+  final int totalPages;
+  final double progress;
+  final GestureTapDownCallback? onTapDown;
+  final GestureDragStartCallback? onPanStart;
+  final GestureDragUpdateCallback? onPanUpdate;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const thumbWidth = 46.0;
+    const thumbHeight = 28.0;
+
+    return SizedBox(
+      width: thumbWidth,
+      child: Tooltip(
+        message: 'Drag to navigate pages',
+        preferBelow: false,
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTapDown: onTapDown,
+          onVerticalDragStart: onPanStart,
+          onVerticalDragUpdate: onPanUpdate,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final trackHeight = constraints.maxHeight.clamp(
+                thumbHeight,
+                double.infinity,
+              );
+              final pageProgress = progress.clamp(0.0, 1.0);
+              final thumbTop = (trackHeight - thumbHeight) * pageProgress;
+
+              return Stack(
+                children: [
+                  Positioned(
+                    top: thumbTop,
+                    left: 0,
+                    right: 0,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withOpacity(0.92),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x22000000),
+                            blurRadius: 10,
+                            offset: Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: SizedBox(
+                        width: thumbWidth,
+                        height: thumbHeight,
+                        child: Center(
+                          child: Text(
+                            '$pageNumber',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
 }

@@ -1,7 +1,7 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -13,6 +13,10 @@ class DocumentRepository {
   DocumentRepository(this._api);
 
   final ApiClient _api;
+
+  void _logPdfPerf(String stage, String message) {
+    debugPrint('[PDF PERF][$stage] $message');
+  }
 
   /// List all documents for the current user.
   Future<List<Document>> listDocuments(
@@ -83,6 +87,11 @@ class DocumentRepository {
     required String chunkId,
     required String voiceId,
   }) async {
+    final stopwatch = Stopwatch()..start();
+    _logPdfPerf(
+      'alignment',
+      'start doc=$documentId chunk=$chunkId voice=$voiceId',
+    );
     try {
       final response = await _api.dio.get<Map<String, dynamic>>(
         '/documents/$documentId/chunks/$chunkId/alignment',
@@ -93,15 +102,35 @@ class DocumentRepository {
         ),
       );
       if (response.statusCode == 200 && response.data != null) {
+        stopwatch.stop();
+        _logPdfPerf(
+          'alignment',
+          'ready doc=$documentId chunk=$chunkId status=${response.statusCode} elapsed=${stopwatch.elapsedMilliseconds}ms',
+        );
         return response.data!;
       }
+      stopwatch.stop();
+      _logPdfPerf(
+        'alignment',
+        'empty doc=$documentId chunk=$chunkId status=${response.statusCode} elapsed=${stopwatch.elapsedMilliseconds}ms',
+      );
       return {};
     } on DioException catch (e) {
+      stopwatch.stop();
+      _logPdfPerf(
+        'alignment',
+        'dio_error doc=$documentId chunk=$chunkId elapsed=${stopwatch.elapsedMilliseconds}ms error=${e.message}',
+      );
       // ignore: avoid_print
       print(
           '[DocumentRepository] getChunkAlignment DioException: ${e.message}');
       return {};
     } catch (e) {
+      stopwatch.stop();
+      _logPdfPerf(
+        'alignment',
+        'error doc=$documentId chunk=$chunkId elapsed=${stopwatch.elapsedMilliseconds}ms error=$e',
+      );
       // ignore: avoid_print
       print('[DocumentRepository] getChunkAlignment unexpected error: $e');
       return {};
@@ -133,9 +162,16 @@ class DocumentRepository {
 
   /// Download the original file. Returns the response bytes.
   Future<List<int>> downloadDocument(String id) async {
+    final stopwatch = Stopwatch()..start();
+    _logPdfPerf('download', 'request_start doc=$id');
     final response = await _api.dio.get<List<int>>(
       '/documents/$id/download',
       options: Options(responseType: ResponseType.bytes),
+    );
+    stopwatch.stop();
+    _logPdfPerf(
+      'download',
+      'request_done doc=$id status=${response.statusCode} bytes=${response.data?.length ?? 0} elapsed=${stopwatch.elapsedMilliseconds}ms',
     );
     return response.data ?? [];
   }
@@ -148,7 +184,13 @@ class DocumentRepository {
     String id, {
     required String extension,
   }) async {
+    final stopwatch = Stopwatch()..start();
+    _logPdfPerf('open', 'tempfile_start doc=$id extension=$extension');
     final bytes = await downloadDocument(id);
+    _logPdfPerf(
+      'open',
+      'bytes_ready doc=$id bytes=${bytes.length} elapsed=${stopwatch.elapsedMilliseconds}ms',
+    );
     final tempDir = await getTemporaryDirectory();
     final docsDir = Directory(p.join(tempDir.path, 'psitta_documents'));
     if (!docsDir.existsSync()) {
@@ -159,7 +201,12 @@ class DocumentRepository {
         ? extension.toLowerCase()
         : '.${extension.toLowerCase()}';
     final file = File(p.join(docsDir.path, '$id$normalizedExt'));
-    await file.writeAsBytes(Uint8List.fromList(bytes), flush: true);
+    await file.writeAsBytes(bytes, flush: true);
+    stopwatch.stop();
+    _logPdfPerf(
+      'open',
+      'tempfile_ready doc=$id path=${file.path} elapsed=${stopwatch.elapsedMilliseconds}ms',
+    );
     return file;
   }
 

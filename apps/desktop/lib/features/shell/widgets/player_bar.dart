@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/extensions.dart';
+import '../../../data/providers/providers.dart';
 import '../../../data/services/audio_service.dart';
 import '../../../data/services/preferences_service.dart';
 
@@ -151,32 +152,70 @@ class PlayerBar extends ConsumerWidget {
                                 ),
                                 onPressed: hasActiveSession
                                     ? () {
-                                        if (!isPlaying &&
-                                            (audioService.duration == null ||
-                                                audioService.position ==
-                                                    Duration.zero)) {
-                                          final chunkIds =
-                                              ref.read(activeChunkIdsProvider);
-                                          final docId =
-                                              ref.read(activeDocumentIdProvider);
-                                          final idx =
-                                              ref.read(currentChunkIndexProvider);
-                                          if (docId != null &&
-                                              idx < chunkIds.length) {
-                                            final voiceId =
-                                                ref.read(selectedVoiceIdProvider);
-                                            final speed =
-                                                ref.read(selectedSpeedProvider);
-                                            final volume =
-                                                ref.read(selectedVolumeProvider);
-                                            audioService.playChunk(
-                                              documentId: docId,
-                                              chunkId: chunkIds[idx],
-                                              voiceId: voiceId,
-                                              speed: speed,
-                                              volume: volume,
-                                            );
-                                          }
+                                        final chunkIds =
+                                            ref.read(activeChunkIdsProvider);
+                                        final docId =
+                                            ref.read(activeDocumentIdProvider);
+                                        final idx = ref
+                                            .read(currentChunkIndexProvider);
+                                        final voiceId =
+                                            ref.read(selectedVoiceIdProvider);
+                                        final activeChunkId = idx < chunkIds.length
+                                            ? chunkIds[idx]
+                                            : null;
+                                        final chunksData = docId == null
+                                            ? null
+                                            : ref
+                                                .read(chunksProvider(docId))
+                                                .valueOrNull;
+                                        final firstChunkTextLength =
+                                            activeChunkId == null ||
+                                                    chunksData == null
+                                                ? null
+                                                : ((chunksData['chunks']
+                                                                as List<dynamic>?)
+                                                            ?.elementAtOrNull(
+                                                                idx)
+                                                        as Map<String,
+                                                            dynamic>?)?[
+                                                    'text_content']
+                                                ?.toString()
+                                                .length;
+                                        debugPrint(
+                                          '[PDF PERF][play] ui_click doc=$docId chunkIndex=$idx chunkCount=${chunkIds.length} voice=$voiceId isPlaying=$isPlaying',
+                                        );
+                                        if (activeChunkId != null &&
+                                            firstChunkTextLength != null) {
+                                          debugPrint(
+                                            '[PDF PERF][play] current_chunk_text_length doc=$docId chunk=$activeChunkId chars=$firstChunkTextLength',
+                                          );
+                                        }
+
+                                        final shouldStartRequestedChunk =
+                                            !isPlaying &&
+                                                docId != null &&
+                                                idx < chunkIds.length &&
+                                                !audioService.hasPreparedChunk(
+                                                  documentId: docId,
+                                                  chunkId: chunkIds[idx],
+                                                  voiceId: voiceId,
+                                                );
+                                        debugPrint(
+                                          '[PDF PERF][play] ui_branch doc=$docId chunk=${idx < chunkIds.length ? chunkIds[idx] : 'out_of_range'} mode=${shouldStartRequestedChunk ? 'start_chunk' : 'resume_toggle'} prepared=${docId != null && idx < chunkIds.length ? audioService.hasPreparedChunk(documentId: docId, chunkId: chunkIds[idx], voiceId: voiceId) : false}',
+                                        );
+
+                                        if (shouldStartRequestedChunk) {
+                                          final speed =
+                                              ref.read(selectedSpeedProvider);
+                                          final volume =
+                                              ref.read(selectedVolumeProvider);
+                                          audioService.playChunk(
+                                            documentId: docId,
+                                            chunkId: chunkIds[idx],
+                                            voiceId: voiceId,
+                                            speed: speed,
+                                            volume: volume,
+                                          );
                                         } else {
                                           audioService.togglePlayPause();
                                         }

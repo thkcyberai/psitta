@@ -20,8 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.dependencies import get_current_user, get_db_session
-from psitta.middleware.auth import TokenClaims
+from psitta.dependencies import get_current_user_id, get_db_session
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -38,10 +37,9 @@ async def create_session(
     voice_id: str = "21m00Tcm4TlvDq8ikWAM",
     speed: Annotated[float, Query(ge=0.5, le=3.0)] = 1.0,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     """Upsert a playback session. Returns existing session if one exists."""
-    user_id = claims.sub
 
     # Verify document exists and belongs to user
     doc_result = await db.execute(
@@ -49,7 +47,7 @@ async def create_session(
             "SELECT id, status FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id, "uid": user_id},
+        {"did": str(document_id), "uid": str(user_id)},
     )
     doc = doc_result.first()
     if not doc:
@@ -63,7 +61,7 @@ async def create_session(
             "WHERE user_id = :uid AND document_id = :did "
             "ORDER BY last_active_at DESC LIMIT 1"
         ),
-        {"uid": user_id, "did": document_id},
+        {"uid": str(user_id), "did": str(document_id)},
     )
     row = existing.first()
 
@@ -88,9 +86,9 @@ async def create_session(
             "VALUES (:id, :uid, :did, :vid, :speed, 0, 0, 0, NOW(), NOW())"
         ),
         {
-            "id": session_id,
-            "uid": user_id,
-            "did": document_id,
+            "id": str(session_id),
+            "uid": str(user_id),
+            "did": str(document_id),
             "vid": voice_id,
             "speed": speed,
         },
@@ -116,10 +114,9 @@ async def create_session(
 async def get_resume_session(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     """Return the last saved position for a document. Used on app start to restore state."""
-    user_id = claims.sub
 
     result = await db.execute(
         text(
@@ -128,7 +125,7 @@ async def get_resume_session(
             "WHERE user_id = :uid AND document_id = :did "
             "ORDER BY last_active_at DESC LIMIT 1"
         ),
-        {"uid": user_id, "did": document_id},
+        {"uid": str(user_id), "did": str(document_id)},
     )
     row = result.first()
 
@@ -154,13 +151,11 @@ async def update_position(
     chunk_index: Annotated[int, Query(ge=0)],
     position_ms: Annotated[int, Query(ge=0)],
     db: AsyncSession = Depends(get_db_session),
-    claims: TokenClaims = Depends(get_current_user),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     """Persist current chunk index and position within chunk.
     Called periodically by the client every 5 seconds during playback.
     """
-    user_id = claims.sub
-
     result = await db.execute(
         text(
             "UPDATE playback_sessions "
@@ -168,8 +163,8 @@ async def update_position(
             "WHERE id = :sid AND user_id = :uid"
         ),
         {
-            "sid": session_id,
-            "uid": user_id,
+            "sid": str(session_id),
+            "uid": str(user_id),
             "idx": chunk_index,
             "pos": position_ms,
         },

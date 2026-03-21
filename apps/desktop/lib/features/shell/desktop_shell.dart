@@ -60,24 +60,28 @@ class DesktopShell extends ConsumerWidget {
               if (isPlaying) {
                 audioService.pause();
               } else {
-                // If no audio source loaded, try to play current chunk
-                if (audioService.duration == null ||
-                    audioService.position == Duration.zero) {
-                  final chunkIds = ref.read(activeChunkIdsProvider);
-                  final docId = ref.read(activeDocumentIdProvider);
-                  final idx = ref.read(currentChunkIndexProvider);
-                  if (docId != null && idx < chunkIds.length) {
-                    final voiceId = ref.read(selectedVoiceIdProvider);
-                    final speed = ref.read(selectedSpeedProvider);
-                    final volume = ref.read(selectedVolumeProvider);
-                    audioService.playChunk(
+                final chunkIds = ref.read(activeChunkIdsProvider);
+                final docId = ref.read(activeDocumentIdProvider);
+                final idx = ref.read(currentChunkIndexProvider);
+                final voiceId = ref.read(selectedVoiceIdProvider);
+                final shouldStartRequestedChunk = docId != null &&
+                    idx < chunkIds.length &&
+                    !audioService.hasPreparedChunk(
                       documentId: docId,
                       chunkId: chunkIds[idx],
                       voiceId: voiceId,
-                      speed: speed,
-                      volume: volume,
                     );
-                  }
+
+                if (shouldStartRequestedChunk) {
+                  final speed = ref.read(selectedSpeedProvider);
+                  final volume = ref.read(selectedVolumeProvider);
+                  audioService.playChunk(
+                    documentId: docId,
+                    chunkId: chunkIds[idx],
+                    voiceId: voiceId,
+                    speed: speed,
+                    volume: volume,
+                  );
                 } else {
                   audioService.play();
                 }

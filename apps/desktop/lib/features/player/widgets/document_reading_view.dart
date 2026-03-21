@@ -20,17 +20,19 @@ class DocumentReadingView extends ConsumerStatefulWidget {
     required this.document,
     required this.activeChunkIndex,
     required this.alignmentPayload,
+    this.visibleBlocks,
     this.focusedSentenceIndex,
     this.onActiveSentenceChanged,
     this.onActiveWordChanged,
-    this.onMarkerTap,
+    this.onSentenceTap,
     this.audioService,
     this.enableContextMenu = true,
-    this.markerModeEnabled = false,
+    this.enablePointerSentenceSelection = false,
     this.blockKeys,
   });
 
   final PsittaDocument document;
+  final List<DocBlock>? visibleBlocks;
 
   /// Which chunk is currently playing (index into chunkMap).
   final int activeChunkIndex;
@@ -41,10 +43,10 @@ class DocumentReadingView extends ConsumerStatefulWidget {
 
   final void Function(GlobalKey blockKey)? onActiveSentenceChanged;
   final void Function(int wordIndex, int totalWords)? onActiveWordChanged;
-  final void Function(int docOffset)? onMarkerTap;
+  final void Function(int docOffset)? onSentenceTap;
   final AudioService? audioService;
   final bool enableContextMenu;
-  final bool markerModeEnabled;
+  final bool enablePointerSentenceSelection;
 
   /// Shared block key registry — allows external code (e.g. outline sidebar)
   /// to look up GlobalKeys for specific blocks.
@@ -58,18 +60,55 @@ class DocumentReadingView extends ConsumerStatefulWidget {
 class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
   final Map<String, GlobalKey> _localBlockKeys = {};
   int _lastActiveSentenceIdx = 0;
+  int? _hoveredSentenceIdx;
 
   GlobalKey _keyForBlock(String blockId) {
     final registry = widget.blockKeys ?? _localBlockKeys;
     return registry.putIfAbsent(blockId, () => GlobalKey());
   }
 
-  int _sentenceStartOffsetForTap(
+  DocSentence? _sentenceForPointer(
     DocBlock block,
     Offset localPosition,
-    Size size,
-  ) {
-    if (size.height <= 0) return block.textOffset;
+    double maxWidth,
+    TextSpan textSpan, {
+    required int displayPrefixLength,
+  }) {
+    if (maxWidth <= 0 || block.textLength <= 0) return null;
+
+    final painter = TextPainter(
+      text: textSpan,
+      textDirection: Directionality.of(context),
+    )..layout(maxWidth: maxWidth);
+
+    if (painter.size.width <= 0 || painter.size.height <= 0) return null;
+    if (localPosition.dx < 0 ||
+        localPosition.dy < 0 ||
+        localPosition.dx > painter.size.width ||
+        localPosition.dy > painter.size.height) {
+      return null;
+    }
+
+    final text = textSpan.toPlainText(includeSemanticsLabels: false);
+    if (text.isEmpty) return null;
+
+    final position = painter.getPositionForOffset(localPosition);
+    var displayOffset = position.offset.clamp(0, text.length).toInt();
+    if (displayOffset >= text.length) {
+      displayOffset = text.length - 1;
+    }
+
+    final charStart = displayOffset.clamp(0, text.length - 1);
+    final charEnd = (charStart + 1).clamp(0, text.length);
+    final charBoxes = painter.getBoxesForSelection(
+      TextSelection(baseOffset: charStart, extentOffset: charEnd),
+    );
+    final onText = charBoxes.any((box) => box.toRect().inflate(1).contains(localPosition));
+    if (!onText) return null;
+
+    final textOffset =
+        (displayOffset - displayPrefixLength).clamp(0, block.textLength - 1);
+    final docOffset = block.textOffset + textOffset;
 
     final blockEnd = block.textOffset + block.textLength;
     final blockSentences = widget.document.sentences
@@ -81,14 +120,16 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
       ..sort((a, b) => a.startOffset.compareTo(b.startOffset));
 
     if (blockSentences.isEmpty) {
-      return block.textOffset;
+      return null;
     }
 
-    final ratio = (localPosition.dy / size.height).clamp(0.0, 0.999999);
-    final sentenceIndex = (ratio * blockSentences.length)
-        .floor()
-        .clamp(0, blockSentences.length - 1);
-    return blockSentences[sentenceIndex].startOffset;
+    for (final sentence in blockSentences) {
+      if (docOffset >= sentence.startOffset && docOffset < sentence.endOffset) {
+        return sentence;
+      }
+    }
+
+    return null;
   }
 
   // ── Active sentence detection ──────────────────────────────────────────────
@@ -234,6 +275,9 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     final activeSentenceIdx = !isPlaying && widget.focusedSentenceIndex != null
         ? widget.focusedSentenceIndex
         : audioSentenceIdx;
+    final previewSentenceIdx = widget.enablePointerSentenceSelection
+        ? _hoveredSentenceIdx
+        : null;
 
     // Fire scroll callback when sentence changes
     if (audioSentenceIdx != null &&
@@ -241,8 +285,12 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
         audioSentenceIdx != _lastActiveSentenceIdx) {
       _lastActiveSentenceIdx = audioSentenceIdx;
       final sent = doc.sentences[audioSentenceIdx];
-      if (sent.blockIds.isNotEmpty) {
-        final key = _keyForBlock(sent.blockIds.first);
+      final visibleBlockIds = (widget.visibleBlocks ?? doc.blocks)
+          .map((block) => block.blockId)
+          .toSet();
+      final activeBlockId = sent.blockIds.isEmpty ? null : sent.blockIds.first;
+      if (activeBlockId != null && visibleBlockIds.contains(activeBlockId)) {
+        final key = _keyForBlock(activeBlockId);
         WidgetsBinding.instance.addPostFrameCallback((_) {
           widget.onActiveSentenceChanged?.call(key);
         });
@@ -285,6 +333,7 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
 
     // ── Highlight styles ──
     final sentenceBg = AppColors.primary.withOpacity(0.10);
+    final previewSentenceBg = AppColors.primary.withOpacity(0.16);
     final wordHighlightStyle = TextStyle(
       backgroundColor: AppColors.primary.withOpacity(isDark ? 0.35 : 0.22),
       color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
@@ -296,7 +345,9 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     // ── Render blocks ──
     final blockWidgets = <Widget>[];
 
-    for (final block in doc.blocks) {
+    final blocks = widget.visibleBlocks ?? doc.blocks;
+
+    for (final block in blocks) {
       final key = _keyForBlock(block.blockId);
       final blockStart = block.textOffset;
 
@@ -362,25 +413,41 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
               runStart < sent.endOffset && runEnd > sent.startOffset;
         }
 
+        bool isInPreviewSentence = false;
+        if (previewSentenceIdx != null &&
+            previewSentenceIdx < doc.sentences.length) {
+          final sent = doc.sentences[previewSentenceIdx];
+          isInPreviewSentence =
+              runStart < sent.endOffset && runEnd > sent.startOffset;
+        }
+
         // Check if this run overlaps the active word
         if (activeWordDocOffset != null && activeWordDocEnd != null) {
+          final highlightBg = isInPreviewSentence
+              ? previewSentenceBg
+              : isInActiveSentence
+                  ? sentenceBg
+                  : null;
           // Split run into sub-spans for word highlighting
           _addWordHighlightedSpans(
             spans: inlineSpans,
             text: runText,
             textDocStart: runStart,
             runStyle: runStyle,
-            isInActiveSentence: isInActiveSentence,
-            sentenceBg: sentenceBg,
+            sentenceHighlightBg: highlightBg,
             activeWordStart: activeWordDocOffset,
             activeWordEnd: activeWordDocEnd,
             wordHighlightStyle: wordHighlightStyle,
           );
         } else {
           // Sentence-only highlighting
-          final style = isInActiveSentence
-              ? runStyle.copyWith(backgroundColor: sentenceBg)
-              : runStyle;
+          final bgColor = isInPreviewSentence
+              ? previewSentenceBg
+              : isInActiveSentence
+                  ? sentenceBg
+                  : null;
+          final style =
+              bgColor != null ? runStyle.copyWith(backgroundColor: bgColor) : runStyle;
           inlineSpans.add(TextSpan(text: runText, style: style));
         }
 
@@ -394,35 +461,71 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
 
       final spacing = block.type == DocBlockType.heading ? 16.0 : 8.0;
 
+      final textSpan = TextSpan(children: inlineSpans);
       Widget blockChild = SelectableText.rich(
-        TextSpan(children: inlineSpans),
+        textSpan,
         contextMenuBuilder: cmBuilder,
       );
 
-      if (widget.markerModeEnabled) {
-        blockChild = Stack(
-          children: [
-            IgnorePointer(
-              ignoring: true,
-              child: blockChild,
-            ),
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (details) {
-                  final ctx = key.currentContext;
-                  final box = ctx?.findRenderObject() as RenderBox?;
-                  if (box == null) return;
-                  final docOffset = _sentenceStartOffsetForTap(
-                    block,
-                    details.localPosition,
-                    box.size,
-                  );
-                  widget.onMarkerTap?.call(docOffset);
-                },
+      if (widget.enablePointerSentenceSelection) {
+        final displayPrefixLength =
+            block.type == DocBlockType.listItem ? '  \u2022  '.length : 0;
+        final baseBlockChild = blockChild;
+        blockChild = LayoutBuilder(
+          builder: (context, constraints) => Stack(
+            children: [
+              IgnorePointer(
+                ignoring: true,
+                child: baseBlockChild,
               ),
-            ),
-          ],
+              Positioned.fill(
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  onHover: (event) {
+                    final sentence = _sentenceForPointer(
+                      block,
+                      event.localPosition,
+                      constraints.maxWidth,
+                      textSpan,
+                      displayPrefixLength: displayPrefixLength,
+                    );
+                    final nextIndex = sentence?.index;
+                    if (nextIndex != _hoveredSentenceIdx && mounted) {
+                      setState(() {
+                        _hoveredSentenceIdx = nextIndex;
+                      });
+                    }
+                  },
+                  onExit: (_) {
+                    if (_hoveredSentenceIdx != null && mounted) {
+                      setState(() {
+                        _hoveredSentenceIdx = null;
+                      });
+                    }
+                  },
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onTapUp: (details) {
+                      final sentence = _sentenceForPointer(
+                        block,
+                        details.localPosition,
+                        constraints.maxWidth,
+                        textSpan,
+                        displayPrefixLength: displayPrefixLength,
+                      );
+                      if (sentence == null) return;
+                      if (_hoveredSentenceIdx != sentence.index && mounted) {
+                        setState(() {
+                          _hoveredSentenceIdx = sentence.index;
+                        });
+                      }
+                      widget.onSentenceTap?.call(sentence.startOffset);
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       }
 
@@ -445,8 +548,7 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     required String text,
     required int textDocStart,
     required TextStyle runStyle,
-    required bool isInActiveSentence,
-    required Color sentenceBg,
+    required Color? sentenceHighlightBg,
     required int activeWordStart,
     required int activeWordEnd,
     required TextStyle wordHighlightStyle,
@@ -456,8 +558,8 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     // Does the active word overlap this run at all?
     if (activeWordEnd <= textDocStart || activeWordStart >= textDocEnd) {
       // No overlap — just sentence highlight
-      final style = isInActiveSentence
-          ? runStyle.copyWith(backgroundColor: sentenceBg)
+      final style = sentenceHighlightBg != null
+          ? runStyle.copyWith(backgroundColor: sentenceHighlightBg)
           : runStyle;
       spans.add(TextSpan(text: text, style: style));
       return;
@@ -469,8 +571,8 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
 
     // Before word
     if (wStart > textDocStart) {
-      final style = isInActiveSentence
-          ? runStyle.copyWith(backgroundColor: sentenceBg)
+      final style = sentenceHighlightBg != null
+          ? runStyle.copyWith(backgroundColor: sentenceHighlightBg)
           : runStyle;
       spans.add(TextSpan(
         text: text.substring(0, wStart - textDocStart),
@@ -486,8 +588,8 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
 
     // After word
     if (wEnd < textDocEnd) {
-      final style = isInActiveSentence
-          ? runStyle.copyWith(backgroundColor: sentenceBg)
+      final style = sentenceHighlightBg != null
+          ? runStyle.copyWith(backgroundColor: sentenceHighlightBg)
           : runStyle;
       spans.add(TextSpan(
         text: text.substring(wEnd - textDocStart),

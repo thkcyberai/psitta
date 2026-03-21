@@ -33,6 +33,9 @@ class AudioService {
 
   /// In-flight prefetch futures to avoid duplicate downloads.
   final Map<String, Future<String?>> _inflight = {};
+  String? _loadedDocumentId;
+  String? _loadedChunkId;
+  String? _loadedVoiceId;
 
   int _requestSeq = 0;
 
@@ -42,6 +45,37 @@ class AudioService {
   int _nextToken() => ++_requestSeq;
 
   bool _isLatest(int token) => token == _requestSeq;
+
+  void _logPdfPerf(String stage, String message) {
+    debugPrint('[PDF PERF][$stage] $message');
+  }
+
+  bool hasPreparedChunk({
+    required String documentId,
+    required String chunkId,
+    required String voiceId,
+  }) {
+    return _loadedDocumentId == documentId &&
+        _loadedChunkId == chunkId &&
+        _loadedVoiceId == voiceId &&
+        _player.audioSource != null;
+  }
+
+  void _markLoadedSource({
+    required String documentId,
+    required String chunkId,
+    required String voiceId,
+  }) {
+    _loadedDocumentId = documentId;
+    _loadedChunkId = chunkId;
+    _loadedVoiceId = voiceId;
+  }
+
+  void _clearLoadedSource() {
+    _loadedDocumentId = null;
+    _loadedChunkId = null;
+    _loadedVoiceId = null;
+  }
 
   Future<String> _tempPath(String chunkId, String voiceId) async {
     final tempDir = await getTemporaryDirectory();
@@ -57,14 +91,26 @@ class AudioService {
     String voiceId,
   ) async {
     final cacheKey = '${chunkId}_$voiceId';
+    final stopwatch = Stopwatch()..start();
 
     // Already cached on disk?
     if (_fileCache.containsKey(cacheKey)) {
       final f = File(_fileCache[cacheKey]!);
-      if (await f.exists()) return _fileCache[cacheKey];
+      if (await f.exists()) {
+        stopwatch.stop();
+        _logPdfPerf(
+          'audio',
+          'cache_file_hit doc=$documentId chunk=$chunkId voice=$voiceId elapsed=${stopwatch.elapsedMilliseconds}ms',
+        );
+        return _fileCache[cacheKey];
+      }
     }
 
     final url = _audioUrl(documentId, chunkId, voiceId);
+    _logPdfPerf(
+      'audio',
+      'request_start doc=$documentId chunk=$chunkId voice=$voiceId url=$url',
+    );
     try {
       final dio = Dio(
         BaseOptions(
@@ -79,10 +125,20 @@ class AudioService {
       final path = await _tempPath(chunkId, voiceId);
       await File(path).writeAsBytes(response.data!);
       _fileCache[cacheKey] = path;
+      stopwatch.stop();
+      _logPdfPerf(
+        'audio',
+        'request_done doc=$documentId chunk=$chunkId voice=$voiceId status=${response.statusCode} bytes=${response.data!.length} elapsed=${stopwatch.elapsedMilliseconds}ms',
+      );
       // ignore: avoid_print
       print('Downloaded: $cacheKey (${response.data!.length} bytes)');
       return path;
     } catch (e) {
+      stopwatch.stop();
+      _logPdfPerf(
+        'audio',
+        'request_error doc=$documentId chunk=$chunkId voice=$voiceId elapsed=${stopwatch.elapsedMilliseconds}ms error=$e',
+      );
       // ignore: avoid_print
       print('Download failed ($cacheKey): $e');
       return null;
@@ -124,6 +180,11 @@ class AudioService {
   }) async {
     final token = _nextToken();
     final cacheKey = '${chunkId}_$voiceId';
+    final stopwatch = Stopwatch()..start();
+    _logPdfPerf(
+      'play',
+      'playChunk_start doc=$documentId chunk=$chunkId voice=$voiceId token=$token',
+    );
 
     // Switching chunks should stop current playback immediately.
     try {
@@ -141,6 +202,11 @@ class AudioService {
         await _player.setFilePath(cachedPath);
         await _player.setSpeed(speed);
         await _player.setVolume(volume);
+        _markLoadedSource(
+          documentId: documentId,
+          chunkId: chunkId,
+          voiceId: voiceId,
+        );
 
         // ignore: avoid_print
         print(
@@ -148,12 +214,21 @@ class AudioService {
 
         if (!_isLatest(token)) return false;
         await _player.play();
+        stopwatch.stop();
+        _logPdfPerf(
+          'play',
+          'playChunk_started doc=$documentId chunk=$chunkId voice=$voiceId cache=hit elapsed=${stopwatch.elapsedMilliseconds}ms',
+        );
         return true;
       }
 
       // 2) Not cached: show synthesizing + download (or await inflight).
       _synthesizingController.add(true);
       synthesizingSet = true;
+      _logPdfPerf(
+        'play',
+        'playChunk_prepare_remote doc=$documentId chunk=$chunkId voice=$voiceId inflight=${_inflight.containsKey(cacheKey)}',
+      );
 
       String? filePath;
       if (_inflight.containsKey(cacheKey)) {
@@ -173,6 +248,11 @@ class AudioService {
       await _player.setFilePath(filePath);
       await _player.setSpeed(speed);
       await _player.setVolume(volume);
+      _markLoadedSource(
+        documentId: documentId,
+        chunkId: chunkId,
+        voiceId: voiceId,
+      );
 
       // ignore: avoid_print
       print(
@@ -180,13 +260,24 @@ class AudioService {
 
       if (!_isLatest(token)) return false;
       await _player.play();
+      stopwatch.stop();
+      _logPdfPerf(
+        'play',
+        'playChunk_started doc=$documentId chunk=$chunkId voice=$voiceId cache=miss elapsed=${stopwatch.elapsedMilliseconds}ms',
+      );
       return true;
     } catch (e) {
+      stopwatch.stop();
+      _logPdfPerf(
+        'play',
+        'playChunk_error doc=$documentId chunk=$chunkId voice=$voiceId elapsed=${stopwatch.elapsedMilliseconds}ms error=$e',
+      );
       // ignore: avoid_print
       print('Audio not available: $e');
       try {
         await _player.stop();
       } catch (_) {}
+      _clearLoadedSource();
       return false;
     } finally {
       // Only the latest request may clear the synthesizing indicator.
@@ -214,6 +305,11 @@ class AudioService {
   }) async {
     final token = _nextToken();
     final cacheKey = '${chunkId}_$voiceId';
+    final stopwatch = Stopwatch()..start();
+    _logPdfPerf(
+      'play',
+      'prepareChunk_start doc=$documentId chunk=$chunkId voice=$voiceId token=$token',
+    );
 
     try {
       await _player.stop();
@@ -228,6 +324,16 @@ class AudioService {
         await _player.setFilePath(cachedPath);
         await _player.setSpeed(speed);
         await _player.setVolume(volume);
+        _markLoadedSource(
+          documentId: documentId,
+          chunkId: chunkId,
+          voiceId: voiceId,
+        );
+        stopwatch.stop();
+        _logPdfPerf(
+          'play',
+          'prepareChunk_ready doc=$documentId chunk=$chunkId voice=$voiceId cache=hit elapsed=${stopwatch.elapsedMilliseconds}ms',
+        );
         return true;
       }
 
@@ -244,13 +350,29 @@ class AudioService {
       await _player.setFilePath(filePath);
       await _player.setSpeed(speed);
       await _player.setVolume(volume);
+      _markLoadedSource(
+        documentId: documentId,
+        chunkId: chunkId,
+        voiceId: voiceId,
+      );
+      stopwatch.stop();
+      _logPdfPerf(
+        'play',
+        'prepareChunk_ready doc=$documentId chunk=$chunkId voice=$voiceId cache=miss elapsed=${stopwatch.elapsedMilliseconds}ms',
+      );
       return true;
     } catch (e) {
+      stopwatch.stop();
+      _logPdfPerf(
+        'play',
+        'prepareChunk_error doc=$documentId chunk=$chunkId voice=$voiceId elapsed=${stopwatch.elapsedMilliseconds}ms error=$e',
+      );
       // ignore: avoid_print
       print('Prepare chunk failed ($cacheKey): $e');
       try {
         await _player.stop();
       } catch (_) {}
+      _clearLoadedSource();
       return false;
     } finally {
       if (_isLatest(token)) {
@@ -277,6 +399,7 @@ class AudioService {
     _nextToken(); // invalidate any in-flight play/download UI ownership
     await _player.stop();
     _synthesizingController.add(false);
+    _clearLoadedSource();
   }
 
   /// Full reset — stops playback and clears player state.
@@ -288,6 +411,7 @@ class AudioService {
       await _player.seek(Duration.zero);
     } catch (_) {}
     _synthesizingController.add(false);
+    _clearLoadedSource();
   }
 
   /// Removes a chunk from the in-memory cache and deletes its local temp file.
@@ -323,6 +447,7 @@ class AudioService {
       await _player.stop();
       await _player.setAudioSource(AudioSource.uri(Uri.dataFromString('')));
     } catch (_) {}
+    _clearLoadedSource();
 
     // 2. Clear specific cache key first
     final cacheKey = '${chunkId}_$voiceId';

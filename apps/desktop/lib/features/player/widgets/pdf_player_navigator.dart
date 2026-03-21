@@ -60,7 +60,7 @@ class PdfPlayerNavigator extends StatelessWidget {
   }
 }
 
-class _PdfOutlineView extends StatelessWidget {
+class _PdfOutlineView extends StatefulWidget {
   const _PdfOutlineView({
     required this.outline,
     required this.controller,
@@ -74,11 +74,30 @@ class _PdfOutlineView extends StatelessWidget {
   final void Function(PdfOutlineNode node)? onOutlineSelected;
 
   @override
+  State<_PdfOutlineView> createState() => _PdfOutlineViewState();
+}
+
+class _PdfOutlineViewState extends State<_PdfOutlineView> {
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final flatOutline = _flattenOutline(outline, 0).toList();
+    final flatOutline = _flattenOutline(widget.outline, 0).toList();
 
-    if (isLoading) {
+    if (widget.isLoading) {
       return const _PdfNavigatorMessage(
         icon: Icons.menu_book_outlined,
         title: 'Loading contents',
@@ -96,8 +115,10 @@ class _PdfOutlineView extends StatelessWidget {
     }
 
     return Scrollbar(
+      controller: _scrollController,
       thumbVisibility: true,
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: flatOutline.length,
         itemBuilder: (context, index) {
@@ -108,9 +129,9 @@ class _PdfOutlineView extends StatelessWidget {
           return InkWell(
             onTap: canNavigate
                 ? () {
-                    onOutlineSelected?.call(item.node);
-                    if (onOutlineSelected == null) {
-                      controller.goToDest(item.node.dest);
+                    widget.onOutlineSelected?.call(item.node);
+                    if (widget.onOutlineSelected == null) {
+                      widget.controller.goToDest(item.node.dest);
                     }
                   }
                 : null,
@@ -147,7 +168,7 @@ class _PdfOutlineView extends StatelessWidget {
   }
 }
 
-class _PdfThumbnailView extends StatelessWidget {
+class _PdfThumbnailView extends StatefulWidget {
   const _PdfThumbnailView({
     required this.documentRef,
     required this.controller,
@@ -159,10 +180,35 @@ class _PdfThumbnailView extends StatelessWidget {
   final void Function(int pageNumber)? onThumbnailSelected;
 
   @override
+  State<_PdfThumbnailView> createState() => _PdfThumbnailViewState();
+}
+
+class _PdfThumbnailViewState extends State<_PdfThumbnailView> {
+  bool _loggedThumbnailsReady = false;
+  bool _loggedFirstThumbnail = false;
+  late final ScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  void _logPdfPerf(String stage, String message) {
+    debugPrint('[PDF PERF][$stage] $message');
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    if (documentRef == null) {
+    if (widget.documentRef == null) {
       return const _PdfNavigatorMessage(
         icon: Icons.grid_view_rounded,
         title: 'Loading thumbnails',
@@ -172,7 +218,7 @@ class _PdfThumbnailView extends StatelessWidget {
     }
 
     return PdfDocumentViewBuilder(
-      documentRef: documentRef!,
+      documentRef: widget.documentRef!,
       builder: (context, document) {
         if (document == null) {
           return const _PdfNavigatorMessage(
@@ -183,27 +229,44 @@ class _PdfThumbnailView extends StatelessWidget {
           );
         }
 
+        if (!_loggedThumbnailsReady) {
+          _loggedThumbnailsReady = true;
+          _logPdfPerf(
+            'open',
+            'thumbnails_ready pages=${document.pages.length}',
+          );
+        }
+
         return AnimatedBuilder(
-          animation: controller,
+          animation: widget.controller,
           builder: (context, _) {
-            final currentPage = controller.pageNumber ?? 1;
+            final currentPage = widget.controller.pageNumber ?? 1;
             return Scrollbar(
+              controller: _scrollController,
               thumbVisibility: true,
               child: ListView.builder(
+                controller: _scrollController,
                 padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
                 itemCount: document.pages.length,
                 itemBuilder: (context, index) {
                   final pageNumber = index + 1;
                   final isActive = currentPage == pageNumber;
+                  if (!_loggedFirstThumbnail && index == 0) {
+                    _loggedFirstThumbnail = true;
+                    _logPdfPerf(
+                      'open',
+                      'first_thumbnail_widget_ready page=$pageNumber',
+                    );
+                  }
 
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 14),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
                       onTap: () {
-                        onThumbnailSelected?.call(pageNumber);
-                        if (onThumbnailSelected == null) {
-                          controller.goToPage(
+                        widget.onThumbnailSelected?.call(pageNumber);
+                        if (widget.onThumbnailSelected == null) {
+                          widget.controller.goToPage(
                             pageNumber: pageNumber,
                             anchor: PdfPageAnchor.top,
                           );

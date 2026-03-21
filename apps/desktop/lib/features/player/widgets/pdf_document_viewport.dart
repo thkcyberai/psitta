@@ -147,6 +147,7 @@ class PdfDocumentViewport extends ConsumerStatefulWidget {
 class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
   late final Future<File> _pdfFileFuture;
   late final PdfViewerController _viewerController;
+  late final Stopwatch _openStopwatch;
   final Map<int, PdfPageText> _pageTextCache = {};
   final Map<int, Future<PdfPageText?>> _pageTextFutures = {};
   final Map<int, List<_ResolvedPdfSentence>> _pageSentenceCache = {};
@@ -157,16 +158,34 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
   String? _lastAutoEnsuredHighlightSignature;
   int _highlightResolveSeq = 0;
   int _hoverResolveSeq = 0;
+  bool _loggedFirstPagePaint = false;
+
+  void _logPdfPerf(String stage, String message) {
+    debugPrint('[PDF PERF][$stage] $message');
+  }
+
+  Future<File> _loadPdfFile() async {
+    _logPdfPerf(
+      'open',
+      'viewport_init doc=${widget.documentId}',
+    );
+    final file = await ref.read(documentRepositoryProvider).downloadDocumentToTempFile(
+          widget.documentId,
+          extension: '.pdf',
+        );
+    _logPdfPerf(
+      'open',
+      'viewport_file_ready doc=${widget.documentId} elapsed=${_openStopwatch.elapsedMilliseconds}ms path=${file.path}',
+    );
+    return file;
+  }
 
   @override
   void initState() {
     super.initState();
     _viewerController = widget.controller ?? PdfViewerController();
-    _pdfFileFuture =
-        ref.read(documentRepositoryProvider).downloadDocumentToTempFile(
-              widget.documentId,
-              extension: '.pdf',
-            );
+    _openStopwatch = Stopwatch()..start();
+    _pdfFileFuture = _loadPdfFile();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _queueHighlightResolution(force: true);
@@ -203,6 +222,7 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     _pageSentenceFutures.clear();
     _lastHighlightSignature = null;
     _lastAutoEnsuredHighlightSignature = null;
+    _loggedFirstPagePaint = false;
     if (mounted) {
       setState(() {
         _resolvedHighlight = null;
@@ -213,7 +233,17 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     if (document == null || widget.onDocumentLoaded == null) {
       return;
     }
+    _logPdfPerf(
+      'open',
+      'pdfrx_document_ready doc=${widget.documentId} elapsed=${_openStopwatch.elapsedMilliseconds}ms pages=${document.pages.length}',
+    );
+    final outlineStopwatch = Stopwatch()..start();
     final outline = await document.loadOutline();
+    outlineStopwatch.stop();
+    _logPdfPerf(
+      'open',
+      'outline_ready doc=${widget.documentId} elapsed=${_openStopwatch.elapsedMilliseconds}ms outlineElapsed=${outlineStopwatch.elapsedMilliseconds}ms items=${outline.length}',
+    );
     if (!mounted) return;
     widget.onDocumentLoaded!(documentRef, outline);
   }
@@ -1025,6 +1055,14 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
                   },
                   pagePaintCallbacks: [
                     (canvas, pageRect, page) {
+                      if (!_loggedFirstPagePaint) {
+                        _loggedFirstPagePaint = true;
+                        _openStopwatch.stop();
+                        _logPdfPerf(
+                          'open',
+                          'first_page_render_ready doc=${widget.documentId} page=${page.pageNumber} elapsed=${_openStopwatch.elapsedMilliseconds}ms',
+                        );
+                      }
                       final hoveredTarget = _hoveredSentence;
                       if (hoveredTarget != null &&
                           (widget.highlight == null ||
