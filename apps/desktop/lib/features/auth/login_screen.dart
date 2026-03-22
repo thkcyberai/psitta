@@ -41,6 +41,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _initWebView() async {
     await _controller.initialize();
 
+    // Prevent the WebView from opening popup windows (e.g. social login).
+    await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
+
     // Listen for navigation — intercept the callback URL.
     _controller.url.listen(_onUrlChanged);
 
@@ -69,8 +72,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Prevent double-processing.
     _isExchanging = true;
 
-    // Stop the WebView from actually navigating to localhost.
+    // Immediately stop and redirect WebView away from localhost
+    // to prevent the system browser from opening the callback URL.
     _controller.stop();
+    _controller.loadUrl('about:blank');
 
     // Extract query parameters from the callback URL.
     final uri = Uri.parse(url);

@@ -135,6 +135,12 @@ async def get_current_user(
     jwks = await _get_jwks(settings)
     rsa_key = _find_rsa_key(jwks, token)
 
+    # Extract unverified claims for diagnostic logging on failure
+    try:
+        unverified_payload = jwt.get_unverified_claims(token)
+    except Exception:
+        unverified_payload = {}
+
     try:
         payload = jwt.decode(
             token,
@@ -144,16 +150,41 @@ async def get_current_user(
             issuer=settings.auth0_issuer,
         )
     except jwt.ExpiredSignatureError as exc:
+        logger.warning(
+            "auth.token.expired",
+            token_iss=unverified_payload.get("iss"),
+            token_sub=unverified_payload.get("sub"),
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token has expired",
         ) from exc
     except jwt.JWTClaimsError as exc:
+        logger.warning(
+            "auth.token.claims_error",
+            error=str(exc),
+            token_iss=unverified_payload.get("iss"),
+            token_aud=unverified_payload.get("aud"),
+            expected_iss=settings.auth0_issuer,
+            expected_aud=settings.AUTH0_AUDIENCE,
+            jwks_url=settings.auth0_jwks_url,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token claims (audience/issuer mismatch)",
         ) from exc
     except JWTError as exc:
+        logger.warning(
+            "auth.token.invalid",
+            error_type=type(exc).__name__,
+            error=str(exc),
+            token_kid=rsa_key.get("kid"),
+            token_iss=unverified_payload.get("iss"),
+            token_aud=unverified_payload.get("aud"),
+            expected_iss=settings.auth0_issuer,
+            expected_aud=settings.AUTH0_AUDIENCE,
+            jwks_url=settings.auth0_jwks_url,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",

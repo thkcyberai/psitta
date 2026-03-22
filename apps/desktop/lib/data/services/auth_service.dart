@@ -3,12 +3,13 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
 // ── Auth0 Configuration ──────────────────────────────────────────────
-const auth0Domain = 'dev-8wmplwcxsoyhlcw1.us.auth0.com';
+const auth0Domain = 'auth.psitta.ai';
 const auth0ClientId = 'o4YisrJYWrsPMSiNZ6o2yuUpn0lgulyh';
 const auth0Audience = 'https://api.psitta.app';
 const auth0RedirectUri = 'http://localhost:8080/callback';
@@ -108,6 +109,28 @@ class AuthService {
 
       if (accessToken == null) {
         throw Exception('No access_token in token response');
+      }
+
+      // Debug: log JWT claims to verify issuer, audience, and scope
+      try {
+        final claims = JwtDecoder.decode(accessToken);
+        debugPrint('[AUTH] === ACCESS TOKEN CLAIMS ===');
+        debugPrint('[AUTH] iss: ${claims['iss']}');
+        debugPrint('[AUTH] aud: ${claims['aud']}');
+        debugPrint('[AUTH] azp: ${claims['azp']}');
+        debugPrint('[AUTH] sub: ${claims['sub']}');
+        debugPrint('[AUTH] scope: ${claims['scope']}');
+        debugPrint('[AUTH] exp: ${claims['exp']}');
+        if (idToken != null) {
+          final idClaims = JwtDecoder.decode(idToken);
+          debugPrint('[AUTH] === ID TOKEN CLAIMS ===');
+          debugPrint('[AUTH] iss: ${idClaims['iss']}');
+          debugPrint('[AUTH] name: ${idClaims['name']}');
+          debugPrint('[AUTH] email: ${idClaims['email']}');
+          debugPrint('[AUTH] picture: ${idClaims['picture'] != null ? 'present' : 'absent'}');
+        }
+      } catch (e) {
+        debugPrint('[AUTH] JWT decode debug failed: $e');
       }
 
       await _storage.write(key: _accessTokenKey, value: accessToken);
