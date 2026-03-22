@@ -1737,10 +1737,16 @@ async def download_document(
     row = result.first()
     if not row:
         raise HTTPException(status_code=404, detail="Document not found")
+
     from psitta.services.audio_cache import get_raw_file
-    file_path = await get_raw_file(str(document_id), f".{row.source_type}")
+
+    if not row.storage_key:
+        raise HTTPException(status_code=404, detail="Original file not available for download")
+
+    file_path = await get_raw_file(row.storage_key)
     if not file_path:
         raise HTTPException(status_code=404, detail="Original file not available for download")
+
     filename = f"{row.title}.{row.source_type}"
     return FileResponse(
         file_path,

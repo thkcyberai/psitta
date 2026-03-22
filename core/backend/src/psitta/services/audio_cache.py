@@ -182,10 +182,16 @@ async def put_raw_file(doc_id: str, extension: str, file_bytes: bytes) -> str:
     return local
 
 
-async def get_raw_file(doc_id: str, extension: str) -> str | None:
-    """Return local path to original file if available. None on miss."""
+async def get_raw_file(storage_key: str) -> str | None:
+    """Return local path to an original file using the stored storage key."""
+    if not storage_key:
+        return None
+
     _ensure_dir()
-    local = _local_raw(doc_id, extension)
+    local_name = os.path.basename(storage_key)
+    if not local_name:
+        return None
+    local = os.path.join(AUDIO_DIR, local_name)
 
     if os.path.exists(local) and os.path.getsize(local) > 0:
         return local
@@ -195,10 +201,10 @@ async def get_raw_file(doc_id: str, extension: str) -> str | None:
         try:
             from psitta.config import get_settings
             bucket = get_settings().S3_BUCKET_NAME
-            data = await s3.get_object(bucket, _s3_raw(doc_id, extension))
+            data = await s3.get_object(bucket, storage_key)
             with open(local, "wb") as f:
                 f.write(data)
-            logger.info("audio_cache.raw.s3_hit", doc_id=doc_id)
+            logger.info("audio_cache.raw.s3_hit", storage_key=storage_key)
             return local
         except Exception:
             pass
