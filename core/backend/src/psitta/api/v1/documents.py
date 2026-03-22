@@ -721,11 +721,24 @@ async def upload_document(
 
     doc_id = uuid4()
 
+    from psitta.services.audio_cache import put_raw_file
+    try:
+        await put_raw_file(str(doc_id), extension, file_bytes)
+    except Exception as e:
+        logger.exception(
+            "document.upload.raw_persist_failed",
+            doc_id=str(doc_id),
+            filename=filename,
+            error=str(e),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Original file storage unavailable. Upload aborted.",
+        ) from e
+
     from psitta.services.subscription_service import check_and_increment_doc_quota
     await check_and_increment_doc_quota(db, user_id)
 
-    from psitta.services.audio_cache import put_raw_file
-    await put_raw_file(str(doc_id), extension, file_bytes)
     title = filename.rsplit(".", 1)[0] if "." in filename else filename
     source_type = extension.lstrip(".")
     storage_key = f"uploads/{doc_id}{extension}"

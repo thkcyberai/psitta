@@ -170,14 +170,24 @@ async def put_raw_file(doc_id: str, extension: str, file_bytes: bytes) -> str:
         f.write(file_bytes)
 
     s3 = _get_s3()
-    if s3:
-        try:
-            from psitta.config import get_settings
-            bucket = get_settings().S3_BUCKET_NAME
-            await s3.put_object(bucket, _s3_raw(doc_id, extension), file_bytes, "application/octet-stream")
-            logger.info("audio_cache.raw.saved_s3", doc_id=doc_id, size=len(file_bytes))
-        except Exception as e:
-            logger.warning("audio_cache.raw.s3_write_failed", error=str(e), doc_id=doc_id)
+    if not s3:
+        logger.error("audio_cache.raw.s3_unavailable", doc_id=doc_id)
+        raise RuntimeError("Durable raw-file storage is unavailable")
+
+    try:
+        from psitta.config import get_settings
+
+        bucket = get_settings().S3_BUCKET_NAME
+        await s3.put_object(
+            bucket,
+            _s3_raw(doc_id, extension),
+            file_bytes,
+            "application/octet-stream",
+        )
+        logger.info("audio_cache.raw.saved_s3", doc_id=doc_id, size=len(file_bytes))
+    except Exception as e:
+        logger.error("audio_cache.raw.s3_write_failed", error=str(e), doc_id=doc_id)
+        raise RuntimeError("Durable raw-file storage failed") from e
 
     return local
 
