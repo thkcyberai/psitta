@@ -69,3 +69,24 @@ resource "aws_iam_role_policy" "ecs_task_s3" {
     }]
   })
 }
+
+# ── Cross-account admin role for Blowmymind -> psitta-prod ───────────────────
+resource "aws_iam_role" "cross_account_admin" {
+  name = "OrganizationAccountAccessRole"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        AWS = "arn:aws:iam::010526248733:user/luis-admin"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "cross_account_admin_attach" {
+  role       = aws_iam_role.cross_account_admin.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
