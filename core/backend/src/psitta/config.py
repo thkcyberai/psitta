@@ -9,6 +9,8 @@ Security: Secrets are marked with SecretStr to prevent accidental logging.
 
 from __future__ import annotations
 
+import json
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -169,4 +171,16 @@ def get_settings() -> Settings:
 
     Call get_settings.cache_clear() in tests to reset.
     """
-    return Settings()
+    raw = os.getenv("APP_SECRETS", "").strip()
+    if not raw:
+        return Settings()
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("APP_SECRETS contains invalid JSON") from exc
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("APP_SECRETS must decode to a JSON object")
+
+    return Settings(**payload)
