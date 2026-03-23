@@ -43,13 +43,26 @@ class S3StorageProvider:
         import aioboto3
 
         session = aioboto3.Session()
-        return session.client(
-            "s3",
-            endpoint_url=self._endpoint_url,
-            region_name=self._region,
-            aws_access_key_id=self._access_key,
-            aws_secret_access_key=self._secret_key,
-        )
+        client_kwargs = {
+            "region_name": self._region,
+        }
+
+        # Use explicit credentials only for local MinIO-style environments.
+        # In ECS/Fargate on AWS, omit credentials so boto3 uses the task role.
+        if (
+            self._access_key
+            and self._secret_key
+            and self._access_key != "minioadmin"
+            and self._secret_key != "minioadmin"
+        ):
+            client_kwargs["aws_access_key_id"] = self._access_key
+            client_kwargs["aws_secret_access_key"] = self._secret_key
+
+        # Only force endpoint_url for non-AWS S3 compatible backends like MinIO.
+        if self._endpoint_url and "amazonaws.com" not in self._endpoint_url:
+            client_kwargs["endpoint_url"] = self._endpoint_url
+
+        return session.client("s3", **client_kwargs)
 
     async def put_object(
         self,
