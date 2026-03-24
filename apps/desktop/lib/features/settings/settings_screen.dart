@@ -131,6 +131,10 @@ class SettingsScreen extends ConsumerWidget {
                   const _SectionHeader(title: 'Sync Word Highlight'),
                   RadioListTile<String>(
                     title: const Text('Read with S.W.H'),
+                    subtitle: const Text(
+                      'Uses ElevenLabs TTS credits for word-level sync',
+                      style: TextStyle(fontSize: 11),
+                    ),
                     value: SwhMode.always,
                     groupValue: swhMode,
                     onChanged: (v) => ref
@@ -140,14 +144,6 @@ class SettingsScreen extends ConsumerWidget {
                   RadioListTile<String>(
                     title: const Text('Read without S.W.H'),
                     value: SwhMode.never,
-                    groupValue: swhMode,
-                    onChanged: (v) => ref
-                        .read(selectedSwhModeProvider.notifier)
-                        .select(v!),
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Will decide before Listen'),
-                    value: SwhMode.ask,
                     groupValue: swhMode,
                     onChanged: (v) => ref
                         .read(selectedSwhModeProvider.notifier)

@@ -142,13 +142,12 @@ final selectedVolumeProvider =
 abstract final class SwhMode {
   static const always = 'always';
   static const never = 'never';
-  static const ask = 'ask';
-  static const all = <String>[always, never, ask];
+  static const all = <String>[always, never];
 }
 
 /// Persists the user's SWH (Sync Word Highlight) preference.
 class SwhPreferenceNotifier extends StateNotifier<String> {
-  SwhPreferenceNotifier() : super(SwhMode.ask) {
+  SwhPreferenceNotifier() : super(SwhMode.never) {
     _load();
   }
 
@@ -159,6 +158,10 @@ class SwhPreferenceNotifier extends StateNotifier<String> {
     final saved = prefs.getString(_key);
     if (saved != null && SwhMode.all.contains(saved)) {
       state = saved;
+    } else if (saved == 'ask') {
+      // Migrate old 'ask' default to 'never'
+      state = SwhMode.never;
+      await prefs.setString(_key, SwhMode.never);
     }
   }
 

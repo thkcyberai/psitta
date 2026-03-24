@@ -121,58 +121,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   /// This enables "select document -> press Play" without navigating to Player first.
   Future<void> _primePlaybackSession(Document doc) async {
     final audioService = ref.read(audioServiceProvider);
-    // Switching documents should stop prior playback and clear audio source state.
-    await audioService.stop();
+    // Fire-and-forget stop — do not await, never block navigation.
+    unawaited(audioService.stop());
     unawaited(audioService.reset());
-
     ref.read(activeDocumentIdProvider.notifier).state = doc.id;
     ref.read(currentDocTitleProvider.notifier).state = doc.title;
     ref.read(currentChunkIndexProvider.notifier).state = 0;
     ref.read(totalChunksProvider.notifier).state = 0;
     ref.read(activeChunkIdsProvider.notifier).state = const [];
-
-    try {
-      final data = await ref.read(chunksProvider(doc.id).future);
-      final chunks = (data['chunks'] as List<dynamic>?) ?? const [];
-      final ids = chunks
-          .map((c) => ((c as Map<String, dynamic>)['id'] ?? '').toString())
-          .where((id) => id.isNotEmpty)
-          .toList();
-
-      ref.read(activeChunkIdsProvider.notifier).state = ids;
-      ref.read(totalChunksProvider.notifier).state = ids.length;
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not load chapters: $e')),
-        );
-      }
-    }
   }
 
   Future<void> _listenToDocument(Document doc) async {
     final swhMode = ref.read(selectedSwhModeProvider);
-    bool swhEnabled;
-
-    if (swhMode == SwhMode.always) {
-      swhEnabled = true;
-    } else if (swhMode == SwhMode.never) {
-      swhEnabled = false;
-    } else {
-      // "ask" mode — show dialog
-      final result = await showDialog<_SwhDialogResult>(
-        context: context,
-        builder: (_) => const _SwhChoiceDialog(),
-      );
-      if (result == null || !mounted) return;
-      swhEnabled = result.withSwh;
-      if (result.remember) {
-        await ref
-            .read(selectedSwhModeProvider.notifier)
-            .select(swhEnabled ? SwhMode.always : SwhMode.never);
-      }
-    }
-
+    final swhEnabled = swhMode == SwhMode.always;
     await _primePlaybackSession(doc);
     if (!mounted) return;
     final swhParam = swhEnabled ? '1' : '0';
@@ -1593,49 +1554,3 @@ class _DownloadOptionsDialogState extends State<_DownloadOptionsDialog> {
   }
 }
 
-// ── SWH Choice Dialog ─────────────────────────────────────────────────────────
-
-class _SwhDialogResult {
-  const _SwhDialogResult({required this.withSwh, required this.remember});
-  final bool withSwh;
-  final bool remember;
-}
-
-class _SwhChoiceDialog extends StatefulWidget {
-  const _SwhChoiceDialog();
-
-  @override
-  State<_SwhChoiceDialog> createState() => _SwhChoiceDialogState();
-}
-
-class _SwhChoiceDialogState extends State<_SwhChoiceDialog> {
-  bool _remember = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('How would you like to listen?'),
-      content: CheckboxListTile(
-        contentPadding: EdgeInsets.zero,
-        value: _remember,
-        onChanged: (v) => setState(() => _remember = v ?? false),
-        title: const Text('Remember my choice'),
-        controlAffinity: ListTileControlAffinity.leading,
-      ),
-      actions: [
-        OutlinedButton(
-          onPressed: () => Navigator.of(context).pop(
-            _SwhDialogResult(withSwh: false, remember: _remember),
-          ),
-          child: const Text('Without Word Highlight'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(
-            _SwhDialogResult(withSwh: true, remember: _remember),
-          ),
-          child: const Text('With Word Highlight'),
-        ),
-      ],
-    );
-  }
-}

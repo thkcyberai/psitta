@@ -202,8 +202,57 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         chunkIndex: idx,
         repository: repo,
       );
+
+      // ── Eager PDF prefetch ──────────────────────────────────────────
+      // For PDF documents, synthesize the first 2 chunks immediately so
+      // audio is ready by the time the user clicks Play.
+      // DOCX is excluded — it already loads in ~1 second.
+      _eagerPrefetchPdfChunks(voiceId: voiceId, startIndex: idx);
     } catch (e) {
       debugPrint('[PlayerScreen] Session init failed: $e');
+    }
+  }
+
+  /// Fire-and-forget prefetch of first 2 PDF chunks on player open.
+  /// Only runs for PDF documents. DOCX is never touched.
+  Future<void> _eagerPrefetchPdfChunks({
+    required String voiceId,
+    required int startIndex,
+  }) async {
+    try {
+      // Resolve document type — only proceed for PDF
+      final docs = ref.read(documentsProvider).valueOrNull;
+      if (docs == null) return;
+      dynamic resolvedDoc;
+      for (final doc in docs) {
+        if (doc.id == widget.documentId) {
+          resolvedDoc = doc;
+          break;
+        }
+      }
+      if (resolvedDoc == null) return;
+      final sourceType = (resolvedDoc.sourceType ?? '').toString().toLowerCase();
+      if (sourceType != 'pdf') return;
+
+      // Fetch chunks and prefetch first 2 starting from current index
+      final chunks = await ref.read(chunksProvider(widget.documentId).future);
+      if (!mounted) return;
+
+      final audioService = ref.read(audioServiceProvider);
+      final prefetchCount = 2;
+      for (int i = startIndex; i < startIndex + prefetchCount && i < chunks.length; i++) {
+        final chunk = chunks[i] as Map<String, dynamic>;
+        final chunkId = (chunk['id'] ?? '').toString();
+        if (chunkId.isEmpty) continue;
+        debugPrint('[PDF PREFETCH] eager prefetch chunk $i id=$chunkId');
+        unawaited(audioService.prefetchChunk(
+          documentId: widget.documentId,
+          chunkId: chunkId,
+          voiceId: voiceId,
+        ));
+      }
+    } catch (e) {
+      debugPrint('[PDF PREFETCH] eager prefetch failed: $e');
     }
   }
 
