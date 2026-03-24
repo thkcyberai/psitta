@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:webview_windows/webview_windows.dart';
 
 import '../../data/services/auth_service.dart';
+import '../../data/services/preferences_service.dart';
 
 /// Login screen — embedded WebView that loads the Cognito Hosted UI.
 ///
@@ -41,9 +42,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _initWebView() async {
     await _controller.initialize();
 
-    // Clear cookies and cache to ensure Cognito session is fully cleared on logout.
-    await _controller.clearCache();
-    await _controller.clearCookies();
+    // Clear cookies and cache only when Stay Signed In is disabled.
+    // When enabled, Cognito session cookie persists so the user is
+    // signed back in automatically after logout without re-entering credentials.
+    final staySignedIn = ref.read(staySignedInProvider);
+    if (!staySignedIn) {
+      await _controller.clearCache();
+      await _controller.clearCookies();
+    }
 
     // Prevent the WebView from opening popup windows.
     await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);

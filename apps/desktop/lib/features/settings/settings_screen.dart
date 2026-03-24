@@ -5,6 +5,7 @@ import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
+import '../../data/services/preferences_service.dart';
 import '../../widgets/user_avatar.dart';
 
 String _autoDeleteLabel(int? days) =>
@@ -53,6 +54,7 @@ class SettingsScreen extends ConsumerWidget {
                   const _AccountTile(),
                   const _SubscriptionTile(),
                   const _ChangePlanTile(),
+                  const _StaySignedInTile(),
                   _LogoutTile(),
                   const SizedBox(height: 16),
                   const _SectionHeader(title: 'Appearance'),
@@ -300,6 +302,24 @@ class _ChangePlanTile extends StatelessWidget {
 }
 
 /// Logout button that signs out and redirects to /login.
+class _StaySignedInTile extends ConsumerWidget {
+  const _StaySignedInTile();
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final staySignedIn = ref.watch(staySignedInProvider);
+    return SwitchListTile(
+      secondary: const Icon(Icons.lock_open_outlined),
+      title: const Text('Stay signed in'),
+      subtitle: const Text(
+        'Skip the login screen after signing out',
+      ),
+      value: staySignedIn,
+      onChanged: (value) =>
+          ref.read(staySignedInProvider.notifier).toggle(value),
+    );
+  }
+}
+
 class _LogoutTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {

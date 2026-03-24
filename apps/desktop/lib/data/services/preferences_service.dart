@@ -243,3 +243,31 @@ final selectedCacheSizeProvider =
     StateNotifierProvider<CacheSizePreferenceNotifier, int>(
   (ref) => CacheSizePreferenceNotifier(),
 );
+
+/// Persists the user's Stay Signed In preference across sessions.
+class StaySignedInNotifier extends StateNotifier<bool> {
+  StaySignedInNotifier() : super(true) {
+    _load();
+  }
+  static const _key = 'stay_signed_in';
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(_key) ?? true;
+  }
+
+  Future<void> toggle(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_key, value);
+  }
+}
+
+/// Stay Signed In — persisted via SharedPreferences.
+/// Default: true (session persists across logouts).
+/// Reads: ref.watch(staySignedInProvider) returns bool.
+/// Writes: ref.read(staySignedInProvider.notifier).toggle(value).
+final staySignedInProvider =
+    StateNotifierProvider<StaySignedInNotifier, bool>(
+  (ref) => StaySignedInNotifier(),
+);
