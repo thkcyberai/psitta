@@ -146,16 +146,25 @@ async def get_current_user(
     except Exception:
         unverified_payload = {}
 
-    # Cognito access tokens: audience is the user pool client_id
-    # Cognito ID tokens: audience is also the client_id
+    # Cognito access tokens do not carry an aud claim — they use client_id.
+    # We skip audience verification in python-jose and manually verify
+    # client_id from the decoded payload to maintain security.
     try:
         payload = jwt.decode(
             token,
             rsa_key,
             algorithms=["RS256"],
-            audience=settings.COGNITO_CLIENT_ID,
             issuer=settings.cognito_issuer,
+            options={"verify_aud": False},
         )
+        token_client_id = payload.get("client_id") or payload.get("aud")
+        if isinstance(token_client_id, list):
+            token_client_id = token_client_id[0]
+        if token_client_id != settings.COGNITO_CLIENT_ID:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token audience",
+            )
     except jwt.ExpiredSignatureError as exc:
         logger.warning(
             "auth.token.expired",
