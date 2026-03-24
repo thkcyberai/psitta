@@ -14,7 +14,7 @@ import os
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -71,36 +71,31 @@ class Settings(BaseSettings):
     TTS_FALLBACK: Literal["azure", "edge", "none"] = "azure"
     ELEVENLABS_API_KEY: SecretStr = SecretStr("")
     ELEVENLABS_MODEL: str = "eleven_multilingual_v2"
-    AZURE_TTS_KEY: SecretStr = Field(
-        default=SecretStr(""),
-        validation_alias=AliasChoices("AZURE_TTS_KEY", "SPEECH_KEY"),
-    )
-    AZURE_TTS_REGION: str = Field(
-        default="eastus",
-        validation_alias=AliasChoices("AZURE_TTS_REGION", "SPEECH_REGION"),
-    )
+    AZURE_TTS_KEY: SecretStr = SecretStr("")
+    AZURE_TTS_REGION: str = "eastus"
 
     # ── Vision Provider ────────────────────────────────────────────────
     VISION_PROVIDER: Literal["anthropic", "stub"] = "stub"
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
 
-    # ── Auth0 ───────────────────────────────────────────────────────────
-    AUTH0_DOMAIN: str = "dev-8wmplwcxsoyhlcw1.us.auth0.com"
-    AUTH0_AUDIENCE: str = "https://api.psitta.app"
-    AUTH0_ALGORITHMS: str = "RS256"
-    AUTH0_ISSUER: str = ""  # Computed from domain if empty
+    # ── Amazon Cognito ─────────────────────────────────────────────────
+    COGNITO_USER_POOL_ID: str = ""
+    COGNITO_CLIENT_ID: str = ""
+    COGNITO_REGION: str = "us-east-1"
+
+    # ── Computed: Cognito URLs ─────────────────────────────────────────
+    @property
+    def cognito_issuer(self) -> str:
+        """Cognito JWT issuer URL."""
+        return (
+            f"https://cognito-idp.{self.COGNITO_REGION}.amazonaws.com"
+            f"/{self.COGNITO_USER_POOL_ID}"
+        )
 
     @property
-    def auth0_issuer(self) -> str:
-        """Build Auth0 issuer URL from domain."""
-        if self.AUTH0_ISSUER:
-            return self.AUTH0_ISSUER
-        return f"https://{self.AUTH0_DOMAIN}/"
-
-    @property
-    def auth0_jwks_url(self) -> str:
-        """Build Auth0 JWKS endpoint URL."""
-        return f"https://{self.AUTH0_DOMAIN}/.well-known/jwks.json"
+    def cognito_jwks_url(self) -> str:
+        """Cognito JWKS endpoint for RS256 JWT validation."""
+        return f"{self.cognito_issuer}/.well-known/jwks.json"
 
     # ── Rate Limiting ──────────────────────────────────────────────────
     RATE_LIMIT_REQUESTS: int = 100
@@ -111,7 +106,7 @@ class Settings(BaseSettings):
     MAX_DOCUMENT_PAGES: int = 500
     DOCUMENT_TTL_DAYS: int = 60
 
-    # ── Computed Properties ────────────────────────────────────────────
+    # ── Computed: Database URLs ────────────────────────────────────────
     @property
     def database_url(self) -> str:
         """Build async database URL from individual components."""
@@ -142,15 +137,6 @@ class Settings(BaseSettings):
         """Parse comma-separated origins into a list."""
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
 
-    # ── Validators ─────────────────────────────────────────────────────
-    @field_validator("SECRET_KEY")
-    @classmethod
-    def secret_key_must_be_set_in_production(cls, v: SecretStr) -> SecretStr:
-        """Warn if SECRET_KEY is still the default placeholder."""
-        # Note: We cannot access ENVIRONMENT here (single-field validator).
-        # Full validation is done in check_production_readiness().
-        return v
-
     def check_production_readiness(self) -> list[str]:
         """Return a list of configuration warnings for production."""
         warnings: list[str] = []
@@ -158,8 +144,12 @@ class Settings(BaseSettings):
             warnings.append("SECRET_KEY is still the default — set a secure random value")
         if self.POSTGRES_PASSWORD.get_secret_value() == "psitta_dev_password":
             warnings.append("POSTGRES_PASSWORD is still the dev default")
+        if not self.COGNITO_USER_POOL_ID:
+            warnings.append("COGNITO_USER_POOL_ID is not set")
+        if not self.COGNITO_CLIENT_ID:
+            warnings.append("COGNITO_CLIENT_ID is not set")
         if self.ENVIRONMENT == "production" and self.LOG_LEVEL == "debug":
-            warnings.append("LOG_LEVEL=debug in production — consider 'info' or 'warning'")
+            warnings.append("LOG_LEVEL=debug in production")
         if self.ENVIRONMENT == "production" and "localhost" in self.ALLOWED_ORIGINS:
             warnings.append("ALLOWED_ORIGINS contains localhost in production")
         return warnings
@@ -167,10 +157,7 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    """Cached singleton — settings are loaded once and reused.
-
-    Call get_settings.cache_clear() in tests to reset.
-    """
+    """Cached singleton — settings are loaded once and reused."""
     raw = os.getenv("APP_SECRETS", "").strip()
     if not raw:
         return Settings()

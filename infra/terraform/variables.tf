@@ -29,3 +29,8 @@ variable "anthropic_api_key" {
   description = "Anthropic API key"
   sensitive   = true
 }
+
+variable "secret_key" {
+  description = "Application secret key"
+  sensitive   = true
+}

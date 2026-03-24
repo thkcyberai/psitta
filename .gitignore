@@ -82,3 +82,19 @@ terraform.tfvars
 .terraform/
 infra/terraform/terraform.tfstate
 infra/terraform/terraform.tfstate.backup
+
+# ── Terraform ──────────────────────────────────────────────────────────
+tfplan
+tfplan*
+*.tfplan
+terraform.tfstate
+terraform.tfstate.*
+!terraform.tfstate.backup
+
+# ── Certificates & Keys ────────────────────────────────────────────────
+*.pfx
+*.p12
+*.pem
+*.key
+*.cert
+*.cer

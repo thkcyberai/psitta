@@ -1,13 +1,13 @@
 """
-Psitta — Auth0 JWT Authentication.
+Psitta — Amazon Cognito JWT Authentication.
 
-Validates Auth0-issued JWTs on protected routes using JWKS (RS256).
+Validates Cognito-issued JWTs on protected routes using JWKS (RS256).
 Provides a FastAPI dependency that extracts and validates the token,
 returning the authenticated user's claims.
 
 Security:
-  - RS256 signature verification via Auth0's JWKS endpoint
-  - Audience and issuer validation
+  - RS256 signature verification via Cognito's JWKS endpoint
+  - Audience (client_id) and issuer validation
   - Token expiry enforcement (handled by python-jose)
   - JWKS keys cached with TTL to avoid per-request fetches
 """
@@ -36,9 +36,10 @@ _JWKS_CACHE_TTL: int = 3600  # 1 hour
 
 
 async def _get_jwks(settings: Settings) -> dict[str, Any]:
-    """Fetch and cache Auth0 JWKS (JSON Web Key Set).
+    """Fetch and cache Cognito JWKS (JSON Web Key Set).
 
-    Keys are cached for 1 hour to avoid hitting Auth0 on every request.
+    Keys are cached for 1 hour to avoid hitting Cognito on every request.
+    Cognito rotates keys infrequently; 1hr TTL is safe and efficient.
     """
     global _jwks_cache, _jwks_cache_expiry  # noqa: PLW0603
 
@@ -46,7 +47,7 @@ async def _get_jwks(settings: Settings) -> dict[str, Any]:
     if _jwks_cache and now < _jwks_cache_expiry:
         return _jwks_cache
 
-    jwks_url = settings.auth0_jwks_url
+    jwks_url = settings.cognito_jwks_url
     logger.info("auth.jwks.fetch", url=jwks_url)
 
     async with httpx.AsyncClient() as client:
@@ -81,8 +82,8 @@ def _find_rsa_key(jwks: dict[str, Any], token: str) -> dict[str, str]:
                 "kty": key["kty"],
                 "kid": key["kid"],
                 "use": key["use"],
-                "n": key["n"],
-                "e": key["e"],
+                "n":   key["n"],
+                "e":   key["e"],
             }
 
     raise HTTPException(
@@ -96,9 +97,9 @@ def _find_rsa_key(jwks: dict[str, Any], token: str) -> dict[str, str]:
 
 @dataclass(frozen=True)
 class TokenClaims:
-    """Validated claims extracted from an Auth0 JWT."""
+    """Validated claims extracted from a Cognito JWT."""
 
-    sub: str  # Auth0 user ID, e.g. "auth0|abc123"
+    sub: str            # Cognito user ID (UUID format)
     email: str = ""
     email_verified: bool = False
     permissions: list[str] = field(default_factory=list)
@@ -115,13 +116,17 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
     settings: Settings = Depends(get_settings),
 ) -> TokenClaims:
-    """Validate the Bearer token and return claims.
+    """Validate the Cognito Bearer token and return claims.
 
     Raises 401 if the token is missing, expired, or invalid.
+
+    Cognito access tokens use client_id as the audience.
+    Cognito ID tokens use client_id as the audience too.
+    We validate against COGNITO_CLIENT_ID.
     """
     token = credentials.credentials
 
-    # In development, allow a bypass token for local testing
+    # Development bypass — local testing only, never reaches production
     if settings.ENVIRONMENT == "development" and token == "dev-bypass-token":
         logger.warning("auth.dev_bypass", msg="Using development bypass token")
         return TokenClaims(
@@ -141,18 +146,19 @@ async def get_current_user(
     except Exception:
         unverified_payload = {}
 
+    # Cognito access tokens: audience is the user pool client_id
+    # Cognito ID tokens: audience is also the client_id
     try:
         payload = jwt.decode(
             token,
             rsa_key,
-            algorithms=[settings.AUTH0_ALGORITHMS],
-            audience=settings.AUTH0_AUDIENCE,
-            issuer=settings.auth0_issuer,
+            algorithms=["RS256"],
+            audience=settings.COGNITO_CLIENT_ID,
+            issuer=settings.cognito_issuer,
         )
     except jwt.ExpiredSignatureError as exc:
         logger.warning(
             "auth.token.expired",
-            token_iss=unverified_payload.get("iss"),
             token_sub=unverified_payload.get("sub"),
         )
         raise HTTPException(
@@ -165,9 +171,9 @@ async def get_current_user(
             error=str(exc),
             token_iss=unverified_payload.get("iss"),
             token_aud=unverified_payload.get("aud"),
-            expected_iss=settings.auth0_issuer,
-            expected_aud=settings.AUTH0_AUDIENCE,
-            jwks_url=settings.auth0_jwks_url,
+            expected_iss=settings.cognito_issuer,
+            expected_aud=settings.COGNITO_CLIENT_ID,
+            jwks_url=settings.cognito_jwks_url,
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -178,12 +184,9 @@ async def get_current_user(
             "auth.token.invalid",
             error_type=type(exc).__name__,
             error=str(exc),
-            token_kid=rsa_key.get("kid"),
             token_iss=unverified_payload.get("iss"),
-            token_aud=unverified_payload.get("aud"),
-            expected_iss=settings.auth0_issuer,
-            expected_aud=settings.AUTH0_AUDIENCE,
-            jwks_url=settings.auth0_jwks_url,
+            expected_iss=settings.cognito_issuer,
+            jwks_url=settings.cognito_jwks_url,
         )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -197,14 +200,19 @@ async def get_current_user(
             detail="Token missing subject claim",
         )
 
-    # Extract Auth0 RBAC claims (namespace may vary)
-    permissions = payload.get("permissions", [])
-    roles = payload.get("https://psitta.app/roles", payload.get("roles", []))
-    email = payload.get("https://psitta.app/email", payload.get("email", ""))
-    email_verified = payload.get(
-        "https://psitta.app/email_verified",
-        payload.get("email_verified", False),
-    )
+    # Cognito standard claims
+    email = payload.get("email", "")
+    email_verified = payload.get("email_verified", False)
+
+    # Cognito groups map to roles (set via User Pool groups)
+    roles = payload.get("cognito:groups", [])
+
+    # Permissions derived from roles for compatibility
+    permissions: list[str] = []
+    if "admin" in roles:
+        permissions = ["read:documents", "write:documents", "delete:documents"]
+    elif roles:
+        permissions = ["read:documents", "write:documents"]
 
     logger.info("auth.validated", sub=sub, roles=roles)
 
@@ -222,11 +230,7 @@ async def get_current_user(
 
 
 def require_role(*allowed_roles: str):
-    """FastAPI dependency that checks the user has one of the allowed roles.
-
-    Usage:
-        @router.get("/admin", dependencies=[Depends(require_role("admin"))])
-    """
+    """FastAPI dependency that checks the user has one of the allowed roles."""
 
     async def _check(claims: TokenClaims = Depends(get_current_user)) -> TokenClaims:
         if not any(role in claims.roles for role in allowed_roles):
@@ -240,11 +244,7 @@ def require_role(*allowed_roles: str):
 
 
 def require_permission(*required_perms: str):
-    """FastAPI dependency that checks the user has all required permissions.
-
-    Usage:
-        @router.delete("/doc", dependencies=[Depends(require_permission("delete:documents"))])
-    """
+    """FastAPI dependency that checks the user has all required permissions."""
 
     async def _check(claims: TokenClaims = Depends(get_current_user)) -> TokenClaims:
         missing = [p for p in required_perms if p not in claims.permissions]
