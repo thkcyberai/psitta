@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pysbd
 import structlog
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -707,24 +707,67 @@ async def create_blank_document(
 @router.post("/", status_code=status.HTTP_202_ACCEPTED)
 async def upload_document(
     file: UploadFile,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     filename = file.filename or "unknown"
     extension = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
 
+    logger.info(
+        "upload.trace.documents.upload.begin",
+        filename=filename,
+        extension=extension,
+        user_id=str(user_id),
+    )
+
     if extension not in ALLOWED_EXTENSIONS:
+        logger.warning(
+            "upload.trace.documents.upload.unsupported_extension",
+            filename=filename,
+            extension=extension,
+            allowed_extensions=sorted(ALLOWED_EXTENSIONS),
+        )
         raise HTTPException(status_code=415, detail="Unsupported file type")
 
     file_bytes = await file.read()
     file_size = len(file_bytes)
 
     doc_id = uuid4()
+    logger.info(
+        "upload.trace.documents.upload.file_read",
+        filename=filename,
+        extension=extension,
+        file_size_bytes=file_size,
+        doc_id=str(doc_id),
+    )
 
     from psitta.services.audio_cache import put_raw_file
     try:
+        logger.info(
+            "upload.trace.documents.raw_persist.begin",
+            doc_id=str(doc_id),
+            filename=filename,
+            extension=extension,
+            file_size_bytes=file_size,
+        )
         await put_raw_file(str(doc_id), extension, file_bytes)
+        logger.info(
+            "upload.trace.documents.raw_persist.end",
+            doc_id=str(doc_id),
+            filename=filename,
+            extension=extension,
+            file_size_bytes=file_size,
+        )
     except Exception as e:
+        logger.error(
+            "upload.trace.documents.upload.abort",
+            doc_id=str(doc_id),
+            filename=filename,
+            extension=extension,
+            exception_type=type(e).__name__,
+            exception_message=str(e),
+        )
         logger.exception(
             "document.upload.raw_persist_failed",
             doc_id=str(doc_id),
@@ -769,7 +812,21 @@ async def upload_document(
     chunk_count = await _process_document(doc_id, file_bytes, extension, db)
     doc_status = "ready" if chunk_count > 0 else "uploaded"
 
+    # Fire eager TTS synthesis in background — non-blocking.
+    # Pre-synthesizes all chunks with the default voice so first-play is instant.
+    if chunk_count > 0:
+        background_tasks.add_task(_eager_synthesize_chunks, doc_id)
+        logger.info("tts.eager_synthesis.queued", doc_id=str(doc_id), chunks=chunk_count)
+
     logger.info("document.upload.accepted", doc_id=str(doc_id), title=title, chunks=chunk_count)
+    logger.info(
+        "upload.trace.documents.upload.complete",
+        doc_id=str(doc_id),
+        title=title,
+        source_type=source_type,
+        status=doc_status,
+        chunk_count=chunk_count,
+    )
 
     return {
         "id": str(doc_id),
@@ -1987,3 +2044,100 @@ async def export_document(
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ── Eager TTS Synthesis ───────────────────────────────────────────────────────
+
+async def _eager_synthesize_chunks(doc_id: UUID) -> None:
+    """Background task: pre-synthesize all chunks for a document after upload.
+
+    Uses the default voice (Rachel / ElevenLabs) so audio is cached in S3
+    before the user ever clicks Play. Falls back silently if TTS is unavailable.
+
+    Security: runs as a background task — never blocks the upload response.
+    Failure is logged but never surfaced to the user.
+    """
+    DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # Rachel
+
+    try:
+        from psitta.db.session import async_session_factory
+        from psitta.providers.tts_router import TTSRouter
+        from psitta.services.audio_cache import get_mp3, put_mp3, s3_key_mp3
+
+        logger.info("tts.eager_synthesis.start", doc_id=str(doc_id))
+
+        async with async_session_factory() as db:
+            result = await db.execute(
+                text(
+                    "SELECT id, text_content FROM document_chunks "
+                    "WHERE document_id = :doc_id "
+                    "ORDER BY sequence_index"
+                ),
+                {"doc_id": doc_id},
+            )
+            chunks = result.fetchall()
+
+        if not chunks:
+            logger.warning("tts.eager_synthesis.no_chunks", doc_id=str(doc_id))
+            return
+
+        logger.info(
+            "tts.eager_synthesis.chunks_found",
+            doc_id=str(doc_id),
+            count=len(chunks),
+        )
+
+        tts = TTSRouter()
+        synthesized = 0
+        skipped = 0
+        failed = 0
+
+        for row in chunks:
+            chunk_id = str(row[0])
+            chunk_text = row[1] or ""
+
+            if not chunk_text.strip():
+                skipped += 1
+                continue
+
+            # Skip if already cached — avoids re-synthesis on re-upload
+            cached = await get_mp3(chunk_id, DEFAULT_VOICE_ID)
+            if cached:
+                skipped += 1
+                continue
+
+            try:
+                audio_bytes = await tts.synthesize(chunk_text, DEFAULT_VOICE_ID)
+                await put_mp3(chunk_id, DEFAULT_VOICE_ID, audio_bytes)
+                synthesized += 1
+                logger.info(
+                    "tts.eager_synthesis.chunk_done",
+                    doc_id=str(doc_id),
+                    chunk_id=chunk_id,
+                    size=len(audio_bytes),
+                )
+            except Exception as e:
+                failed += 1
+                logger.warning(
+                    "tts.eager_synthesis.chunk_failed",
+                    doc_id=str(doc_id),
+                    chunk_id=chunk_id,
+                    error=str(e),
+                )
+                # Continue — partial synthesis is better than none
+
+        logger.info(
+            "tts.eager_synthesis.complete",
+            doc_id=str(doc_id),
+            synthesized=synthesized,
+            skipped=skipped,
+            failed=failed,
+        )
+
+    except Exception as e:
+        # Never propagate — this is a best-effort background optimization
+        logger.error(
+            "tts.eager_synthesis.fatal",
+            doc_id=str(doc_id),
+            error=str(e),
+        )
