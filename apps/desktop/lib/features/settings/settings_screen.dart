@@ -308,7 +308,6 @@ class _LogoutTile extends ConsumerWidget {
       title: const Text('Logout', style: TextStyle(color: Colors.red)),
       onTap: () async {
         await ref.read(authStateProvider.notifier).logout();
-        if (context.mounted) context.go('/login');
       },
     );
   }

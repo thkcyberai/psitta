@@ -199,6 +199,7 @@ class AuthService {
 
   /// Clear stored credentials and revoke the refresh token with Cognito.
   Future<void> logout() async {
+    debugPrint('[LOGOUT] logout() called');
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken != null) {
       try {
@@ -209,7 +210,11 @@ class AuthService {
             'token':     refreshToken,
             'client_id': cognitoClientId,
           },
-          options: Options(contentType: Headers.formUrlEncodedContentType),
+          options: Options(
+            contentType: Headers.formUrlEncodedContentType,
+            sendTimeout: const Duration(seconds: 3),
+            receiveTimeout: const Duration(seconds: 3),
+          ),
         );
         dio.close();
       } catch (_) {

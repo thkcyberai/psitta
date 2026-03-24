@@ -41,6 +41,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _initWebView() async {
     await _controller.initialize();
 
+    // Clear cookies and cache to ensure Cognito session is fully cleared on logout.
+    await _controller.clearCache();
+    await _controller.clearCookies();
+
     // Prevent the WebView from opening popup windows.
     await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
 

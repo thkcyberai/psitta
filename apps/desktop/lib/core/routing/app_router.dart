@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../data/services/auth_service.dart';
@@ -13,19 +14,40 @@ import '../../features/editor/document_editor_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/voices/voice_selector_screen.dart';
 
+/// A [ChangeNotifier] that bridges Riverpod [AuthState] to GoRouter.
+///
+/// GoRouter's [refreshListenable] requires a [Listenable].
+/// This notifier watches [authStateProvider] and calls [notifyListeners]
+/// whenever auth state changes, triggering GoRouter to re-evaluate redirects.
+class _AuthNotifier extends ChangeNotifier {
+  _AuthNotifier(this._ref) {
+    _ref.listen<AuthState>(authStateProvider, (previous, next) {
+      if (previous?.status != next.status) {
+        notifyListeners();
+      }
+    });
+  }
+
+  final Ref _ref;
+}
+
 /// Desktop routing configuration.
 ///
 /// Uses [ShellRoute] to maintain a persistent desktop shell
 /// (sidebar + player bar) while swapping the main content area.
 /// The /login route sits outside the shell.
 final appRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final notifier = _AuthNotifier(ref);
+
+  ref.onDispose(notifier.dispose);
 
   return GoRouter(
-    initialLocation: authState.status == AuthStatus.authenticated
+    initialLocation: ref.read(authStateProvider).status == AuthStatus.authenticated
         ? '/library'
         : '/login',
+    refreshListenable: notifier,
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
       final loggedIn = authState.status == AuthStatus.authenticated;
       final onLogin = state.uri.toString() == '/login';
 
