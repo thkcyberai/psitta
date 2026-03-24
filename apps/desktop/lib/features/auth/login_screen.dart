@@ -5,10 +5,10 @@ import 'package:webview_windows/webview_windows.dart';
 
 import '../../data/services/auth_service.dart';
 
-/// Login screen — embedded WebView that loads the Auth0 login page.
+/// Login screen — embedded WebView that loads the Cognito Hosted UI.
 ///
 /// On initState the screen generates PKCE credentials, builds the
-/// Auth0 /authorize URL, and loads it in a WebviewController.
+/// Cognito /oauth2/authorize URL, and loads it in a WebviewController.
 /// The URL stream is monitored; when the redirect to
 /// http://localhost:8080/callback is detected the code is extracted
 /// and exchanged for tokens without the URL actually being fetched.
@@ -41,7 +41,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _initWebView() async {
     await _controller.initialize();
 
-    // Prevent the WebView from opening popup windows (e.g. social login).
+    // Prevent the WebView from opening popup windows.
     await _controller.setPopupWindowPolicy(WebviewPopupWindowPolicy.deny);
 
     // Listen for navigation — intercept the callback URL.
@@ -79,14 +79,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     // Extract query parameters from the callback URL.
     final uri = Uri.parse(url);
-    final code = uri.queryParameters['code'];
+    final code          = uri.queryParameters['code'];
     final returnedState = uri.queryParameters['state'];
-    final error = uri.queryParameters['error'];
+    final error         = uri.queryParameters['error'];
 
     if (error != null) {
       final description =
           uri.queryParameters['error_description'] ?? error;
-      _showError('Auth0 error: $description');
+      _showError('Cognito error: $description');
       _isExchanging = false;
       return;
     }
@@ -104,10 +104,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final authService = ref.read(authServiceProvider);
       await authService.exchangeCodeForTokens(
-        code: code,
-        state: returnedState,
+        code:          code,
+        state:         returnedState,
         expectedState: _state,
-        codeVerifier: _codeVerifier,
+        codeVerifier:  _codeVerifier,
       );
 
       // Mark as authenticated in Riverpod state.

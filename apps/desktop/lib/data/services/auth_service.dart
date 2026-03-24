@@ -8,23 +8,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
-// ── Auth0 Configuration ──────────────────────────────────────────────
-const auth0Domain = 'auth.psitta.ai';
-const auth0ClientId = 'o4YisrJYWrsPMSiNZ6o2yuUpn0lgulyh';
-const auth0Audience = 'https://api.psitta.app';
-const auth0RedirectUri = 'http://localhost:8080/callback';
-const auth0Scopes = 'openid profile email offline_access';
+// ── Amazon Cognito Configuration ─────────────────────────────────────
+const cognitoRegion     = 'us-east-1';
+const cognitoUserPoolId = 'us-east-1_zdbJm5EyI';
+const cognitoClientId   = '1mtmn45trougr6oqpr1afhekp4';
+const cognitoDomain     = 'psitta-auth-prod.auth.us-east-1.amazoncognito.com';
+const cognitoRedirectUri = 'http://localhost:8080/callback';
+const cognitoScopes     = 'openid profile email';
 
 // ── Secure Storage Keys ──────────────────────────────────────────────
-const _accessTokenKey = 'access_token';
-const _idTokenKey = 'id_token';
+const _accessTokenKey  = 'access_token';
+const _idTokenKey      = 'id_token';
 const _refreshTokenKey = 'refresh_token';
 
-/// Manages Auth0 authentication for Windows desktop.
+/// Manages Amazon Cognito authentication for Windows desktop.
 ///
-/// The login UI is handled by an embedded WebView (see LoginScreen).
-/// This service provides PKCE helpers, token exchange, session restore,
-/// logout, and token access.
+/// Uses PKCE authorization code flow via the Cognito Hosted UI.
+/// Token exchange and refresh hit Cognito's /oauth2/token endpoint.
 class AuthService {
   AuthService() : _storage = const FlutterSecureStorage();
 
@@ -53,19 +53,18 @@ class AuthService {
     return base64UrlEncode(bytes).replaceAll('=', '');
   }
 
-  /// Build the Auth0 /authorize URL with PKCE parameters.
+  /// Build the Cognito /oauth2/authorize URL with PKCE parameters.
   static Uri buildAuthorizeUrl({
     required String codeChallenge,
     required String state,
   }) {
-    return Uri.https(auth0Domain, '/authorize', {
-      'response_type': 'code',
-      'client_id': auth0ClientId,
-      'redirect_uri': auth0RedirectUri,
-      'scope': auth0Scopes,
-      'audience': auth0Audience,
-      'state': state,
-      'code_challenge': codeChallenge,
+    return Uri.https(cognitoDomain, '/oauth2/authorize', {
+      'response_type':         'code',
+      'client_id':             cognitoClientId,
+      'redirect_uri':          cognitoRedirectUri,
+      'scope':                 cognitoScopes,
+      'state':                 state,
+      'code_challenge':        codeChallenge,
       'code_challenge_method': 'S256',
     });
   }
@@ -75,7 +74,7 @@ class AuthService {
   /// Exchange an authorization code for tokens.
   ///
   /// Called by LoginScreen after the WebView intercepts the callback URL.
-  /// Validates the returned state, then POSTs to Auth0 /oauth/token.
+  /// Validates the returned state, then POSTs to Cognito /oauth2/token.
   Future<void> exchangeCodeForTokens({
     required String code,
     required String state,
@@ -89,12 +88,12 @@ class AuthService {
     final dio = Dio();
     try {
       final response = await dio.post(
-        'https://$auth0Domain/oauth/token',
+        'https://$cognitoDomain/oauth2/token',
         data: {
-          'grant_type': 'authorization_code',
-          'client_id': auth0ClientId,
-          'code': code,
-          'redirect_uri': auth0RedirectUri,
+          'grant_type':    'authorization_code',
+          'client_id':     cognitoClientId,
+          'code':          code,
+          'redirect_uri':  cognitoRedirectUri,
           'code_verifier': codeVerifier,
         },
         options: Options(
@@ -103,8 +102,8 @@ class AuthService {
       );
 
       final body = response.data as Map<String, dynamic>;
-      final accessToken = body['access_token'] as String?;
-      final idToken = body['id_token'] as String?;
+      final accessToken  = body['access_token']  as String?;
+      final idToken      = body['id_token']      as String?;
       final refreshToken = body['refresh_token'] as String?;
 
       if (accessToken == null) {
@@ -117,7 +116,7 @@ class AuthService {
         debugPrint('[AUTH] === ACCESS TOKEN CLAIMS ===');
         debugPrint('[AUTH] iss: ${claims['iss']}');
         debugPrint('[AUTH] aud: ${claims['aud']}');
-        debugPrint('[AUTH] azp: ${claims['azp']}');
+        debugPrint('[AUTH] client_id: ${claims['client_id']}');
         debugPrint('[AUTH] sub: ${claims['sub']}');
         debugPrint('[AUTH] scope: ${claims['scope']}');
         debugPrint('[AUTH] exp: ${claims['exp']}');
@@ -127,19 +126,14 @@ class AuthService {
           debugPrint('[AUTH] iss: ${idClaims['iss']}');
           debugPrint('[AUTH] name: ${idClaims['name']}');
           debugPrint('[AUTH] email: ${idClaims['email']}');
-          debugPrint('[AUTH] picture: ${idClaims['picture'] != null ? 'present' : 'absent'}');
         }
       } catch (e) {
         debugPrint('[AUTH] JWT decode debug failed: $e');
       }
 
       await _storage.write(key: _accessTokenKey, value: accessToken);
-      if (idToken != null) {
-        await _storage.write(key: _idTokenKey, value: idToken);
-      }
-      if (refreshToken != null) {
-        await _storage.write(key: _refreshTokenKey, value: refreshToken);
-      }
+      if (idToken      != null) await _storage.write(key: _idTokenKey,      value: idToken);
+      if (refreshToken != null) await _storage.write(key: _refreshTokenKey, value: refreshToken);
     } finally {
       dio.close();
     }
@@ -150,16 +144,13 @@ class AuthService {
   /// Attempt to restore a session from stored credentials.
   ///
   /// Returns true if a valid (non-expired) access token exists.
-  /// If the access token is expired but a refresh token is available,
-  /// attempts a refresh_token grant to get a new access token.
+  /// If expired but a refresh token is available, attempts refresh.
   Future<bool> tryRestoreSession() async {
     final token = await _storage.read(key: _accessTokenKey);
     if (token == null) return false;
 
-    // Token still valid — session restored.
     if (!JwtDecoder.isExpired(token)) return true;
 
-    // Token expired — try refresh.
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken == null) {
       await _clearStorage();
@@ -170,10 +161,10 @@ class AuthService {
       final dio = Dio();
       try {
         final response = await dio.post(
-          'https://$auth0Domain/oauth/token',
+          'https://$cognitoDomain/oauth2/token',
           data: {
-            'grant_type': 'refresh_token',
-            'client_id': auth0ClientId,
+            'grant_type':    'refresh_token',
+            'client_id':     cognitoClientId,
             'refresh_token': refreshToken,
           },
           options: Options(
@@ -182,8 +173,8 @@ class AuthService {
         );
 
         final body = response.data as Map<String, dynamic>;
-        final newAccessToken = body['access_token'] as String?;
-        final newIdToken = body['id_token'] as String?;
+        final newAccessToken  = body['access_token']  as String?;
+        final newIdToken      = body['id_token']      as String?;
         final newRefreshToken = body['refresh_token'] as String?;
 
         if (newAccessToken == null) {
@@ -192,12 +183,8 @@ class AuthService {
         }
 
         await _storage.write(key: _accessTokenKey, value: newAccessToken);
-        if (newIdToken != null) {
-          await _storage.write(key: _idTokenKey, value: newIdToken);
-        }
-        if (newRefreshToken != null) {
-          await _storage.write(key: _refreshTokenKey, value: newRefreshToken);
-        }
+        if (newIdToken      != null) await _storage.write(key: _idTokenKey,      value: newIdToken);
+        if (newRefreshToken != null) await _storage.write(key: _refreshTokenKey, value: newRefreshToken);
         return true;
       } finally {
         dio.close();
@@ -210,11 +197,25 @@ class AuthService {
 
   // ── Logout ─────────────────────────────────────────────────────────
 
-  /// Clear stored credentials.
-  ///
-  /// Navigation to /login is handled by the AuthStateNotifier listener
-  /// in the router, so no browser or URL launch is needed here.
+  /// Clear stored credentials and revoke the refresh token with Cognito.
   Future<void> logout() async {
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    if (refreshToken != null) {
+      try {
+        final dio = Dio();
+        await dio.post(
+          'https://$cognitoDomain/oauth2/revoke',
+          data: {
+            'token':     refreshToken,
+            'client_id': cognitoClientId,
+          },
+          options: Options(contentType: Headers.formUrlEncodedContentType),
+        );
+        dio.close();
+      } catch (_) {
+        // Best-effort revocation — clear local storage regardless
+      }
+    }
     await _clearStorage();
   }
 
@@ -226,7 +227,6 @@ class AuthService {
   }
 
   /// Read the current ID token from secure storage.
-  /// Contains user profile claims (name, email, picture).
   Future<String?> getIdToken() async {
     return _storage.read(key: _idTokenKey);
   }
@@ -242,20 +242,16 @@ class AuthService {
 
 // ── Riverpod Providers ───────────────────────────────────────────────
 
-/// Riverpod provider for the auth service singleton.
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
-/// Provider that tracks authentication state.
 final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>(
   (ref) => AuthStateNotifier(ref.read(authServiceProvider)),
 );
 
-/// Authentication state.
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
 class AuthState {
   const AuthState({required this.status});
-
   final AuthStatus status;
 }
 
@@ -270,9 +266,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   Future<void> _init() async {
     final restored = await _authService.tryRestoreSession();
     state = AuthState(
-      status: restored
-          ? AuthStatus.authenticated
-          : AuthStatus.unauthenticated,
+      status: restored ? AuthStatus.authenticated : AuthStatus.unauthenticated,
     );
   }
 
