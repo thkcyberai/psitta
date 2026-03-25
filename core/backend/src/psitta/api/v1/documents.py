@@ -227,20 +227,19 @@ def _drop_duplicate_leading_sentence(text: str) -> str:
 
 
 def _add_terminal_punctuation(text: str) -> str:
-    """Add a period to lines that lack terminal punctuation.
-    This gives TTS a natural pause cue after headings and titles
-    that have no punctuation, matching DOCX heading behavior.
+    """Add a period to lines that look like headings/titles without terminal punctuation.
+    Only applies to short lines (<=80 chars) to avoid adding periods to
+    soft-wrapped body text lines from PDF extraction.
     """
     terminal = frozenset({".", "!", "?", ":", ";", ","})
     result = []
     for line in text.split("\n"):
         stripped = line.rstrip()
-        if stripped and stripped[-1] not in terminal:
+        # Only add period to short lines — long lines are wrapped body text
+        if stripped and len(stripped) <= 80 and stripped[-1] not in terminal:
             stripped = stripped + "."
         result.append(stripped)
     return "\n".join(result)
-
-
 def _clean_pdf_chunk_text(text: str, page_number: int | None = None) -> str:
     cleaned = _strip_pdf_page_number_lines(text, page_number)
     # Add terminal punctuation BEFORE reflow so line structure is intact.
