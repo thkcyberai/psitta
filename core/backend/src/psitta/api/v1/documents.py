@@ -242,9 +242,8 @@ def _add_terminal_punctuation(text: str) -> str:
     return "\n".join(result)
 def _clean_pdf_chunk_text(text: str, page_number: int | None = None) -> str:
     cleaned = _strip_pdf_page_number_lines(text, page_number)
-    # Add terminal punctuation BEFORE reflow so line structure is intact.
-    # Titles without punctuation get a period here, giving TTS a pause cue.
-    cleaned = _add_terminal_punctuation(cleaned)
+    # Terminal punctuation injected at extraction time via font-metadata
+    # heading detection in _extract_formatted_pdf. Body text never touched.
     cleaned = _sanitize_text_for_db(_reflow_pdf_text(cleaned))
     cleaned = _strip_pdf_page_number_prefix(cleaned, page_number)
     cleaned = _strip_pdf_page_number_suffix(cleaned, page_number)
@@ -353,53 +352,117 @@ def _extract_formatted_docx(file_bytes: bytes) -> tuple[str, list[dict]] | None:
 def _extract_formatted_pdf(file_bytes: bytes) -> tuple[list[dict], list[list[dict]]] | None:
     """Extract page text AND per-page formatted_content from a PDF.
 
+    Uses pdfplumber to access per-character font metadata so headings can be
+    identified by size/weight rather than text-case heuristics.  Terminal
+    punctuation is injected ONLY on heading lines that lack it, giving TTS a
+    pause cue without ever modifying body text.
+
     Returns (pages_list, per_page_formatted) or None on failure.
     pages_list items: {"page_number": int, "text": str}
     per_page_formatted: list of formatted blocks per page.
     """
     try:
-        from pypdf import PdfReader
+        import pdfplumber  # noqa: F811
+    except ImportError:
+        logger.error("pdf.format_extract.pdfplumber_not_installed")
+        return None
 
-        reader = PdfReader(io.BytesIO(file_bytes))
+    _TERMINAL_RE = re.compile(r"[.!?:;…]\s*$")
+    _BUCKET = 2  # pts — chars within this y-range are on the same visual line
+
+    try:
+        pdf = pdfplumber.open(io.BytesIO(file_bytes))
         pages: list[dict] = []
         per_page_formatted: list[list[dict]] = []
 
-        for i, page in enumerate(reader.pages):
-            raw = (page.extract_text() or "").strip()
-            if not raw:
+        for page_idx, page in enumerate(pdf.pages):
+            chars = page.chars
+            if not chars:
                 continue
-            clean = _clean_pdf_chunk_text(raw, i + 1)
+
+            # --- group chars into visual lines by y0 bucket ---------------
+            lines_by_y: dict[float, list[dict]] = {}
+            for ch in chars:
+                bucket = round(ch["top"] / _BUCKET) * _BUCKET
+                lines_by_y.setdefault(bucket, []).append(ch)
+
+            # sort buckets top-to-bottom, chars left-to-right within a line
+            sorted_buckets = sorted(lines_by_y.keys())
+            visual_lines: list[tuple[str, float, bool]] = []  # (text, mean_size, is_bold)
+            all_sizes: list[float] = []
+
+            for bucket in sorted_buckets:
+                line_chars = sorted(lines_by_y[bucket], key=lambda c: c["x0"])
+                text = "".join(c["text"] for c in line_chars).strip()
+                if not text:
+                    continue
+                sizes = [c.get("size", 0) for c in line_chars if c["text"].strip()]
+                mean_size = sum(sizes) / len(sizes) if sizes else 0
+                is_bold = any(
+                    "bold" in (c.get("fontname", "") or "").lower()
+                    for c in line_chars
+                    if c["text"].strip()
+                )
+                visual_lines.append((text, mean_size, is_bold))
+                all_sizes.extend(sizes)
+
+            if not visual_lines:
+                continue
+
+            # --- compute body font-size median ----------------------------
+            all_sizes.sort()
+            mid = len(all_sizes) // 2
+            if len(all_sizes) % 2 == 1:
+                body_median = all_sizes[mid]
+            else:
+                body_median = (all_sizes[mid - 1] + all_sizes[mid]) / 2 if all_sizes else 0
+
+            # --- classify lines & build text + blocks ---------------------
+            text_parts: list[str] = []
+            page_blocks: list[dict] = []
+            prev_was_heading = False
+
+            for line_text, mean_size, is_bold in visual_lines:
+                is_heading = False
+                level = None
+
+                if body_median > 0:
+                    if mean_size >= body_median * 1.15:
+                        is_heading = True
+                        level = 1
+                    elif is_bold and mean_size >= body_median:
+                        is_heading = True
+                        level = 2
+
+                if is_heading:
+                    # Inject terminal period on headings missing punctuation
+                    if not _TERMINAL_RE.search(line_text):
+                        line_text = line_text + "."
+                    # Blank line before heading for paragraph structure
+                    if text_parts and text_parts[-1] != "":
+                        text_parts.append("")
+                    text_parts.append(line_text)
+                    text_parts.append("")  # blank line after heading
+                    prev_was_heading = True
+
+                    entry: dict = {"type": "heading", "level": level, "runs": [{"text": line_text}]}
+                    page_blocks.append(entry)
+                else:
+                    text_parts.append(line_text)
+                    prev_was_heading = False
+
+                    entry = {"type": "paragraph", "runs": [{"text": line_text}]}
+                    page_blocks.append(entry)
+
+            raw_text = "\n".join(text_parts).strip()
+            clean = _clean_pdf_chunk_text(raw_text, page_idx + 1)
             if not clean.strip():
                 continue
 
-            pages.append({"page_number": i + 1, "text": clean})
-
-            # Build structured paragraphs from the reflowed text
-            paragraphs = re.split(r"\n\s*\n", clean)
-            page_blocks: list[dict] = []
-            for para in paragraphs:
-                para = para.strip()
-                if not para:
-                    continue
-                # Heuristic: short all-caps or title-case lines may be headings
-                ptype = "paragraph"
-                level = None
-                words = para.split()
-                if (
-                    len(words) <= 12
-                    and not para.endswith(".")
-                    and (para.isupper() or para.istitle())
-                ):
-                    ptype = "heading"
-                    level = 1 if para.isupper() else 2
-
-                entry: dict = {"type": ptype, "runs": [{"text": para}]}
-                if level is not None:
-                    entry["level"] = level
-                page_blocks.append(entry)
-
+            pages.append({"page_number": page_idx + 1, "text": clean})
             per_page_formatted.append(page_blocks)
 
+        pdf.close()
         return (pages, per_page_formatted) if pages else None
     except Exception:
         logger.exception("pdf.format_extract.failed")
