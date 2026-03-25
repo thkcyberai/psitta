@@ -13,12 +13,14 @@ class PdfReadingHighlight {
   const PdfReadingHighlight({
     required this.pageNumber,
     required this.chunkIndex,
-    required this.sentenceIndex,
+    required this.sentenceIndex,
+    this.endSentenceIndex,
   });
 
   final int pageNumber;
   final int chunkIndex;
-  final int sentenceIndex;
+  final int sentenceIndex;
+  final int? endSentenceIndex;
 }
 
 class PdfSentenceTarget {
@@ -253,7 +255,8 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     return [
       highlight.pageNumber,
       highlight.chunkIndex,
-      highlight.sentenceIndex,
+      highlight.sentenceIndex,
+      highlight.endSentenceIndex,
     ].join(':');
   }
 
@@ -874,11 +877,26 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     List<_ResolvedPdfSentence> sentences,
     PdfReadingHighlight highlight,
   ) {
-    for (final sentence in sentences) {
-      if (sentence.matchesHighlight(highlight)) {
-        return sentence;
-      }
-    }
+    final endIdx = highlight.endSentenceIndex ?? highlight.sentenceIndex;
+    final combinedRects = <PdfRect>[];
+    _ResolvedPdfSentence? primary;
+    for (final sentence in sentences) {
+      if (sentence.pageNumber == highlight.pageNumber &&
+          sentence.chunkIndex == highlight.chunkIndex &&
+          sentence.sentenceIndex >= highlight.sentenceIndex &&
+          sentence.sentenceIndex <= endIdx) {
+        if (primary == null) primary = sentence;
+        combinedRects.addAll(sentence.rects);
+      }
+    }
+    if (primary == null) return null;
+    if (combinedRects.length == primary.rects.length) return primary;
+    return _ResolvedPdfSentence(
+      pageNumber: primary.pageNumber,
+      chunkIndex: primary.chunkIndex,
+      sentenceIndex: primary.sentenceIndex,
+      rects: combinedRects,
+    );
     return null;
   }
 

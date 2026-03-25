@@ -1037,6 +1037,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
+  int _actualPdfSentenceIndex(
+    Map<String, dynamic> chunk,
+    Duration position,
+    Duration duration,
+    Map<String, dynamic>? alignmentPayload,
+  ) {
+    final boundaries = chunk['sentence_boundaries'] as List<dynamic>? ?? const [];
+    if (boundaries.isEmpty) return 0;
+    final text = (chunk['text_content'] ?? '').toString();
+    if (text.isEmpty) return 0;
+    final alignedCharOffset = _charIndexAtMsFromAlignmentPayload(
+      alignmentPayload, position.inMilliseconds);
+    if (alignedCharOffset != null) {
+      return _pdfSentenceIndexForCharOffset(text, boundaries, alignedCharOffset);
+    }
+    if (duration.inMilliseconds <= 0) return 0;
+    final ratio = (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 0.999999);
+    final charOffset = (ratio * text.length).floor().clamp(0, text.length - 1).toInt();
+    return _pdfSentenceIndexForCharOffset(text, boundaries, charOffset);
+  }
+
   int _activePdfSentenceIndex(
     Map<String, dynamic> chunk,
     Duration position,
@@ -1048,9 +1069,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final text = (chunk['text_content'] ?? '').toString();
     if (text.isEmpty) return 0;
 
+    // Look-ahead: shift position forward by 400ms so the highlight
+    // transitions to the next sentence slightly BEFORE the voice arrives.
+    // This ensures the highlight always leads the voice, never lags behind.
+    const lookAheadMs = 600;
+    final lookaheadPositionMs = position.inMilliseconds + lookAheadMs;
+
     final alignedCharOffset = _charIndexAtMsFromAlignmentPayload(
       alignmentPayload,
-      position.inMilliseconds,
+      lookaheadPositionMs,
     );
     if (alignedCharOffset != null) {
       return _pdfSentenceIndexForCharOffset(text, boundaries, alignedCharOffset);
@@ -1058,7 +1085,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     if (duration.inMilliseconds <= 0) return 0;
     final ratio =
-        (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 0.999999);
+        (lookaheadPositionMs / duration.inMilliseconds).clamp(0.0, 0.999999);
     final charOffset =
         (ratio * text.length).floor().clamp(0, text.length - 1).toInt();
     return _pdfSentenceIndexForCharOffset(text, boundaries, charOffset);
@@ -1096,11 +1123,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final safeSentenceIndex =
         sentenceIndex.clamp(0, sentenceBoundaries.length - 1).toInt();
 
-    return PdfReadingHighlight(
-      pageNumber: pageNumber,
-      chunkIndex: currentIndex,
-      sentenceIndex: safeSentenceIndex,
-    );
+    // Dual highlight: show current + next sentence during transition.
+    final actualIdx = _actualPdfSentenceIndex(
+      chunk, position, duration, alignmentPayload);
+    final safeActual = actualIdx.clamp(0, sentenceBoundaries.length - 1).toInt();
+    final int? endSentenceIndex = (safeSentenceIndex > safeActual)
+        ? safeSentenceIndex
+        : null;
+    final startSentenceIndex = endSentenceIndex != null
+        ? safeActual
+        : safeSentenceIndex;
+    return PdfReadingHighlight(
+      pageNumber: pageNumber,
+      chunkIndex: currentIndex,
+      sentenceIndex: startSentenceIndex,
+      endSentenceIndex: endSentenceIndex,
+    );
   }
 
   Future<void> _jumpToPdfLocation({
