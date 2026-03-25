@@ -2,7 +2,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p;
 import '../../core/constants.dart';
+import '../../data/services/pdf_text_extractor.dart';
 import '../../core/keyboard/shortcuts.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
@@ -165,7 +167,16 @@ class DesktopShell extends ConsumerWidget {
                   for (final file in result.files) {
                     if (file.path == null) continue;
                     try {
-                      await repo.uploadDocument(file.path!);
+                      if (p.extension(file.path!).toLowerCase() == '.pdf') {
+                        final pageTexts =
+                            await PdfTextExtractor.extractPageTexts(file.path!);
+                        await repo.uploadDocument(
+                          file.path!,
+                          pageTexts: pageTexts.isNotEmpty ? pageTexts : null,
+                        );
+                      } else {
+                        await repo.uploadDocument(file.path!);
+                      }
                     } catch (_) {
                       // Best-effort — errors are non-fatal here
                     }

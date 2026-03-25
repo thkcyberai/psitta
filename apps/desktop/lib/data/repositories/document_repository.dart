@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -33,10 +34,20 @@ class DocumentRepository {
   }
 
   /// Upload a document file.
-  Future<Document> uploadDocument(String filePath) async {
-    final formData = FormData.fromMap({
+  ///
+  /// When [pageTexts] is provided the extracted page texts are sent alongside
+  /// the file so the backend can skip server-side PDF parsing.
+  Future<Document> uploadDocument(
+    String filePath, {
+    List<Map<String, dynamic>>? pageTexts,
+  }) async {
+    final map = <String, dynamic>{
       'file': await MultipartFile.fromFile(filePath),
-    });
+    };
+    if (pageTexts != null && pageTexts.isNotEmpty) {
+      map['page_texts'] = jsonEncode(pageTexts);
+    }
+    final formData = FormData.fromMap(map);
     final response = await _api.dio.post('/documents/', data: formData);
     return Document.fromJson(response.data as Map<String, dynamic>);
   }

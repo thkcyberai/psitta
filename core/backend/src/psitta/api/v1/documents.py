@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pysbd
 import structlog
 from pathlib import Path
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -620,6 +620,8 @@ async def _process_document(
     file_bytes: bytes,
     extension: str,
     db: AsyncSession,
+    *,
+    page_texts_json: str | None = None,
 ) -> int:
     """Extract text, chunk, and insert into document_chunks. Returns chunk count."""
 
@@ -653,11 +655,59 @@ async def _process_document(
             formatted_by_chunk[chunk["seq"]] = chunk_blocks
 
     elif extension == ".pdf":
-        pdf_result = _extract_formatted_pdf(file_bytes)
-        if pdf_result is None:
-            logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
-            return 0
-        pages, per_page_formatted = pdf_result
+        pages: list[dict] | None = None
+        per_page_formatted: list[list[dict]] | None = None
+
+        # --- Try client-supplied page texts (pdfrx / "pdium" source) ------
+        if page_texts_json:
+            try:
+                raw_pages = json.loads(page_texts_json)
+                cleaned_pages: list[dict] = []
+                cleaned_fmt: list[list[dict]] = []
+                for entry in raw_pages:
+                    raw = entry.get("text", "")
+                    if not raw or not raw.strip():
+                        continue
+                    clean = _clean_pdf_chunk_text(raw, entry.get("page_number"))
+                    if not clean.strip():
+                        continue
+                    cleaned_pages.append({
+                        "page_number": entry["page_number"],
+                        "text": clean,
+                    })
+                    # Build formatted blocks: split on blank lines → paragraphs
+                    paragraphs = re.split(r"\n\s*\n", clean)
+                    blocks: list[dict] = []
+                    for para in paragraphs:
+                        para = para.strip()
+                        if para:
+                            blocks.append({"type": "paragraph", "runs": [{"text": para}]})
+                    cleaned_fmt.append(blocks)
+                if cleaned_pages:
+                    pages = cleaned_pages
+                    per_page_formatted = cleaned_fmt
+                    logger.info(
+                        "pdf.extract.pdium_source",
+                        doc_id=str(doc_id),
+                        page_count=len(pages),
+                    )
+            except (json.JSONDecodeError, Exception) as exc:
+                logger.warning(
+                    "pdf.extract.pdium_parse_failed",
+                    doc_id=str(doc_id),
+                    error=str(exc),
+                )
+                pages = None
+                per_page_formatted = None
+
+        # --- Fallback to server-side pdfplumber extraction ----------------
+        if pages is None:
+            pdf_result = _extract_formatted_pdf(file_bytes)
+            if pdf_result is None:
+                logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
+                return 0
+            pages, per_page_formatted = pdf_result
+
         chunks = _chunk_by_pages(pages)
         page_count = len(pages)
         all_text = " ".join(p["text"] for p in pages)
@@ -794,6 +844,7 @@ async def create_blank_document(
 async def upload_document(
     file: UploadFile,
     background_tasks: BackgroundTasks,
+    page_texts: str | None = Form(None),
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
@@ -895,7 +946,7 @@ async def upload_document(
         },
     )
 
-    chunk_count = await _process_document(doc_id, file_bytes, extension, db)
+    chunk_count = await _process_document(doc_id, file_bytes, extension, db, page_texts_json=page_texts)
     doc_status = "ready" if chunk_count > 0 else "uploaded"
     if chunk_count > 0:
         background_tasks.add_task(_eager_synthesize_chunks, doc_id)

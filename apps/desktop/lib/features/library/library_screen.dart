@@ -8,8 +8,11 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:path/path.dart' as p;
+
 import '../../core/constants.dart';
 import '../../core/theme/colors.dart';
+import '../../data/services/pdf_text_extractor.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
@@ -88,7 +91,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     for (final file in files) {
       if (file.path == null) continue;
       try {
-        await repo.uploadDocument(file.path!);
+        if (p.extension(file.path!).toLowerCase() == '.pdf') {
+          final pageTexts =
+              await PdfTextExtractor.extractPageTexts(file.path!);
+          await repo.uploadDocument(
+            file.path!,
+            pageTexts: pageTexts.isNotEmpty ? pageTexts : null,
+          );
+        } else {
+          await repo.uploadDocument(file.path!);
+        }
       } on DioException catch (e) {
         if (mounted) {
           String msg = 'Upload failed: ${file.name}';
