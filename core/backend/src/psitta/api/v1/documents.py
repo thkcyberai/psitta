@@ -226,6 +226,21 @@ def _drop_duplicate_leading_sentence(text: str) -> str:
     return text[start:].lstrip()
 
 
+def _add_terminal_punctuation(text: str) -> str:
+    """Add a period to lines that lack terminal punctuation.
+    This gives TTS a natural pause cue after headings and titles
+    that have no punctuation, matching DOCX heading behavior.
+    """
+    terminal = frozenset({".", "!", "?", ":", ";", ","})
+    result = []
+    for line in text.split("\n"):
+        stripped = line.rstrip()
+        if stripped and stripped[-1] not in terminal:
+            stripped = stripped + "."
+        result.append(stripped)
+    return "\n".join(result)
+
+
 def _clean_pdf_chunk_text(text: str, page_number: int | None = None) -> str:
     cleaned = _strip_pdf_page_number_lines(text, page_number)
     cleaned = _sanitize_text_for_db(_reflow_pdf_text(cleaned))
@@ -233,6 +248,7 @@ def _clean_pdf_chunk_text(text: str, page_number: int | None = None) -> str:
     cleaned = _strip_pdf_page_number_suffix(cleaned, page_number)
     cleaned = _strip_pdf_page_number_edge_tokens(cleaned, page_number)
     cleaned = _drop_duplicate_leading_sentence(cleaned)
+    cleaned = _add_terminal_punctuation(cleaned)
     return _sanitize_text_for_db(cleaned).strip()
 
 
