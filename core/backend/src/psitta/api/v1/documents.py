@@ -243,15 +243,15 @@ def _add_terminal_punctuation(text: str) -> str:
 
 def _clean_pdf_chunk_text(text: str, page_number: int | None = None) -> str:
     cleaned = _strip_pdf_page_number_lines(text, page_number)
+    # Add terminal punctuation BEFORE reflow so line structure is intact.
+    # Titles without punctuation get a period here, giving TTS a pause cue.
+    cleaned = _add_terminal_punctuation(cleaned)
     cleaned = _sanitize_text_for_db(_reflow_pdf_text(cleaned))
     cleaned = _strip_pdf_page_number_prefix(cleaned, page_number)
     cleaned = _strip_pdf_page_number_suffix(cleaned, page_number)
     cleaned = _strip_pdf_page_number_edge_tokens(cleaned, page_number)
     cleaned = _drop_duplicate_leading_sentence(cleaned)
-    cleaned = _add_terminal_punctuation(cleaned)
     return _sanitize_text_for_db(cleaned).strip()
-
-
 def _build_sentence_boundaries(text: str) -> list[list[int]]:
     if not text:
         return []
