@@ -622,17 +622,18 @@ async def _process_document(
     db: AsyncSession,
     *,
     page_texts_json: str | None = None,
-) -> int:
-    """Extract text, chunk, and insert into document_chunks. Returns chunk count."""
+) -> tuple[int, list[UUID]]:
+    """Extract text, chunk, and insert into document_chunks. Returns (chunk_count, chunk_ids)."""
 
     # ── Extract formatted content alongside plain text ──────────────────
+    chunk_ids: list[UUID] = []
     formatted_by_chunk: dict[int, list[dict]] = {}  # seq -> formatted blocks
 
     if extension == ".docx":
         docx_result = _extract_formatted_docx(file_bytes)
         if docx_result is None:
             logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
-            return 0
+            return 0, []
         plain_text, all_formatted = docx_result
         raw_text = _sanitize_text_for_db(plain_text)
         chunks = _chunk_markdown(raw_text)
@@ -705,7 +706,7 @@ async def _process_document(
             pdf_result = _extract_formatted_pdf(file_bytes)
             if pdf_result is None:
                 logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
-                return 0
+                return 0, []
             pages, per_page_formatted = pdf_result
 
         chunks = _chunk_by_pages(pages)
@@ -725,14 +726,14 @@ async def _process_document(
         extracted = _extract_text(file_bytes, extension)
         if extracted is None:
             logger.warning("document.process.unsupported", doc_id=str(doc_id), ext=extension)
-            return 0
+            return 0, []
         raw_text = _sanitize_text_for_db(extracted)
         chunks = _chunk_markdown(raw_text)
         page_count = len(chunks)
         all_text = raw_text
 
     if not chunks:
-        return 0
+        return 0, []
 
     word_count = len([w for w in re.split(r"\s+", all_text.strip()) if w])
 
@@ -744,6 +745,7 @@ async def _process_document(
 
     for chunk in chunks:
         chunk_id = uuid4()
+        chunk_ids.append(chunk_id)
         chunk_text = chunk["text"]
         boundaries = _build_sentence_boundaries(chunk_text)
         existing_meta = chunk.get("metadata_json") or {}
@@ -779,8 +781,8 @@ async def _process_document(
         {"st": "ready", "pc": page_count, "wc": word_count, "did": doc_id},
     )
 
-    logger.info("document.processed", doc_id=str(doc_id), chunks=len(chunks))
-    return len(chunks)
+    logger.info("document.processed", doc_id=str(doc_id), chunks=len(chunk_ids))
+    return len(chunk_ids), chunk_ids
 
 
 @router.post("/blank/", status_code=status.HTTP_201_CREATED)
@@ -946,10 +948,10 @@ async def upload_document(
         },
     )
 
-    chunk_count = await _process_document(doc_id, file_bytes, extension, db, page_texts_json=page_texts)
+    chunk_count, chunk_ids = await _process_document(doc_id, file_bytes, extension, db, page_texts_json=page_texts)
     doc_status = "ready" if chunk_count > 0 else "uploaded"
     if chunk_count > 0:
-        background_tasks.add_task(_eager_synthesize_chunks, doc_id)
+        background_tasks.add_task(_eager_synthesize_chunks, doc_id, chunk_ids)
         logger.info("tts.eager_synthesis.queued", doc_id=str(doc_id), chunks=chunk_count)
 
     logger.info("document.upload.accepted", doc_id=str(doc_id), title=title, chunks=chunk_count)
@@ -2180,23 +2182,21 @@ async def export_document(
     )
 
 
-async def _eager_synthesize_chunks(doc_id: UUID) -> None:
+async def _eager_synthesize_chunks(doc_id: UUID, chunk_ids: list[UUID]) -> None:
     """Pre-synthesize all chunks in background after upload."""
-    import asyncio
     DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
-    await asyncio.sleep(2)
     try:
         from psitta.db.session import async_session_factory
         from psitta.providers.tts_router import TTSRouter
         from psitta.services.audio_cache import get_mp3, put_mp3
-        logger.info("tts.eager_synthesis.start", doc_id=str(doc_id))
+        logger.info("tts.eager_synthesis.start", doc_id=str(doc_id), chunk_count=len(chunk_ids))
         async with async_session_factory() as db:
             result = await db.execute(
                 text(
                     "SELECT id, text_content FROM document_chunks "
-                    "WHERE document_id = :doc_id ORDER BY sequence_index"
+                    "WHERE id = ANY(:ids) ORDER BY sequence_index"
                 ),
-                {"doc_id": doc_id},
+                {"ids": [str(cid) for cid in chunk_ids]},
             )
             chunks = result.fetchall()
         if not chunks:
