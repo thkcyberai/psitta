@@ -240,18 +240,26 @@ def _build_sentence_boundaries(text: str) -> list[list[int]]:
     if not text:
         return []
     segmenter = pysbd.Segmenter(language="en", clean=False)
-    sentences = segmenter.segment(text)
     boundaries: list[list[int]] = []
-    cursor = 0
-    for sent in sentences:
-        if not sent:
+    line_offset = 0
+    for line in text.splitlines(keepends=True):
+        line_text = line.rstrip("\r\n")
+        if not line_text.strip():
+            line_offset += len(line)
             continue
-        start = text.index(sent, cursor)
-        end = start + len(sent)
-        boundaries.append([start, end])
-        cursor = end
+        sent_cursor = 0
+        for sent in segmenter.segment(line_text):
+            if not sent or not sent.strip():
+                continue
+            try:
+                rel_start = line_text.index(sent, sent_cursor)
+            except ValueError:
+                continue
+            rel_end = rel_start + len(sent)
+            boundaries.append([line_offset + rel_start, line_offset + rel_end])
+            sent_cursor = rel_end
+        line_offset += len(line)
     return boundaries
-
 router = APIRouter()
 
 ALLOWED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".md", ".html"})
