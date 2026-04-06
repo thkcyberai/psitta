@@ -650,79 +650,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       ),
                     );
 
-                    if (isNarrow) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                'Library',
-                                style: theme.textTheme.headlineSmall?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              if (_isUploading) ...[
-                                const SizedBox(width: 16),
-                                const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Uploading...',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-                          searchField,
-                          const SizedBox(height: 12),
-                          Consumer(
-                            builder: (context, ref, _) {
-                              final showArchived = ref.watch(showArchivedProvider);
-                              return FilterChip(
-                                label: const Text('Show Archived'),
-                                selected: showArchived,
-                                onSelected: (val) =>
-                                    ref.read(showArchivedProvider.notifier).state = val,
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: Tooltip(
-                              message: isProTier
-                                  ? ''
-                                  : 'Available on Pro \u2014 Upgrade in Settings',
-                              child: OutlinedButton.icon(
-                                onPressed: _isUploading || !isProTier
-                                    ? null
-                                    : _handleNewSheet,
-                                icon: const Icon(Icons.edit_note, size: 18),
-                                label: const Text('New Sheet'),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          SizedBox(
-                            width: double.infinity,
-                            child: FilledButton.icon(
-                              onPressed: _isUploading ? null : _handleFilePick,
-                              icon: const Icon(Icons.upload_file, size: 18),
-                              label: const Text('Upload'),
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-
                     return Row(
                       children: [
                         Text(
@@ -748,7 +675,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         ],
                         const Spacer(),
                         SizedBox(
-                          width: 260,
+                          width: 160,
                           height: 36,
                           child: searchField,
                         ),
@@ -901,7 +828,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (isInDesktopShell) {
       return LayoutBuilder(
         builder: (context, constraints) {
-          final showRightPanel = constraints.maxWidth >= 1100;
+          final showRightPanel = constraints.maxWidth >= 900;
           return Row(
             children: [
               Expanded(child: content),
