@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -78,6 +80,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _hasPendingPdfJump = false;
   int? _pendingPdfJumpTargetMs;
   int _pdfJumpRequestSeq = 0;
+
+  // ── Ctrl+scroll zoom state ─────────────────────────────────────────
+  double _textScale = 1.0;
+
+  void _handleCtrlScroll(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (!HardwareKeyboard.instance.isControlPressed) return;
+
+    final resolvedDoc = _resolveDocument(ref);
+    final isPdf = (resolvedDoc?.sourceType.toLowerCase() ?? '') == 'pdf';
+
+    if (isPdf) {
+      if (event.scrollDelta.dy < 0) {
+        _pdfViewerController.zoomUp();
+      } else if (event.scrollDelta.dy > 0) {
+        _pdfViewerController.zoomDown();
+      }
+    } else {
+      setState(() {
+        if (event.scrollDelta.dy < 0) {
+          _textScale = (_textScale + 0.1).clamp(0.5, 3.0);
+        } else if (event.scrollDelta.dy > 0) {
+          _textScale = (_textScale - 0.1).clamp(0.5, 3.0);
+        }
+      });
+    }
+  }
 
   // ── Inline editing state ─────────────────────────────────────────
   bool _autoEditPending = true; // checked once on first data load
@@ -1818,6 +1847,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             pageKeys: {
               for (final page in docxPages) page.pageNumber: _pageKeyForDocx(page.pageNumber),
             },
+            textScale: _textScale,
           );
         } else if (_isEditing && _editingChunkId == chunkId) {
           // Keep the existing non-DOCX editing fallback unchanged.
@@ -1870,6 +1900,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 audioService: _audioService,
                 enableContextMenu: true,
                 blockKeys: _docBlockKeys,
+                textScale: _textScale,
               ),
             ],
           );
@@ -2236,7 +2267,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         const SizedBox(height: 16),
                         // Document surface
                         Expanded(
-                          child: isPdfDocument
+                          child: Listener(
+                            onPointerSignal: _handleCtrlScroll,
+                            child: isPdfDocument
                               ? textWidget
                               : Stack(
                                   children: [
@@ -2347,6 +2380,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                       ),
                                   ],
                                 ),
+                          ),
                         ),
                       ],
                     ),

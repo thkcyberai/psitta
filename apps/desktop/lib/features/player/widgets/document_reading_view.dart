@@ -29,6 +29,7 @@ class DocumentReadingView extends ConsumerStatefulWidget {
     this.enableContextMenu = true,
     this.enablePointerSentenceSelection = false,
     this.blockKeys,
+    this.textScale = 1.0,
   });
 
   final PsittaDocument document;
@@ -51,6 +52,9 @@ class DocumentReadingView extends ConsumerStatefulWidget {
   /// Shared block key registry — allows external code (e.g. outline sidebar)
   /// to look up GlobalKeys for specific blocks.
   final Map<String, GlobalKey>? blockKeys;
+
+  /// Text zoom factor driven by Ctrl+scroll. 1.0 = default size.
+  final double textScale;
 
   @override
   ConsumerState<DocumentReadingView> createState() =>
@@ -353,35 +357,39 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
 
       // Determine block-level text style
       TextStyle blockStyle;
+      final scale = widget.textScale;
       switch (block.type) {
         case DocBlockType.heading:
           switch (block.level) {
             case 1:
               blockStyle = theme.textTheme.headlineMedium ??
-                  const TextStyle(fontSize: 24, fontWeight: FontWeight.bold);
+                  TextStyle(fontSize: 24 * scale, fontWeight: FontWeight.bold);
             case 2:
               blockStyle = theme.textTheme.headlineSmall ??
-                  const TextStyle(fontSize: 20, fontWeight: FontWeight.bold);
+                  TextStyle(fontSize: 20 * scale, fontWeight: FontWeight.bold);
             case 3:
               blockStyle = theme.textTheme.titleLarge ??
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w600);
+                  TextStyle(fontSize: 18 * scale, fontWeight: FontWeight.w600);
             default:
               blockStyle = theme.textTheme.titleLarge ??
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w600);
+                  TextStyle(fontSize: 18 * scale, fontWeight: FontWeight.w600);
           }
-          blockStyle = blockStyle.copyWith(height: 1.6);
+          blockStyle = blockStyle.copyWith(
+            height: 1.6,
+            fontSize: (blockStyle.fontSize ?? 24) * scale,
+          );
         case DocBlockType.listItem:
           blockStyle = theme.textTheme.bodyLarge?.copyWith(
                 height: 1.6,
-                fontSize: 16,
+                fontSize: 16 * scale,
               ) ??
-              const TextStyle(fontSize: 16, height: 1.6);
+              TextStyle(fontSize: 16 * scale, height: 1.6);
         case DocBlockType.paragraph:
           blockStyle = theme.textTheme.bodyLarge?.copyWith(
                 height: 1.8,
-                fontSize: 16,
+                fontSize: 16 * scale,
               ) ??
-              const TextStyle(fontSize: 16, height: 1.8);
+              TextStyle(fontSize: 16 * scale, height: 1.8);
       }
 
       // Build inline spans with highlighting

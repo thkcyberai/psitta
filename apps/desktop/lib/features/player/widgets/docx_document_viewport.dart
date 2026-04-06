@@ -28,6 +28,7 @@ class DocxDocumentViewport extends StatelessWidget {
     this.trailingBlocks,
     this.blockKeys,
     this.pageKeys,
+    this.textScale = 1.0,
   });
 
   final PsittaDocument document;
@@ -45,6 +46,7 @@ class DocxDocumentViewport extends StatelessWidget {
   final List<DocBlock>? trailingBlocks;
   final Map<String, GlobalKey>? blockKeys;
   final Map<int, GlobalKey>? pageKeys;
+  final double textScale;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +113,7 @@ class DocxDocumentViewport extends StatelessWidget {
                         onSentenceTap: onSentenceTap,
                         audioService: audioService,
                         blockKeys: blockKeys,
+                        textScale: textScale,
                       ),
                       const SizedBox(height: 28),
                     ],
@@ -157,6 +160,7 @@ class _DocxPageSheet extends StatelessWidget {
     this.onSentenceTap,
     this.audioService,
     this.blockKeys,
+    this.textScale = 1.0,
   });
 
   final DocxPageLayoutPage page;
@@ -169,6 +173,7 @@ class _DocxPageSheet extends StatelessWidget {
   final void Function(int docOffset)? onSentenceTap;
   final AudioService? audioService;
   final Map<String, GlobalKey>? blockKeys;
+  final double textScale;
 
   @override
   Widget build(BuildContext context) {
@@ -197,6 +202,7 @@ class _DocxPageSheet extends StatelessWidget {
                   enableContextMenu: true,
                   enablePointerSentenceSelection: true,
                   blockKeys: blockKeys,
+                  textScale: textScale,
                 ),
               ),
             ),
