@@ -85,6 +85,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // ── Ctrl+scroll zoom state ─────────────────────────────────────────
   double _textScale = 1.0;
 
+  // ── Find-in-document state ─────────────────────────────────────────
+  bool _showFindBar = false;
+  // Query typed before the PDF document / viewer is ready. Replayed once
+  // onDocumentLoaded fires or the PdfViewerController becomes ready.
+  String _pendingFindQuery = '';
+  VoidCallback? _pdfReadyListener;
+  final TextEditingController _findController = TextEditingController();
+  final FocusNode _findFocusNode = FocusNode();
+  final FocusNode _findShortcutFocusNode = FocusNode(
+    debugLabel: 'PlayerScreen-FindShortcut',
+    skipTraversal: true,
+  );
+  PdfTextSearcher? _pdfTextSearcher;
+  // DOCX match state: list of block IDs containing the query, current index.
+  List<String> _docxFindBlockIds = const [];
+  int _docxFindIndex = -1;
+  // Latest PsittaDocument rendered by the data builder — captured so the
+  // find-bar shortcut callbacks can access it outside the builder scope.
+  PsittaDocument? _currentPsittaDoc;
+
   void _handleCtrlScroll(PointerSignalEvent event) {
     if (event is! PointerScrollEvent) return;
     if (!HardwareKeyboard.instance.isControlPressed) return;
@@ -109,6 +129,338 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  // ── Find-in-document ───────────────────────────────────────────────
+
+  /// Intercepts Ctrl+F / Escape at the Flutter key-event layer.
+  ///
+  /// This is used by both the wrapper [KeyboardListener] (for events that
+  /// bubble up through the Player subtree's focus chain) and the global
+  /// [HardwareKeyboard] handler registered in [initState] (for events
+  /// that reach Flutter while focus is held by a descendant that does
+  /// not forward keys through the focus chain — e.g. the PDFium native
+  /// view). Returns true when the event should be considered handled.
+  bool _tryHandleFindShortcut(KeyEvent event) {
+    if (!mounted) return false;
+    if (event is! KeyDownEvent) return false;
+    final kb = HardwareKeyboard.instance;
+    if (event.logicalKey == LogicalKeyboardKey.keyF && kb.isControlPressed) {
+      _openFindBar();
+      return true;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.escape && _showFindBar) {
+      _closeFindBar();
+      return true;
+    }
+    return false;
+  }
+
+  /// Global [HardwareKeyboard] handler — fires for every key event
+  /// regardless of which widget currently holds focus. Registered while
+  /// this [State] is mounted.
+  bool _handleHardwareKey(KeyEvent event) {
+    return _tryHandleFindShortcut(event);
+  }
+
+  /// [KeyboardListener.onKeyEvent] callback — receives events bubbled up
+  /// through the Focus chain when focus is within the Player subtree.
+  void _handleKeyboardListener(KeyEvent event) {
+    _tryHandleFindShortcut(event);
+  }
+
+  void _openFindBar() {
+    if (_showFindBar) {
+      _findFocusNode.requestFocus();
+      return;
+    }
+    setState(() => _showFindBar = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _findFocusNode.requestFocus();
+      _findController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _findController.text.length,
+      );
+    });
+  }
+
+  void _closeFindBar() {
+    if (!_showFindBar) return;
+    _findController.clear();
+    _pdfTextSearcher?.resetTextSearch();
+    _pendingFindQuery = '';
+    final readyListener = _pdfReadyListener;
+    if (readyListener != null) {
+      _pdfViewerController.removeListener(readyListener);
+      _pdfReadyListener = null;
+    }
+    setState(() {
+      _showFindBar = false;
+      _docxFindBlockIds = const [];
+      _docxFindIndex = -1;
+    });
+    _findShortcutFocusNode.requestFocus();
+  }
+
+  PdfTextSearcher _ensurePdfSearcher() {
+    final existing = _pdfTextSearcher;
+    if (existing != null) return existing;
+    final searcher = PdfTextSearcher(_pdfViewerController)
+      ..addListener(_onPdfSearcherChanged);
+    _pdfTextSearcher = searcher;
+    return searcher;
+  }
+
+  void _onPdfSearcherChanged() {
+    if (!mounted) return;
+    setState(() {}); // refresh "X of Y" indicator
+  }
+
+  void _onFindQueryChanged(String query) {
+    final trimmed = query;
+    final resolvedDoc = _resolveDocument(ref);
+    final isPdfDocument =
+        (resolvedDoc?.sourceType.toLowerCase() ?? '') == 'pdf';
+
+    // PDF path
+    if (isPdfDocument) {
+      // Document not yet loaded — stash the query and replay it from
+      // onDocumentLoaded. Must not fall through to the DOCX branch, which
+      // would return "0 of 0" against an empty PsittaDocument.
+      if (_pdfDocumentRef == null) {
+        _pendingFindQuery = trimmed;
+        return;
+      }
+      final searcher = _ensurePdfSearcher();
+      if (trimmed.isEmpty) {
+        searcher.resetTextSearch();
+        _pendingFindQuery = '';
+        return;
+      }
+      // The PdfViewerController may not be attached to the viewport yet
+      // even after the document ref is resolved (first-frame race). If
+      // isReady is false, startTextSearch silently no-ops, so stash the
+      // query and retry via a one-shot controller listener.
+      if (!_pdfViewerController.isReady) {
+        _pendingFindQuery = trimmed;
+        if (_pdfReadyListener == null) {
+          void listener() {
+            if (!mounted) return;
+            if (!_pdfViewerController.isReady) return;
+            final pending = _pendingFindQuery;
+            final existing = _pdfReadyListener;
+            if (existing != null) {
+              _pdfViewerController.removeListener(existing);
+              _pdfReadyListener = null;
+            }
+            if (pending.isNotEmpty) {
+              _onFindQueryChanged(pending);
+            }
+          }
+          _pdfReadyListener = listener;
+          _pdfViewerController.addListener(listener);
+        }
+        return;
+      }
+      _pendingFindQuery = '';
+      searcher.startTextSearch(
+        trimmed,
+        caseInsensitive: true,
+        searchImmediately: true,
+      );
+      return;
+    }
+    // DOCX path
+    final psittaDoc = _currentPsittaDoc;
+    if (psittaDoc == null) return;
+    if (trimmed.isEmpty) {
+      setState(() {
+        _docxFindBlockIds = const [];
+        _docxFindIndex = -1;
+      });
+      return;
+    }
+    final needle = trimmed.toLowerCase();
+    final hits = <String>[];
+    for (final block in psittaDoc.blocks) {
+      if (block.plainText.toLowerCase().contains(needle)) {
+        hits.add(block.blockId);
+      }
+    }
+    setState(() {
+      _docxFindBlockIds = hits;
+      _docxFindIndex = hits.isEmpty ? -1 : 0;
+    });
+    if (hits.isNotEmpty) {
+      _scrollToDocxFindMatch();
+    }
+  }
+
+  void _nextFindMatch() {
+    if (_pdfDocumentRef != null) {
+      _pdfTextSearcher?.goToNextMatch();
+      return;
+    }
+    if (_docxFindBlockIds.isEmpty) return;
+    setState(() {
+      _docxFindIndex = (_docxFindIndex + 1) % _docxFindBlockIds.length;
+    });
+    _scrollToDocxFindMatch();
+  }
+
+  void _prevFindMatch() {
+    if (_pdfDocumentRef != null) {
+      _pdfTextSearcher?.goToPrevMatch();
+      return;
+    }
+    if (_docxFindBlockIds.isEmpty) return;
+    setState(() {
+      _docxFindIndex = (_docxFindIndex - 1 + _docxFindBlockIds.length) %
+          _docxFindBlockIds.length;
+    });
+    _scrollToDocxFindMatch();
+  }
+
+  void _scrollToDocxFindMatch() {
+    if (_docxFindIndex < 0 || _docxFindIndex >= _docxFindBlockIds.length) {
+      return;
+    }
+    final blockId = _docxFindBlockIds[_docxFindIndex];
+    final key = _docBlockKeys[blockId];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+        alignment: 0.1,
+      );
+    }
+
+    // Cursor positioning is only meaningful while editing — QuillEditor
+    // is only live in DOCX edit mode. In read mode we keep
+    // navigation-only behavior.
+    if (!_isEditing || _editingDocxDocument == null) return;
+
+    final controller = _docxBlockControllers[blockId];
+    final focusNode = _docxBlockFocusNodes[blockId];
+    if (controller == null || focusNode == null) return;
+
+    final query = _findController.text;
+    if (query.isEmpty) return;
+
+    final plainText = controller.document.toPlainText();
+    final matchOffset =
+        plainText.toLowerCase().indexOf(query.toLowerCase());
+    if (matchOffset < 0) return;
+
+    controller.updateSelection(
+      TextSelection.collapsed(offset: matchOffset),
+      quill.ChangeSource.local,
+    );
+    // Defer focus request until after the current frame so the
+    // ensureVisible scroll and selection update have been applied.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      focusNode.requestFocus();
+    });
+  }
+
+  Widget _buildFindBar({
+    required ThemeData theme,
+    required bool isPdfDocument,
+  }) {
+    final int totalMatches;
+    final int currentMatch;
+    if (isPdfDocument) {
+      final searcher = _pdfTextSearcher;
+      totalMatches = searcher?.matches.length ?? 0;
+      final idx = searcher?.currentIndex;
+      currentMatch = (idx == null || totalMatches == 0) ? 0 : idx + 1;
+    } else {
+      totalMatches = _docxFindBlockIds.length;
+      currentMatch =
+          (_docxFindIndex < 0 || totalMatches == 0) ? 0 : _docxFindIndex + 1;
+    }
+    final hasQuery = _findController.text.isNotEmpty;
+    final countLabel =
+        hasQuery ? '$currentMatch of $totalMatches' : '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.4),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.search,
+            size: 18,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _findController,
+              focusNode: _findFocusNode,
+              autofocus: true,
+              textInputAction: TextInputAction.search,
+              style: theme.textTheme.bodyMedium,
+              decoration: const InputDecoration(
+                hintText: 'Find in document',
+                isDense: true,
+                border: InputBorder.none,
+              ),
+              onChanged: _onFindQueryChanged,
+              onSubmitted: (_) => _nextFindMatch(),
+            ),
+          ),
+          if (hasQuery) ...[
+            Text(
+              countLabel,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: totalMatches == 0
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.onSurfaceVariant,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+            tooltip: 'Previous match',
+            visualDensity: VisualDensity.compact,
+            onPressed: totalMatches == 0 ? null : _prevFindMatch,
+          ),
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+            tooltip: 'Next match',
+            visualDensity: VisualDensity.compact,
+            onPressed: totalMatches == 0 ? null : _nextFindMatch,
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Close (Esc)',
+            visualDensity: VisualDensity.compact,
+            onPressed: _closeFindBar,
+          ),
+        ],
+      ),
+    );
+  }
+
   // ── Inline editing state ─────────────────────────────────────────
   bool _autoEditPending = true; // checked once on first data load
   bool _isEditing = false;
@@ -118,6 +470,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final TextEditingController _editController = TextEditingController();
   final FocusNode _editFocusNode = FocusNode();
   final Map<String, quill.QuillController> _docxBlockControllers = {};
+  // Long-lived focus nodes, one per block — owned by the Player state so
+  // find-in-document can request focus on a specific block's QuillEditor
+  // (cursor positioning for DOCX matches).
+  final Map<String, FocusNode> _docxBlockFocusNodes = {};
   final Map<String, String> _docxOriginalBlockTexts = {};
   final Map<String, String> _docxOriginalChunkTexts = {};
   final Map<String, String> _docxBlockChunkIds = {};
@@ -127,6 +483,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void initState() {
     super.initState();
+    // Global key interception — reliable when focus is held by a
+    // descendant PlatformView (PDF viewer) or QuillEditor that sits
+    // outside this State's Focus subtree. Only registered while the
+    // Player screen is mounted, so it doesn't affect other screens.
+    HardwareKeyboard.instance.addHandler(_handleHardwareKey);
     _editController.addListener(_onEditTextChanged);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -302,9 +663,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
     _editController.removeListener(_onEditTextChanged);
     _editController.dispose();
     _editFocusNode.dispose();
+    _findController.dispose();
+    _findFocusNode.dispose();
+    _findShortcutFocusNode.dispose();
+    _pdfTextSearcher?.removeListener(_onPdfSearcherChanged);
+    _pdfTextSearcher?.dispose();
+    _pdfTextSearcher = null;
+    for (final node in _docxBlockFocusNodes.values) {
+      node.dispose();
+    }
+    _docxBlockFocusNodes.clear();
     _contentScrollController.dispose();
     _chunkIndexSub?.close();
     _voiceSub?.close();
@@ -354,6 +726,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     PsittaDocument document,
     List<dynamic> rawChunks,
   ) {
+    // Close the find bar before entering edit mode. While the QuillEditor
+    // is live it intercepts every keystroke that would otherwise reach
+    // the find-bar TextField, so typed characters get inserted into the
+    // active block instead of the search query.
+    if (_showFindBar) _closeFindBar();
     final audioService = ref.read(audioServiceProvider);
     audioService.pause();
     ref.read(isInlineEditingProvider.notifier).state = true;
@@ -361,7 +738,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     for (final controller in _docxBlockControllers.values) {
       controller.dispose();
     }
+    for (final node in _docxBlockFocusNodes.values) {
+      node.dispose();
+    }
     _docxBlockControllers.clear();
+    _docxBlockFocusNodes.clear();
     _docxOriginalBlockTexts.clear();
     _docxOriginalChunkTexts.clear();
     _docxBlockChunkIds.clear();
@@ -373,6 +754,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _docxBlockControllers[block.blockId] = quill.QuillController(
         document: doc,
         selection: const TextSelection.collapsed(offset: 0),
+      );
+      _docxBlockFocusNodes[block.blockId] = FocusNode(
+        debugLabel: 'docx-block-${block.blockId}',
       );
       final chunk = document.chunkForOffset(block.textOffset);
       if (chunk != null) {
@@ -413,7 +797,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     for (final controller in _docxBlockControllers.values) {
       controller.dispose();
     }
+    for (final node in _docxBlockFocusNodes.values) {
+      node.dispose();
+    }
     _docxBlockControllers.clear();
+    _docxBlockFocusNodes.clear();
     _docxOriginalBlockTexts.clear();
     _docxOriginalChunkTexts.clear();
     _docxBlockChunkIds.clear();
@@ -1592,7 +1980,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       });
     }
 
-    return chunksAsync.when(
+    final body = chunksAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (err, _) => Center(
         child: Column(
@@ -1781,6 +2169,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 data: data,
                 title: chunkTitle,
               );
+        // Capture for find-bar shortcut callbacks outside this builder.
+        _currentPsittaDoc = psittaDoc;
 
         final pdfHighlight = isPdfDocument
             ? _buildPdfHighlight(
@@ -1841,6 +2231,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 _pdfOutline = outline;
                 _lastAutoFollowedPdfPage = activePdfPageNumber;
               });
+              // Replay any query the user typed before the document
+              // finished loading. Clearing the pending slot first avoids
+              // a re-entrant stash from _onFindQueryChanged.
+              final pending = _pendingFindQuery;
+              if (pending.isNotEmpty) {
+                _pendingFindQuery = '';
+                _onFindQueryChanged(pending);
+              }
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 if (!mounted) return;
                 _goToPdfPageTop(activePdfPageNumber);
@@ -1882,6 +2280,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     key: ValueKey('docx_edit_${widget.documentId}'),
                     document: _editingDocxDocument!,
                     controllers: _docxBlockControllers,
+                    focusNodes: _docxBlockFocusNodes,
                     isSaving: editorState.isSaving,
                     error: editorState.error,
                     onActiveControllerChanged: (controller) {
@@ -2358,6 +2757,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             isDocxDocument &&
                             _activeDocxController != null)
                           const Divider(height: 1),
+                        // ── Find-in-document bar (Ctrl+F)
+                        // Hidden in DOCX edit mode — QuillEditor would
+                        // swallow keystrokes and insert them into the
+                        // active block instead of the search field.
+                        if (_showFindBar && !_isEditing)
+                          _buildFindBar(
+                            theme: theme,
+                            isPdfDocument: isPdfDocument,
+                          ),
                         // Document surface
                         Expanded(
                           child: Listener(
@@ -2517,6 +2925,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ],
         );
       },
+    );
+
+    // KeyboardListener wraps the entire Player body so that key events
+    // bubbling up through any descendant's focus chain reach the find
+    // handler. A global HardwareKeyboard handler registered in
+    // initState() acts as a fallback for descendants (e.g. the PDFium
+    // PlatformView) that don't route their key events through Flutter's
+    // focus tree.
+    return KeyboardListener(
+      focusNode: _findShortcutFocusNode,
+      includeSemantics: false,
+      onKeyEvent: _handleKeyboardListener,
+      child: body,
     );
   }
 
