@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/psitta_tokens.dart';
@@ -212,12 +211,6 @@ class DocumentCard extends StatelessWidget {
           case 'edit':
             onEdit();
             break;
-          case 'edit_document':
-            if (documentId != null) {
-              context.push(
-                  '/editor/$documentId?title=${Uri.encodeComponent(title)}');
-            }
-            break;
           case 'delete':
             onDelete();
             break;
@@ -253,16 +246,6 @@ class DocumentCard extends StatelessWidget {
             Icon(Icons.edit, size: 18),
             SizedBox(width: 10),
             Text('Rename'),
-          ]),
-        ),
-        PopupMenuItem(
-          value: 'edit_document',
-          child: Row(children: [
-            Icon(Icons.edit_note_outlined,
-                size: 16,
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(width: 8),
-            const Text('Edit Document'),
           ]),
         ),
         const PopupMenuItem(
