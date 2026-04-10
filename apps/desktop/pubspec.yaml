@@ -79,7 +79,7 @@ msix_config:
   display_name: Psitta
   publisher_display_name: Facti AI LLC
   identity_name: com.factiai.psitta
-  msix_version: 1.0.2.0
+  msix_version: 1.0.3.0
   description: "Reading to Listening - ultra-natural document narration"
   publisher: CN=Facti AI LLC
   logo_path: assets/branding/OnlyBird.png
