@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
-import '../../data/services/preferences_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../widgets/user_avatar.dart';
 
@@ -24,11 +24,32 @@ final subscriptionSummaryProvider =
 /// Settings Screen — user preferences and app configuration.
 ///
 /// Desktop layout: single-column settings list with sections.
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  String _appVersion = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() {
+      _appVersion = '${info.version}+${info.buildNumber}';
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final selectedTheme = ref.watch(selectedThemeNameProvider);
     final swhMode = ref.watch(selectedSwhModeProvider);
@@ -200,11 +221,17 @@ class SettingsScreen extends ConsumerWidget {
                     trailing: Icon(Icons.chevron_right),
                   ),
                   const SizedBox(height: 32),
-                  Center(
-                    child: Text(
-                      'Psitta v0.1.0',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: AppColors.textSecondary,
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 24, top: 16),
+                    child: Center(
+                      child: Text(
+                        _appVersion.isEmpty
+                            ? 'Psitta'
+                            : 'Psitta v$_appVersion',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ),
                   ),
