@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
 
 import '../../../data/models/psitta_document.dart';
 
-class DocxDocumentEditor extends StatelessWidget {
+class DocxDocumentEditor extends StatefulWidget {
   const DocxDocumentEditor({
     super.key,
     required this.document,
@@ -10,25 +11,106 @@ class DocxDocumentEditor extends StatelessWidget {
     this.error,
     this.isSaving = false,
     this.onChanged,
+    this.onActiveControllerChanged,
   });
 
   final PsittaDocument document;
-  final Map<String, TextEditingController> controllers;
+  final Map<String, QuillController> controllers;
   final String? error;
   final bool isSaving;
   final VoidCallback? onChanged;
+  final ValueChanged<QuillController>? onActiveControllerChanged;
+
+  @override
+  State<DocxDocumentEditor> createState() => _DocxDocumentEditorState();
+}
+
+class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
+  QuillController? _activeController;
+  final Set<QuillController> _listening = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _activeController = _firstController;
+    _attachListeners();
+    // Notify parent of the initial active controller.
+    if (_activeController != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onActiveControllerChanged?.call(_activeController!);
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DocxDocumentEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // If the active controller was disposed (e.g. edit mode re-entered),
+    // fall back to the first available controller.
+    if (_activeController == null ||
+        !widget.controllers.containsValue(_activeController)) {
+      _activeController = _firstController;
+      if (_activeController != null) {
+        widget.onActiveControllerChanged?.call(_activeController!);
+      }
+    }
+    _attachListeners();
+  }
+
+  @override
+  void dispose() {
+    _detachListeners();
+    super.dispose();
+  }
+
+  void _attachListeners() {
+    for (final controller in widget.controllers.values) {
+      if (_listening.add(controller)) {
+        controller.addListener(_onAnyChange);
+      }
+    }
+  }
+
+  void _detachListeners() {
+    for (final controller in _listening) {
+      controller.removeListener(_onAnyChange);
+    }
+    _listening.clear();
+  }
+
+  void _onAnyChange() {
+    widget.onChanged?.call();
+  }
+
+  QuillController? get _firstController {
+    if (widget.document.blocks.isEmpty) return null;
+    for (final block in widget.document.blocks) {
+      final c = widget.controllers[block.blockId];
+      if (c != null) return c;
+    }
+    return null;
+  }
+
+  void _onBlockFocused(QuillController controller) {
+    if (_activeController != controller) {
+      setState(() {
+        _activeController = controller;
+      });
+      widget.onActiveControllerChanged?.call(controller);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final children = <Widget>[];
 
-    if (error != null) {
+    if (widget.error != null) {
       children.add(
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
           child: Text(
-            error!,
+            widget.error!,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.error,
             ),
@@ -37,7 +119,7 @@ class DocxDocumentEditor extends StatelessWidget {
       );
     }
 
-    if (isSaving) {
+    if (widget.isSaving) {
       children.add(
         Padding(
           padding: const EdgeInsets.only(bottom: 16),
@@ -64,8 +146,8 @@ class DocxDocumentEditor extends StatelessWidget {
       );
     }
 
-    for (final block in document.blocks) {
-      final controller = controllers[block.blockId];
+    for (final block in widget.document.blocks) {
+      final controller = widget.controllers[block.blockId];
       if (controller == null) continue;
 
       children.add(
@@ -76,8 +158,8 @@ class DocxDocumentEditor extends StatelessWidget {
           child: _DocxEditableBlock(
             block: block,
             controller: controller,
-            enabled: !isSaving,
-            onChanged: onChanged,
+            enabled: !widget.isSaving,
+            onFocused: () => _onBlockFocused(controller),
           ),
         ),
       );
@@ -90,37 +172,148 @@ class DocxDocumentEditor extends StatelessWidget {
   }
 }
 
+/// Builds the sticky QuillSimpleToolbar used for DOCX editing.
+///
+/// Extracted as a standalone builder so player_screen.dart can render it
+/// outside the scrollable viewport (keeping it always visible).
+Widget buildDocxEditToolbar({
+  required QuillController controller,
+  required ThemeData theme,
+}) {
+  return QuillSimpleToolbar(
+    controller: controller,
+    configurations: QuillSimpleToolbarConfigurations(
+      showBoldButton: true,
+      showItalicButton: true,
+      showSmallButton: false,
+      showUnderLineButton: true,
+      showStrikeThrough: true,
+      showInlineCode: false,
+      showColorButton: true,
+      showBackgroundColorButton: true,
+      showListNumbers: false,
+      showListBullets: false,
+      showListCheck: false,
+      showCodeBlock: false,
+      showQuote: false,
+      showIndent: false,
+      showLink: false,
+      showUndo: true,
+      showRedo: true,
+      showFontSize: true,
+      showHeaderStyle: false,
+      showAlignmentButtons: true,
+      showDirection: false,
+      showSearchButton: false,
+      showSubscript: false,
+      showSuperscript: false,
+      showClipboardCut: false,
+      showClipboardCopy: false,
+      showClipboardPaste: false,
+      toolbarIconAlignment: WrapAlignment.start,
+      toolbarSectionSpacing: 2,
+      multiRowsDisplay: false,
+      color: theme.colorScheme.surface,
+      buttonOptions: QuillSimpleToolbarButtonOptions(
+        base: QuillToolbarBaseButtonOptions(
+          iconSize: 18,
+          iconTheme: QuillIconTheme(
+            iconButtonSelectedData: IconButtonData(
+              style: IconButton.styleFrom(
+                backgroundColor: theme.colorScheme.primaryContainer,
+                foregroundColor: theme.colorScheme.onPrimaryContainer,
+                padding: const EdgeInsets.all(4),
+                minimumSize: const Size(32, 32),
+              ),
+            ),
+            iconButtonUnselectedData: IconButtonData(
+              style: IconButton.styleFrom(
+                foregroundColor: theme.colorScheme.onSurfaceVariant,
+                padding: const EdgeInsets.all(4),
+                minimumSize: const Size(32, 32),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 class _DocxEditableBlock extends StatelessWidget {
   const _DocxEditableBlock({
     required this.block,
     required this.controller,
     required this.enabled,
-    this.onChanged,
+    this.onFocused,
   });
 
   final DocBlock block;
-  final TextEditingController controller;
+  final QuillController controller;
   final bool enabled;
-  final VoidCallback? onChanged;
+  final VoidCallback? onFocused;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final baseStyle = _styleForBlock(theme, block);
-    final field = TextField(
+
+    final focusNode = FocusNode();
+
+    final editor = QuillEditor.basic(
       controller: controller,
-      enabled: enabled,
-      keyboardType: TextInputType.multiline,
-      textInputAction: TextInputAction.newline,
-      maxLines: null,
-      minLines: 1,
-      mouseCursor: SystemMouseCursors.text,
-      style: baseStyle,
-      onChanged: (_) => onChanged?.call(),
-      decoration: const InputDecoration(
-        border: InputBorder.none,
-        isCollapsed: true,
+      focusNode: focusNode,
+      configurations: QuillEditorConfigurations(
+        expands: false,
+        padding: EdgeInsets.zero,
+        scrollPhysics: const ClampingScrollPhysics(),
+        placeholder: '',
+        customStyles: DefaultStyles(
+          paragraph: DefaultTextBlockStyle(
+            _paragraphStyle(theme),
+            HorizontalSpacing.zero,
+            VerticalSpacing.zero,
+            VerticalSpacing.zero,
+            null,
+          ),
+          h1: DefaultTextBlockStyle(
+            _h1Style(theme),
+            HorizontalSpacing.zero,
+            VerticalSpacing.zero,
+            VerticalSpacing.zero,
+            null,
+          ),
+          h2: DefaultTextBlockStyle(
+            _h2Style(theme),
+            HorizontalSpacing.zero,
+            VerticalSpacing.zero,
+            VerticalSpacing.zero,
+            null,
+          ),
+          h3: DefaultTextBlockStyle(
+            _h3Style(theme),
+            HorizontalSpacing.zero,
+            VerticalSpacing.zero,
+            VerticalSpacing.zero,
+            null,
+          ),
+          lists: DefaultListBlockStyle(
+            _listStyle(theme),
+            HorizontalSpacing.zero,
+            VerticalSpacing.zero,
+            VerticalSpacing.zero,
+            null,
+            null,
+          ),
+        ),
       ),
+    );
+
+    // Use Listener (not GestureDetector) so pointer events propagate
+    // unimpeded to QuillEditor for drag-to-select.
+    final wrapped = Listener(
+      onPointerDown: (_) => onFocused?.call(),
+      child: editor,
     );
 
     if (block.type == DocBlockType.listItem) {
@@ -134,12 +327,12 @@ class _DocxEditableBlock extends StatelessWidget {
               style: baseStyle,
             ),
           ),
-          Expanded(child: field),
+          Expanded(child: wrapped),
         ],
       );
     }
 
-    return field;
+    return wrapped;
   }
 
   TextStyle _styleForBlock(ThemeData theme, DocBlock block) {
@@ -147,39 +340,54 @@ class _DocxEditableBlock extends StatelessWidget {
       case DocBlockType.heading:
         switch (block.level) {
           case 1:
-            return theme.textTheme.headlineMedium?.copyWith(height: 1.6) ??
-                const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  height: 1.6,
-                );
+            return _h1Style(theme);
           case 2:
-            return theme.textTheme.headlineSmall?.copyWith(height: 1.6) ??
-                const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  height: 1.6,
-                );
+            return _h2Style(theme);
           default:
-            return theme.textTheme.titleLarge?.copyWith(height: 1.6) ??
-                const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  height: 1.6,
-                );
+            return _h3Style(theme);
         }
       case DocBlockType.listItem:
-        return theme.textTheme.bodyLarge?.copyWith(
-              height: 1.6,
-              fontSize: 16,
-            ) ??
-            const TextStyle(fontSize: 16, height: 1.6);
+        return _listStyle(theme);
       case DocBlockType.paragraph:
-        return theme.textTheme.bodyLarge?.copyWith(
-              height: 1.8,
-              fontSize: 16,
-            ) ??
-            const TextStyle(fontSize: 16, height: 1.8);
+        return _paragraphStyle(theme);
     }
   }
+
+  TextStyle _h1Style(ThemeData theme) =>
+      theme.textTheme.headlineMedium?.copyWith(height: 1.6) ??
+      const TextStyle(
+        fontSize: 24,
+        fontWeight: FontWeight.bold,
+        height: 1.6,
+      );
+
+  TextStyle _h2Style(ThemeData theme) =>
+      theme.textTheme.headlineSmall?.copyWith(height: 1.6) ??
+      const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.bold,
+        height: 1.6,
+      );
+
+  TextStyle _h3Style(ThemeData theme) =>
+      theme.textTheme.titleLarge?.copyWith(height: 1.6) ??
+      const TextStyle(
+        fontSize: 18,
+        fontWeight: FontWeight.w600,
+        height: 1.6,
+      );
+
+  TextStyle _listStyle(ThemeData theme) =>
+      theme.textTheme.bodyLarge?.copyWith(
+        height: 1.6,
+        fontSize: 16,
+      ) ??
+      const TextStyle(fontSize: 16, height: 1.6);
+
+  TextStyle _paragraphStyle(ThemeData theme) =>
+      theme.textTheme.bodyLarge?.copyWith(
+        height: 1.8,
+        fontSize: 16,
+      ) ??
+      const TextStyle(fontSize: 16, height: 1.8);
 }

@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -116,11 +117,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   bool _hasUnsavedChanges = false;
   final TextEditingController _editController = TextEditingController();
   final FocusNode _editFocusNode = FocusNode();
-  final Map<String, TextEditingController> _docxBlockControllers = {};
+  final Map<String, quill.QuillController> _docxBlockControllers = {};
   final Map<String, String> _docxOriginalBlockTexts = {};
   final Map<String, String> _docxOriginalChunkTexts = {};
   final Map<String, String> _docxBlockChunkIds = {};
   PsittaDocument? _editingDocxDocument;
+  quill.QuillController? _activeDocxController;
 
   @override
   void initState() {
@@ -367,11 +369,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     for (final block in document.blocks) {
       final text = block.plainText;
       _docxOriginalBlockTexts[block.blockId] = text;
-      _docxBlockControllers[block.blockId] = TextEditingController(text: text);
+      final doc = quill.Document()..insert(0, text);
+      _docxBlockControllers[block.blockId] = quill.QuillController(
+        document: doc,
+        selection: const TextSelection.collapsed(offset: 0),
+      );
       final chunk = document.chunkForOffset(block.textOffset);
       if (chunk != null) {
         _docxBlockChunkIds[block.blockId] = chunk.chunkId;
+      } else {
+        debugPrint(
+            '[_enterDocxEditMode] WARNING: block=${block.blockId} '
+            'has NO chunk mapping (textOffset=${block.textOffset}) — '
+            'edits to this block will be silently dropped at save');
       }
+    }
+    debugPrint(
+        '[_enterDocxEditMode] blocks=${document.blocks.length} '
+        'mapped=${_docxBlockChunkIds.length}');
+    for (final entry in _docxBlockChunkIds.entries) {
+      debugPrint(
+          '[_enterDocxEditMode] blockId=${entry.key} -> chunkId=${entry.value}');
     }
 
     for (final rawChunk in rawChunks) {
@@ -405,6 +423,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _originalText = '';
       _hasUnsavedChanges = false;
       _editingDocxDocument = null;
+      _activeDocxController = null;
     });
     _editFocusNode.unfocus();
   }
@@ -498,7 +517,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final chunkId = _docxBlockChunkIds[block.blockId];
       if (chunkId == null) continue;
       final controller = _docxBlockControllers[block.blockId];
-      final text = sanitizeForTts(controller?.text ?? block.plainText);
+      final text = sanitizeForTts(
+          controller?.document.toPlainText() ?? block.plainText);
       chunkBuffers.putIfAbsent(chunkId, () => <String>[]).add(text);
     }
 
@@ -513,6 +533,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   Future<bool> _saveDocxEdit(PsittaDocument document) async {
+    debugPrint(
+        '[_saveDocxEdit] called — _hasUnsavedChanges=$_hasUnsavedChanges');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -546,8 +568,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
 
     if (changedChunkTexts.isEmpty) {
+      debugPrint('[_saveDocxEdit] no plain-text changes — exiting edit mode');
       _exitEditMode();
       return true;
+    }
+
+    debugPrint(
+        '[_saveDocxEdit] changedChunkTexts (${changedChunkTexts.length} '
+        'entries):');
+    for (final entry in changedChunkTexts.entries) {
+      debugPrint(
+          '[_saveDocxEdit] SAVING chunk_id=${entry.key} text=${entry.value}');
     }
 
     final notifier = ref.read(chunkEditorProvider.notifier);
@@ -555,11 +586,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       documentId: widget.documentId,
       chunkTexts: changedChunkTexts,
     );
+    debugPrint('[_saveDocxEdit] saveChunkTexts returned success=$success');
 
     if (!success || !mounted) return false;
 
     for (final entry in _docxBlockControllers.entries) {
-      _docxOriginalBlockTexts[entry.key] = sanitizeForTts(entry.value.text);
+      _docxOriginalBlockTexts[entry.key] =
+          sanitizeForTts(entry.value.document.toPlainText());
     }
     _docxOriginalChunkTexts.addAll(changedChunkTexts);
     setState(() {
@@ -577,16 +610,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       )));
     }
 
-    final refreshedData = await ref.refresh(chunksProvider(widget.documentId).future);
+    // Explicitly invalidate the cached chunks before re-fetching so the
+    // refresh goes all the way to the backend instead of returning stale
+    // Riverpod cache.
+    ref.invalidate(chunksProvider(widget.documentId));
+    ref.invalidate(documentsProvider);
+    debugPrint('[_saveDocxEdit] invalidated chunksProvider + documentsProvider');
+
+    final refreshedData =
+        await ref.read(chunksProvider(widget.documentId).future);
     final refreshedChunks = (refreshedData['chunks'] as List<dynamic>?) ?? [];
     final refreshedTexts = <String, String>{
       for (final rawChunk in refreshedChunks)
         ((rawChunk as Map<String, dynamic>)['id'] ?? '').toString():
             sanitizeForTts((rawChunk['text_content'] ?? '').toString()),
     };
+    debugPrint(
+        '[_saveDocxEdit] refreshed ${refreshedTexts.length} chunks from backend');
+    for (final entry in changedChunkTexts.entries) {
+      final got = refreshedTexts[entry.key];
+      debugPrint(
+          '[_saveDocxEdit] verify chunk_id=${entry.key} '
+          'expected=${sanitizeForTts(entry.value)} got=$got');
+    }
     final persisted = changedChunkTexts.entries.every(
       (entry) => refreshedTexts[entry.key] == sanitizeForTts(entry.value),
     );
+    debugPrint('[_saveDocxEdit] persisted=$persisted');
     if (!persisted) {
       if (mounted) {
         setState(() {
@@ -595,7 +645,6 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
       return false;
     }
-    ref.invalidate(documentsProvider);
     _exitEditMode();
     return true;
   }
@@ -852,10 +901,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final page = pages.where((candidate) => candidate.pageNumber == pageNumber);
     if (page.isEmpty) return;
     final firstBlock = page.first.blocks.isEmpty ? null : page.first.blocks.first;
-    if (firstBlock == null) return;
-    final blockKey = _docBlockKeys[firstBlock.blockId];
-    if (blockKey != null) {
-      _scrollBlockIntoReadingBand(blockKey, force: true);
+    if (firstBlock == null) {
+      // No block available — fall through to proportional scroll.
+    } else {
+      final blockKey = _docBlockKeys[firstBlock.blockId];
+      if (blockKey != null && blockKey.currentContext != null) {
+        _scrollBlockIntoReadingBand(blockKey, force: true);
+        return;
+      }
+    }
+
+    // Proportional scroll fallback (e.g. during edit mode when page/block
+    // keys have no mounted context).
+    if (_contentScrollController.hasClients) {
+      final maxExtent = _contentScrollController.position.maxScrollExtent;
+      final pageProgress = pages.length <= 1
+          ? 0.0
+          : ((pageNumber.clamp(1, pages.length) - 1) / (pages.length - 1))
+              .clamp(0.0, 1.0);
+      await _contentScrollController.animateTo(
+        maxExtent * pageProgress,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeInOutCubic,
+      );
     }
   }
 
@@ -1066,27 +1134,27 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     );
   }
 
-  int _actualPdfSentenceIndex(
-    Map<String, dynamic> chunk,
-    Duration position,
-    Duration duration,
-    Map<String, dynamic>? alignmentPayload,
-  ) {
-    final boundaries = chunk['sentence_boundaries'] as List<dynamic>? ?? const [];
-    if (boundaries.isEmpty) return 0;
-    final text = (chunk['text_content'] ?? '').toString();
-    if (text.isEmpty) return 0;
-    final alignedCharOffset = _charIndexAtMsFromAlignmentPayload(
-      alignmentPayload, position.inMilliseconds);
-    if (alignedCharOffset != null) {
-      return _pdfSentenceIndexForCharOffset(text, boundaries, alignedCharOffset);
-    }
-    if (duration.inMilliseconds <= 0) return 0;
-    final ratio = (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 0.999999);
-    final charOffset = (ratio * text.length).floor().clamp(0, text.length - 1).toInt();
-    return _pdfSentenceIndexForCharOffset(text, boundaries, charOffset);
-  }
-
+  int _actualPdfSentenceIndex(
+    Map<String, dynamic> chunk,
+    Duration position,
+    Duration duration,
+    Map<String, dynamic>? alignmentPayload,
+  ) {
+    final boundaries = chunk['sentence_boundaries'] as List<dynamic>? ?? const [];
+    if (boundaries.isEmpty) return 0;
+    final text = (chunk['text_content'] ?? '').toString();
+    if (text.isEmpty) return 0;
+    final alignedCharOffset = _charIndexAtMsFromAlignmentPayload(
+      alignmentPayload, position.inMilliseconds);
+    if (alignedCharOffset != null) {
+      return _pdfSentenceIndexForCharOffset(text, boundaries, alignedCharOffset);
+    }
+    if (duration.inMilliseconds <= 0) return 0;
+    final ratio = (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 0.999999);
+    final charOffset = (ratio * text.length).floor().clamp(0, text.length - 1).toInt();
+    return _pdfSentenceIndexForCharOffset(text, boundaries, charOffset);
+  }
+
   int _activePdfSentenceIndex(
     Map<String, dynamic> chunk,
     Duration position,
@@ -1152,22 +1220,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final safeSentenceIndex =
         sentenceIndex.clamp(0, sentenceBoundaries.length - 1).toInt();
 
-    // Dual highlight: show current + next sentence during transition.
-    final actualIdx = _actualPdfSentenceIndex(
-      chunk, position, duration, alignmentPayload);
-    final safeActual = actualIdx.clamp(0, sentenceBoundaries.length - 1).toInt();
-    final int? endSentenceIndex = (safeSentenceIndex > safeActual)
-        ? safeSentenceIndex
-        : null;
-    final startSentenceIndex = endSentenceIndex != null
-        ? safeActual
-        : safeSentenceIndex;
-    return PdfReadingHighlight(
-      pageNumber: pageNumber,
-      chunkIndex: currentIndex,
-      sentenceIndex: startSentenceIndex,
-      endSentenceIndex: endSentenceIndex,
-    );
+    // Dual highlight: show current + next sentence during transition.
+    final actualIdx = _actualPdfSentenceIndex(
+      chunk, position, duration, alignmentPayload);
+    final safeActual = actualIdx.clamp(0, sentenceBoundaries.length - 1).toInt();
+    final int? endSentenceIndex = (safeSentenceIndex > safeActual)
+        ? safeSentenceIndex
+        : null;
+    final startSentenceIndex = endSentenceIndex != null
+        ? safeActual
+        : safeSentenceIndex;
+    return PdfReadingHighlight(
+      pageNumber: pageNumber,
+      chunkIndex: currentIndex,
+      sentenceIndex: startSentenceIndex,
+      endSentenceIndex: endSentenceIndex,
+    );
   }
 
   Future<void> _jumpToPdfLocation({
@@ -1816,13 +1884,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     controllers: _docxBlockControllers,
                     isSaving: editorState.isSaving,
                     error: editorState.error,
+                    onActiveControllerChanged: (controller) {
+                      if (_activeDocxController != controller && mounted) {
+                        setState(() {
+                          _activeDocxController = controller;
+                        });
+                      }
+                    },
                     onChanged: () {
+                      // Backend stores plain text only — formatting-only
+                      // changes (bold, italic, color) cannot be persisted,
+                      // so only text content changes trigger unsaved state.
                       var changed = false;
                       for (final entry in _docxBlockControllers.entries) {
-                        final original =
+                        final originalText =
                             _docxOriginalBlockTexts[entry.key] ?? '';
-                        if (sanitizeForTts(entry.value.text) !=
-                            sanitizeForTts(original)) {
+                        if (sanitizeForTts(
+                                entry.value.document.toPlainText()) !=
+                            sanitizeForTts(originalText)) {
                           changed = true;
                           break;
                         }
@@ -2265,6 +2344,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
+                        // ── Sticky DOCX edit toolbar (above scroll area)
+                        if (_isEditing &&
+                            _editingDocxDocument != null &&
+                            isDocxDocument &&
+                            _activeDocxController != null)
+                          buildDocxEditToolbar(
+                            controller: _activeDocxController!,
+                            theme: theme,
+                          ),
+                        if (_isEditing &&
+                            _editingDocxDocument != null &&
+                            isDocxDocument &&
+                            _activeDocxController != null)
+                          const Divider(height: 1),
                         // Document surface
                         Expanded(
                           child: Listener(

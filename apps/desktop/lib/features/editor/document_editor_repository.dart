@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/api/api_client.dart';
 import '../../data/providers/providers.dart';
@@ -14,10 +15,15 @@ class DocumentEditorRepository {
     required String text,
   }) async {
     final url = '/documents/$documentId/chunks/$chunkId';
+    final payload = {'text': text};
+    debugPrint(
+        '[DocumentEditorRepository.updateChunkText] PATCH $url payload=$payload');
     final response = await _api.dio.patch(
       url,
-      data: {'text': text},
+      data: payload,
     );
+    debugPrint(
+        '[DocumentEditorRepository.updateChunkText] response status=${response.statusCode} data=${response.data}');
     return response.data as Map<String, dynamic>;
   }
 

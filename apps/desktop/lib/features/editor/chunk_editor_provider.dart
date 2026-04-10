@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'document_editor_repository.dart';
 
@@ -73,9 +74,13 @@ class ChunkEditorNotifier extends StateNotifier<ChunkEditorState> {
     required Map<String, String> chunkTexts,
   }) async {
     state = state.copyWith(isSaving: true, error: null, successMessage: null);
+    debugPrint(
+        '[ChunkEditorNotifier.saveChunkTexts] documentId=$documentId count=${chunkTexts.length}');
 
     try {
       for (final entry in chunkTexts.entries) {
+        debugPrint(
+            '[ChunkEditorNotifier.saveChunkTexts] -> chunk_id=${entry.key} text=${entry.value}');
         await _repository.updateChunkText(
           documentId: documentId,
           chunkId: entry.key,
