@@ -22,9 +22,14 @@ final sidebarCollapsedProvider = StateProvider<bool>((ref) => false);
 /// The shell never rebuilds when navigating — only the content
 /// area changes. Sidebar and player bar are persistent.
 class DesktopShell extends ConsumerWidget {
-  const DesktopShell({super.key, required this.child});
+  const DesktopShell({
+    super.key,
+    required this.child,
+    required this.currentLocation,
+  });
 
   final Widget child;
+  final String currentLocation;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,6 +47,15 @@ class DesktopShell extends ConsumerWidget {
             intent is SkipBackwardIntent);
     } else {
       shortcuts = psittaShortcuts;
+    }
+
+    // Ctrl+F is the library search shortcut only when the Library screen
+    // is active. On other routes (Player, Settings, etc.), remove the
+    // binding from the shell so key events propagate down to the route's
+    // own local Ctrl+F handler (e.g. Player's find-in-document bar).
+    if (!currentLocation.startsWith('/library')) {
+      shortcuts = Map<ShortcutActivator, Intent>.from(shortcuts)
+        ..removeWhere((key, intent) => intent is SearchLibraryIntent);
     }
 
     return Shortcuts(

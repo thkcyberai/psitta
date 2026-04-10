@@ -8,6 +8,7 @@ class DocxDocumentEditor extends StatefulWidget {
     super.key,
     required this.document,
     required this.controllers,
+    required this.focusNodes,
     this.error,
     this.isSaving = false,
     this.onChanged,
@@ -16,6 +17,10 @@ class DocxDocumentEditor extends StatefulWidget {
 
   final PsittaDocument document;
   final Map<String, QuillController> controllers;
+  /// Long-lived focus nodes keyed by blockId, owned by the parent so
+  /// external callers (e.g. find-in-document) can request focus for a
+  /// specific block's QuillEditor.
+  final Map<String, FocusNode> focusNodes;
   final String? error;
   final bool isSaving;
   final VoidCallback? onChanged;
@@ -148,7 +153,8 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
 
     for (final block in widget.document.blocks) {
       final controller = widget.controllers[block.blockId];
-      if (controller == null) continue;
+      final focusNode = widget.focusNodes[block.blockId];
+      if (controller == null || focusNode == null) continue;
 
       children.add(
         Padding(
@@ -158,6 +164,7 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
           child: _DocxEditableBlock(
             block: block,
             controller: controller,
+            focusNode: focusNode,
             enabled: !widget.isSaving,
             onFocused: () => _onBlockFocused(controller),
           ),
@@ -244,12 +251,14 @@ class _DocxEditableBlock extends StatelessWidget {
   const _DocxEditableBlock({
     required this.block,
     required this.controller,
+    required this.focusNode,
     required this.enabled,
     this.onFocused,
   });
 
   final DocBlock block;
   final QuillController controller;
+  final FocusNode focusNode;
   final bool enabled;
   final VoidCallback? onFocused;
 
@@ -257,8 +266,6 @@ class _DocxEditableBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final baseStyle = _styleForBlock(theme, block);
-
-    final focusNode = FocusNode();
 
     final editor = QuillEditor.basic(
       controller: controller,

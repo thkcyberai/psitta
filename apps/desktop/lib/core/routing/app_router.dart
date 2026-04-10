@@ -67,7 +67,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       ShellRoute(
         builder: (context, state, child) {
-          return DesktopShell(child: child);
+          return DesktopShell(
+            currentLocation: state.uri.path,
+            child: child,
+          );
         },
         routes: [
           GoRoute(
