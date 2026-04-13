@@ -84,6 +84,10 @@ resource "aws_iam_role" "cross_account_admin" {
       Action = "sts:AssumeRole"
     }]
   })
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "cross_account_admin_attach" {
