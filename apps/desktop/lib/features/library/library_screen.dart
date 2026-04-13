@@ -300,6 +300,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  Future<void> _regenerateAudio(Document doc) async {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Regenerating audio for ${doc.title}...')),
+    );
+    try {
+      final repo = ref.read(documentRepositoryProvider);
+      await repo.resynthesizeDocument(doc.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Audio regeneration started for ${doc.title}')),
+        );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(content: Text('Regenerate audio failed: $e')),
+        );
+    }
+  }
+
   Future<void> _downloadDocument(Document doc) async {
     // Step 1: Show download options dialog
     final options = await showDialog<_DownloadOptions>(
@@ -778,6 +802,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       onAssignProject: () => _assignToProject(doc),
                                       onRemoveProject: () => _removeFromProject(doc),
                                       onChangeCover: () => _changeCover(doc),
+                                      onRegenerateAudio: () => _regenerateAudio(doc),
                                       documentId: doc.id,
                                       coverType: doc.coverType,
                                       coverValue: doc.coverValue,

@@ -338,11 +338,7 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     // ── Highlight styles ──
     final sentenceBg = AppColors.primary.withOpacity(0.10);
     final previewSentenceBg = AppColors.primary.withOpacity(0.16);
-    final wordHighlightStyle = TextStyle(
-      backgroundColor: AppColors.primary.withOpacity(isDark ? 0.35 : 0.22),
-      color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
-      fontWeight: FontWeight.w700,
-    );
+    final wordHighlightBg = AppColors.primary.withOpacity(isDark ? 0.35 : 0.22);
 
     final cmBuilder = widget.enableContextMenu ? _buildContextMenu : null;
 
@@ -391,6 +387,11 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
               ) ??
               TextStyle(fontSize: 16 * scale, height: 1.8);
       }
+
+      // Word highlight style inherits block's fontSize/height
+      final wordHighlightStyle = blockStyle.copyWith(
+        backgroundColor: wordHighlightBg,
+      );
 
       // Build inline spans with highlighting
       final inlineSpans = <TextSpan>[];

@@ -267,4 +267,15 @@ class DocumentRepository {
     );
     return Document.fromJson(response.data as Map<String, dynamic>);
   }
+
+  /// Clear audio cache for all chunks and queue re-synthesis.
+  Future<void> resynthesizeDocument(String id) async {
+    final response = await _api.dio.post('/documents/$id/resynthesize');
+    if (response.statusCode != 200) {
+      final msg = (response.data is Map && response.data['detail'] != null)
+          ? response.data['detail'] as String
+          : 'Failed to regenerate audio';
+      throw Exception(msg);
+    }
+  }
 }

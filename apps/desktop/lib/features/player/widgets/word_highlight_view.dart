@@ -588,7 +588,6 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
         highlightStyle = baseStyle?.copyWith(
           backgroundColor: AppColors.primary.withOpacity(isDark ? 0.35 : 0.22),
           color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
-          fontWeight: FontWeight.w700,
         );
       }
     } else if (alignmentBlock is! Map) {

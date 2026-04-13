@@ -20,6 +20,7 @@ class DocumentCard extends StatelessWidget {
     this.onAssignProject,
     this.onRemoveProject,
     this.onChangeCover,
+    this.onRegenerateAudio,
     this.currentProjectId,
     this.documentId,
     this.projectPath,
@@ -41,6 +42,7 @@ class DocumentCard extends StatelessWidget {
   final VoidCallback? onAssignProject;
   final VoidCallback? onRemoveProject;
   final VoidCallback? onChangeCover;
+  final VoidCallback? onRegenerateAudio;
   final String? currentProjectId;
   final String? documentId;
   final String? projectPath;
@@ -229,6 +231,9 @@ class DocumentCard extends StatelessWidget {
           case 'remove_project':
             onRemoveProject?.call();
             break;
+          case 'regenerate_audio':
+            onRegenerateAudio?.call();
+            break;
         }
       },
       itemBuilder: (context) => [
@@ -279,6 +284,14 @@ class DocumentCard extends StatelessWidget {
             Icon(Icons.download_outlined, size: 18),
             SizedBox(width: 8),
             Text('Download'),
+          ]),
+        ),
+        const PopupMenuItem<String>(
+          value: 'regenerate_audio',
+          child: Row(children: [
+            Icon(Icons.refresh_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('Regenerate Audio'),
           ]),
         ),
         const PopupMenuDivider(),
