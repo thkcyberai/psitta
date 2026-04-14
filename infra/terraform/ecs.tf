@@ -77,8 +77,20 @@ resource "aws_ecs_task_definition" "api" {
     image     = "${aws_ecr_repository.api.repository_url}:latest"
     essential = true
 
+    environment = [
+      {
+        name  = "LOG_LEVEL"
+        value = "info"
+      },
+      {
+        name  = "ENVIRONMENT"
+        value = "production"
+      }
+    ]
+
     portMappings = [{
       containerPort = 8000
+      hostPort      = 8000
       protocol      = "tcp"
     }]
 
@@ -105,11 +117,19 @@ resource "aws_ecs_task_definition" "api" {
 
 # ── ECS Service ───────────────────────────────────────────────────────────────
 resource "aws_ecs_service" "api" {
-  name            = "${var.project}-api"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.api.arn
-  desired_count   = 1
-  launch_type     = "FARGATE"
+  name                          = "${var.project}-api"
+  cluster                       = aws_ecs_cluster.main.id
+  task_definition               = aws_ecs_task_definition.api.arn
+  desired_count                 = 1
+  launch_type                   = "FARGATE"
+  enable_execute_command        = true
+  availability_zone_rebalancing = "ENABLED"
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.api.arn
+    container_name   = "${var.project}-api"
+    container_port   = 8000
+  }
 
   network_configuration {
     subnets          = [aws_subnet.private_a.id, aws_subnet.private_b.id]

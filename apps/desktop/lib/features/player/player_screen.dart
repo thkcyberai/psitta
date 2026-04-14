@@ -2222,6 +2222,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             chunks: chunks,
             controller: _pdfViewerController,
             highlight: pdfHighlight,
+            alignmentPayload: alignmentPayload,
             onDocumentLoaded: (documentRef, outline) {
               if (!mounted) return;
               final activePdfPageNumber =
@@ -2266,6 +2267,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             },
           );
         } else if (isDocxDocument && psittaDoc.blocks.isNotEmpty) {
+          debugPrint('[DOCX ALIGN DEBUG] chunkId=$chunkId alignmentPayload.keys=${alignmentPayload?.keys.toList()} hasAlignment=$hasAlignment isFetching=$isFetchingAlignment');
           textWidget = DocxDocumentViewport(
             key: ValueKey('docx_${widget.documentId}_$voiceId'),
             document: psittaDoc,
@@ -2722,7 +2724,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   ),
                                 ],
                               ),
-                            if (!isPdfDocument && hasAlignment) ...[
+                            if (hasAlignment) ...[
                               Icon(
                                 Icons.auto_awesome,
                                 size: 14,

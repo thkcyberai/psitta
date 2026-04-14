@@ -302,25 +302,65 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Future<void> _regenerateAudio(Document doc) async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Regenerating audio for ${doc.title}...')),
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Regenerate Audio'),
+        content: Text(
+          'This will clear the cached audio for all chunks of '
+          '${doc.title} and re-synthesize using the current voice '
+          'and ElevenLabs settings. This may take several minutes.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
     );
+    if (confirmed != true || !mounted) return;
+
     try {
       final repo = ref.read(documentRepositoryProvider);
       await repo.resynthesizeDocument(doc.id);
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text('Audio regeneration started for ${doc.title}')),
-        );
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Regeneration Started'),
+          content: Text(
+            'Audio regeneration has been queued for ${doc.title}. '
+            'The new audio will be available within a few minutes.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(content: Text('Regenerate audio failed: $e')),
-        );
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('$e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
     }
   }
 

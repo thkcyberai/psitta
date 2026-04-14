@@ -13,7 +13,7 @@ import pysbd
 import structlog
 from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, UploadFile, status
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -1551,14 +1551,18 @@ async def resynthesize_chunk(
     )
 
 
-@router.post("/{document_id}/resynthesize")
+@router.post("/{document_id}/resynthesize", status_code=202)
 async def resynthesize_document(
     document_id: UUID,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
-) -> dict:
-    """Clear audio cache for all chunks of a document and queue re-synthesis."""
+) -> JSONResponse:
+    """Clear audio cache for all chunks of a document and queue re-synthesis.
+
+    Returns 202 Accepted immediately. All cache invalidation and
+    re-synthesis run in a background task.
+    """
     # Validate document exists and belongs to the authenticated user
     doc_result = await db.execute(
         text(
@@ -1579,34 +1583,60 @@ async def resynthesize_document(
         {"did": document_id},
     )
     chunk_ids = [row[0] for row in chunk_result.fetchall()]
+    chunk_count = len(chunk_ids)
 
     logger.info(
-        "document.resynthesize.start",
+        "document.resynthesize.queued",
         document_id=str(document_id),
-        chunk_count=len(chunk_ids),
+        chunk_count=chunk_count,
     )
 
-    # Invalidate cache for each chunk
-    for cid in chunk_ids:
-        await _invalidate_chunk_audio_cache(cid, db)
-
-    await db.commit()
-
-    # Queue background re-synthesis
-    if chunk_ids:
-        background_tasks.add_task(_eager_synthesize_chunks, document_id, chunk_ids)
-
-    logger.info(
-        "document.resynthesize.complete",
-        document_id=str(document_id),
-        chunks_cleared=len(chunk_ids),
+    # All cache invalidation + re-synthesis runs in background
+    background_tasks.add_task(
+        _background_invalidate_and_resynthesize, document_id, chunk_ids
     )
 
-    return {
-        "document_id": str(document_id),
-        "chunks_cleared": len(chunk_ids),
-        "message": "Audio cache cleared and re-synthesis queued",
-    }
+    return JSONResponse(
+        status_code=202,
+        content={
+            "document_id": str(document_id),
+            "chunks_cleared": chunk_count,
+            "message": "Audio regeneration started in background",
+        },
+    )
+
+
+async def _background_invalidate_and_resynthesize(
+    document_id: UUID, chunk_ids: list[UUID]
+) -> None:
+    """Background task: invalidate audio cache for all chunks, then re-synthesize."""
+    try:
+        from psitta.db.session import async_session_factory
+
+        async with async_session_factory() as db:
+            for cid in chunk_ids:
+                await _invalidate_chunk_audio_cache(cid, db)
+            await db.commit()
+
+        logger.info(
+            "document.resynthesize.cache_cleared",
+            document_id=str(document_id),
+            chunks_cleared=len(chunk_ids),
+        )
+
+        if chunk_ids:
+            await _eager_synthesize_chunks(document_id, chunk_ids)
+
+        logger.info(
+            "document.resynthesize.complete",
+            document_id=str(document_id),
+        )
+    except Exception as e:
+        logger.error(
+            "document.resynthesize.failed",
+            document_id=str(document_id),
+            error=str(e),
+        )
 
 
 class DocumentUpdateRequest(BaseModel):

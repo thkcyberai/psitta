@@ -22,7 +22,17 @@
       "Bash(python3:*)",
       "Read(//tmp/**)",
       "Bash(cp \"C:/products/psitta/core/backend/src/psitta/config.py\" \"C:/products/psitta/core/backend/src/psitta/config.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/dependencies.py\" \"C:/products/psitta/core/backend/src/psitta/dependencies.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/main.py\" \"C:/products/psitta/core/backend/src/psitta/main.py.bak\")",
-      "Bash(cp \"C:/products/psitta/core/backend/src/psitta/api/v1/router.py\" \"C:/products/psitta/core/backend/src/psitta/api/v1/router.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/api/v1/documents.py\" \"C:/products/psitta/core/backend/src/psitta/api/v1/documents.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/dependencies.py\" \"C:/products/psitta/core/backend/src/psitta/dependencies.py.bak\")"
+      "Bash(cp \"C:/products/psitta/core/backend/src/psitta/api/v1/router.py\" \"C:/products/psitta/core/backend/src/psitta/api/v1/router.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/api/v1/documents.py\" \"C:/products/psitta/core/backend/src/psitta/api/v1/documents.py.bak\" && cp \"C:/products/psitta/core/backend/src/psitta/dependencies.py\" \"C:/products/psitta/core/backend/src/psitta/dependencies.py.bak\")",
+      "Bash(find C:/products/psitta/apps/desktop -path */pub-cache* -prune -o -path */.pub-cache/* -prune -o -name *.dart -path *pdfrx* -print)",
+      "Bash(git:*)",
+      "Bash(MSYS_NO_PATHCONV=1 aws secretsmanager get-secret-value --secret-id psitta/prod/app --region us-east-1 --profile psitta-prod --query 'SecretString' --output text)",
+      "Bash(MSYS_NO_PATHCONV=1 aws secretsmanager list-secrets:*)",
+      "Bash(MSYS_NO_PATHCONV=1 aws secretsmanager get-secret-value --secret-id psitta/prod/app-secrets --region us-east-1 --profile psitta-prod --query 'SecretString' --output text)",
+      "Bash(pip show:*)",
+      "Bash(bandit:*)",
+      "Bash(pip install:*)",
+      "Bash(MSYS_NO_PATHCONV=1 aws sts get-caller-identity:*)",
+      "Bash(terraform plan:*)"
     ],
     "deny": [],
     "ask": []

@@ -45,8 +45,19 @@ def _get_s3():
     try:
         from psitta.config import get_settings
         from psitta.providers.storage_s3 import S3StorageProvider
-        return S3StorageProvider(get_settings())
+        logger.info("upload.trace.audio_cache.get_s3.begin")
+        provider = S3StorageProvider(get_settings())
+        logger.info(
+            "upload.trace.audio_cache.get_s3.success",
+            provider_class=type(provider).__name__,
+        )
+        return provider
     except Exception as e:
+        logger.warning(
+            "upload.trace.audio_cache.get_s3.failed",
+            exception_type=type(e).__name__,
+            exception_message=str(e),
+        )
         logger.warning("audio_cache.s3_unavailable", error=str(e))
         return None
 
@@ -166,10 +177,25 @@ async def put_raw_file(doc_id: str, extension: str, file_bytes: bytes) -> str:
     """Save original uploaded file to local + S3. Returns local path."""
     _ensure_dir()
     local = _local_raw(doc_id, extension)
+    object_key = _s3_raw(doc_id, extension)
+    logger.info(
+        "upload.trace.audio_cache.put_raw_file.begin",
+        doc_id=doc_id,
+        extension=extension,
+        local_path=local,
+        object_key=object_key,
+        size_bytes=len(file_bytes),
+    )
     with open(local, "wb") as f:
         f.write(file_bytes)
 
     s3 = _get_s3()
+    logger.info(
+        "upload.trace.audio_cache.put_raw_file.s3_provider",
+        doc_id=doc_id,
+        provider_exists=bool(s3),
+        object_key=object_key,
+    )
     if not s3:
         logger.error("audio_cache.raw.s3_unavailable", doc_id=doc_id)
         raise RuntimeError("Durable raw-file storage is unavailable")
@@ -178,17 +204,48 @@ async def put_raw_file(doc_id: str, extension: str, file_bytes: bytes) -> str:
         from psitta.config import get_settings
 
         bucket = get_settings().S3_BUCKET_NAME
+        logger.info(
+            "upload.trace.audio_cache.put_raw_file.put_object.begin",
+            doc_id=doc_id,
+            bucket=bucket,
+            object_key=object_key,
+            local_path=local,
+            size_bytes=len(file_bytes),
+        )
         await s3.put_object(
             bucket,
-            _s3_raw(doc_id, extension),
+            object_key,
             file_bytes,
             "application/octet-stream",
         )
+        logger.info(
+            "upload.trace.audio_cache.put_raw_file.put_object.end",
+            doc_id=doc_id,
+            bucket=bucket,
+            object_key=object_key,
+            local_path=local,
+            size_bytes=len(file_bytes),
+        )
         logger.info("audio_cache.raw.saved_s3", doc_id=doc_id, size=len(file_bytes))
     except Exception as e:
+        logger.error(
+            "upload.trace.audio_cache.put_raw_file.put_object.failed",
+            doc_id=doc_id,
+            bucket=locals().get("bucket"),
+            object_key=object_key,
+            local_path=local,
+            exception_type=type(e).__name__,
+            exception_message=str(e),
+        )
         logger.error("audio_cache.raw.s3_write_failed", error=str(e), doc_id=doc_id)
         raise RuntimeError("Durable raw-file storage failed") from e
 
+    logger.info(
+        "upload.trace.audio_cache.put_raw_file.complete",
+        doc_id=doc_id,
+        local_path=local,
+        object_key=object_key,
+    )
     return local
 
 

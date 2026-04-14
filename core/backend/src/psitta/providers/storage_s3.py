@@ -34,6 +34,27 @@ class S3StorageProvider:
         self._access_key = settings.AWS_ACCESS_KEY_ID.get_secret_value()
         self._secret_key = settings.AWS_SECRET_ACCESS_KEY.get_secret_value()
         self._default_bucket = settings.S3_BUCKET_NAME
+        explicit_credentials = (
+            bool(self._access_key)
+            and bool(self._secret_key)
+            and self._access_key != "minioadmin"
+            and self._secret_key != "minioadmin"
+        )
+        endpoint_mode = (
+            "aws_s3"
+            if self._endpoint_url and "amazonaws.com" in self._endpoint_url
+            else "s3_compatible"
+        )
+        logger.info(
+            "upload.trace.storage_s3.init",
+            endpoint_url=self._endpoint_url,
+            region=self._region,
+            bucket=self._default_bucket,
+            access_key_present=bool(self._access_key),
+            secret_key_present=bool(self._secret_key),
+            explicit_credentials=explicit_credentials,
+            endpoint_mode=endpoint_mode,
+        )
 
     async def _get_client(self):  # type: ignore[no-untyped-def]
         """Create an aioboto3 S3 client.
@@ -46,6 +67,7 @@ class S3StorageProvider:
         client_kwargs = {
             "region_name": self._region,
         }
+        explicit_credentials = False
 
         # Use explicit credentials only for local MinIO-style environments.
         # In ECS/Fargate on AWS, omit credentials so boto3 uses the task role.
@@ -57,12 +79,60 @@ class S3StorageProvider:
         ):
             client_kwargs["aws_access_key_id"] = self._access_key
             client_kwargs["aws_secret_access_key"] = self._secret_key
+            explicit_credentials = True
 
         # Only force endpoint_url for non-AWS S3 compatible backends like MinIO.
         if self._endpoint_url and "amazonaws.com" not in self._endpoint_url:
             client_kwargs["endpoint_url"] = self._endpoint_url
 
-        return session.client("s3", **client_kwargs)
+        logger.info(
+            "upload.trace.storage_s3.get_client.begin",
+            endpoint_url=self._endpoint_url,
+            region=self._region,
+            bucket=self._default_bucket,
+            access_key_present=bool(self._access_key),
+            secret_key_present=bool(self._secret_key),
+            explicit_credentials=explicit_credentials,
+            endpoint_mode=(
+                "aws_s3"
+                if self._endpoint_url and "amazonaws.com" in self._endpoint_url
+                else "s3_compatible"
+            ),
+        )
+
+        try:
+            client = session.client("s3", **client_kwargs)
+            logger.info(
+                "upload.trace.storage_s3.get_client.success",
+                endpoint_url=self._endpoint_url,
+                region=self._region,
+                bucket=self._default_bucket,
+                explicit_credentials=explicit_credentials,
+                endpoint_mode=(
+                    "aws_s3"
+                    if self._endpoint_url and "amazonaws.com" in self._endpoint_url
+                    else "s3_compatible"
+                ),
+            )
+            return client
+        except Exception as e:
+            logger.error(
+                "upload.trace.storage_s3.get_client.failed",
+                endpoint_url=self._endpoint_url,
+                region=self._region,
+                bucket=self._default_bucket,
+                access_key_present=bool(self._access_key),
+                secret_key_present=bool(self._secret_key),
+                explicit_credentials=explicit_credentials,
+                endpoint_mode=(
+                    "aws_s3"
+                    if self._endpoint_url and "amazonaws.com" in self._endpoint_url
+                    else "s3_compatible"
+                ),
+                exception_type=type(e).__name__,
+                exception_message=str(e),
+            )
+            raise
 
     async def put_object(
         self,

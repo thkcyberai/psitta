@@ -8,19 +8,20 @@ import 'package:pdfrx/pdfrx.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/providers/providers.dart';
+import '../../../data/services/audio_service.dart';
 
 class PdfReadingHighlight {
   const PdfReadingHighlight({
     required this.pageNumber,
     required this.chunkIndex,
-    required this.sentenceIndex,
-    this.endSentenceIndex,
+    required this.sentenceIndex,
+    this.endSentenceIndex,
   });
 
   final int pageNumber;
   final int chunkIndex;
-  final int sentenceIndex;
-  final int? endSentenceIndex;
+  final int sentenceIndex;
+  final int? endSentenceIndex;
 }
 
 class PdfSentenceTarget {
@@ -128,6 +129,7 @@ class PdfDocumentViewport extends ConsumerStatefulWidget {
     this.onSentenceTap,
     this.onPageTap,
     this.highlight,
+    this.alignmentPayload,
   });
 
   final String documentId;
@@ -140,6 +142,7 @@ class PdfDocumentViewport extends ConsumerStatefulWidget {
   final void Function(PdfSentenceTarget target)? onSentenceTap;
   final void Function(PdfPageHitTestResult hitTest)? onPageTap;
   final PdfReadingHighlight? highlight;
+  final Map<String, dynamic>? alignmentPayload;
 
   @override
   ConsumerState<PdfDocumentViewport> createState() =>
@@ -161,6 +164,10 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
   int _highlightResolveSeq = 0;
   int _hoverResolveSeq = 0;
   bool _loggedFirstPagePaint = false;
+
+  // Word-level highlight state
+  List<PdfRect> _activeWordRects = const [];
+  int? _activeWordPageNumber;
 
   void _logPdfPerf(String stage, String message) {
     debugPrint('[PDF PERF][$stage] $message');
@@ -255,8 +262,8 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     return [
       highlight.pageNumber,
       highlight.chunkIndex,
-      highlight.sentenceIndex,
-      highlight.endSentenceIndex,
+      highlight.sentenceIndex,
+      highlight.endSentenceIndex,
     ].join(':');
   }
 
@@ -877,26 +884,26 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     List<_ResolvedPdfSentence> sentences,
     PdfReadingHighlight highlight,
   ) {
-    final endIdx = highlight.endSentenceIndex ?? highlight.sentenceIndex;
-    final combinedRects = <PdfRect>[];
-    _ResolvedPdfSentence? primary;
-    for (final sentence in sentences) {
-      if (sentence.pageNumber == highlight.pageNumber &&
-          sentence.chunkIndex == highlight.chunkIndex &&
-          sentence.sentenceIndex >= highlight.sentenceIndex &&
-          sentence.sentenceIndex <= endIdx) {
-        if (primary == null) primary = sentence;
-        combinedRects.addAll(sentence.rects);
-      }
-    }
-    if (primary == null) return null;
-    if (combinedRects.length == primary.rects.length) return primary;
-    return _ResolvedPdfSentence(
-      pageNumber: primary.pageNumber,
-      chunkIndex: primary.chunkIndex,
-      sentenceIndex: primary.sentenceIndex,
-      rects: combinedRects,
-    );
+    final endIdx = highlight.endSentenceIndex ?? highlight.sentenceIndex;
+    final combinedRects = <PdfRect>[];
+    _ResolvedPdfSentence? primary;
+    for (final sentence in sentences) {
+      if (sentence.pageNumber == highlight.pageNumber &&
+          sentence.chunkIndex == highlight.chunkIndex &&
+          sentence.sentenceIndex >= highlight.sentenceIndex &&
+          sentence.sentenceIndex <= endIdx) {
+        if (primary == null) primary = sentence;
+        combinedRects.addAll(sentence.rects);
+      }
+    }
+    if (primary == null) return null;
+    if (combinedRects.length == primary.rects.length) return primary;
+    return _ResolvedPdfSentence(
+      pageNumber: primary.pageNumber,
+      chunkIndex: primary.chunkIndex,
+      sentenceIndex: primary.sentenceIndex,
+      rects: combinedRects,
+    );
     return null;
   }
 
@@ -1009,13 +1016,256 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     }());
   }
 
+  // ── Word-level highlight resolution ─────────────────────────────────────
+
+  int? _charIndexAtMs(Map<String, dynamic>? payload, int tMs) {
+    final alignment = payload?['alignment'];
+    if (alignment is! Map) return null;
+    final normalized = alignment['normalized_alignment'];
+    if (normalized is! Map) return null;
+    final starts = normalized['character_start_times_seconds'];
+    final ends = normalized['character_end_times_seconds'];
+    if (starts is! List || ends is! List) return null;
+    if (starts.isEmpty || starts.length != ends.length) return null;
+
+    final t = tMs / 1000.0;
+    for (var i = 0; i < starts.length; i++) {
+      final s = starts[i];
+      final e = ends[i];
+      if (s is! num || e is! num) return null;
+      if (t >= s.toDouble() && t <= e.toDouble()) return i;
+    }
+
+    final lastEnd = (ends.last as num).toDouble();
+    if (t > lastEnd) return starts.length - 1;
+    return null;
+  }
+
+  bool _isWordChar(String ch) {
+    final c = ch.codeUnitAt(0);
+    final isAlphaNum =
+        (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+    return isAlphaNum || ch == "'";
+  }
+
+  void _resolveWordHighlight(Duration position) {
+    final payload = widget.alignmentPayload;
+    final highlight = widget.highlight;
+    if (payload == null || highlight == null) {
+      if (_activeWordRects.isNotEmpty) {
+        setState(() {
+          _activeWordRects = const [];
+          _activeWordPageNumber = null;
+        });
+        if (_viewerController.isReady) _viewerController.invalidate();
+      }
+      return;
+    }
+
+    final charIdx = _charIndexAtMs(payload, position.inMilliseconds);
+    if (charIdx == null) {
+      if (_activeWordRects.isNotEmpty) {
+        setState(() {
+          _activeWordRects = const [];
+          _activeWordPageNumber = null;
+        });
+        if (_viewerController.isReady) _viewerController.invalidate();
+      }
+      return;
+    }
+
+    // Get chunk text to expand charIdx to word boundaries
+    final chunkIndex = highlight.chunkIndex;
+    if (chunkIndex < 0 || chunkIndex >= widget.chunks.length) return;
+    final chunk = widget.chunks[chunkIndex] as Map<String, dynamic>;
+    final chunkText = (chunk['text_content'] ?? '').toString();
+    if (chunkText.isEmpty || charIdx >= chunkText.length) return;
+
+    // Expand to word boundaries
+    var wStart = charIdx;
+    var wEnd = charIdx;
+    while (wStart > 0 && _isWordChar(chunkText[wStart - 1])) {
+      wStart--;
+    }
+    while (wEnd < chunkText.length && _isWordChar(chunkText[wEnd])) {
+      wEnd++;
+    }
+    if (wEnd <= wStart) return;
+
+    final wordText = chunkText.substring(wStart, wEnd);
+    final pageNumber = highlight.pageNumber;
+    final pageText = _pageTextCache[pageNumber];
+    if (pageText == null) return;
+
+    // Locate word in PDF page text using the normalized text mapping
+    final normalizedPage = _normalizePdfText(
+      pageText.fullText,
+      pageNumber: pageNumber,
+    );
+    final normalizedWord = _normalizePdfText(wordText).text;
+    if (normalizedWord.isEmpty) return;
+
+    // Use sentence highlight position as a search anchor —
+    // find where the sentence starts in normalized text, then search within it
+    int searchCursor = 0;
+
+    // Narrow the search: walk sentences up to the one containing wStart
+    final sentenceBoundaries =
+        chunk['sentence_boundaries'] as List<dynamic>? ?? const [];
+    for (var si = 0; si < sentenceBoundaries.length; si++) {
+      final boundary = sentenceBoundaries[si] as List<dynamic>;
+      final sentStart = (boundary[0] as num).toInt();
+      final sentEnd = (boundary[1] as num).toInt();
+
+      if (wStart >= sentStart && wStart < sentEnd) {
+        // Found the sentence containing our word. Get a cursor
+        // by locating sentence text in normalized page text.
+        final trimmedRange = _trimmedSentenceRange(chunkText, boundary);
+        if (trimmedRange != null) {
+          final sentMatch = _findOrderedMatch(
+            normalizedPage,
+            trimmedRange.text,
+            searchCursor,
+            loose: false,
+          );
+          if (sentMatch != null) {
+            // Position cursor at the sentence start, offset by
+            // the word's position within the sentence.
+            final wordOffsetInSentence = wStart - trimmedRange.start;
+            final normalizedPrefix = _normalizePdfText(
+              trimmedRange.text.substring(
+                0,
+                wordOffsetInSentence.clamp(0, trimmedRange.text.length),
+              ),
+            ).text;
+            searchCursor = sentMatch.start + normalizedPrefix.length;
+          }
+        }
+        break;
+      }
+      // Advance searchCursor past this sentence
+      final trimmedRange = _trimmedSentenceRange(chunkText, boundary);
+      if (trimmedRange != null) {
+        final sentMatch = _findOrderedMatch(
+          normalizedPage,
+          trimmedRange.text,
+          searchCursor,
+          loose: false,
+        );
+        if (sentMatch != null) {
+          searchCursor = sentMatch.end;
+        }
+      }
+    }
+
+    // Find the word starting near searchCursor
+    final safeCursor = searchCursor.clamp(0, normalizedPage.text.length);
+    // Search backwards a bit to handle small misalignments
+    final lookback = math.max(0, safeCursor - normalizedWord.length * 2);
+    var wordIdx = normalizedPage.text.indexOf(normalizedWord, lookback);
+    // Prefer the match closest to searchCursor
+    if (wordIdx >= 0 && wordIdx < lookback) {
+      final altIdx = normalizedPage.text.indexOf(normalizedWord, safeCursor);
+      if (altIdx >= 0 &&
+          (altIdx - safeCursor).abs() < (wordIdx - safeCursor).abs()) {
+        wordIdx = altIdx;
+      }
+    }
+    if (wordIdx < 0) {
+      // Try loose match as fallback
+      final loosePage = _normalizePdfText(
+        pageText.fullText,
+        pageNumber: pageNumber,
+        loose: true,
+      );
+      final looseWord = _normalizePdfText(wordText, loose: true).text;
+      if (looseWord.isNotEmpty) {
+        final looseCursor = lookback.clamp(0, loosePage.text.length);
+        wordIdx = loosePage.text.indexOf(looseWord, looseCursor);
+        if (wordIdx >= 0) {
+          // Map back through loose page mapping
+          if (wordIdx + looseWord.length <= loosePage.normalizedToOriginal.length) {
+            final origStart = loosePage.normalizedToOriginal[wordIdx];
+            final origEnd =
+                loosePage.normalizedToOriginal[wordIdx + looseWord.length - 1] + 1;
+            final range = PdfTextRangeWithFragments.fromTextRange(
+              pageText, origStart, origEnd);
+            if (range != null) {
+              final rects = _rectsForTextRange(range);
+              if (rects.isNotEmpty) {
+                setState(() {
+                  _activeWordRects = rects;
+                  _activeWordPageNumber = pageNumber;
+                });
+                if (_viewerController.isReady) _viewerController.invalidate();
+              }
+            }
+          }
+          return;
+        }
+      }
+      // No match found — clear
+      if (_activeWordRects.isNotEmpty) {
+        setState(() {
+          _activeWordRects = const [];
+          _activeWordPageNumber = null;
+        });
+        if (_viewerController.isReady) _viewerController.invalidate();
+      }
+      return;
+    }
+
+    // Map normalized match back to original page text offsets
+    if (wordIdx + normalizedWord.length >
+        normalizedPage.normalizedToOriginal.length) {
+      return;
+    }
+    final origStart = normalizedPage.normalizedToOriginal[wordIdx];
+    final origEnd =
+        normalizedPage.normalizedToOriginal[wordIdx + normalizedWord.length - 1] +
+            1;
+
+    final range =
+        PdfTextRangeWithFragments.fromTextRange(pageText, origStart, origEnd);
+    if (range == null) return;
+    final rects = _rectsForTextRange(range);
+    if (rects.isEmpty) return;
+
+    setState(() {
+      _activeWordRects = rects;
+      _activeWordPageNumber = pageNumber;
+    });
+    if (_viewerController.isReady) _viewerController.invalidate();
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Drive word highlight from audio position
+    final audioPosition =
+        ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero;
+    if (widget.alignmentPayload != null && widget.highlight != null) {
+      // Schedule after frame to avoid setState-during-build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _resolveWordHighlight(audioPosition);
+      });
+    } else if (_activeWordRects.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _activeWordRects = const [];
+          _activeWordPageNumber = null;
+        });
+        if (_viewerController.isReady) _viewerController.invalidate();
+      });
+    }
+
     final theme = Theme.of(context);
     final tokens = PsittaTokens.of(context);
     final stageBackground =
         Color.alphaBlend(tokens.surface2, theme.scaffoldBackgroundColor);
     final highlightColor = theme.colorScheme.primary.withOpacity(0.18);
+    final wordHighlightColor = theme.colorScheme.primary.withOpacity(0.45);
+    final wordHighlightStrokeColor = theme.colorScheme.primary.withOpacity(0.55);
     final hoverFillColor = theme.colorScheme.primary.withOpacity(0.10);
     final hoverStrokeColor = theme.colorScheme.primary.withOpacity(0.32);
     final highlightStrokeColor = theme.colorScheme.primary.withOpacity(0.22);
@@ -1128,33 +1378,61 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
                       }
 
                       final highlight = _resolvedHighlight;
-                      if (highlight == null ||
-                          highlight.pageNumber != page.pageNumber) {
-                        return;
-                      }
-                      for (final pdfRect in highlight.rects) {
-                        final rect = pdfRect
-                            .toRect(page: page, scaledPageSize: pageRect.size)
-                            .translate(pageRect.left, pageRect.top)
-                            .inflate(1.0);
-                        if (rect.width <= 0 || rect.height <= 0) {
-                          continue;
+                      if (highlight != null &&
+                          highlight.pageNumber == page.pageNumber) {
+                        for (final pdfRect in highlight.rects) {
+                          final rect = pdfRect
+                              .toRect(page: page, scaledPageSize: pageRect.size)
+                              .translate(pageRect.left, pageRect.top)
+                              .inflate(1.0);
+                          if (rect.width <= 0 || rect.height <= 0) {
+                            continue;
+                          }
+                          final rrect = RRect.fromRectAndRadius(
+                            rect,
+                            const Radius.circular(7),
+                          );
+                          canvas.drawRRect(
+                            rrect,
+                            Paint()..color = highlightColor,
+                          );
+                          canvas.drawRRect(
+                            rrect,
+                            Paint()
+                              ..color = highlightStrokeColor
+                              ..style = PaintingStyle.stroke
+                              ..strokeWidth = 0.8,
+                          );
                         }
-                        final rrect = RRect.fromRectAndRadius(
-                          rect,
-                          const Radius.circular(7),
-                        );
-                        canvas.drawRRect(
-                          rrect,
-                          Paint()..color = highlightColor,
-                        );
-                        canvas.drawRRect(
-                          rrect,
-                          Paint()
-                            ..color = highlightStrokeColor
-                            ..style = PaintingStyle.stroke
-                            ..strokeWidth = 0.8,
-                        );
+                      }
+
+                      // Word-level highlight (painted on top of sentence)
+                      if (_activeWordRects.isNotEmpty &&
+                          _activeWordPageNumber == page.pageNumber) {
+                        for (final pdfRect in _activeWordRects) {
+                          final rect = pdfRect
+                              .toRect(page: page, scaledPageSize: pageRect.size)
+                              .translate(pageRect.left, pageRect.top)
+                              .inflate(0.8);
+                          if (rect.width <= 0 || rect.height <= 0) {
+                            continue;
+                          }
+                          final rrect = RRect.fromRectAndRadius(
+                            rect,
+                            const Radius.circular(5),
+                          );
+                          canvas.drawRRect(
+                            rrect,
+                            Paint()..color = wordHighlightColor,
+                          );
+                          canvas.drawRRect(
+                            rrect,
+                            Paint()
+                              ..color = wordHighlightStrokeColor
+                              ..style = PaintingStyle.stroke
+                              ..strokeWidth = 0.8,
+                          );
+                        }
                       }
                     },
                   ],
