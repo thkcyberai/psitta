@@ -202,7 +202,7 @@ class _ProjectCard extends ConsumerWidget {
             '${project.documentCount} document${project.documentCount == 1 ? '' : 's'}',
             style: TextStyle(
                 fontSize: 12,
-                color: Theme.of(context).colorScheme.outline),
+                color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -242,7 +242,7 @@ class _ProjectCard extends ConsumerWidget {
                       '${project.documentCount} doc${project.documentCount == 1 ? '' : 's'}',
                       style: TextStyle(
                           fontSize: 11,
-                          color: Theme.of(context).colorScheme.outline),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
