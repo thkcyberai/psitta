@@ -54,7 +54,7 @@ def test_settings() -> Settings:
         AWS_ACCESS_KEY_ID="testing",
         AWS_SECRET_ACCESS_KEY="testing",
         AZURE_TTS_KEY="",
-        AZURE_TTS_REGION="eastus",
+        AZURE_TTS_REGION="centralus",
         ANTHROPIC_API_KEY="",
         SECRET_KEY="test-secret-not-for-production",
     )

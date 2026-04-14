@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     ELEVENLABS_API_KEY: SecretStr = SecretStr("")
     ELEVENLABS_MODEL: str = "eleven_multilingual_v2"
     AZURE_TTS_KEY: SecretStr = SecretStr("")
-    AZURE_TTS_REGION: str = "eastus"
+    AZURE_TTS_REGION: str = "centralus"
 
     # ── Vision Provider ────────────────────────────────────────────────
     VISION_PROVIDER: Literal["anthropic", "stub"] = "stub"
