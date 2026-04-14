@@ -14,13 +14,18 @@ resource "aws_ecr_repository" "api" {
 }
 
 # ── CloudWatch Log Group ──────────────────────────────────────────────────────
+# Hot window for /ecs/psitta-api. Long-term archive is wired in
+# logging.tf via a CloudWatch subscription filter → Kinesis Firehose → S3
+# (12-month retention, GLACIER_IR after 180d). See
+# docs/Psitta_Logging_Security_Compliance_Guide_v1.md §4 (G1, G3, G9).
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/ecs/${var.project}-api"
-  retention_in_days = 30
+  retention_in_days = 90
 
   tags = {
     Project     = var.project
     Environment = var.environment
+    ManagedBy   = "terraform"
   }
 }
 
