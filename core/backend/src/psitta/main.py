@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from psitta import __version__
 from psitta.config import get_settings
+from psitta.middleware.rate_limit import RateLimitMiddleware
 from psitta.middleware.request_id import RequestIDMiddleware
 
 
@@ -84,8 +85,23 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
-        expose_headers=["X-Request-ID"],
+        expose_headers=[
+            "X-Request-ID",
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+            "X-RateLimit-Tier",
+            "Retry-After",
+        ],
     )
+
+    # 3. Rate limiting — per-tier token buckets keyed by authenticated
+    #    Cognito user (sub) or client IP. Tiers:
+    #       upload  5/min   POST /documents[/blank]
+    #       tts    10/min   POST /documents/{id}[/chunks/{cid}]/resynthesize
+    #       read  120/min   GET  /documents/...
+    #       default         everything else
+    app.add_middleware(RateLimitMiddleware)
 
     # ── Routes ─────────────────────────────────────────────────────────
     _register_routes(app)

@@ -98,8 +98,23 @@ class Settings(BaseSettings):
         return f"{self.cognito_issuer}/.well-known/jwks.json"
 
     # ── Rate Limiting ──────────────────────────────────────────────────
+    # Global fallback tier — applies to any route that doesn't match a
+    # specific tier below (PATCH, DELETE, cover upload, non-/documents
+    # paths, etc.). Also used for unauthenticated requests keyed by IP.
+    RATE_LIMIT_ENABLED: bool = True
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW_SECONDS: int = 60
+
+    # Per-tier limits for high-cost document endpoints. Keys are per
+    # authenticated user (Cognito sub) when a valid Bearer token is
+    # present, else per client IP. See middleware/rate_limit.py for
+    # the exact route matchers.
+    RATE_LIMIT_UPLOAD_REQUESTS: int = 5           # POST /documents/, POST /documents/blank/
+    RATE_LIMIT_UPLOAD_WINDOW_SECONDS: int = 60
+    RATE_LIMIT_TTS_REQUESTS: int = 10             # POST /documents/{id}[/chunks/{id}]/resynthesize
+    RATE_LIMIT_TTS_WINDOW_SECONDS: int = 60
+    RATE_LIMIT_READ_REQUESTS: int = 120           # GET /documents/...
+    RATE_LIMIT_READ_WINDOW_SECONDS: int = 60
 
     # ── Document Processing ────────────────────────────────────────────
     MAX_DOCUMENT_SIZE_MB: int = 50
