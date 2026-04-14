@@ -40,7 +40,11 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e ".[dev]"
-          pip install pip-audit safety
+          pip install pip-audit safety bandit
+
+      - name: bandit SAST (high/critical only)
+        working-directory: core/backend
+        run: bandit -r src/ -ll -f json -o bandit-results.json || true
 
       - name: pip-audit (OSV database)
         working-directory: core/backend
@@ -58,6 +62,30 @@ jobs:
           path: |
             core/backend/pip-audit-results.json
             core/backend/safety-results.json
+            core/backend/bandit-results.json
+
+  # ── Flutter Dependency Audit ──────────────────────────────────────
+  flutter-audit:
+    name: Flutter Dependency Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        working-directory: apps/desktop
+        run: flutter pub get
+
+      - name: Flutter pub audit
+        working-directory: apps/desktop
+        run: flutter pub audit
 
   # ── Container Image Scan ───────────────────────────────────────────
   container-scan:
@@ -152,7 +180,7 @@ jobs:
   security-gate:
     name: Security Gate
     if: always()
-    needs: [dependency-audit, container-scan, secret-scan, codeql]
+    needs: [dependency-audit, flutter-audit, container-scan, secret-scan, codeql]
     runs-on: ubuntu-latest
 
     steps:
