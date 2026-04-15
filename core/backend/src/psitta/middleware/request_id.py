@@ -57,7 +57,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
 
-        logger.debug(
+        logger.info(
             "request.started",
             method=request.method,
             path=request.url.path,
@@ -69,7 +69,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
         # Always include request ID in response headers
         response.headers[HEADER_NAME] = request_id
 
-        logger.debug(
+        logger.info(
             "request.completed",
             method=request.method,
             path=request.url.path,
