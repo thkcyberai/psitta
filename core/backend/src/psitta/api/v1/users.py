@@ -16,13 +16,14 @@ from __future__ import annotations
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user as get_auth_user, get_db_session
 from psitta.middleware.auth import TokenClaims
 from psitta.middleware.rbac import get_tier_limits
+from psitta.services import audit_service
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -83,7 +84,10 @@ async def get_current_user_profile(
     response_description="Profile updated",
 )
 async def update_current_user(
+    request: Request,
     display_name: str | None = None,
+    claims: TokenClaims = Depends(get_auth_user),
+    db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Update the authenticated user's profile.
 
@@ -96,6 +100,15 @@ async def update_current_user(
     logger.info("users.profile.update", display_name=display_name)
 
     # TODO: Wire to user service with input validation
+    await audit_service.log_event(
+        db,
+        action="user.profile.update",
+        resource_type="user",
+        user_id=claims.sub,
+        resource_id=claims.sub,
+        details={"fields": [k for k, v in {"display_name": display_name}.items() if v is not None]},
+        ip_address=request.client.host if request.client else None,
+    )
     return {
         "display_name": display_name,
         "status": "updated",
@@ -158,9 +171,12 @@ async def get_preferences() -> dict:
     response_description="Preferences updated",
 )
 async def update_preferences(
+    request: Request,
     theme: str | None = None,
     notifications_enabled: bool | None = None,
     auto_delete_days: int | None = None,
+    claims: TokenClaims = Depends(get_auth_user),
+    db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     """Update the user's application preferences.
 
@@ -174,6 +190,23 @@ async def update_preferences(
     )
 
     # TODO: Wire to preferences service with validation
+    await audit_service.log_event(
+        db,
+        action="user.preferences.update",
+        resource_type="user",
+        user_id=claims.sub,
+        resource_id=claims.sub,
+        details={
+            "fields": [
+                k for k, v in {
+                    "theme": theme,
+                    "notifications_enabled": notifications_enabled,
+                    "auto_delete_days": auto_delete_days,
+                }.items() if v is not None
+            ]
+        },
+        ip_address=request.client.host if request.client else None,
+    )
     return {
         "theme": theme,
         "notifications_enabled": notifications_enabled,

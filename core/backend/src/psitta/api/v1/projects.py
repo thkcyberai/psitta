@@ -3,11 +3,12 @@ from typing import Annotated
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
+from psitta.services import audit_service
 
 logger = structlog.get_logger(__name__)
 
@@ -32,6 +33,7 @@ async def _get_project_or_404(project_id: str, user_id: str, db: AsyncSession) -
 @router.post("/", status_code=201)
 async def create_project(
     body: dict,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ):
@@ -58,6 +60,15 @@ async def create_project(
     project["cover_document_id"] = None
     project["cover_type"] = None
     project["cover_value"] = None
+    await audit_service.log_event(
+        db,
+        action="project.create",
+        resource_type="project",
+        user_id=user_id,
+        resource_id=project_id,
+        details={"name": name},
+        ip_address=request.client.host if request.client else None,
+    )
     return project
 
 
@@ -103,6 +114,7 @@ async def list_projects(
 async def update_project(
     project_id: str,
     body: dict,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ):
@@ -144,16 +156,26 @@ async def update_project(
     await db.commit()
 
     logger.info("project.updated", project_id=project_id, fields=list(body.keys()))
+    await audit_service.log_event(
+        db,
+        action="project.update",
+        resource_type="project",
+        user_id=str(user_id),
+        resource_id=project_id,
+        details={"fields": list(body.keys())},
+        ip_address=request.client.host if request.client else None,
+    )
     return {"id": project_id, **{k: v for k, v in body.items() if k in ("name", "cover_document_id")}}
 
 
 @router.delete("/{project_id}", status_code=204)
 async def delete_project(
     project_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ):
-    await _get_project_or_404(project_id, str(user_id), db)
+    project = await _get_project_or_404(project_id, str(user_id), db)
     # Unassign all docs first (project_id → null)
     await db.execute(
         text(
@@ -166,6 +188,15 @@ async def delete_project(
         {"id": project_id},
     )
     await db.commit()
+    await audit_service.log_event(
+        db,
+        action="project.delete",
+        resource_type="project",
+        user_id=str(user_id),
+        resource_id=project_id,
+        details={"name": project.get("name")},
+        ip_address=request.client.host if request.client else None,
+    )
 
 
 @router.get("/{project_id}/documents")

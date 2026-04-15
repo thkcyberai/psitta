@@ -8,10 +8,11 @@ Endpoints:
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
+from psitta.services import audit_service
 from psitta.services.subscription_service import (
     PLAN_LIMITS,
     get_subscription_summary,
@@ -60,6 +61,7 @@ async def get_my_subscription(
 @router.patch("/users/me/plan")
 async def override_plan(
     body: dict,
+    request: Request,
     user_id=Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db_session),
 ):
@@ -76,4 +78,14 @@ async def override_plan(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Request body must include 'plan_id'",
         )
-    return await set_plan_override(db, user_id, plan_id)
+    result = await set_plan_override(db, user_id, plan_id)
+    await audit_service.log_event(
+        db,
+        action="subscription.plan_override",
+        resource_type="subscription",
+        user_id=str(user_id),
+        resource_id=str(user_id),
+        details={"plan_id": plan_id},
+        ip_address=request.client.host if request.client else None,
+    )
+    return result

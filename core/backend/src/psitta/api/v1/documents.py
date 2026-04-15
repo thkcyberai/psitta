@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pysbd
 import structlog
 from pathlib import Path
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from psitta.dependencies import get_current_user_id, get_db_session
 from psitta.middleware.auth import TokenClaims
 from psitta.schemas.api import ChunkResponse, ChunkUpdateRequest, ResynthesizeResponse
+from psitta.services import audit_service
 
 logger = structlog.get_logger(__name__)
 
@@ -787,6 +788,7 @@ async def _process_document(
 
 @router.post("/blank/", status_code=status.HTTP_201_CREATED)
 async def create_blank_document(
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
@@ -832,6 +834,15 @@ async def create_blank_document(
 
     logger.info("document.blank.created", doc_id=str(doc_id), chunk_id=str(chunk_id))
 
+    await audit_service.log_event(
+        db,
+        action="document.create_blank",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(doc_id),
+        details={"title": "Untitled Sheet"},
+        ip_address=request.client.host if request.client else None,
+    )
     return {
         "id": str(doc_id),
         "chunk_id": str(chunk_id),
@@ -846,6 +857,7 @@ async def create_blank_document(
 async def upload_document(
     file: UploadFile,
     background_tasks: BackgroundTasks,
+    request: Request,
     page_texts: str | None = Form(None),
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
@@ -964,6 +976,20 @@ async def upload_document(
         chunk_count=chunk_count,
     )
 
+    await audit_service.log_event(
+        db,
+        action="document.upload",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(doc_id),
+        details={
+            "filename": filename,
+            "source_type": source_type,
+            "file_size_bytes": file_size,
+            "chunk_count": chunk_count,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
     return {
         "id": str(doc_id),
         "title": title,
@@ -1410,7 +1436,9 @@ async def update_chunk_text(
     document_id: UUID,
     chunk_id: UUID,
     request: ChunkUpdateRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ChunkResponse:
     """Update the text content of a chunk. Stores original text on first edit."""
     result = await db.execute(
@@ -1504,6 +1532,15 @@ async def update_chunk_text(
 
     logger.info("chunk.updated", chunk_id=str(chunk_id), document_id=str(document_id))
 
+    await audit_service.log_event(
+        db,
+        action="document.chunk.update",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(chunk_id),
+        details={"document_id": str(document_id), "character_count": len(new_text)},
+        ip_address=http_request.client.host if http_request.client else None,
+    )
     return ChunkResponse(
         id=str(chunk.id),
         sequence_index=chunk.sequence_index,
@@ -1522,9 +1559,11 @@ async def update_chunk_text(
 async def resynthesize_chunk(
     document_id: UUID,
     chunk_id: UUID,
+    request: Request,
     voice_id: str = Query(default="21m00Tcm4TlvDq8ikWAM"),
     speed: float = Query(default=1.0),
     db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> ResynthesizeResponse:
     """Re-synthesize audio for an edited chunk using its current text_content."""
     result = await db.execute(
@@ -1544,6 +1583,15 @@ async def resynthesize_chunk(
 
     logger.info("chunk.resynthesize", chunk_id=str(chunk_id), voice_id=voice_id)
 
+    await audit_service.log_event(
+        db,
+        action="document.chunk.resynthesize",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(chunk_id),
+        details={"document_id": str(document_id), "voice_id": voice_id, "speed": speed},
+        ip_address=request.client.host if request.client else None,
+    )
     return ResynthesizeResponse(
         chunk_id=str(chunk_id),
         audio_url=audio_url,
@@ -1555,6 +1603,7 @@ async def resynthesize_chunk(
 async def resynthesize_document(
     document_id: UUID,
     background_tasks: BackgroundTasks,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> JSONResponse:
@@ -1596,6 +1645,15 @@ async def resynthesize_document(
         _background_invalidate_and_resynthesize, document_id, chunk_ids
     )
 
+    await audit_service.log_event(
+        db,
+        action="document.resynthesize",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details={"chunk_count": chunk_count},
+        ip_address=request.client.host if request.client else None,
+    )
     return JSONResponse(
         status_code=202,
         content={
@@ -1649,6 +1707,7 @@ class DocumentUpdateRequest(BaseModel):
 async def update_document(
     document_id: UUID,
     payload: DocumentUpdateRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
@@ -1736,6 +1795,15 @@ async def update_document(
 
     logger.info("document.updated", doc_id=str(document_id), fields=updated_fields)
 
+    await audit_service.log_event(
+        db,
+        action="document.update",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details={"fields": updated_fields},
+        ip_address=request.client.host if request.client else None,
+    )
     return {
         "id": str(doc.id),
         "title": doc.title,
@@ -1755,6 +1823,7 @@ async def update_document(
 async def upload_cover(
     document_id: UUID,
     file: UploadFile,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
@@ -1859,6 +1928,15 @@ async def upload_cover(
 
     logger.info("document.cover.uploaded", doc_id=str(document_id), key=storage_key, size=len(file_bytes))
 
+    await audit_service.log_event(
+        db,
+        action="document.cover.upload",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details={"storage_key": storage_key, "size_bytes": len(file_bytes)},
+        ip_address=request.client.host if request.client else None,
+    )
     # Return updated document dict
     row = await db.execute(
         text(
@@ -1935,6 +2013,7 @@ async def get_cover(
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_document(
     document_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> None:
@@ -1948,11 +2027,21 @@ async def delete_document(
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
     logger.info("document.deleted", doc_id=str(document_id))
+    await audit_service.log_event(
+        db,
+        action="document.delete",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details=None,
+        ip_address=request.client.host if request.client else None,
+    )
 
 
 @router.patch("/{document_id}/archive", status_code=status.HTTP_200_OK)
 async def archive_document(
     document_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
@@ -1977,6 +2066,15 @@ async def archive_document(
     )
     await db.commit()
     logger.info("document.archived", doc_id=str(document_id), new_status=new_status)
+    await audit_service.log_event(
+        db,
+        action="document.archive",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details={"new_status": new_status},
+        ip_address=request.client.host if request.client else None,
+    )
     return {"id": str(document_id), "status": new_status}
 
 
@@ -1984,6 +2082,7 @@ async def archive_document(
 async def assign_project(
     document_id: str,
     body: dict,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ):
@@ -2011,12 +2110,22 @@ async def assign_project(
         {"pid": project_id, "id": document_id},
     )
     await db.commit()
+    await audit_service.log_event(
+        db,
+        action="document.assign_project",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=document_id,
+        details={"project_id": project_id},
+        ip_address=request.client.host if request.client else None,
+    )
     return {"id": document_id, "project_id": project_id}
 
 
 @router.get("/{document_id}/download")
 async def download_document(
     document_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> FileResponse:
@@ -2042,6 +2151,15 @@ async def download_document(
         raise HTTPException(status_code=404, detail="Original file not available for download")
 
     filename = f"{row.title}.{row.source_type}"
+    await audit_service.log_event(
+        db,
+        action="document.download",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details={"filename": filename, "source_type": row.source_type},
+        ip_address=request.client.host if request.client else None,
+    )
     return FileResponse(
         file_path,
         media_type="application/octet-stream",
@@ -2202,6 +2320,7 @@ def _build_branded_docx(
 @router.get("/{document_id}/export")
 async def export_document(
     document_id: UUID,
+    request: Request,
     include_cover: bool = Query(True, alias="cover"),
     include_footer: bool = Query(True, alias="footer"),
     db: AsyncSession = Depends(get_db_session),
@@ -2263,6 +2382,21 @@ async def export_document(
     )
 
     filename = f"{doc_title}.docx"
+    await audit_service.log_event(
+        db,
+        action="document.export",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details={
+            "filename": filename,
+            "format": "docx",
+            "include_cover": include_cover,
+            "include_footer": include_footer,
+            "chunk_count": len(chunks),
+        },
+        ip_address=request.client.host if request.client else None,
+    )
     return StreamingResponse(
         io.BytesIO(docx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
