@@ -221,8 +221,107 @@ resource "aws_wafv2_web_acl_association" "main" {
   web_acl_arn  = aws_wafv2_web_acl.main.arn
 }
 
+# ── WAF → Kinesis Firehose → S3 archive ──────────────────────────────────────
+#
+# AWS WAF logging requires the destination Firehose name to start with
+# `aws-waf-logs-`. The existing psitta-api-logs-to-s3 stream (logging.tf)
+# cannot be reused for that reason, so a second stream is declared here.
+# It reuses the same S3 bucket, the same firehose_to_s3 IAM role, and
+# the same Glacier IR lifecycle rules — only the object prefix differs
+# so WAF logs land under s3://<bucket>/waf/... instead of ecs/...
+
+resource "aws_kinesis_firehose_delivery_stream" "waf_logs" {
+  name        = "aws-waf-logs-${var.project}-${var.environment}"
+  destination = "extended_s3"
+
+  extended_s3_configuration {
+    role_arn           = aws_iam_role.firehose_to_s3.arn
+    bucket_arn         = aws_s3_bucket.logs_archive.arn
+    buffering_size     = 5
+    buffering_interval = 300
+    compression_format = "GZIP"
+
+    prefix              = "waf/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
+    error_output_prefix = "waf-errors/!{firehose:error-output-type}/year=!{timestamp:yyyy}/month=!{timestamp:MM}/day=!{timestamp:dd}/"
+  }
+
+  tags = {
+    Project     = var.project
+    Environment = var.environment
+    Purpose     = "waf-log-archive"
+  }
+}
+
+resource "aws_wafv2_web_acl_logging_configuration" "main" {
+  resource_arn            = aws_wafv2_web_acl.main.arn
+  log_destination_configs = [aws_kinesis_firehose_delivery_stream.waf_logs.arn]
+}
+
+# ── SNS topic for security alerts ────────────────────────────────────────────
+#
+# Target for WAF alarm notifications. No subscribers are wired yet —
+# operators can subscribe email / PagerDuty / Slack endpoints to this
+# topic out-of-band once the alerting strategy is finalized.
+
+resource "aws_sns_topic" "security_alerts" {
+  name = "${var.project}-security-alerts"
+
+  tags = {
+    Project     = var.project
+    Environment = var.environment
+    Purpose     = "security-alerts"
+  }
+}
+
+# ── Alarm: XSSBodyBlockExceptUploads fires > 0 in 5 min ──────────────────────
+#
+# This rule only blocks real XSS on non-upload endpoints (uploads are
+# excluded via the label-match NOT clause). Any block here is either a
+# genuine XSS attempt or a second libinjection false positive that needs
+# triage. Either way, someone should look at it.
+#
+# The "Rule" metric dimension uses the visibility_config.metric_name of
+# the target rule, not the rule's display Name. For this rule that
+# value is `${var.project}-xss-body-except-uploads`.
+
+resource "aws_cloudwatch_metric_alarm" "xss_body_block_except_uploads" {
+  alarm_name          = "${var.project}-waf-xss-body-block"
+  alarm_description   = "WAF XSSBodyBlockExceptUploads rule blocked at least one request in the last 5 minutes — investigate potential XSS or libinjection false positive."
+  namespace           = "AWS/WAFV2"
+  metric_name         = "BlockedRequests"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    WebACL = aws_wafv2_web_acl.main.name
+    Region = var.aws_region
+    Rule   = "${var.project}-xss-body-except-uploads"
+  }
+
+  alarm_actions = [aws_sns_topic.security_alerts.arn]
+
+  tags = {
+    Project     = var.project
+    Environment = var.environment
+  }
+}
+
 # ── Outputs ──────────────────────────────────────────────────────────────────
 output "waf_web_acl_arn" {
   value       = aws_wafv2_web_acl.main.arn
   description = "ARN of the WAF v2 Web ACL protecting the ALB"
+}
+
+output "waf_logs_firehose_arn" {
+  value       = aws_kinesis_firehose_delivery_stream.waf_logs.arn
+  description = "ARN of the Firehose delivery stream shipping WAF logs to S3"
+}
+
+output "security_alerts_topic_arn" {
+  value       = aws_sns_topic.security_alerts.arn
+  description = "SNS topic for WAF / security alarm notifications"
 }
