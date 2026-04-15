@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from psitta import __version__
 from psitta.config import get_settings
+from psitta.middleware.pii_scrubber import scrub_pii
 from psitta.middleware.rate_limit import RateLimitMiddleware
 from psitta.middleware.request_id import RequestIDMiddleware
 
@@ -149,6 +150,7 @@ def _configure_logging(log_level: str) -> None:
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.UnicodeDecoder(),
+            scrub_pii,
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
