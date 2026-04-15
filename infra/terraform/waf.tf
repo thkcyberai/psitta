@@ -42,6 +42,18 @@ resource "aws_wafv2_web_acl" "main" {
             count {}
           }
         }
+
+        # CrossSiteScripting_BODY is demoted to Count because libinjection_xss
+        # false-positives on deflate-compressed DOCX/image upload bodies (the
+        # compressed byte stream incidentally contains `<!` / `<me` tokens that
+        # libinjection parses as HTML tag openers). XSS blocking is re-applied
+        # at priority 5 for every request EXCEPT POST /api/v1/documents/*.
+        rule_action_override {
+          name = "CrossSiteScripting_BODY"
+          action_to_use {
+            count {}
+          }
+        }
       }
     }
 
@@ -117,6 +129,76 @@ resource "aws_wafv2_web_acl" "main" {
     visibility_config {
       cloudwatch_metrics_enabled = true
       metric_name                = "${var.project}-rate-limit"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # ── XSS body block for every endpoint EXCEPT document/cover uploads ───────
+  # Re-blocks requests that the CRS CrossSiteScripting_BODY sub-rule labelled
+  # as XSS (it is demoted to Count at priority 1). The NOT clause excludes
+  # POST /api/v1/documents/* — the only endpoints that accept binary bodies
+  # (DOCX, PDF, cover images) where libinjection_xss false-positives on the
+  # deflate byte stream. Every other endpoint continues to block on XSS.
+  rule {
+    name     = "XSSBodyBlockExceptUploads"
+    priority = 5
+
+    action {
+      block {}
+    }
+
+    statement {
+      and_statement {
+        statement {
+          label_match_statement {
+            scope = "LABEL"
+            key   = "awswaf:managed:aws:core-rule-set:CrossSiteScripting_Body"
+          }
+        }
+        statement {
+          not_statement {
+            statement {
+              and_statement {
+                statement {
+                  byte_match_statement {
+                    search_string         = "POST"
+                    positional_constraint = "EXACTLY"
+
+                    field_to_match {
+                      method {}
+                    }
+
+                    text_transformation {
+                      priority = 0
+                      type     = "NONE"
+                    }
+                  }
+                }
+                statement {
+                  byte_match_statement {
+                    search_string         = "/api/v1/documents/"
+                    positional_constraint = "STARTS_WITH"
+
+                    field_to_match {
+                      uri_path {}
+                    }
+
+                    text_transformation {
+                      priority = 0
+                      type     = "NONE"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.project}-xss-body-except-uploads"
       sampled_requests_enabled   = true
     }
   }
