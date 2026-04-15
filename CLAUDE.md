@@ -4,6 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Session Protocol
 
+AT THE START of every session, before responding to anything else, Claude Code MUST:
+1. Check if .claude/pending_session_summary.json exists
+2. If it exists: read it, synthesize Key Learnings from the prior session transcript, append them to ## Key Learnings in CLAUDE.md following the - YYYY-MM-DD: format, then delete the marker file
+3. Only after the marker is processed (or confirmed absent) proceed with the user's request
+
 At the END of every session, Claude Code MUST update CLAUDE.md automatically by reading from ALL of these sources — no prompt needed:
 
 1. **DEVLOG** — Read the newest `.docx` in `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\` (newest by mtime, never a hardcoded filename).
@@ -213,27 +218,39 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-04-13: CLAUDE.md update prompts must read file first and list section headers before using update/add verbs
 - 2026-04-13: Azure TTS region is `centralus` not `eastus` — confirmed via CloudWatch `tts_router.ok` logs
 - 2026-04-13: Secrets exposed in chat must be rotated immediately — never paste API keys into Claude.ai chat
+- 2026-04-14: Stop hooks cannot access model context — they run as plain shell commands, so model-driven synthesis must be deferred to the next SessionStart via a pending marker
+- 2026-04-14: Stop hooks must never fail the session — swallow all errors, log to a hook log file, and always exit 0
+- 2026-04-14: Pending marker pattern (JSON with transcript path + git log + devlog info) is how mechanical hook work hands off to deferred model synthesis at SessionStart
+- 2026-04-14: Split Session Protocol into mechanical (hook-written deterministic sections) vs model (deferred Key Learnings) — never ask a shell hook to synthesize lessons
+- 2026-04-14: Use env vars (e.g. PSITTA_DEVLOG_DIR) in Stop hooks for runtime paths instead of hardcoding, so hooks remain portable across machines
+- 2026-04-14: Stop hook scripts must force UTF-8 (LC_ALL=C.UTF-8, PYTHONIOENCODING=utf-8) to prevent em-dash mojibake (â€—) in git log on Windows
+- 2026-04-14: Infra state updater must use first-token matching (not substring equality) so hand-written audit context like "centralus (corrected from eastus on 2026-04-13)" is preserved on re-run
+- 2026-04-14: Per-tier rate-limit route matchers must be ordered longest-first — chunk matcher `/documents/{id}/chunks/{cid}/resynthesize` must precede `/documents/{id}/resynthesize` or the shorter pattern shadows it
+- 2026-04-14: Authenticated routes pay a double JWT decode (rate-limit middleware + get_current_user) — mitigate with per-token cache + JWKS cache (1hr TTL); full elimination requires refactoring middleware/auth.py
+- 2026-04-14: Rate limiter must fail-open — catch all exceptions, log, allow the request through; a limiter bug must never DoS the API
+- 2026-04-14: RateLimitMiddleware is outermost so 429 responses bypass CORS/RequestID middleware — fine for Flutter desktop, will need reorder when a web UI ships
+- 2026-04-14: Kinesis Firehose → S3 CloudWatch log objects are doubly-gzipped (outer Firehose layer + inner per-record gzip members) — a single gunzip leaves 0x1f8b markers; decoder must iterate nested gzip members
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\M7SecurityHardening_AzureFix_Devlog_20260413.docx`
-- **Date**: April 13, 2026
-- **Title**: Development Log  -  April 13, 2026
-- **Focus**: Azure TTS Production Incident Response + M7 Security Hardening
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\M7Complete_LoggingInfra_ComplianceFramework_Devlog_20260414.docx`
+- **Date**: April 14, 2026
+- **Title**: Development Log  -  April 14, 2026
+- **Focus**: M7 Security Hardening completion + Logging infrastructure + Compliance documentation
 - **Recent commits** (`git log --oneline -10`):
 
 ```
+47875bd feat(M7): add WAF logging to S3 + CloudWatch alarm for XSS blocks + SNS security alerts topic
+b4e904c fix(WAF): allow DOCX/image uploads blocked by CrossSiteScripting_BODY false positive — label-match pattern
+cf37693 feat(M7): wire audit_service.log_event() to all 18 security-relevant endpoints
+e0bc568 feat(M7): extend CloudWatch log retention to 90d + S3 Glacier IR archival via Kinesis Firehose
+a7ca21b docs: add logging, security and compliance guide v1.0
+89f396b fix: project card doc count invisible in Midnight dark theme — outline → onSurfaceVariant
+9aeede4 feat(M7): per-tier rate limiting on high-cost document endpoints
+6d5fa92 chore: add host-side requirements.txt for .claude/hooks scripts (python-docx)
+c2ca947 feat: add CLAUDE.md auto-update hooks (Stop + SessionStart) with pending summary pattern
 234188f feat: PDF architecture rewrite, WAF rules, audio cache improvements, library and player updates
-994e22d security: add bandit SAST and flutter pub audit to security workflow
-0798d7e fix: update AZURE_TTS_REGION default from eastus to centralus
-a8f9506 feat: Regenerate Audio + fix SWH word highlight styling
-a611b78 feat(M7): AWS WAF v2 deployed to production ALB
-06f282c build(M6): MSIX rebuild v1.0.3.0 — packages all M5 features
-97e9149 chore: commit pending Ctrl+F routing and DOCX editor changes before M6 MSIX build
-2894af1 fix: Ctrl+F find bar - PDF timing fixes + DOCX edit mode conflict
-b1dc717 feat: Voices link added to left navigation menu
-a9bc0bf feat: app version display in Settings screen
 ```
-- _Auto-updated by Stop hook at 2026-04-14 13:58 UTC_
+- _Auto-updated by Stop hook at 2026-04-15 13:09 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
