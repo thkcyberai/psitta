@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_start_check_pending.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_start_sync_claude_md.py\""
           }
         ]
       }
