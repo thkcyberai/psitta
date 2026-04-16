@@ -14,13 +14,14 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from psitta.api.v1.auth import router as auth_router
+from psitta.api.v1.billing import router as billing_router
 from psitta.api.v1.documents import router as documents_router
 from psitta.api.v1.playback import router as playback_router
-from psitta.api.v1.voices import router as voices_router
-from psitta.api.v1.users import router as users_router
-from psitta.api.v1.tts import router as tts_router
 from psitta.api.v1.projects import router as projects_router
 from psitta.api.v1.subscriptions import router as subscriptions_router
+from psitta.api.v1.tts import router as tts_router
+from psitta.api.v1.users import router as users_router
+from psitta.api.v1.voices import router as voices_router
 
 v1_router = APIRouter()
 
@@ -67,6 +68,13 @@ v1_router.include_router(
 # ── Subscriptions ─────────────────────────────────────────────────────
 v1_router.include_router(
     subscriptions_router,
+)
+
+# ── Billing (Stripe) ─────────────────────────────────────────────────
+v1_router.include_router(
+    billing_router,
+    prefix="/billing",
+    tags=["billing"],
 )
 
 # ── TTS Diagnostics ────────────────────────────────────────────────────

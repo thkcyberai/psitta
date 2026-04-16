@@ -1,0 +1,336 @@
+"""services/billing_handlers.py — Stripe webhook event handlers (M3 Phase B3).
+
+Each handler processes one Stripe event type and updates subscription
+state in the database. Handlers are called from the webhook endpoint
+in api/v1/billing.py.
+
+Contract:
+  - Handlers receive a raw Stripe event dict and an AsyncSession.
+  - Each handler is a single DB transaction (caller manages commit/rollback).
+  - Handlers raise on unrecoverable errors; the webhook endpoint catches
+    and returns 200 regardless (Stripe retries on non-2xx).
+  - All state changes are audit-logged for SOC 2 compliance.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+
+import stripe
+import structlog
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from psitta.config import get_settings
+from psitta.services import audit_service
+
+logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
+
+
+# ── checkout.session.completed ───────────────────────────────────────────
+
+async def handle_checkout_session_completed(
+    event: dict,
+    db: AsyncSession,
+) -> None:
+    """Process a completed Checkout session — create the subscription record.
+
+    Retrieves the full Stripe Subscription object to get price details,
+    then inserts a row into the subscriptions table linked to the
+    stripe_customers record.
+    """
+    session = event["data"]["object"]
+    stripe_customer_id_str = session["customer"]
+    stripe_subscription_id = session["subscription"]
+    metadata = session.get("metadata", {})
+    user_id = metadata.get("psitta_user_id")
+    lookup_key = metadata.get("lookup_key", "")
+
+    # Look up our internal stripe_customers row
+    row = await db.execute(
+        text(
+            "SELECT id FROM stripe_customers "
+            "WHERE stripe_customer_id = :sc_id"
+        ),
+        {"sc_id": stripe_customer_id_str},
+    )
+    sc_row = row.fetchone()
+    if not sc_row:
+        logger.warning(
+            "billing.handler.no_stripe_customer",
+            stripe_customer_id=stripe_customer_id_str,
+            event_id=event["id"],
+        )
+        return
+
+    internal_sc_id = sc_row[0]
+
+    # Retrieve subscription from Stripe for price details
+    settings = get_settings()
+    stripe.api_key = settings.STRIPE_SECRET_KEY_TEST.get_secret_value()
+
+    sub = stripe.Subscription.retrieve(stripe_subscription_id)
+    item = sub["items"]["data"][0]
+    price = item["price"]
+
+    resolved_lookup_key = lookup_key or price.get("lookup_key", "")
+
+    period_start = _ts_to_dt(sub.get("current_period_start"))
+    period_end = _ts_to_dt(sub.get("current_period_end"))
+
+    await db.execute(
+        text(
+            "INSERT INTO subscriptions "
+            "(stripe_customer_id, stripe_subscription_id, stripe_product_id, "
+            " stripe_price_id, lookup_key, status, "
+            " current_period_start, current_period_end, "
+            " cancel_at_period_end) "
+            "VALUES "
+            "(:sc_id, :sub_id, :product_id, :price_id, :lookup_key, "
+            " :status, :period_start, :period_end, :cancel_at_period_end) "
+            "ON CONFLICT (stripe_subscription_id) DO NOTHING"
+        ),
+        {
+            "sc_id": internal_sc_id,
+            "sub_id": stripe_subscription_id,
+            "product_id": str(price.get("product", "")),
+            "price_id": price["id"],
+            "lookup_key": resolved_lookup_key,
+            "status": sub["status"],
+            "period_start": period_start,
+            "period_end": period_end,
+            "cancel_at_period_end": sub.get(
+                "cancel_at_period_end", False
+            ),
+        },
+    )
+
+    await audit_service.log_event(
+        db,
+        action="billing.subscription_created",
+        resource_type="subscription",
+        user_id=user_id,
+        resource_id=stripe_subscription_id,
+        details={
+            "lookup_key": resolved_lookup_key,
+            "status": sub["status"],
+        },
+    )
+
+    logger.info(
+        "billing.subscription_created",
+        stripe_subscription_id=stripe_subscription_id,
+        lookup_key=resolved_lookup_key,
+        status=sub["status"],
+    )
+
+
+# ── customer.subscription.updated ────────────────────────────────────────
+
+async def handle_subscription_updated(
+    event: dict,
+    db: AsyncSession,
+) -> None:
+    """Process a subscription update — renewals, plan changes, cancel scheduling.
+
+    Updates the local subscription row to mirror Stripe state.
+    """
+    sub_obj = event["data"]["object"]
+    stripe_sub_id = sub_obj["id"]
+    new_status = sub_obj["status"]
+
+    # Find existing local subscription
+    row = await db.execute(
+        text(
+            "SELECT id, status FROM subscriptions "
+            "WHERE stripe_subscription_id = :sub_id"
+        ),
+        {"sub_id": stripe_sub_id},
+    )
+    existing = row.mappings().first()
+    if not existing:
+        logger.warning(
+            "billing.handler.subscription_not_found",
+            stripe_subscription_id=stripe_sub_id,
+            event_id=event["id"],
+        )
+        return
+
+    previous_status = existing["status"]
+    item = sub_obj["items"]["data"][0]
+    price = item["price"]
+    lookup_key = price.get("lookup_key", "")
+
+    canceled_at = _ts_to_dt(sub_obj.get("canceled_at"))
+    period_start = _ts_to_dt(sub_obj.get("current_period_start"))
+    period_end = _ts_to_dt(sub_obj.get("current_period_end"))
+    now = datetime.now(UTC)
+
+    await db.execute(
+        text(
+            "UPDATE subscriptions SET "
+            "  status = :status, "
+            "  stripe_product_id = :product_id, "
+            "  stripe_price_id = :price_id, "
+            "  lookup_key = :lookup_key, "
+            "  current_period_start = :period_start, "
+            "  current_period_end = :period_end, "
+            "  cancel_at_period_end = :cancel_at_period_end, "
+            "  canceled_at = :canceled_at, "
+            "  updated_at = :now "
+            "WHERE stripe_subscription_id = :sub_id"
+        ),
+        {
+            "status": new_status,
+            "product_id": str(price.get("product", "")),
+            "price_id": price["id"],
+            "lookup_key": lookup_key,
+            "period_start": period_start,
+            "period_end": period_end,
+            "cancel_at_period_end": sub_obj.get(
+                "cancel_at_period_end", False
+            ),
+            "canceled_at": canceled_at,
+            "now": now,
+            "sub_id": stripe_sub_id,
+        },
+    )
+
+    await audit_service.log_event(
+        db,
+        action="billing.subscription_updated",
+        resource_type="subscription",
+        resource_id=stripe_sub_id,
+        details={
+            "previous_status": previous_status,
+            "new_status": new_status,
+            "lookup_key": lookup_key,
+        },
+    )
+
+    logger.info(
+        "billing.subscription_updated",
+        stripe_subscription_id=stripe_sub_id,
+        previous_status=previous_status,
+        new_status=new_status,
+    )
+
+
+# ── customer.subscription.deleted ────────────────────────────────────────
+
+async def handle_subscription_deleted(
+    event: dict,
+    db: AsyncSession,
+) -> None:
+    """Process a subscription deletion — mark as canceled."""
+    sub_obj = event["data"]["object"]
+    stripe_sub_id = sub_obj["id"]
+    now = datetime.now(UTC)
+
+    row = await db.execute(
+        text(
+            "SELECT id FROM subscriptions "
+            "WHERE stripe_subscription_id = :sub_id"
+        ),
+        {"sub_id": stripe_sub_id},
+    )
+    if not row.fetchone():
+        logger.warning(
+            "billing.handler.subscription_not_found",
+            stripe_subscription_id=stripe_sub_id,
+            event_id=event["id"],
+        )
+        return
+
+    await db.execute(
+        text(
+            "UPDATE subscriptions SET "
+            "  status = 'canceled', "
+            "  canceled_at = :now, "
+            "  updated_at = :now "
+            "WHERE stripe_subscription_id = :sub_id"
+        ),
+        {"now": now, "sub_id": stripe_sub_id},
+    )
+
+    await audit_service.log_event(
+        db,
+        action="billing.subscription_canceled",
+        resource_type="subscription",
+        resource_id=stripe_sub_id,
+        details={"status": "canceled"},
+    )
+
+    logger.info(
+        "billing.subscription_canceled",
+        stripe_subscription_id=stripe_sub_id,
+    )
+
+
+# ── invoice.payment_failed ───────────────────────────────────────────────
+
+async def handle_payment_failed(
+    event: dict,
+    db: AsyncSession,
+) -> None:
+    """Process a failed invoice payment — mark subscription as past_due."""
+    invoice = event["data"]["object"]
+    stripe_sub_id = invoice.get("subscription")
+    invoice_id = invoice.get("id", "")
+
+    if not stripe_sub_id:
+        logger.info(
+            "billing.handler.payment_failed_no_subscription",
+            invoice_id=invoice_id,
+        )
+        return
+
+    now = datetime.now(UTC)
+
+    row = await db.execute(
+        text(
+            "SELECT id FROM subscriptions "
+            "WHERE stripe_subscription_id = :sub_id"
+        ),
+        {"sub_id": stripe_sub_id},
+    )
+    if not row.fetchone():
+        logger.warning(
+            "billing.handler.subscription_not_found",
+            stripe_subscription_id=stripe_sub_id,
+            event_id=event["id"],
+        )
+        return
+
+    await db.execute(
+        text(
+            "UPDATE subscriptions SET "
+            "  status = 'past_due', "
+            "  updated_at = :now "
+            "WHERE stripe_subscription_id = :sub_id"
+        ),
+        {"now": now, "sub_id": stripe_sub_id},
+    )
+
+    await audit_service.log_event(
+        db,
+        action="billing.payment_failed",
+        resource_type="subscription",
+        resource_id=stripe_sub_id,
+        details={"invoice_id": invoice_id},
+    )
+
+    logger.info(
+        "billing.payment_failed",
+        stripe_subscription_id=stripe_sub_id,
+        invoice_id=invoice_id,
+    )
+
+
+# ── Helpers ──────────────────────────────────────────────────────────────
+
+def _ts_to_dt(ts: int | None) -> datetime | None:
+    """Convert a Unix timestamp from Stripe to a timezone-aware datetime."""
+    if ts is None:
+        return None
+    return datetime.fromtimestamp(ts, tz=UTC)

@@ -13,20 +13,18 @@ Security:
 
 from __future__ import annotations
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 import structlog
-from fastapi import Depends
+from fastapi import Depends, HTTPException, status
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.config import Settings, get_settings
-from psitta.middleware.auth import TokenClaims  # noqa: F401 — re-export for convenience
-from psitta.middleware.auth import get_current_user  # noqa: F401
-from psitta.middleware.auth import require_permission  # noqa: F401
-from psitta.middleware.auth import require_role  # noqa: F401
-
-from uuid import UUID, uuid4
-from datetime import datetime, timezone
+from psitta.middleware.auth import TokenClaims, get_current_user
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -67,7 +65,7 @@ async def get_current_user_id(
     new_id = uuid4()
     email = getattr(claims, "email", None) or f"{sub.replace('|', '_')}@auth0.local"
     display_name = getattr(claims, "name", None) or email.split("@")[0]
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     await db.execute(
         text(
@@ -129,6 +127,79 @@ async def get_storage_client():  # type: ignore[no-untyped-def]
     """
     # TODO: Wire to S3 client initialized in lifespan
     yield None  # Placeholder until S3 is wired
+
+
+# ── Billing / Plan Dependencies ────────────────────────────────────────
+
+@dataclass(frozen=True)
+class UserPlan:
+    """Resolved plan for the current user."""
+
+    plan: str          # "free", "reading_nook_pro", "creativity_nook_pro"
+    status: str        # "active", "trialing", "past_due", "canceled", "none"
+    lookup_key: str    # raw lookup_key from subscriptions table, or ""
+
+
+async def get_user_plan(
+    user_id: UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session),
+) -> UserPlan:
+    """Return the current user's plan. Never raises — defaults to free.
+
+    Queries the Stripe billing tables (stripe_customers → subscriptions)
+    for the most recent subscription. Maps the lookup_key to a plan name.
+    """
+    row = await db.execute(
+        text("SELECT id FROM stripe_customers WHERE user_id = :uid"),
+        {"uid": user_id},
+    )
+    sc = row.fetchone()
+    if not sc:
+        return UserPlan(plan="free", status="none", lookup_key="")
+
+    result = await db.execute(
+        text(
+            "SELECT lookup_key, status FROM subscriptions "
+            "WHERE stripe_customer_id = :sc_id "
+            "ORDER BY created_at DESC LIMIT 1"
+        ),
+        {"sc_id": sc[0]},
+    )
+    sub = result.mappings().first()
+    if not sub or sub["status"] == "canceled":
+        return UserPlan(plan="free", status=sub["status"] if sub else "none", lookup_key="")
+
+    lookup_key = sub["lookup_key"]
+    plan = _lookup_key_to_plan(lookup_key)
+    return UserPlan(plan=plan, status=sub["status"], lookup_key=lookup_key)
+
+
+async def require_active_subscription(
+    user_plan: UserPlan = Depends(get_user_plan),
+) -> UserPlan:
+    """Dependency that gates a route to users with an active subscription.
+
+    Raises 403 if the user has no active or trialing subscription.
+    Returns the UserPlan on success so the route can inspect plan details.
+    """
+    if user_plan.status not in ("active", "trialing"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "message": "Pro subscription required",
+                "upgrade_url": "/billing/checkout-session",
+            },
+        )
+    return user_plan
+
+
+def _lookup_key_to_plan(lookup_key: str) -> str:
+    """Map a Stripe lookup_key to a plan name."""
+    if lookup_key.startswith("reading_nook_pro"):
+        return "reading_nook_pro"
+    if lookup_key.startswith("creativity_nook_pro"):
+        return "creativity_nook_pro"
+    return "free"
 
 
 # ── Service Factories ──────────────────────────────────────────────────
