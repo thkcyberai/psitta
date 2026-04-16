@@ -97,6 +97,11 @@ class Settings(BaseSettings):
         """Cognito JWKS endpoint for RS256 JWT validation."""
         return f"{self.cognito_issuer}/.well-known/jwks.json"
 
+    # ── Stripe (M3 Billing) ──────────────────────────────────────────
+    STRIPE_SECRET_KEY_TEST: SecretStr = SecretStr("")
+    STRIPE_PUBLISHABLE_KEY_TEST: str = ""
+    STRIPE_WEBHOOK_SECRET: SecretStr = SecretStr("")
+
     # ── Rate Limiting ──────────────────────────────────────────────────
     # Global fallback tier — applies to any route that doesn't match a
     # specific tier below (PATCH, DELETE, cover upload, non-/documents

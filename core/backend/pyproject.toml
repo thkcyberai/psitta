@@ -68,6 +68,9 @@ dependencies = [
     "pytesseract>=0.3.13",
     "pysbd>=0.3.4",        # Sentence boundary disambiguation
 
+    # ── Payments ───────────────────────────────────────────────────────
+    "stripe>=11.0.0",
+
     # ── Utilities ──────────────────────────────────────────────────────
     "tenacity>=9.0.0",
     "orjson>=3.10.0",
