@@ -1,6 +1,58 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'auth_service.dart';
+
+/// Builds a per-user SharedPreferences key from a base key and the
+/// authenticated user's Cognito sub (`userId`). Every user-scoped
+/// preference flows through this so two accounts on the same device
+/// never read or overwrite each other's values.
+String _userKey(String userId, String baseKey) => 'user_${userId}_$baseKey';
+
+/// One-shot migration: if a legacy unscoped key exists from a previous
+/// install, treat it as belonging to the first user who logs in on this
+/// device. The legacy value is copied into that user's scoped slot (only
+/// if they don't already have one), then the legacy key is deleted so it
+/// cannot leak to a second user.
+Future<void> _migrateLegacyStringKey(
+  SharedPreferences prefs,
+  String legacyKey,
+  String scopedKey,
+) async {
+  if (!prefs.containsKey(legacyKey)) return;
+  if (!prefs.containsKey(scopedKey)) {
+    final legacy = prefs.getString(legacyKey);
+    if (legacy != null) await prefs.setString(scopedKey, legacy);
+  }
+  await prefs.remove(legacyKey);
+}
+
+Future<void> _migrateLegacyDoubleKey(
+  SharedPreferences prefs,
+  String legacyKey,
+  String scopedKey,
+) async {
+  if (!prefs.containsKey(legacyKey)) return;
+  if (!prefs.containsKey(scopedKey)) {
+    final legacy = prefs.getDouble(legacyKey);
+    if (legacy != null) await prefs.setDouble(scopedKey, legacy);
+  }
+  await prefs.remove(legacyKey);
+}
+
+Future<void> _migrateLegacyIntKey(
+  SharedPreferences prefs,
+  String legacyKey,
+  String scopedKey,
+) async {
+  if (!prefs.containsKey(legacyKey)) return;
+  if (!prefs.containsKey(scopedKey)) {
+    final legacy = prefs.getInt(legacyKey);
+    if (legacy != null) await prefs.setInt(scopedKey, legacy);
+  }
+  await prefs.remove(legacyKey);
+}
+
 /// Theme names shown to the user.
 abstract final class ThemeNames {
   static const creatorStudioDark = 'Midnight';
@@ -16,18 +68,42 @@ abstract final class ThemeNames {
   ];
 }
 
-/// Persists the user's selected theme across sessions.
+// Default values for unsaved preferences (first login on device, or
+// after the user resets). Exposed as top-level constants so the auth
+// layer and tests can reference the same source of truth.
+const String kDefaultThemeName = ThemeNames.paperLight;       // Parchment
+const String kDefaultVoiceId   = '21m00Tcm4TlvDq8ikWAM';      // Rachel
+const double kDefaultSpeed     = 1.0;
+const double kDefaultVolume    = 1.0;
+const String kDefaultSwhMode   = 'never';                     // Read without S.W.H.
+const int?   kDefaultAutoDeleteDays = null;                   // Never
+const int    kDefaultCacheSizeMb = 256;
+
+const String _kBaseThemeKey      = 'selected_theme_name';
+const String _kBaseVoiceKey      = 'selected_voice_id';
+const String _kBaseSpeedKey      = 'playback_speed';
+const String _kBaseVolumeKey     = 'playback_volume';
+const String _kBaseSwhKey        = 'swh_mode';
+const String _kBaseAutoDeleteKey = 'auto_delete_days';
+const String _kBaseCacheSizeKey  = 'cache_size_mb';
+
+// ── Theme ─────────────────────────────────────────────────────────────
+
+/// Persists the user's selected theme across sessions, scoped by user_id.
 class ThemePreferenceNotifier extends StateNotifier<String> {
-  ThemePreferenceNotifier() : super(_defaultTheme) {
-    _load();
+  ThemePreferenceNotifier({required this.userId}) : super(kDefaultThemeName) {
+    if (userId != null) _load();
   }
 
-  static const _key = 'selected_theme_name';
-  static const _defaultTheme = ThemeNames.creatorStudioDark;
+  final String? userId;
 
   Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_key);
+    final scoped = _userKey(uid, _kBaseThemeKey);
+    await _migrateLegacyStringKey(prefs, _kBaseThemeKey, scoped);
+    final saved = prefs.getString(scoped);
     if (saved != null && ThemeNames.all.contains(saved)) {
       state = saved;
     }
@@ -36,64 +112,91 @@ class ThemePreferenceNotifier extends StateNotifier<String> {
   Future<void> select(String themeName) async {
     if (!ThemeNames.all.contains(themeName)) return;
     state = themeName;
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, themeName);
+    await prefs.setString(_userKey(uid, _kBaseThemeKey), themeName);
   }
 }
 
-/// Selected theme name — persisted via SharedPreferences.
-/// Reads: ref.watch(selectedThemeNameProvider) returns String.
-/// Writes: ref.read(selectedThemeNameProvider.notifier).select(themeName).
 final selectedThemeNameProvider =
-    StateNotifierProvider<ThemePreferenceNotifier, String>(
-  (ref) => ThemePreferenceNotifier(),
-);
+    StateNotifierProvider<ThemePreferenceNotifier, String>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return ThemePreferenceNotifier(userId: userId);
+});
 
-/// Persists the user's selected voice across sessions.
+// ── Voice ─────────────────────────────────────────────────────────────
+
+/// Persists the user's selected voice across sessions, scoped by user_id.
 class VoicePreferenceNotifier extends StateNotifier<String> {
-  VoicePreferenceNotifier() : super(_defaultVoice) {
-    _load();
+  VoicePreferenceNotifier({required this.userId}) : super(kDefaultVoiceId) {
+    if (userId != null) _load();
   }
 
-  static const _key = 'selected_voice_id';
-  static const _defaultVoice = '21m00Tcm4TlvDq8ikWAM'; // Rachel
+  final String? userId;
 
   Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_key);
+    final scoped = _userKey(uid, _kBaseVoiceKey);
+    await _migrateLegacyStringKey(prefs, _kBaseVoiceKey, scoped);
+    final saved = prefs.getString(scoped);
     if (saved != null && saved.isNotEmpty) {
       state = saved;
     }
   }
 
-  /// Select a voice and persist the choice.
   Future<void> select(String voiceId) async {
     state = voiceId;
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, voiceId);
+    await prefs.setString(_userKey(uid, _kBaseVoiceKey), voiceId);
   }
 }
 
-/// Selected voice ID — persisted via SharedPreferences.
 final selectedVoiceIdProvider =
-    StateNotifierProvider<VoicePreferenceNotifier, String>(
-  (ref) => VoicePreferenceNotifier(),
-);
+    StateNotifierProvider<VoicePreferenceNotifier, String>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return VoicePreferenceNotifier(userId: userId);
+});
 
-/// Tracks the user's selected playback speed (not persisted).
+// ── Playback Speed ────────────────────────────────────────────────────
+
+/// Persists the user's playback speed across sessions, scoped by user_id.
 class SpeedPreferenceNotifier extends StateNotifier<double> {
-  SpeedPreferenceNotifier() : super(_defaultSpeed);
-  static const _defaultSpeed = 1.0;
+  SpeedPreferenceNotifier({required this.userId}) : super(kDefaultSpeed) {
+    if (userId != null) _load();
+  }
+
+  final String? userId;
 
   /// Available speed options.
   static const speeds = [1.0, 1.5, 2.0];
 
-  /// Select a speed for this session only.
-  Future<void> select(double speed) async {
-    state = speed;
+  Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final scoped = _userKey(uid, _kBaseSpeedKey);
+    // Speed was session-only before scoping was introduced, so there is
+    // no legacy unscoped key to migrate — go straight to the scoped read.
+    final saved = prefs.getDouble(scoped);
+    if (saved != null && speeds.contains(saved)) {
+      state = saved;
+    }
   }
 
-  /// Cycle to next speed in the list.
+  Future<void> select(double speed) async {
+    if (!speeds.contains(speed)) return;
+    state = speed;
+    final uid = userId;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_userKey(uid, _kBaseSpeedKey), speed);
+  }
+
   Future<void> cycleNext() async {
     final currentIdx = speeds.indexOf(state);
     final nextIdx = (currentIdx + 1) % speeds.length;
@@ -101,133 +204,157 @@ class SpeedPreferenceNotifier extends StateNotifier<double> {
   }
 }
 
-/// Selected playback speed (session-only).
 final selectedSpeedProvider =
-    StateNotifierProvider<SpeedPreferenceNotifier, double>(
-  (ref) => SpeedPreferenceNotifier(),
-);
+    StateNotifierProvider<SpeedPreferenceNotifier, double>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return SpeedPreferenceNotifier(userId: userId);
+});
 
-/// Persists the user's selected volume across sessions.
+// ── Volume ────────────────────────────────────────────────────────────
+
+/// Persists the user's selected volume across sessions, scoped by user_id.
 class VolumePreferenceNotifier extends StateNotifier<double> {
-  VolumePreferenceNotifier() : super(_defaultVolume) {
-    _load();
+  VolumePreferenceNotifier({required this.userId}) : super(kDefaultVolume) {
+    if (userId != null) _load();
   }
 
-  static const _key = 'playback_volume';
-  static const _defaultVolume = 1.0;
+  final String? userId;
 
   Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getDouble(_key);
+    final scoped = _userKey(uid, _kBaseVolumeKey);
+    await _migrateLegacyDoubleKey(prefs, _kBaseVolumeKey, scoped);
+    final saved = prefs.getDouble(scoped);
     if (saved != null) {
       state = saved.clamp(0.0, 1.0);
     }
   }
 
-  /// Set volume (0.0 to 1.0) and persist.
   Future<void> set(double volume) async {
     state = volume.clamp(0.0, 1.0);
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_key, state);
+    await prefs.setDouble(_userKey(uid, _kBaseVolumeKey), state);
   }
 }
 
-/// Selected volume — persisted via SharedPreferences.
 final selectedVolumeProvider =
-    StateNotifierProvider<VolumePreferenceNotifier, double>(
-  (ref) => VolumePreferenceNotifier(),
-);
+    StateNotifierProvider<VolumePreferenceNotifier, double>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return VolumePreferenceNotifier(userId: userId);
+});
 
-/// Sync Word Highlight mode values.
+// ── Sync Word Highlight ───────────────────────────────────────────────
+
 abstract final class SwhMode {
   static const always = 'always';
   static const never = 'never';
   static const all = <String>[always, never];
 }
 
-/// Persists the user's SWH (Sync Word Highlight) preference.
+/// Persists the user's SWH preference across sessions, scoped by user_id.
 class SwhPreferenceNotifier extends StateNotifier<String> {
-  SwhPreferenceNotifier() : super(SwhMode.never) {
-    _load();
+  SwhPreferenceNotifier({required this.userId}) : super(kDefaultSwhMode) {
+    if (userId != null) _load();
   }
 
-  static const _key = 'swh_mode';
+  final String? userId;
 
   Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getString(_key);
+    final scoped = _userKey(uid, _kBaseSwhKey);
+    await _migrateLegacyStringKey(prefs, _kBaseSwhKey, scoped);
+    final saved = prefs.getString(scoped);
     if (saved != null && SwhMode.all.contains(saved)) {
       state = saved;
     } else if (saved == 'ask') {
-      // Migrate old 'ask' default to 'never'
       state = SwhMode.never;
-      await prefs.setString(_key, SwhMode.never);
+      await prefs.setString(scoped, SwhMode.never);
     }
   }
 
   Future<void> select(String mode) async {
     if (!SwhMode.all.contains(mode)) return;
     state = mode;
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, mode);
+    await prefs.setString(_userKey(uid, _kBaseSwhKey), mode);
   }
 }
 
-/// Selected SWH mode — persisted via SharedPreferences.
 final selectedSwhModeProvider =
-    StateNotifierProvider<SwhPreferenceNotifier, String>(
-  (ref) => SwhPreferenceNotifier(),
-);
+    StateNotifierProvider<SwhPreferenceNotifier, String>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return SwhPreferenceNotifier(userId: userId);
+});
 
-/// Persists the user's auto-delete preference across sessions.
+// ── Auto-Delete Interval ──────────────────────────────────────────────
+
+/// Persists the user's auto-delete preference across sessions, scoped by user_id.
 class AutoDeletePreferenceNotifier extends StateNotifier<int?> {
-  AutoDeletePreferenceNotifier() : super(_defaultDays) {
-    _load();
+  AutoDeletePreferenceNotifier({required this.userId}) : super(kDefaultAutoDeleteDays) {
+    if (userId != null) _load();
   }
 
-  static const _key = 'auto_delete_days';
-  static const int? _defaultDays = null;
+  final String? userId;
 
   /// Available options (null = Never).
   static const options = <int?>[null, 30, 60, 90, 180];
 
   Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.containsKey(_key)) {
-      final saved = prefs.getInt(_key);
-      // saved == -1 means "Never" (null) since SharedPreferences can't store null
+    final scoped = _userKey(uid, _kBaseAutoDeleteKey);
+    await _migrateLegacyIntKey(prefs, _kBaseAutoDeleteKey, scoped);
+    if (prefs.containsKey(scoped)) {
+      final saved = prefs.getInt(scoped);
+      // -1 sentinel = "Never" (SharedPreferences can't store null)
       state = (saved == null || saved == -1) ? null : saved;
     }
   }
 
   Future<void> select(int? days) async {
     state = days;
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_key, days ?? -1);
+    await prefs.setInt(_userKey(uid, _kBaseAutoDeleteKey), days ?? -1);
   }
 }
 
-/// Selected auto-delete interval — persisted via SharedPreferences.
 final selectedAutoDeleteProvider =
-    StateNotifierProvider<AutoDeletePreferenceNotifier, int?>(
-  (ref) => AutoDeletePreferenceNotifier(),
-);
+    StateNotifierProvider<AutoDeletePreferenceNotifier, int?>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return AutoDeletePreferenceNotifier(userId: userId);
+});
 
-/// Persists the user's cache size preference across sessions.
+// ── Cache Size ────────────────────────────────────────────────────────
+
+/// Persists the user's cache size preference across sessions, scoped by user_id.
 class CacheSizePreferenceNotifier extends StateNotifier<int> {
-  CacheSizePreferenceNotifier() : super(_defaultSize) {
-    _load();
+  CacheSizePreferenceNotifier({required this.userId}) : super(kDefaultCacheSizeMb) {
+    if (userId != null) _load();
   }
 
-  static const _key = 'cache_size_mb';
-  static const _defaultSize = 256;
+  final String? userId;
 
   /// Available options in MB.
   static const options = <int>[128, 256, 512, 1024];
 
   Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    final saved = prefs.getInt(_key);
+    final scoped = _userKey(uid, _kBaseCacheSizeKey);
+    await _migrateLegacyIntKey(prefs, _kBaseCacheSizeKey, scoped);
+    final saved = prefs.getInt(scoped);
     if (saved != null && options.contains(saved)) {
       state = saved;
     }
@@ -236,18 +363,24 @@ class CacheSizePreferenceNotifier extends StateNotifier<int> {
   Future<void> select(int mb) async {
     if (!options.contains(mb)) return;
     state = mb;
+    final uid = userId;
+    if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_key, mb);
+    await prefs.setInt(_userKey(uid, _kBaseCacheSizeKey), mb);
   }
 }
 
-/// Selected cache size — persisted via SharedPreferences.
 final selectedCacheSizeProvider =
-    StateNotifierProvider<CacheSizePreferenceNotifier, int>(
-  (ref) => CacheSizePreferenceNotifier(),
-);
+    StateNotifierProvider<CacheSizePreferenceNotifier, int>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return CacheSizePreferenceNotifier(userId: userId);
+});
 
-/// Persists the user's Stay Signed In preference across sessions.
+// ── Stay Signed In (DEVICE-scoped — NOT per-user) ─────────────────────
+
+/// Persists the Stay Signed In preference. This is intentionally
+/// device-scoped (not user-scoped) — it governs auto-login behavior on
+/// the current machine regardless of which account last used it.
 class StaySignedInNotifier extends StateNotifier<bool> {
   StaySignedInNotifier() : super(true) {
     _load();
@@ -266,10 +399,6 @@ class StaySignedInNotifier extends StateNotifier<bool> {
   }
 }
 
-/// Stay Signed In — persisted via SharedPreferences.
-/// Default: true (session persists across logouts).
-/// Reads: ref.watch(staySignedInProvider) returns bool.
-/// Writes: ref.read(staySignedInProvider.notifier).toggle(value).
 final staySignedInProvider =
     StateNotifierProvider<StaySignedInNotifier, bool>(
   (ref) => StaySignedInNotifier(),

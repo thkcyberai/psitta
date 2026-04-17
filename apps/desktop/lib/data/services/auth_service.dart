@@ -7,6 +7,23 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:webview_windows/webview_windows.dart';
+
+import '../../core/state/now_reading.dart';
+import '../../features/shell/widgets/player_bar.dart';
+import '../providers/providers.dart';
+import 'audio_service.dart';
+
+// Keys used to persist the player-bar "what was I listening to" snapshot
+// per user. Kept here rather than in preferences_service because they are
+// managed by the auth flow on login/logout, not by a user-facing notifier.
+const String _kBaseLastDocIdKey       = 'last_doc_id';
+const String _kBaseLastDocTitleKey    = 'last_doc_title';
+const String _kBaseLastChunkIndexKey  = 'last_chunk_index';
+const String _kBaseLastTotalChunksKey = 'last_total_chunks';
+
+String _userKey(String userId, String baseKey) => 'user_${userId}_$baseKey';
 
 // ── Amazon Cognito Configuration ─────────────────────────────────────
 const cognitoRegion     = 'us-east-1';
@@ -221,6 +238,22 @@ class AuthService {
         // Best-effort revocation — clear local storage regardless
       }
     }
+
+    // Wipe the WebView2 cookie + cache store so the Cognito Hosted UI session
+    // cookie is invalidated. All WebviewControllers in this process share the
+    // default WebView2 user data folder, so clearing on a throwaway controller
+    // also clears the one the LoginScreen will create on next mount —
+    // forcing the user to re-enter credentials. Best-effort: never block logout.
+    try {
+      final webview = WebviewController();
+      await webview.initialize();
+      await webview.clearCookies();
+      await webview.clearCache();
+      await webview.dispose();
+    } catch (e) {
+      debugPrint('[LOGOUT] WebView session clear failed: $e');
+    }
+
     await _clearStorage();
   }
 
@@ -234,6 +267,20 @@ class AuthService {
   /// Read the current ID token from secure storage.
   Future<String?> getIdToken() async {
     return _storage.read(key: _idTokenKey);
+  }
+
+  /// Decode the Cognito `sub` claim (user id) from the access token.
+  /// Returns null if no token is stored or the token is malformed.
+  Future<String?> getUserIdFromAccessToken() async {
+    final token = await getAccessToken();
+    if (token == null) return null;
+    try {
+      final claims = JwtDecoder.decode(token);
+      final sub = claims['sub'];
+      return sub is String ? sub : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────
@@ -250,37 +297,142 @@ class AuthService {
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
 final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>(
-  (ref) => AuthStateNotifier(ref.read(authServiceProvider)),
+  (ref) => AuthStateNotifier(ref),
 );
 
 enum AuthStatus { unknown, authenticated, unauthenticated }
 
 class AuthState {
-  const AuthState({required this.status});
+  const AuthState({required this.status, this.userId});
   final AuthStatus status;
+
+  /// Cognito `sub` claim of the authenticated user. Null when
+  /// unauthenticated or before tokens have been decoded. All user-scoped
+  /// SharedPreferences keys and Riverpod providers are keyed off of this.
+  final String? userId;
 }
 
+/// Exposes the current user id to any provider that needs to scope state
+/// per-account. When this flips, user-scoped preference providers rebuild
+/// automatically (they `ref.watch` this), so no manual invalidation is
+/// required for them during login/logout transitions.
+final currentUserIdProvider = Provider<String?>((ref) {
+  return ref.watch(authStateProvider.select((s) => s.userId));
+});
+
 class AuthStateNotifier extends StateNotifier<AuthState> {
-  AuthStateNotifier(this._authService)
-      : super(const AuthState(status: AuthStatus.unknown)) {
+  AuthStateNotifier(this._ref)
+      : _authService = _ref.read(authServiceProvider),
+        super(const AuthState(status: AuthStatus.unknown)) {
     _init();
   }
 
+  final Ref _ref;
   final AuthService _authService;
 
   Future<void> _init() async {
     final restored = await _authService.tryRestoreSession();
-    state = AuthState(
-      status: restored ? AuthStatus.authenticated : AuthStatus.unauthenticated,
-    );
+    if (!restored) {
+      state = const AuthState(status: AuthStatus.unauthenticated);
+      return;
+    }
+    final userId = await _authService.getUserIdFromAccessToken();
+    state = AuthState(status: AuthStatus.authenticated, userId: userId);
+    await _restoreLastSession(userId);
   }
 
   Future<void> login() async {
-    state = const AuthState(status: AuthStatus.authenticated);
+    final userId = await _authService.getUserIdFromAccessToken();
+    state = AuthState(status: AuthStatus.authenticated, userId: userId);
+    await _restoreLastSession(userId);
   }
 
   Future<void> logout() async {
+    // Grab the user id BEFORE we revoke tokens — we need it to persist
+    // the last-session snapshot under the correct scoped keys.
+    final previousUserId = state.userId;
+    await _saveLastSession(previousUserId);
     await _authService.logout();
+    await _clearTransientUserState();
     state = const AuthState(status: AuthStatus.unauthenticated);
+  }
+
+  /// Clear in-memory state that would leak between accounts on the same
+  /// device. Does NOT touch user-scoped SharedPreferences keys — those
+  /// are the user's saved settings and must survive logout so the same
+  /// account restoring on re-login sees their theme/voice/etc. intact.
+  ///
+  /// Preference notifiers themselves rebuild automatically when
+  /// currentUserIdProvider flips to null after the state change below,
+  /// so they are NOT invalidated here — the user_id watch handles it.
+  Future<void> _clearTransientUserState() async {
+    try {
+      await _ref.read(audioServiceProvider).clearUserSession();
+    } catch (e) {
+      debugPrint('[LOGOUT] audio clear failed: $e');
+    }
+
+    _ref.invalidate(currentDocTitleProvider);
+    _ref.invalidate(activeDocumentIdProvider);
+    _ref.invalidate(currentChunkIndexProvider);
+    _ref.invalidate(totalChunksProvider);
+    _ref.invalidate(activeChunkIdsProvider);
+    _ref.invalidate(nowReadingTextProvider);
+
+    _ref.invalidate(showArchivedProvider);
+    _ref.invalidate(activeProjectIdProvider);
+    _ref.invalidate(isInlineEditingProvider);
+  }
+
+  /// Persist the player-bar snapshot so re-login restores exactly what
+  /// the user was last listening to. Writes the active doc id + title
+  /// + chunk position under the previous user's scoped keys, or clears
+  /// them if nothing was playing.
+  Future<void> _saveLastSession(String? userId) async {
+    if (userId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final docId = _ref.read(activeDocumentIdProvider);
+      final docTitle = _ref.read(currentDocTitleProvider);
+      final chunkIndex = _ref.read(currentChunkIndexProvider);
+      final totalChunks = _ref.read(totalChunksProvider);
+
+      if (docId != null && docTitle != null) {
+        await prefs.setString(_userKey(userId, _kBaseLastDocIdKey), docId);
+        await prefs.setString(_userKey(userId, _kBaseLastDocTitleKey), docTitle);
+        await prefs.setInt(_userKey(userId, _kBaseLastChunkIndexKey), chunkIndex);
+        await prefs.setInt(_userKey(userId, _kBaseLastTotalChunksKey), totalChunks);
+      } else {
+        await prefs.remove(_userKey(userId, _kBaseLastDocIdKey));
+        await prefs.remove(_userKey(userId, _kBaseLastDocTitleKey));
+        await prefs.remove(_userKey(userId, _kBaseLastChunkIndexKey));
+        await prefs.remove(_userKey(userId, _kBaseLastTotalChunksKey));
+      }
+    } catch (e) {
+      debugPrint('[LOGOUT] last-session save failed: $e');
+    }
+  }
+
+  /// On login, populate the player-bar providers from the user's saved
+  /// snapshot so they land on the library already showing "last read".
+  /// Does NOT auto-play — the user clicks play to resume.
+  Future<void> _restoreLastSession(String? userId) async {
+    if (userId == null) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final docId = prefs.getString(_userKey(userId, _kBaseLastDocIdKey));
+      final docTitle = prefs.getString(_userKey(userId, _kBaseLastDocTitleKey));
+      if (docId == null || docTitle == null) return;
+
+      final chunkIndex = prefs.getInt(_userKey(userId, _kBaseLastChunkIndexKey)) ?? 0;
+      final totalChunks = prefs.getInt(_userKey(userId, _kBaseLastTotalChunksKey)) ?? 0;
+
+      _ref.read(activeDocumentIdProvider.notifier).state = docId;
+      _ref.read(currentDocTitleProvider.notifier).state = docTitle;
+      _ref.read(currentChunkIndexProvider.notifier).state = chunkIndex;
+      _ref.read(totalChunksProvider.notifier).state = totalChunks;
+    } catch (e) {
+      debugPrint('[LOGIN] last-session restore failed: $e');
+    }
   }
 }

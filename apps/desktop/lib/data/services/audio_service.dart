@@ -414,6 +414,45 @@ class AudioService {
     _clearLoadedSource();
   }
 
+  /// User-switch reset: stops playback, zeroes position, and wipes
+  /// the in-memory and on-disk audio caches so a different user cannot
+  /// see or hear the previous user's data. Position tracking is cancelled
+  /// WITHOUT a final persist flush — the previous session's token is
+  /// already revoked by the time this runs, so a flush would 401.
+  Future<void> clearUserSession() async {
+    _nextToken();
+    try {
+      await _player.stop();
+      await _player.seek(Duration.zero);
+    } catch (_) {}
+    _synthesizingController.add(false);
+    _clearLoadedSource();
+
+    _positionTimer?.cancel();
+    _positionTimer = null;
+    _activeSessionId = null;
+    _activeChunkIndex = 0;
+    _playbackRepo = null;
+
+    _fileCache.clear();
+    _inflight.clear();
+
+    try {
+      final tmpDir = await getTemporaryDirectory();
+      final files = Directory(tmpDir.path)
+          .listSync()
+          .whereType<File>()
+          .where((f) => path.basename(f.path).startsWith('psitta_'));
+      for (final file in files) {
+        try {
+          await file.delete();
+        } catch (_) {}
+      }
+    } catch (_) {
+      // Best-effort — OS cleans tmpdir eventually
+    }
+  }
+
   /// Removes a chunk from the in-memory cache and deletes its local temp file.
   /// Call after a chunk has been re-synthesized so next play fetches fresh audio.
   Future<void> invalidateChunkCache(String chunkId) async {
