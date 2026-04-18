@@ -287,7 +287,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                           _PlanFeature('Creative Nooks — coming soon',
                               comingSoon: true),
                           _PlanFeature(
-                              'AI-assisted writing workflows — coming soon',
+                              'AI-powered content ideas — coming soon',
                               comingSoon: true),
                         ],
                         isCurrent: false,
