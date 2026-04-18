@@ -172,8 +172,20 @@ class SpeedPreferenceNotifier extends StateNotifier<double> {
 
   final String? userId;
 
-  /// Available speed options.
-  static const speeds = [1.0, 1.5, 2.0];
+  /// Available speed options across all plans (free is capped at 2.0x
+  /// by the UI + billing listener; see `core/plan_gate.dart`).
+  static const speeds = [
+    0.75,
+    1.0,
+    1.25,
+    1.5,
+    1.75,
+    2.0,
+    2.5,
+    3.0,
+    3.5,
+    4.0,
+  ];
 
   Future<void> _load() async {
     final uid = userId;
@@ -195,6 +207,19 @@ class SpeedPreferenceNotifier extends StateNotifier<double> {
     if (uid == null) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_userKey(uid, _kBaseSpeedKey), speed);
+  }
+
+  /// Clamp the saved speed to [ceiling]. If the current state is already
+  /// at or below the ceiling this is a no-op. Used when a user downgrades
+  /// from Pro to Free and had a >2.0x speed persisted.
+  Future<void> clampToCeiling(double ceiling) async {
+    if (state <= ceiling) return;
+    // Pick the largest allowed option that is still <= ceiling.
+    double target = speeds.first;
+    for (final s in speeds) {
+      if (s <= ceiling && s > target) target = s;
+    }
+    await select(target);
   }
 
   Future<void> cycleNext() async {

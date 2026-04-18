@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/plan_gate.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/services/preferences_service.dart';
@@ -16,6 +17,23 @@ class PsittaApp extends ConsumerWidget {
     final router = ref.watch(appRouterProvider);
     final themeName = ref.watch(selectedThemeNameProvider);
     final theme = AppTheme.forName(themeName);
+
+    // Downgrade guard: when the resolved plan is Free, enforce the Free
+    // caps on any preferences the user may have set while on Pro. Runs
+    // whenever the billing status transitions (login, refresh, webhook).
+    ref.listen<PlanStatus>(planStatusProvider, (prev, next) {
+      if (next.isPro) return;
+      final currentSpeed = ref.read(selectedSpeedProvider);
+      if (currentSpeed > kFreeMaxSpeed) {
+        ref
+            .read(selectedSpeedProvider.notifier)
+            .clampToCeiling(kFreeMaxSpeed);
+      }
+      final currentSwh = ref.read(selectedSwhModeProvider);
+      if (currentSwh == SwhMode.always) {
+        ref.read(selectedSwhModeProvider.notifier).select(SwhMode.never);
+      }
+    });
 
     return MaterialApp.router(
       title: 'Psitta',

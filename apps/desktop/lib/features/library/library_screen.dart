@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/constants.dart';
+import '../../core/plan_gate.dart';
 import '../../core/theme/colors.dart';
 import '../../data/services/pdf_text_extractor.dart';
 import '../../core/theme/psitta_tokens.dart';
@@ -84,7 +85,23 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
+  /// Preflight check against the monthly upload limit for the current plan.
+  /// The backend is authoritative (returns 402 on limit exceeded), but the
+  /// preflight gives nicer UX and steers the user to the Change Plan screen.
+  /// Returns `true` if the upload should proceed.
+  Future<bool> _canAcceptUploads(int incoming) async {
+    final plan = ref.read(planStatusProvider);
+    final limit = monthlyDocLimitFor(plan);
+    final docs = ref.read(documentsProvider).valueOrNull ?? const [];
+    final used = countDocumentsThisMonth(docs);
+    if (used + incoming <= limit) return true;
+    if (!mounted) return false;
+    await showUploadLimitPrompt(context, limit: limit, used: used);
+    return false;
+  }
+
   Future<void> _uploadFiles(List<PlatformFile> files) async {
+    if (!await _canAcceptUploads(files.length)) return;
     setState(() => _isUploading = true);
     final repo = ref.read(documentRepositoryProvider);
     for (final file in files) {
@@ -835,8 +852,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       },
                                       onEdit: () => _rename(doc),
                                       onDelete: () => _confirmAndDelete(doc),
-                                      onArchive: () => _archiveDocument(doc),
-                                      onDownload: () => _downloadDocument(doc),
+                                      onArchive: isProTier
+                                          ? () => _archiveDocument(doc)
+                                          : null,
+                                      onDownload: isProTier
+                                          ? () => _downloadDocument(doc)
+                                          : null,
                                       currentProjectId: doc.projectId,
                                       onAssignProject: () => _assignToProject(doc),
                                       onRemoveProject: () => _removeFromProject(doc),

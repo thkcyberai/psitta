@@ -269,23 +269,26 @@ class DocumentCard extends StatelessWidget {
             Text('Change Cover'),
           ]),
         ),
-        const PopupMenuDivider(),
-        const PopupMenuItem<String>(
-          value: 'archive',
-          child: Row(children: [
-            Icon(Icons.archive_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Archive'),
-          ]),
-        ),
-        const PopupMenuItem<String>(
-          value: 'download',
-          child: Row(children: [
-            Icon(Icons.download_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Download'),
-          ]),
-        ),
+        if (onArchive != null || onDownload != null)
+          const PopupMenuDivider(),
+        if (onArchive != null)
+          const PopupMenuItem<String>(
+            value: 'archive',
+            child: Row(children: [
+              Icon(Icons.archive_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('Archive'),
+            ]),
+          ),
+        if (onDownload != null)
+          const PopupMenuItem<String>(
+            value: 'download',
+            child: Row(children: [
+              Icon(Icons.download_outlined, size: 18),
+              SizedBox(width: 8),
+              Text('Download'),
+            ]),
+          ),
         const PopupMenuItem<String>(
           value: 'regenerate_audio',
           child: Row(children: [

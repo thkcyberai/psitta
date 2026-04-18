@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../core/plan_gate.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
@@ -53,6 +54,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final theme = Theme.of(context);
     final selectedTheme = ref.watch(selectedThemeNameProvider);
     final swhMode = ref.watch(selectedSwhModeProvider);
+    final isPro = ref.watch(isProUserProvider);
+    final maxSpeed = isPro ? kProMaxSpeed : kFreeMaxSpeed;
+    final availableSpeeds = SpeedPreferenceNotifier.speeds
+        .where((s) => s <= maxSpeed)
+        .toList();
+    final currentSpeed = ref.watch(selectedSpeedProvider);
+    final displaySpeed = availableSpeeds.contains(currentSpeed)
+        ? currentSpeed
+        : availableSpeeds.last;
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -130,26 +140,59 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   ListTile(
                     title: const Text('Playback Speed'),
+                    subtitle: isPro
+                        ? null
+                        : const Text(
+                            'Free plan limited to 2.0x. '
+                            'Upgrade for up to 4.0x.',
+                            style: TextStyle(fontSize: 11),
+                          ),
                     trailing: DropdownButton<double>(
-                      value: ref.watch(selectedSpeedProvider),
+                      value: displaySpeed,
                       underline: const SizedBox(),
-                      items: const [
-                        DropdownMenuItem(value: 0.75, child: Text('0.75x')),
-                        DropdownMenuItem(value: 1.0, child: Text('1.0x')),
-                        DropdownMenuItem(value: 1.25, child: Text('1.25x')),
-                        DropdownMenuItem(value: 1.5, child: Text('1.5x')),
-                        DropdownMenuItem(value: 1.75, child: Text('1.75x')),
-                        DropdownMenuItem(value: 2.0, child: Text('2.0x')),
-                      ],
+                      items: availableSpeeds
+                          .map(
+                            (s) => DropdownMenuItem<double>(
+                              value: s,
+                              child: Text('${s}x'),
+                            ),
+                          )
+                          .toList(),
                       onChanged: (val) {
-                        if (val != null) {
-                          ref.read(selectedSpeedProvider.notifier).select(val);
-                        }
+                        if (val == null) return;
+                        ref.read(selectedSpeedProvider.notifier).select(val);
                       },
                     ),
                   ),
                   const SizedBox(height: 16),
                   const _SectionHeader(title: 'Sync Word Highlight'),
+                  if (!isPro)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          left: 16, right: 16, bottom: 4, top: 4),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.lock_outline,
+                            size: 14,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Available with Reading Nook Pro',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => context.go('/plan'),
+                            child: const Text('Upgrade'),
+                          ),
+                        ],
+                      ),
+                    ),
                   RadioListTile<String>(
                     title: const Text('Read with S.W.H'),
                     subtitle: const Text(
@@ -158,17 +201,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     value: SwhMode.always,
                     groupValue: swhMode,
-                    onChanged: (v) => ref
-                        .read(selectedSwhModeProvider.notifier)
-                        .select(v!),
+                    onChanged: isPro
+                        ? (v) => ref
+                            .read(selectedSwhModeProvider.notifier)
+                            .select(v!)
+                        : null,
                   ),
                   RadioListTile<String>(
                     title: const Text('Read without S.W.H'),
                     value: SwhMode.never,
                     groupValue: swhMode,
-                    onChanged: (v) => ref
-                        .read(selectedSwhModeProvider.notifier)
-                        .select(v!),
+                    onChanged: isPro
+                        ? (v) => ref
+                            .read(selectedSwhModeProvider.notifier)
+                            .select(v!)
+                        : null,
                   ),
                   const SizedBox(height: 16),
                   const _SectionHeader(title: 'Storage'),
