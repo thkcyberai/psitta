@@ -139,6 +139,31 @@ def extract_newest_devlog_filename(entries: List[dict]) -> Optional[str]:
     return Path(devlog_path).name
 
 
+def find_newest_devlog(devlog_dir: Path) -> Optional[Path]:
+    """Return the newest ``.docx`` in ``devlog_dir`` by mtime.
+
+    Returns ``None`` if the directory is missing or contains no .docx
+    files.  Used to override the marker when the Stop hook fired before
+    the user wrote today's devlog -- the marker then points one devlog
+    behind.
+    """
+    if not devlog_dir.exists():
+        return None
+    docs = sorted(
+        devlog_dir.glob("*.docx"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    return docs[0] if docs else None
+
+
+def _mtime_iso(path: Path) -> str:
+    """Return path's mtime as a UTC ISO 8601 string (seconds precision)."""
+    return datetime.fromtimestamp(
+        path.stat().st_mtime, tz=timezone.utc
+    ).isoformat(timespec="seconds")
+
+
 # Sentinel: returned by extract_devlog_learnings when the devlog has no
 # "Key Learnings" heading at all (legitimate no-op, not a structural error).
 _NO_HEADING: List[Tuple[str, str]] = []
@@ -326,41 +351,93 @@ def main() -> int:
     except Exception:
         pass
 
-    # == Phase 2: Marker check =============================================
-    if not MARKER_PATH.exists():
+    # == Phase 2: Marker + folder-scan selection ==========================
+    # The Stop hook fires before the user writes the session's devlog, so
+    # the marker on disk often points to the previous day's file. Resolve
+    # the marker devlog (if any), scan the DevLogs folder for the newest
+    # .docx by mtime, and pick whichever is newer. Folder scan also
+    # handles the "no marker at all" case -- if an unsynced devlog is
+    # sitting in the folder, we still process it.
+    marker_devlog: Optional[Path] = None
+    marker_exists = MARKER_PATH.exists()
+    if marker_exists:
+        try:
+            entries = parse_marker(MARKER_PATH)
+        except Exception as e:
+            log(
+                f"Failed to parse marker: {e}\n{traceback.format_exc()}",
+                LOG_PATH,
+            )
+            print(f"ERROR: Failed to parse {MARKER_PATH}: {e}", file=sys.stderr)
+            return 1
+
+        marker_filename = extract_newest_devlog_filename(entries)
+        if marker_filename:
+            candidate = DEVLOG_DIR / marker_filename
+            if candidate.exists():
+                marker_devlog = candidate
+            else:
+                log(
+                    f"Marker references missing devlog: {candidate}. "
+                    "Falling back to newest-by-mtime folder scan.",
+                    LOG_PATH,
+                )
+        else:
+            log(
+                "Marker contains no devlog references. Falling back to "
+                "newest-by-mtime folder scan.",
+                LOG_PATH,
+            )
+
+    newest_devlog = find_newest_devlog(DEVLOG_DIR)
+
+    selected: Optional[Path]
+    if marker_devlog is not None and newest_devlog is not None:
+        if marker_devlog.resolve() == newest_devlog.resolve():
+            selected = marker_devlog
+            log(f"Using marker devlog: {selected.name}", LOG_PATH)
+        elif newest_devlog.stat().st_mtime > marker_devlog.stat().st_mtime:
+            selected = newest_devlog
+            log(
+                f"Overriding marker -- newer devlog found: "
+                f"{selected.name} (mtime: {_mtime_iso(selected)})",
+                LOG_PATH,
+            )
+        else:
+            selected = marker_devlog
+            log(
+                f"Using marker devlog: {selected.name} "
+                f"(marker mtime {_mtime_iso(selected)} >= folder scan)",
+                LOG_PATH,
+            )
+    elif marker_devlog is not None:
+        selected = marker_devlog
+        log(f"Using marker devlog: {selected.name}", LOG_PATH)
+    elif newest_devlog is not None:
+        selected = newest_devlog
+        log(
+            f"No usable marker -- using newest devlog by mtime: "
+            f"{selected.name} (mtime: {_mtime_iso(selected)})",
+            LOG_PATH,
+        )
+    else:
+        if marker_exists:
+            log(
+                "no-op: marker present but no devlog available to process",
+                LOG_PATH,
+            )
+        else:
+            log(
+                f"no-op: no marker and no .docx files in {DEVLOG_DIR}",
+                LOG_PATH,
+            )
         print("No pending session summary. CLAUDE.md is current.")
-        log("no-op: no marker present", LOG_PATH)
         return 0
 
-    try:
-        entries = parse_marker(MARKER_PATH)
-    except Exception as e:
-        log(
-            f"Failed to parse marker: {e}\n{traceback.format_exc()}",
-            LOG_PATH,
-        )
-        print(f"ERROR: Failed to parse {MARKER_PATH}: {e}", file=sys.stderr)
-        return 1
+    filename = selected.name
+    full_path = selected
 
-    # == Phase 3: Parse newest devlog =====================================
-    filename = extract_newest_devlog_filename(entries)
-    if not filename:
-        log("Marker contains no devlog references. Aborting.", LOG_PATH)
-        print("ERROR: Marker contains no devlog references.", file=sys.stderr)
-        return 1
-
-    full_path = DEVLOG_DIR / filename
-    if not full_path.exists():
-        log(
-            f"Devlog not found: {full_path}. Aborting. Marker preserved.",
-            LOG_PATH,
-        )
-        print(
-            f"ERROR: Devlog not found: {full_path}",
-            file=sys.stderr,
-        )
-        return 1
-
+    # == Phase 3: Parse selected devlog ===================================
     try:
         tuples = extract_devlog_learnings(full_path, filename, LOG_PATH)
     except Exception as e:
@@ -378,16 +455,16 @@ def main() -> int:
     # _NO_HEADING sentinel: devlog has no Key Learnings section — graceful no-op
     if tuples is _NO_HEADING:
         log(
-            f"no-op: newest devlog {filename} has no Key Learnings "
+            f"no-op: devlog {filename} has no Key Learnings "
             "section — skipping",
             LOG_PATH,
         )
         try:
-            MARKER_PATH.unlink()
+            MARKER_PATH.unlink(missing_ok=True)
         except Exception as e:
             log(f"Warning: failed to delete marker: {e}", LOG_PATH)
         print(
-            "Session starting. No Key Learnings in newest devlog. "
+            "Session starting. No Key Learnings in selected devlog. "
             "CLAUDE.md is current."
         )
         return 0
@@ -445,7 +522,7 @@ def main() -> int:
 
     if not new_entries:
         try:
-            MARKER_PATH.unlink()
+            MARKER_PATH.unlink(missing_ok=True)
         except Exception as e:
             log(f"Warning: failed to delete marker: {e}", LOG_PATH)
         log(
@@ -477,9 +554,9 @@ def main() -> int:
         tmp_path.write_text(new_content, encoding="utf-8")
         os.replace(str(tmp_path), str(CLAUDE_MD_PATH))
 
-        # 5d. Only after successful replace: delete marker
+        # 5d. Only after successful replace: delete marker (if one existed)
         try:
-            MARKER_PATH.unlink()
+            MARKER_PATH.unlink(missing_ok=True)
         except Exception as e:
             log(
                 f"Warning: CLAUDE.md updated but failed to delete "
