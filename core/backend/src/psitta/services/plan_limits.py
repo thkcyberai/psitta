@@ -30,7 +30,13 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 @dataclass(frozen=True)
 class PlanLimits:
-    """Feature gates and usage quotas for a subscription plan."""
+    """Feature gates and usage quotas for a subscription plan.
+
+    Beta-readiness note: ``monthly_upload_limit`` and ``can_edit_docx``
+    are the authoritative flags the M3 upload + DOCX-edit routes will
+    enforce. ``documents_per_month`` is kept for backwards compat with
+    ``check_document_upload_limit`` until that check is migrated.
+    """
 
     documents_per_month: int
     tts_minutes_per_month: int
@@ -39,7 +45,12 @@ class PlanLimits:
     max_playback_speed: float
     word_highlight: bool
     download_docx: bool
-    creativity_nooks: int = 0
+    # Beta enforcement-ready flags (M3).
+    can_edit_docx: bool = False
+    monthly_upload_limit: int = 0
+    # Count of Creative Nooks the plan includes. Held at 0 across all
+    # plans for the Beta — no Creative Nook features are shipped yet.
+    creative_nooks_limit: int = 0
 
 
 PLAN_LIMITS: dict[str, PlanLimits] = {
@@ -55,6 +66,8 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         max_playback_speed=2.0,
         word_highlight=False,
         download_docx=False,
+        can_edit_docx=False,
+        monthly_upload_limit=3,
     ),
     "reading_nook_pro": PlanLimits(
         documents_per_month=50,
@@ -64,8 +77,10 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         max_playback_speed=4.0,
         word_highlight=True,
         download_docx=True,
+        can_edit_docx=True,
+        monthly_upload_limit=50,
     ),
-    "creativity_nook_pro": PlanLimits(
+    "creative_nook_pro": PlanLimits(
         documents_per_month=50,
         tts_minutes_per_month=600,
         audio_cache_days=90,
@@ -73,7 +88,9 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         max_playback_speed=4.0,
         word_highlight=True,
         download_docx=True,
-        creativity_nooks=4,
+        can_edit_docx=True,
+        monthly_upload_limit=50,
+        creative_nooks_limit=0,  # Beta — no Creative Nook features built yet
     ),
 }
 

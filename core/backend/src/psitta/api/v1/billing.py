@@ -36,6 +36,7 @@ from psitta.services.billing_handlers import (
     handle_payment_failed,
     handle_subscription_deleted,
     handle_subscription_updated,
+    stripe_obj_to_dict,
 )
 from psitta.services.plan_limits import plan_limits_to_dict
 
@@ -360,6 +361,12 @@ async def stripe_webhook(
             detail="Invalid signature",
         ) from exc
 
+    # Convert the entire StripeObject tree to plain dicts ONCE, here at
+    # the entry point. Every downstream consumer (handlers, idempotency
+    # writer, audit logger) gets standard mappings — no need to repeat
+    # the workaround for StripeObject's missing-key AttributeError trap.
+    event = stripe_obj_to_dict(event)
+
     event_id = event["id"]
     event_type = event["type"]
     event_data = event["data"]["object"]
@@ -433,15 +440,33 @@ async def stripe_webhook(
 
 # ── Helpers ──────────────────────────────────────────────────────────────
 
+# Stripe lookup keys use the legacy "creativity_nook_pro" prefix — they
+# must match what's configured in the Stripe Dashboard and cannot be
+# renamed without breaking the Price lookup. Internally we expose the
+# Beta-correct identifier "creative_nook_pro" everywhere else, so this
+# alias table is applied at the parse boundary.
+_PLAN_NAME_ALIASES: dict[str, str] = {
+    "creativity_nook_pro": "creative_nook_pro",
+}
+
+
 def _parse_lookup_key(lookup_key: str) -> tuple[str, str]:
-    """Extract plan name and billing period from a lookup key.
+    """Extract plan name and billing period from a Stripe lookup key.
+
+    The Stripe-side lookup keys still use ``creativity_nook_pro_*``,
+    but the returned plan name is normalised to the internal identifier
+    (``creative_nook_pro``) used by PLAN_LIMITS and the Flutter client.
 
     "reading_nook_pro_monthly"   → ("reading_nook_pro", "monthly")
-    "creativity_nook_pro_annual" → ("creativity_nook_pro", "annual")
+    "creativity_nook_pro_annual" → ("creative_nook_pro", "annual")
     """
     if lookup_key.endswith("_monthly"):
-        return lookup_key.removesuffix("_monthly"), "monthly"
-    if lookup_key.endswith("_annual"):
-        return lookup_key.removesuffix("_annual"), "annual"
-    # Fallback — should not happen with validated keys
-    return lookup_key, "monthly"
+        plan = lookup_key.removesuffix("_monthly")
+        period = "monthly"
+    elif lookup_key.endswith("_annual"):
+        plan = lookup_key.removesuffix("_annual")
+        period = "annual"
+    else:
+        # Fallback — should not happen with validated keys
+        return lookup_key, "monthly"
+    return _PLAN_NAME_ALIASES.get(plan, plan), period

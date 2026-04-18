@@ -19,6 +19,7 @@ dependencies:
 
   # Networking
   dio: ^5.4.0
+  url_launcher: ^6.3.0             # Opens Stripe Checkout in system browser
 
   # Authentication (Auth0)
   auth0_flutter: ^1.7.0

@@ -135,7 +135,7 @@ async def get_storage_client():  # type: ignore[no-untyped-def]
 class UserPlan:
     """Resolved plan for the current user."""
 
-    plan: str          # "free", "reading_nook_pro", "creativity_nook_pro"
+    plan: str          # "free", "reading_nook_pro", "creative_nook_pro"
     status: str        # "active", "trialing", "past_due", "canceled", "none"
     lookup_key: str    # raw lookup_key from subscriptions table, or ""
 
@@ -194,11 +194,16 @@ async def require_active_subscription(
 
 
 def _lookup_key_to_plan(lookup_key: str) -> str:
-    """Map a Stripe lookup_key to a plan name."""
+    """Map a Stripe lookup_key to the internal plan identifier.
+
+    Stripe-side lookup keys still use the legacy ``creativity_nook_pro``
+    prefix (must match Stripe Dashboard); internally we've renamed the
+    plan to ``creative_nook_pro`` for the Beta launch.
+    """
     if lookup_key.startswith("reading_nook_pro"):
         return "reading_nook_pro"
     if lookup_key.startswith("creativity_nook_pro"):
-        return "creativity_nook_pro"
+        return "creative_nook_pro"
     return "free"
 
 

@@ -14,7 +14,9 @@ Contract:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
+from typing import Any
 
 import stripe
 import structlog
@@ -65,11 +67,13 @@ async def handle_checkout_session_completed(
 
     internal_sc_id = sc_row[0]
 
-    # Retrieve subscription from Stripe for price details
+    # Retrieve subscription from Stripe for price details. The returned
+    # StripeObject is converted to a plain dict tree so nested .get()
+    # calls (e.g. price.get("lookup_key")) don't trip __getattr__.
     settings = get_settings()
     stripe.api_key = settings.STRIPE_SECRET_KEY_TEST.get_secret_value()
 
-    sub = stripe.Subscription.retrieve(stripe_subscription_id)
+    sub = stripe_obj_to_dict(stripe.Subscription.retrieve(stripe_subscription_id))
     item = sub["items"]["data"][0]
     price = item["price"]
 
@@ -328,6 +332,25 @@ async def handle_payment_failed(
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
+
+def stripe_obj_to_dict(obj: Any) -> dict:
+    """Recursively convert a Stripe API object to a plain dict.
+
+    StripeObject is a dict subclass, but its nested values are also
+    StripeObjects whose ``__getattr__`` raises ``AttributeError`` for
+    missing keys instead of returning ``None`` — which means a routine
+    ``foo.get("bar")`` blows up with ``AttributeError: get`` because
+    Python first looks up ``get`` as an attribute on the StripeObject
+    and falls into the trap. Round-tripping through JSON gives us pure
+    dict / list / scalar trees so downstream code can use standard
+    mapping access without surprises.
+
+    Stripe's ``StripeObject.__str__`` emits a JSON-formatted dump of the
+    full object tree, so ``json.loads(str(obj))`` is the canonical
+    Stripe-recommended deep conversion.
+    """
+    return json.loads(str(obj))
+
 
 def _ts_to_dt(ts: int | None) -> datetime | None:
     """Convert a Unix timestamp from Stripe to a timezone-aware datetime."""
