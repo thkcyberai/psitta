@@ -13,13 +13,13 @@ String _autoDeleteLabel(int? days) =>
 
 String _cacheSizeLabel(int mb) => mb >= 1024 ? '${mb ~/ 1024} GB' : '$mb MB';
 
-/// Fetches the current user's subscription summary from the backend.
-final subscriptionSummaryProvider =
-    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final api = ref.watch(apiClientProvider);
-  final response = await api.dio.get('/users/me/subscription');
-  return response.data as Map<String, dynamic>;
-});
+/// Backend plan id → user-facing label. Falls through to the raw id
+/// for any plan not yet shipped (forward-compat).
+const Map<String, String> _kPlanDisplayNames = {
+  'free': 'Free',
+  'reading_nook_pro': 'Reading Nook Pro',
+  'creative_nook_pro': 'Creative Nook Pro',
+};
 
 /// Settings Screen — user preferences and app configuration.
 ///
@@ -276,13 +276,17 @@ class _AccountTile extends ConsumerWidget {
   }
 }
 
-/// Shows the user's current plan and monthly doc usage.
+/// Shows the user's current plan, sourced from the Stripe-backed
+/// /billing/status endpoint via [billingStatusProvider]. Monthly doc
+/// usage was previously surfaced from the legacy /users/me/subscription
+/// endpoint — that field isn't on /billing/status yet, so the subtitle
+/// shows subscription state instead until the backend exposes usage.
 class _SubscriptionTile extends ConsumerWidget {
   const _SubscriptionTile();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final sub = ref.watch(subscriptionSummaryProvider);
+    final sub = ref.watch(billingStatusProvider);
     return sub.when(
       loading: () => const ListTile(
         leading: Icon(Icons.card_membership_outlined),
@@ -295,14 +299,16 @@ class _SubscriptionTile extends ConsumerWidget {
         subtitle: Text('Could not load plan info'),
       ),
       data: (data) {
-        final planId = data['plan_id'] ?? 'free';
-        final used = data['docs_this_month'] ?? 0;
-        final limit = data['docs_limit'] ?? 0;
-        final limitLabel = limit == -1 ? 'unlimited' : '$limit';
+        final plan = (data['plan'] as String?) ?? 'free';
+        final status = (data['status'] as String?) ?? 'none';
+        final planLabel = _kPlanDisplayNames[plan] ?? plan;
+        final subtitle = plan == 'free'
+            ? 'No active subscription'
+            : (status == 'active' ? 'Active' : status);
         return ListTile(
           leading: const Icon(Icons.card_membership_outlined),
-          title: Text('Plan: $planId'),
-          subtitle: Text('Documents this month: $used / $limitLabel'),
+          title: Text('Plan: $planLabel'),
+          subtitle: Text(subtitle),
         );
       },
     );

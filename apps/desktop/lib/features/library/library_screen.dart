@@ -19,7 +19,6 @@ import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../data/models/document.dart';
 import '../../data/repositories/project_repository.dart';
-import '../settings/settings_screen.dart';
 import '../shell/app_shell.dart';
 import '../shell/desktop_shell.dart';
 import '../shell/widgets/player_bar.dart';
@@ -596,9 +595,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final tokens = PsittaTokens.of(context);
     final documentsAsync = ref.watch(documentsProvider);
     final projectsAsync = ref.watch(projectsProvider);
-    final subAsync = ref.watch(subscriptionSummaryProvider);
+    final subAsync = ref.watch(billingStatusProvider);
     final isProTier = subAsync.whenOrNull(
-          data: (data) => data['plan_id'] != 'free',
+          data: (data) => data['plan'] != 'free',
         ) ??
         false;
 

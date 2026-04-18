@@ -29,6 +29,22 @@ final projectRepositoryProvider = Provider<ProjectRepository>((ref) {
 });
 
 // ── Data Providers ─────────────────────────────────────────────
+
+/// Single source of truth for the user's plan + billing state.
+///
+/// Calls `GET /billing/status` (the M3 Stripe-backed endpoint that
+/// reads from the `subscriptions` table the webhook writes). Returns
+/// `{plan, billing_period, status, current_period_end, cancel_at_period_end}`
+/// where `plan` is `"free"`, `"reading_nook_pro"`, or `"creative_nook_pro"`.
+///
+/// Free users get `plan == "free"` with `status == "none"`.
+final billingStatusProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final response = await api.dio.get('/billing/status');
+  return response.data as Map<String, dynamic>;
+});
+
 /// Fetches document list from API. Invalidate after upload/delete.
 final showArchivedProvider = StateProvider<bool>((ref) => false);
 

@@ -7,17 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/providers/providers.dart';
-import '../settings/settings_screen.dart';
-
-/// Current billing status from the M3 Stripe router.
-/// Returns `{plan, billing_period, status, current_period_end, cancel_at_period_end}`.
-/// Free users receive `plan = "free"` with `status = "inactive"`.
-final billingStatusProvider =
-    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
-  final api = ref.watch(apiClientProvider);
-  final response = await api.dio.get('/billing/status');
-  return response.data as Map<String, dynamic>;
-});
 
 /// Plan selection screen — accessible from Settings > Change Plan.
 ///
@@ -131,7 +120,6 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         if (plan == 'reading_nook_pro' && status == 'active') {
           timer.cancel();
           ref.invalidate(billingStatusProvider);
-          ref.invalidate(subscriptionSummaryProvider);
           _showSnack('Welcome to Reading Nook Pro!');
           return;
         }
@@ -147,7 +135,6 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         // Trigger a final refresh so the webhook's eventual write appears
         // the moment the user revisits this screen.
         ref.invalidate(billingStatusProvider);
-        ref.invalidate(subscriptionSummaryProvider);
       }
     });
   }
