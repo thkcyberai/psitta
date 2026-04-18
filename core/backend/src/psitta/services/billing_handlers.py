@@ -24,6 +24,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.config import get_settings
+from psitta.db.session import async_session_factory
 from psitta.services import audit_service
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -109,13 +110,18 @@ async def handle_checkout_session_completed(
         },
     )
 
+    # resource_id stores the Psitta user UUID (audit_log.resource_id is
+    # a UUID column). The Stripe identifiers are kept in details_json so
+    # the SOC 2 trail still ties the audit row to the Stripe records.
     await audit_service.log_event(
         db,
         action="billing.subscription_created",
         resource_type="subscription",
         user_id=user_id,
-        resource_id=stripe_subscription_id,
+        resource_id=user_id,
         details={
+            "stripe_subscription_id": stripe_subscription_id,
+            "stripe_customer_id": stripe_customer_id_str,
             "lookup_key": resolved_lookup_key,
             "status": sub["status"],
         },
@@ -143,11 +149,15 @@ async def handle_subscription_updated(
     stripe_sub_id = sub_obj["id"]
     new_status = sub_obj["status"]
 
-    # Find existing local subscription
+    # Find existing local subscription. The JOIN pulls the Psitta user
+    # UUID for the audit_log row — Stripe webhooks don't carry it on
+    # subscription updates, so we resolve it through stripe_customers.
     row = await db.execute(
         text(
-            "SELECT id, status FROM subscriptions "
-            "WHERE stripe_subscription_id = :sub_id"
+            "SELECT s.id, s.status, sc.user_id "
+            "FROM subscriptions s "
+            "JOIN stripe_customers sc ON sc.id = s.stripe_customer_id "
+            "WHERE s.stripe_subscription_id = :sub_id"
         ),
         {"sub_id": stripe_sub_id},
     )
@@ -161,6 +171,7 @@ async def handle_subscription_updated(
         return
 
     previous_status = existing["status"]
+    psitta_user_id = str(existing["user_id"])
     item = sub_obj["items"]["data"][0]
     price = item["price"]
     lookup_key = price.get("lookup_key", "")
@@ -204,8 +215,10 @@ async def handle_subscription_updated(
         db,
         action="billing.subscription_updated",
         resource_type="subscription",
-        resource_id=stripe_sub_id,
+        user_id=psitta_user_id,
+        resource_id=psitta_user_id,
         details={
+            "stripe_subscription_id": stripe_sub_id,
             "previous_status": previous_status,
             "new_status": new_status,
             "lookup_key": lookup_key,
@@ -231,20 +244,26 @@ async def handle_subscription_deleted(
     stripe_sub_id = sub_obj["id"]
     now = datetime.now(UTC)
 
+    # JOIN to fetch the Psitta user UUID for the audit_log row.
     row = await db.execute(
         text(
-            "SELECT id FROM subscriptions "
-            "WHERE stripe_subscription_id = :sub_id"
+            "SELECT s.id, sc.user_id "
+            "FROM subscriptions s "
+            "JOIN stripe_customers sc ON sc.id = s.stripe_customer_id "
+            "WHERE s.stripe_subscription_id = :sub_id"
         ),
         {"sub_id": stripe_sub_id},
     )
-    if not row.fetchone():
+    existing = row.mappings().first()
+    if not existing:
         logger.warning(
             "billing.handler.subscription_not_found",
             stripe_subscription_id=stripe_sub_id,
             event_id=event["id"],
         )
         return
+
+    psitta_user_id = str(existing["user_id"])
 
     await db.execute(
         text(
@@ -261,8 +280,12 @@ async def handle_subscription_deleted(
         db,
         action="billing.subscription_canceled",
         resource_type="subscription",
-        resource_id=stripe_sub_id,
-        details={"status": "canceled"},
+        user_id=psitta_user_id,
+        resource_id=psitta_user_id,
+        details={
+            "stripe_subscription_id": stripe_sub_id,
+            "status": "canceled",
+        },
     )
 
     logger.info(
@@ -291,20 +314,26 @@ async def handle_payment_failed(
 
     now = datetime.now(UTC)
 
+    # JOIN to fetch the Psitta user UUID for the audit_log row.
     row = await db.execute(
         text(
-            "SELECT id FROM subscriptions "
-            "WHERE stripe_subscription_id = :sub_id"
+            "SELECT s.id, sc.user_id "
+            "FROM subscriptions s "
+            "JOIN stripe_customers sc ON sc.id = s.stripe_customer_id "
+            "WHERE s.stripe_subscription_id = :sub_id"
         ),
         {"sub_id": stripe_sub_id},
     )
-    if not row.fetchone():
+    existing = row.mappings().first()
+    if not existing:
         logger.warning(
             "billing.handler.subscription_not_found",
             stripe_subscription_id=stripe_sub_id,
             event_id=event["id"],
         )
         return
+
+    psitta_user_id = str(existing["user_id"])
 
     await db.execute(
         text(
@@ -320,8 +349,12 @@ async def handle_payment_failed(
         db,
         action="billing.payment_failed",
         resource_type="subscription",
-        resource_id=stripe_sub_id,
-        details={"invoice_id": invoice_id},
+        user_id=psitta_user_id,
+        resource_id=psitta_user_id,
+        details={
+            "stripe_subscription_id": stripe_sub_id,
+            "invoice_id": invoice_id,
+        },
     )
 
     logger.info(
@@ -332,6 +365,49 @@ async def handle_payment_failed(
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────
+
+async def store_webhook_event(
+    *,
+    event_id: str,
+    event_type: str,
+    stripe_subscription_id: str | None,
+    payload: str,
+) -> bool:
+    """Persist a webhook event in its OWN database transaction.
+
+    Returns True if a new row was inserted, False on duplicate delivery
+    (idempotency hit). Uses ``ON CONFLICT (stripe_event_id) DO NOTHING``
+    so two concurrent deliveries of the same event collapse atomically
+    without a check-then-act race.
+
+    Why a separate session: the request session is shared with the
+    handler logic (subscriptions INSERT, audit_log INSERT, ...). If
+    any of those fail, the request transaction aborts and rolls back —
+    which would also lose the forensic trail row if it lived in the
+    same transaction. Persisting here in an independent session means
+    the event payload survives every handler crash, so failed deliveries
+    can be reprocessed manually from ``subscription_events.payload``.
+    """
+    async with async_session_factory() as session:
+        result = await session.execute(
+            text(
+                "INSERT INTO subscription_events "
+                "(stripe_event_id, event_type, stripe_subscription_id, payload) "
+                "VALUES (:eid, :etype, :sub_id, :payload) "
+                "ON CONFLICT (stripe_event_id) DO NOTHING "
+                "RETURNING id"
+            ),
+            {
+                "eid": event_id,
+                "etype": event_type,
+                "sub_id": stripe_subscription_id,
+                "payload": payload,
+            },
+        )
+        inserted = result.fetchone() is not None
+        await session.commit()
+        return inserted
+
 
 def stripe_obj_to_dict(obj: Any) -> dict:
     """Recursively convert a Stripe API object to a plain dict.

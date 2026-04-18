@@ -36,6 +36,7 @@ from psitta.services.billing_handlers import (
     handle_payment_failed,
     handle_subscription_deleted,
     handle_subscription_updated,
+    store_webhook_event,
     stripe_obj_to_dict,
 )
 from psitta.services.plan_limits import plan_limits_to_dict
@@ -381,36 +382,24 @@ async def stripe_webhook(
         event_type=event_type,
     )
 
-    # ── Step 2: Idempotency check ────────────────────────────────────
-    existing = await db.execute(
-        text(
-            "SELECT id FROM subscription_events "
-            "WHERE stripe_event_id = :eid"
-        ),
-        {"eid": event_id},
+    # ── Step 2: Persist event (independent transaction + idempotency) ─
+    # store_webhook_event opens its own DB session and commits before
+    # returning, so the forensic trail row survives even if the handler
+    # below crashes the request transaction. ON CONFLICT on the unique
+    # ``stripe_event_id`` index handles duplicate Stripe deliveries
+    # atomically — no check-then-act race.
+    inserted = await store_webhook_event(
+        event_id=event_id,
+        event_type=event_type,
+        stripe_subscription_id=stripe_sub_id or None,
+        payload=json.dumps(event),
     )
-    if existing.fetchone():
+    if not inserted:
         logger.info(
             "billing.webhook.duplicate",
             event_id=event_id,
         )
         return JSONResponse({"received": True})
-
-    # Record event FIRST — even if processing fails we have the payload
-    await db.execute(
-        text(
-            "INSERT INTO subscription_events "
-            "(stripe_event_id, event_type, stripe_subscription_id, payload) "
-            "VALUES (:eid, :etype, :sub_id, :payload)"
-        ),
-        {
-            "eid": event_id,
-            "etype": event_type,
-            "sub_id": stripe_sub_id if stripe_sub_id else None,
-            "payload": json.dumps(event),
-        },
-    )
-    await db.flush()
 
     # ── Step 3: Event routing ────────────────────────────────────────
     handler = _EVENT_HANDLERS.get(event_type)
@@ -425,8 +414,10 @@ async def stripe_webhook(
         await handler(event, db)
     except Exception:
         # Log the full traceback but ALWAYS return 200.
-        # The event is already persisted in subscription_events
-        # and can be reprocessed manually.
+        # The event is already persisted in subscription_events via the
+        # independent transaction above — even though the request session
+        # below has now rolled back, the payload is durable and the
+        # event can be reprocessed manually from subscription_events.
         logger.error(
             "billing.webhook.handler_failed",
             event_id=event_id,
