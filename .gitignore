@@ -90,6 +90,7 @@ tfplan*
 terraform.tfstate
 terraform.tfstate.*
 !terraform.tfstate.backup
+infra/terraform/terraform.tfstate.backup
 
 # ── Certificates & Keys ────────────────────────────────────────────────
 *.pfx

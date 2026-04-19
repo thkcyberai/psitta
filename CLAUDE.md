@@ -230,27 +230,89 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-04-14: Rate limiter must fail-open — catch all exceptions, log, allow the request through; a limiter bug must never DoS the API
 - 2026-04-14: RateLimitMiddleware is outermost so 429 responses bypass CORS/RequestID middleware — fine for Flutter desktop, will need reorder when a web UI ships
 - 2026-04-14: Kinesis Firehose → S3 CloudWatch log objects are doubly-gzipped (outer Firehose layer + inner per-record gzip members) — a single gunzip leaves 0x1f8b markers; decoder must iterate nested gzip members
+- 2026-04-15: SOC 2 CC7.2 audit_log tamper-evidence requires THREE layers — (1) REVOKE UPDATE/DELETE from app role, (2) BEFORE UPDATE OR DELETE FOR EACH ROW trigger, (3) BEFORE TRUNCATE FOR EACH STATEMENT trigger. Row-level triggers do NOT fire on TRUNCATE, and TRUNCATE is not a grantable privilege, so the statement-level trigger is the only portable guard
+- 2026-04-15: For full SOC 2 audit_log tamper-evidence the table owner must be a separate migration role (e.g. `psitta_migrator`), not the app role (`psitta`) — owners can `ALTER TABLE … DISABLE TRIGGER` and bypass the guard. Out of scope for migration 011; follow-up work for the SOC 2 evidence package
+- 2026-04-15: `tests/conftest.py` `test_settings` fixture uses `DATABASE_HOST`/`DATABASE_NAME`/`DATABASE_USER`/`DATABASE_PASSWORD` but `config.py` Settings defines `POSTGRES_HOST`/`POSTGRES_DB`/`POSTGRES_USER`/`POSTGRES_PASSWORD` — the fixture will raise on strict instantiation. Pre-existing bug, separate task to reconcile; new tests should use `get_settings()` (env-loaded) to sidestep it
+- 2026-04-15: TRUNCATE does not fire row-level triggers in PostgreSQL — a separate BEFORE TRUNCATE FOR EACH STATEMENT trigger is required for full tamper-evidence
+- 2026-04-15: audit_log owner-role separation needed for SOC 2: psitta_migrator owns the table, psitta app role is non-owner — prevents ALTER TABLE DISABLE TRIGGER bypass
+- 2026-04-15: conftest.py uses DATABASE_HOST/DATABASE_NAME but config.py defines POSTGRES_HOST/POSTGRES_DB — pre-existing mismatch, fix separately
+- 2026-04-15: CLAUDE.md SessionStart hook processes pending markers automatically on startup — no human prompt needed from this session forward
+- 2026-04-15 (PM): Cloudflare email auth records (DKIM CNAME, SPF/DMARC TXT) must be DNS only (gray cloud) — proxied CNAMEs silently break DKIM signature validation
+- 2026-04-15 (PM): Hostinger email DNS sequence: domain-verification TXT → MX records → SPF TXT → 3 DKIM CNAMEs → DMARC TXT on _dmarc — all configurable in Cloudflare in a single session
+- 2026-04-15 (PM): Stripe Managed Payments (Merchant of Record) costs 5% + $0.50 vs standard 2.9% + $0.30 — avoid for US-focused SaaS with margin pressure; add Stripe Tax (~0.5%) later as separate product when compliance becomes real
+- 2026-04-15 (PM): SaaS tax code (txcd_10103000) is correct for desktop clients backed by cloud services — Downloadable Software (txcd_10101000) is wrong classification because the product stops working if backend shuts down
+- 2026-04-15 (PM): Stripe lookup keys (e.g. reading_nook_pro_monthly) let the backend reference prices semantically instead of hardcoding opaque IDs — enables future price swaps without code changes
+- 2026-04-15 (PM): Creativity Nook Pro as separate Stripe product (not add-on) enables clean subscription swaps with automatic proration — customer pays $19.99/mo total, not $14.99 + $19.99
+- 2026-04-15 (PM): Stripe sandbox separates account creation from business verification — EIN + bank account are requested only on Switch to live account, allowing full integration testing before legal/financial setup
+- 2026-04-15 (PM): Security discipline for secrets files: never echo/cat/print values to terminal; use Claude Code prompts that explicitly prohibit printing and require user to paste via editor (Notepad/VS Code) directly into the file
+- 2026-04-16: SessionStart hook protocol-based approach fails because user instructions always override model's Session Protocol rules — deterministic Python synthesis eliminates the model from the critical path entirely
+- 2026-04-16: When diagnosing hook failures, check the actual log path (.claude/hooks/session_start_hook.log) not the assumed path (.claude/session_start_hook.log) — path mismatches cause false 'hook never ran' conclusions
+- 2026-04-16: Marker accumulation across sessions: the Stop hook appends to pending_session_summary.json on every session end — if the Start hook never consumes, the marker grows indefinitely with stale entries from old devlogs
+- 2026-04-16: Process only the newest devlog from the marker array — older entries are stale snapshots superseded by newer devlogs that already contain all previous content
+- 2026-04-16: CLAUDE.md Key Learnings uses bullet format (- DATE: LEARNING) not markdown table format — the hook must read and write the actual format to avoid corrupting existing entries
+- 2026-04-16: ECS --force-new-deployment re-pulls the :latest image tag from ECR without creating a new task definition revision — task definition number stays the same but the container runs new code
+- 2026-04-16: Production Alembic migrations can be run via one-off ECS task with command override when the RDS is in a private subnet unreachable from the developer laptop — no SSH tunnel or security group changes needed
+- 2026-04-16: RDS automated backups run daily with continuous transaction logs every 5 minutes — point-in-time recovery within the retention window (default 7 days) requires no manual setup
+- 2026-04-16: Stripe webhook endpoint must always return HTTP 200 after storing the event, even on handler errors — returning 500 causes Stripe to retry for up to 3 days, flooding the server
+- 2026-04-16: Insert-first webhook pattern: store the raw event payload in subscription_events BEFORE running the handler — if the handler crashes, the event is preserved for manual reprocessing
+- 2026-04-16: Stripe Checkout (prebuilt hosted page) is the correct integration for Flutter desktop — flutter_stripe SDK doesn't support desktop, so browser handoff via url_launcher is the clean path
+- 2026-04-16: Stripe lookup keys (e.g. reading_nook_pro_monthly) resolve price IDs at runtime via stripe.Price.list() — code references semantic names, not opaque Stripe IDs, enabling price changes without code deployment
+- 2026-04-16: Plan enforcement should be a FastAPI dependency (Depends), not global middleware — only some endpoints need gating, and billing endpoints must never be gated (chicken-and-egg)
+- 2026-04-16: Stripe secrets script must use getpass (no echo) and subprocess with capture_output — never echo, cat, or print key values to terminal or command history
+- 2026-04-16: ECS containers are stateless — all persistent data lives in RDS, S3, and Secrets Manager. Replacing a container loses nothing. This is why --force-new-deployment is safe.
+- 2026-04-16: Docker Desktop is not used for local development but Docker images are still built by GitHub Actions for ECS Fargate deployment — these are separate concerns (local dev vs production deployment)
+- 2026-04-16: Local .env POSTGRES_HOST=localhost is stale from Docker era — local backend cannot connect to RDS (private subnet). All migrations and testing must go through ECS or a future bastion host
+- 2026-04-16: RDS Multi-AZ should be enabled before taking real subscription payments — single-AZ means a datacenter outage takes down the entire billing system. Queued as M9 pre-launch item.
+- 2026-04-17: WebView2 stores cookies in a per-process default user data folder — clearing cookies on a throwaway WebviewController invalidates the Cognito session cookie globally, forcing credential re-entry on next login
+- 2026-04-17: User-scoped SharedPreferences keys (user_{userId}_key pattern) prevent preference leakage between accounts on the same device — the pattern applies to any desktop app with multi-account support
+- 2026-04-17: Legacy preference migration: copy unscoped key to scoped key for the first user who logs in, then delete the legacy key immediately — second user cannot inherit first user's data
+- 2026-04-17: On logout, reset Riverpod providers to defaults but do NOT delete SharedPreferences keys — user's preferences must survive across logout/login cycles. Deletion is the wrong approach; scoping is the right one.
+- 2026-04-17: Player bar state (document ID, position) should be saved to user-scoped SharedPreferences before logout and restored on re-login — don't auto-play, just show the document title and position
+- 2026-04-17: stay_signed_in must remain device-scoped (not user-scoped) because it governs auto-login behavior at the machine level, regardless of which account is active
+- 2026-04-17: Stripe webhook URL must include the full FastAPI router prefix (/api/v1/billing/webhook, not /billing/webhook) — the prefix is defined in main.py app.include_router(prefix='/api/v1') and is easy to miss
+- 2026-04-17: stripe.StripeObject does not support .get() — always convert event data to plain dict via json.loads(str(obj)) at the webhook entry point before passing to handlers
+- 2026-04-17: audit_log.resource_id is UUID type — never pass Stripe IDs (sub_xxx, cus_xxx) as resource_id. Pass the Psitta user_id (UUID) and put Stripe IDs in details_json
+- 2026-04-17: Webhook handler must isolate subscription_events INSERT in an independent database session that commits before the handler runs — if the handler crashes, the forensic event trail survives for manual reprocessing
+- 2026-04-17: ON CONFLICT (stripe_event_id) DO NOTHING RETURNING id is the correct atomic idempotency pattern — race-free under concurrent Stripe retries, and RETURNING lets you distinguish 'just inserted' from 'duplicate'
+- 2026-04-17: When Settings page and Change Plan screen disagree on the current plan, they are hitting different backend endpoints — always consolidate to a single provider and single endpoint (billingStatusProvider → GET /billing/status)
+- 2026-04-17: Legacy API endpoints should be deprecated (not maintained in parallel) once a new endpoint replaces their function — maintaining two sources of truth guarantees they will diverge
+- 2026-04-17: Stripe Checkout redirects to success_url after payment — if psitta.ai/billing/success doesn't exist yet, the redirect shows a DNS error page. This is cosmetic (webhook still fires), but confusing for users — build the landing page before go-live
+- 2026-04-17: The 000000 code in Stripe sandbox Link verification is printed on screen ('Enter 000000 to continue') — no real SMS is sent in test mode
+- 2026-04-17: Creative Nook (not Creativity Nook) is the grammatically correct English name — 'creative' is an adjective, 'creativity' is a noun, and the adjective form parallels 'reading' in Reading Nook
+- 2026-04-18: SessionStart hook must scan the DevLogs folder by mtime, not rely solely on the Stop hook's marker — the devlog is created after Claude Code exits, so the marker always points to the previous day's file
+- 2026-04-18: Plan enforcement should be a Flutter-side concern using the same billingStatusProvider that drives the Change Plan screen — no need for separate backend middleware when the client can gate UI features directly
+- 2026-04-18: Free-to-Pro feature gating pattern: isProUser = (plan != 'free' && status == 'active'). Use this single boolean across all UI gates for consistency
+- 2026-04-18: Speed preference clamp on downgrade: an app-level Riverpod listener watches the plan and auto-clamps saved speed to kFreeMaxSpeed if the user is no longer Pro — prevents stale Pro-era settings from persisting
+- 2026-04-18: SWH force-off on downgrade: same pattern as speed clamp — app-level listener sets SwhMode.never when plan reverts to free, preventing word highlighting from persisting after subscription ends
+- 2026-04-18: Upload limit enforcement: count documents client-side from the library list filtered by created_at in the current month — avoid a separate backend round-trip when the data is already loaded
+- 2026-04-18: Hiding menu items (download, archive) is better UX than showing them grayed out for free users — grayed items create frustration, hidden items keep the interface clean
+- 2026-04-18: Stripe subscription cancellation can create duplicate customer.subscription.deleted webhook events if multiple subscriptions exist for the same customer — handler must process each independently by stripe_subscription_id
+- 2026-04-18: Stripe declined card test (4000 0000 0000 9995) does NOT fire a webhook event — the payment fails at checkout before a subscription is created, so no invoice.payment_failed is sent
+- 2026-04-18: psitta.ai domain is registered on AWS Route 53 in the Blowmymind management account (not psitta-prod) — registered March 14, 2026, expires March 14, 2028, auto-renew on
+- 2026-04-18: .ai domains do not support WHOIS privacy protection — registrant contact information is always publicly visible
+- 2026-04-18: For SaaS product websites, S3 + CloudFront is the correct AWS-native hosting when the domain is already on Route 53 — avoids DNS migration to Cloudflare and keeps all infrastructure in one console
+- 2026-04-18: PostHog is preferred over Google Analytics 4 for SaaS products because it includes session replay, heatmaps, and advanced funnels in the free tier — GA4 requires separate paid tools for these capabilities
+- 2026-04-18: Claude Code permissions can be broadly scoped via .claude/settings.local.json with 'Read **' and 'Write **' patterns to eliminate all permission prompts within the project directory
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\M7Complete_LoggingInfra_ComplianceFramework_Devlog_20260414.docx`
-- **Date**: April 14, 2026
-- **Title**: Development Log  -  April 14, 2026
-- **Focus**: M7 Security Hardening completion + Logging infrastructure + Compliance documentation
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260418_M3Complete_F3PlanEnforcement_CancellationFlow_M8Scoping_v1_0.docx`
+- **Date**: April 18, 2026
+- **Title**: Development Log — April 18, 2026
 - **Recent commits** (`git log --oneline -10`):
 
 ```
-47875bd feat(M7): add WAF logging to S3 + CloudWatch alarm for XSS blocks + SNS security alerts topic
-b4e904c fix(WAF): allow DOCX/image uploads blocked by CrossSiteScripting_BODY false positive — label-match pattern
-cf37693 feat(M7): wire audit_service.log_event() to all 18 security-relevant endpoints
-e0bc568 feat(M7): extend CloudWatch log retention to 90d + S3 Glacier IR archival via Kinesis Firehose
-a7ca21b docs: add logging, security and compliance guide v1.0
-89f396b fix: project card doc count invisible in Midnight dark theme — outline → onSurfaceVariant
-9aeede4 feat(M7): per-tier rate limiting on high-cost document endpoints
-6d5fa92 chore: add host-side requirements.txt for .claude/hooks scripts (python-docx)
-c2ca947 feat: add CLAUDE.md auto-update hooks (Stop + SessionStart) with pending summary pattern
-234188f feat: PDF architecture rewrite, WAF rules, audio cache improvements, library and player updates
+cf9f71b feat(M3): F3 plan enforcement — upload limit dialog, voice lock for free users, speed cap 2x, SWH disabled, download/archive hidden for free plan
+70e5b19 fix: SessionStart hook — scan DevLogs folder for newest devlog by mtime, override stale marker when a newer file exists
+cd0f1ad fix(M3): update Creative Nook Pro feature copy — AI-powered content ideas
+c9b997d fix(M3): consolidate billing providers — single billingStatusProvider for Settings, Library, and Change Plan screens, remove legacy subscriptionSummaryProvider
+d1f95bb fix(M3): webhook handler — pass Psitta UUID to audit_log resource_id, isolate subscription_events in independent transaction for crash-safe event storage
+20f7dfa feat(M3): Beta billing UI — plan screen with tier names and marketing copy, StripeObject-to-dict webhook fix, Creative Nook rename, user-scoped plan limits
+022afe1 fix: user data isolation — scoped preferences by user_id, clear player state on logout, WebView2 cookie clearing, player bar snapshot/restore across sessions, default profile: Parchment/Rachel/1.0x
+476b894 feat(M3): billing router — checkout session, subscription status, Stripe webhook with 4 lifecycle handlers, plan enforcement dependencies, plan limits config
+8fb4a05 feat(M3): add Stripe SDK, billing config, ORM base, and migration 012 — stripe_customers, subscriptions, subscription_events tables
+04fd95c feat: replace protocol-based SessionStart hook with deterministic Python synthesis
 ```
-- _Auto-updated by Stop hook at 2026-04-15 13:09 UTC_
+- _Auto-updated by Stop hook at 2026-04-19 22:22 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
