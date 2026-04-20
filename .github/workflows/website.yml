@@ -25,7 +25,6 @@ jobs:
     name: Build and deploy website
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: production
 
     env:
       AWS_REGION: us-east-1
