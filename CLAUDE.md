@@ -293,14 +293,26 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-04-18: For SaaS product websites, S3 + CloudFront is the correct AWS-native hosting when the domain is already on Route 53 — avoids DNS migration to Cloudflare and keeps all infrastructure in one console
 - 2026-04-18: PostHog is preferred over Google Analytics 4 for SaaS products because it includes session replay, heatmaps, and advanced funnels in the free tier — GA4 requires separate paid tools for these capabilities
 - 2026-04-18: Claude Code permissions can be broadly scoped via .claude/settings.local.json with 'Read **' and 'Write **' patterns to eliminate all permission prompts within the project directory
+- 2026-04-19: Claude Code permission DSL requires `:*` only at the end of a Bash(...) rule. Any character after `:*` causes silent skip at startup. Use Form A (exact), Form B (prefix with trailing :*), or Form C (bash wildcards without :*) — never mix.
+- 2026-04-19: Malformed Claude Code permission rules fail silently with only a yellow “Settings Warning” banner. Run `/doctor` to surface all invalid rules, and use a Node one-liner to audit programmatically against engine grammar.
+- 2026-04-19: settings.json is the shared baseline (committed); settings.local.json is per-machine (must be gitignored). Claude Code may auto-inject blanket entries into settings.local.json when the operator approves “Yes, and don’t ask again” — periodically reset to empty template to restore discipline.
+- 2026-04-19: After any .claude/settings.json change, Claude Code requires a full process restart (close terminal, `claude` again) — no dynamic reload.
+- 2026-04-19: .gitignore order matters. A negation rule `!pattern` on a later line overrides an ignore rule on an earlier line. Always verify with `git check-ignore -v` rather than assuming a literal-match grep is sufficient.
+- 2026-04-19: AWS Organizations consolidated billing is automatic across every account in an org. Billing is never a reason to collapse workloads into one account — clean separation does not cost extra.
+- 2026-04-19: Wildcard ACM cert for `*.psitta.ai` does NOT cover bare `psitta.ai` apex. Always verify SAN list before assuming cert reuse.
+- 2026-04-19: For multi-account AWS, cross-account Terraform providers using `assume_role` with scoped IAM roles are the correct pattern. Build it once; repointing role ARN is the only change needed if accounts are reorganized later.
+- 2026-04-19: Next.js static export for S3 + CloudFront requires three config values: `output: 'export'`, `trailingSlash: true`, `images.unoptimized: true`. Image optimization requires a Node runtime that static hosting does not provide.
+- 2026-04-19: pnpm workspace monorepo pattern: `pnpm-workspace.yaml` at root listing `apps/website`, single root `pnpm-lock.yaml`, shared node_modules via content-addressable store. Add Turborepo only when there are cross-package build dependencies — one app does not justify it.
+- 2026-04-19: Big-tech AWS pattern: management account stays empty except billing + SCPs + identity. Operational workloads never live in the management account. Violation of this is common in solo-founder environments and is acceptable tech debt to refactor post-revenue.
+- 2026-04-19: Solo-founder priority ordering: (1) ship and generate revenue, (2) maintain sanity, (3) optimize architecture. In that order. Refactoring AWS layouts at 11 pm under fatigue is how DNS outages happen.
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260418_M3Complete_F3PlanEnforcement_CancellationFlow_M8Scoping_v1_0.docx`
-- **Date**: April 18, 2026
-- **Title**: Development Log — April 18, 2026
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260419_ClaudeCodeHardening_M8aBootstrap_AWSDecision_v1_0.docx`
+- **Date**: April 19, 2026
 - **Recent commits** (`git log --oneline -10`):
 
 ```
+c6fe714 chore: cleanup .claude config, fix gitignore, rescue OnlyBird.png asset
 cf9f71b feat(M3): F3 plan enforcement — upload limit dialog, voice lock for free users, speed cap 2x, SWH disabled, download/archive hidden for free plan
 70e5b19 fix: SessionStart hook — scan DevLogs folder for newest devlog by mtime, override stale marker when a newer file exists
 cd0f1ad fix(M3): update Creative Nook Pro feature copy — AI-powered content ideas
@@ -310,9 +322,8 @@ d1f95bb fix(M3): webhook handler — pass Psitta UUID to audit_log resource_id, 
 022afe1 fix: user data isolation — scoped preferences by user_id, clear player state on logout, WebView2 cookie clearing, player bar snapshot/restore across sessions, default profile: Parchment/Rachel/1.0x
 476b894 feat(M3): billing router — checkout session, subscription status, Stripe webhook with 4 lifecycle handlers, plan enforcement dependencies, plan limits config
 8fb4a05 feat(M3): add Stripe SDK, billing config, ORM base, and migration 012 — stripe_customers, subscriptions, subscription_events tables
-04fd95c feat: replace protocol-based SessionStart hook with deterministic Python synthesis
 ```
-- _Auto-updated by Stop hook at 2026-04-19 22:22 UTC_
+- _Auto-updated by Stop hook at 2026-04-20 21:10 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram

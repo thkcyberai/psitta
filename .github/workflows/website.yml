@@ -1,0 +1,107 @@
+name: Deploy Website to psitta.ai
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'apps/website/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/website.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: website-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy website
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    env:
+      AWS_REGION: us-east-1
+      S3_BUCKET: psitta-web-prod-808765744063
+      CLOUDFRONT_DISTRIBUTION_ID: E3KLPR8671JHH2
+      DEPLOY_ROLE_ARN: arn:aws:iam::808765744063:role/psitta-website-deploy-role
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build website
+        run: pnpm --filter website build
+
+      - name: Verify build output
+        run: |
+          if [ ! -f apps/website/out/index.html ]; then
+            echo "Build failed: apps/website/out/index.html not found"
+            exit 1
+          fi
+          echo "Build produced $(find apps/website/out -type f | wc -l) files"
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: GitHubActions-Website-${{ github.run_id }}
+
+      - name: Sync build output to S3
+        run: |
+          aws s3 sync apps/website/out/ s3://${{ env.S3_BUCKET }}/ \
+            --delete \
+            --cache-control "public, max-age=3600" \
+            --exclude "*.html" \
+            --exclude "*.xml" \
+            --exclude "*.json"
+
+          # HTML, XML, JSON: short cache so content updates propagate quickly
+          aws s3 sync apps/website/out/ s3://${{ env.S3_BUCKET }}/ \
+            --delete \
+            --cache-control "public, max-age=60, must-revalidate" \
+            --exclude "*" \
+            --include "*.html" \
+            --include "*.xml" \
+            --include "*.json"
+
+      - name: Invalidate CloudFront cache
+        run: |
+          INVALIDATION_ID=$(aws cloudfront create-invalidation \
+            --distribution-id ${{ env.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*" \
+            --query 'Invalidation.Id' \
+            --output text)
+          echo "Created invalidation: $INVALIDATION_ID"
+          echo "INVALIDATION_ID=$INVALIDATION_ID" >> $GITHUB_OUTPUT
+
+      - name: Deploy summary
+        run: |
+          echo "## Website deployment complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Bucket:** ${{ env.S3_BUCKET }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **CloudFront:** ${{ env.CLOUDFRONT_DISTRIBUTION_ID }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **URL:** https://psitta.ai" >> $GITHUB_STEP_SUMMARY
+          echo "- **Invalidation:** in progress (allow 3-5 minutes for edge propagation)" >> $GITHUB_STEP_SUMMARY
