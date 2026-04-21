@@ -305,13 +305,37 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-04-19: pnpm workspace monorepo pattern: `pnpm-workspace.yaml` at root listing `apps/website`, single root `pnpm-lock.yaml`, shared node_modules via content-addressable store. Add Turborepo only when there are cross-package build dependencies — one app does not justify it.
 - 2026-04-19: Big-tech AWS pattern: management account stays empty except billing + SCPs + identity. Operational workloads never live in the management account. Violation of this is common in solo-founder environments and is acceptable tech debt to refactor post-revenue.
 - 2026-04-19: Solo-founder priority ordering: (1) ship and generate revenue, (2) maintain sanity, (3) optimize architecture. In that order. Refactoring AWS layouts at 11 pm under fatigue is how DNS outages happen.
+- 2026-04-20: AWS CLI on Windows Git Bash requires file://C:\path\format (not /tmp/) for --policy-document and similar parameters. Set MSYS_NO_PATHCONV=1 or use Windows paths explicitly.
+- 2026-04-20: jq is not installed on Git Bash Windows by default. AWS CLI JSON output (e.g., from assume-role) parsed via shell export without jq returns empty strings. Subsequent AWS commands then run as the default identity, appearing to succeed but silently wrong. Always cross-check with get-caller-identity after assume-role.
+- 2026-04-20: Windows \r carriage-returns contaminate AWS session tokens in shell pipelines. Always pipe through tr -d '\r' when extracting values from AWS JSON on Windows Git Bash before exporting as env vars.
+- 2026-04-20: Terraform data sources must have globally unique names per module. data "aws_caller_identity" "current" declared twice causes validate to fail with Duplicate data configuration. Grep existing .tf files before adding new data declarations.
+- 2026-04-20: Terraform cross-account provider with assume_role must specify profile (or static credentials) as source identity. Without it, alias inherits shell default credentials — which are typically the WRONG account to assume from. Pattern: profile = "psitta-prod" + assume_role.role_arn = "arn:aws:iam::TARGET:role/..."
+- 2026-04-20: Scoped IAM roles that omit route53:ListTagsForResource cause data "aws_route53_zone" lookups to fail with AccessDenied. Use a local constant for the zone ID instead of the data source when minimum-privilege trumps data-source convenience.
+- 2026-04-20: GitHub Actions environment: production at job level changes OIDC sub claim from repo:owner/repo:ref:refs/heads/BRANCH to repo:owner/repo:environment:production. IAM trust policies with StringLike conditions on ref: form will reject workflows with environment declared. Either remove environment OR update trust policy to allow both formats.
+- 2026-04-20: pnpm/action-setup@v4 with explicit version: N input conflicts with packageManager pnpm@N.M.P in root package.json. Remove the version input or align the two values — don't both specify.
+- 2026-04-20: Unauthenticated GitHub CLI exposes workflow run status/step conclusions via anonymous REST API, but not log text. Diagnosis from step timing + known failure patterns (e.g., configure-aws-credentials@v4 retry-to-60s = OIDC denial) is still possible. Run gh auth login for richer debugging.
+- 2026-04-20: CloudFront custom_error_response mapping 403→404 requires the target response page (/404.html) to exist in origin. If the mapped page itself 403s, CloudFront returns the original 403 instead of looping. Empty S3 buckets naturally 403, so always upload at least index.html + 404.html before expecting 404-handling to work.
+- 2026-04-20: CloudFront distribution creation via Terraform: ~3-4 minutes when reusing an existing ACM cert; 8-12 minutes when provisioning a new cert. Cert reuse is a meaningful speedup for multi-distribution architectures.
+- 2026-04-20: Cross-account Terraform with assume_role takes ~30 seconds per resource during apply (STS session per operation). Total apply time is dominated by CloudFront distribution creation, not cross-account overhead.
+- 2026-04-20: Windows curl via schannel TLS backend fails with HTTP/0 000 on valid certificates when CRL revocation can't complete. Use curl --ssl-no-revoke as a diagnostic. For CI, use curl-openssl variants instead of bundled schannel curl.
+- 2026-04-20: AI image generators (Gemini Nano Banana, DALL-E) produce one PNG per prompt; there is no "multiple separate files in one request" mode. Build brand bundles with a STYLE LOCK paragraph + N sequential prompts pasted one at a time. Trying to request all variants in one prompt yields a composite grid, not individual files.
+- 2026-04-20: AI "transparent background" output frequently bakes the checkerboard preview pattern into the PNG as actual pixels. Always verify true alpha channel before treating AI output as transparent — open in Photoshop/GIMP/PIL and inspect, or programmatically check for flat-grey corner colors.
+- 2026-04-20: Tailwind v4 shipped a fundamentally different configuration model from v3: CSS-first @theme blocks inside globals.css replaced the v3 JS/TS config file. tailwind.config.ts is ignored in v4 unless explicitly opted in via @config in CSS. When generating Tailwind code for Next.js 16+ projects, always check package.json for tailwindcss version first.
+- 2026-04-20: Tailwind v4 @theme block requires CSS variables to use --color-{name}, --font-{name}, --spacing-{name}, --breakpoint-{name} prefix conventions for utility classes to generate correctly. Without the prefix, classes like bg-psitta-700, text-ink-primary are present in HTML but resolve to NO CSS rules. Tailwind emits no error — utilities are silent no-ops. CONFIRM generation worked by inspecting computed styles via DevTools, not by verifying the class name appears in HTML.
+- 2026-04-20: When visual CSS changes don't appear to take effect, open DevTools Elements panel and inspect the target element's Styles panel immediately. Crossed-out rules = variable/class doesn't resolve. Don't iterate on code fixes without first confirming the existing CSS is actually being applied. Three rounds of "visual fixes" were wasted tonight on tokens that weren't wired up.
+- 2026-04-20: Browser extensions (Speechify, Grammarly, Honey, LastPass) inject DOM nodes at document root on every page. These appear as <div id="extension-name-*"> in DevTools. Not application bugs; but test sites periodically in incognito mode or on a clean browser to see what real visitors see without extensions.
+- 2026-04-20: Case-sensitivity mismatch between Windows NTFS (case-insensitive) and Linux (case-sensitive) causes silent CI failures. A folder created as apps/website/public/Brand/ on Windows reads the same as apps/website/public/brand/ locally, but git tracks them separately AND Linux CI will 404 on /brand/ references if git has /Brand/ indexed. Always match case exactly with existing committed paths; verify via git ls-files before staging new files in previously-committed directories.
+- 2026-04-20: Pre-existing CI workflows that silently fail for weeks are a common solo-founder tech debt pattern — red badges become background noise when production is deployed via other mechanisms. Queue CI remediation as its own milestone; enabling branch protection requiring green CI to merge prevents future drift.
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260419_ClaudeCodeHardening_M8aBootstrap_AWSDecision_v1_0.docx`
-- **Date**: April 19, 2026
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260420_M8aShipped_M8b1BrandFoundationPaused_v1_0.docx`
+- **Date**: April 20, 2026
 - **Recent commits** (`git log --oneline -10`):
 
 ```
+d01be56 fix(M8a-ci): drop environment: production so OIDC sub matches trust policy
+c4c5485 fix(M8a): pnpm/action-setup@v4 — let action read version from packageManager
+46ce808 feat(M8a): deploy website via GitHub Actions OIDC
 c6fe714 chore: cleanup .claude config, fix gitignore, rescue OnlyBird.png asset
 cf9f71b feat(M3): F3 plan enforcement — upload limit dialog, voice lock for free users, speed cap 2x, SWH disabled, download/archive hidden for free plan
 70e5b19 fix: SessionStart hook — scan DevLogs folder for newest devlog by mtime, override stale marker when a newer file exists
@@ -319,11 +343,8 @@ cd0f1ad fix(M3): update Creative Nook Pro feature copy — AI-powered content id
 c9b997d fix(M3): consolidate billing providers — single billingStatusProvider for Settings, Library, and Change Plan screens, remove legacy subscriptionSummaryProvider
 d1f95bb fix(M3): webhook handler — pass Psitta UUID to audit_log resource_id, isolate subscription_events in independent transaction for crash-safe event storage
 20f7dfa feat(M3): Beta billing UI — plan screen with tier names and marketing copy, StripeObject-to-dict webhook fix, Creative Nook rename, user-scoped plan limits
-022afe1 fix: user data isolation — scoped preferences by user_id, clear player state on logout, WebView2 cookie clearing, player bar snapshot/restore across sessions, default profile: Parchment/Rachel/1.0x
-476b894 feat(M3): billing router — checkout session, subscription status, Stripe webhook with 4 lifecycle handlers, plan enforcement dependencies, plan limits config
-8fb4a05 feat(M3): add Stripe SDK, billing config, ORM base, and migration 012 — stripe_customers, subscriptions, subscription_events tables
 ```
-- _Auto-updated by Stop hook at 2026-04-20 21:10 UTC_
+- _Auto-updated by Stop hook at 2026-04-21 15:54 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram

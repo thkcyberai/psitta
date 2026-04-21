@@ -1,26 +1,163 @@
 @import "tailwindcss";
 
+/* ============================================================================
+   Tailwind v4 theme tokens — registers brand scale as Tailwind-consumable
+   utility generators. Variable names MUST use --color-*, --font-*,
+   --spacing-*, --container-* prefixes for v4 to generate classes like
+   bg-psitta-700, text-ink-primary, py-section, max-w-container, etc.
+   ============================================================================ */
+
+@theme {
+  /* Psitta indigo ramp — the accent across everything interactive */
+  --color-psitta-50:  #EEF2FF;
+  --color-psitta-100: #E0E7FF;
+  --color-psitta-200: #C7D2FE;
+  --color-psitta-300: #A5B4FC;
+  --color-psitta-400: #818CF8;
+  --color-psitta-500: #6366F1;
+  --color-psitta-600: #4F46E5;
+  --color-psitta-700: #4338CA;
+  --color-psitta-800: #3730A3;
+  --color-psitta-900: #312E81;
+  --color-psitta-950: #1E1B4B;
+
+  /* Paper Light surfaces — page, elevated, subtle, dark inversion */
+  --color-paper:         #FAFAF7;
+  --color-paper-surface: #FFFFFF;
+  --color-paper-subtle:  #F5F5F1;
+  --color-paper-dark:    #0F172A;
+
+  /* Ink — slate text ramp on paper light */
+  --color-ink-primary:  #0F172A;
+  --color-ink-body:     #334155;
+  --color-ink-muted:    #64748B;
+  --color-ink-inverse:  #FAFAF7;
+
+  /* Edge — border ramp */
+  --color-edge-subtle:  #E5E5DF;
+  --color-edge-default: #D4D4CE;
+  --color-edge-strong:  #A3A399;
+
+  /* Typography — --font-inter is injected by next/font on <html> in layout.tsx */
+  --font-sans:  var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Source Serif Pro", Georgia, Cambria, "Times New Roman", serif;
+  --font-mono:  "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+
+  /* Spacing extensions for section-level rhythm */
+  --spacing-section:    6rem;
+  --spacing-section-lg: 8rem;
+
+  /* Max-widths (registered as utilities: max-w-container) */
+  --container-container: 1200px;
+}
+
+/* ============================================================================
+   Legacy :root tokens — preserved for plain-CSS consumers (.text-gradient,
+   .text-gradient-soft) that reference --psitta-* directly via var(). These
+   mirror the @theme values so var()-based utilities keep working.
+   ============================================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --psitta-50:  #EEF2FF;
+  --psitta-100: #E0E7FF;
+  --psitta-200: #C7D2FE;
+  --psitta-300: #A5B4FC;
+  --psitta-400: #818CF8;
+  --psitta-500: #6366F1;
+  --psitta-600: #4F46E5;
+  --psitta-700: #4338CA;
+  --psitta-800: #3730A3;
+  --psitta-900: #312E81;
+  --psitta-950: #1E1B4B;
+
+  --psitta-gradient:        linear-gradient(135deg, var(--psitta-200) 0%, var(--psitta-400) 50%, var(--psitta-500) 100%);
+  --psitta-gradient-strong: linear-gradient(135deg, var(--psitta-400) 0%, var(--psitta-500) 50%, var(--psitta-600) 100%);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ============================================================================
+   Base styles — wrapped in @layer base so Tailwind utilities (e.g. .text-white
+   on an <a> rendered as a button) override element defaults. Unlayered CSS
+   wins against layered CSS regardless of source order, which was letting
+   `a { color: var(--color-psitta-600) }` below defeat .text-white on primary
+   buttons.
+   ============================================================================ */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@layer base {
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-ink-body);
+  background: var(--color-paper);
+  min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  color: var(--color-ink-primary);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+h1 { font-size: clamp(2.5rem, 5vw, 4rem); }
+h2 { font-size: clamp(2rem, 4vw, 3rem); }
+h3 { font-size: clamp(1.5rem, 3vw, 2rem); }
+h4 { font-size: 1.5rem; }
+
+p { font-size: 1rem; line-height: 1.7; }
+
+a {
+  color: var(--color-psitta-600);
+  text-decoration: none;
+  transition: color 150ms ease;
+}
+
+a:hover { color: var(--color-psitta-700); }
+
+::selection {
+  background: var(--color-psitta-200);
+  color: var(--color-psitta-950);
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-psitta-500);
+  outline-offset: 2px;
+  border-radius: 0.25rem;
+}
+
+}
+
+/* ============================================================================
+   Utility classes (plain-CSS, consumed via className not Tailwind generation)
+   ============================================================================ */
+
+.text-gradient {
+  background: var(--psitta-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.text-gradient-soft {
+  background: linear-gradient(135deg, var(--psitta-400) 0%, var(--psitta-500) 60%, var(--psitta-600) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  opacity: 0.92;
+}
+
+.lead {
+  font-size: 1.25rem;
+  line-height: 1.6;
+  color: var(--color-ink-body);
 }
