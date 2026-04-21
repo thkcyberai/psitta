@@ -42,7 +42,10 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     API_WORKERS: int = 1
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:8080"
+    ALLOWED_ORIGINS: str = (
+        "http://localhost:3000,http://localhost:8080,"
+        "https://psitta.ai,https://www.psitta.ai"
+    )
 
     # ── PostgreSQL ─────────────────────────────────────────────────────
     POSTGRES_HOST: str = "localhost"

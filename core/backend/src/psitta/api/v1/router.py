@@ -15,6 +15,7 @@ from fastapi import APIRouter
 
 from psitta.api.v1.auth import router as auth_router
 from psitta.api.v1.billing import router as billing_router
+from psitta.api.v1.contact import router as contact_router
 from psitta.api.v1.documents import router as documents_router
 from psitta.api.v1.playback import router as playback_router
 from psitta.api.v1.projects import router as projects_router
@@ -82,4 +83,10 @@ v1_router.include_router(
     tts_router,
     prefix="/tts",
     tags=["tts"],
+)
+
+# ── Contact form (public) ─────────────────────────────────────────────
+v1_router.include_router(
+    contact_router,
+    tags=["contact"],
 )
