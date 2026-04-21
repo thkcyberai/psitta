@@ -333,6 +333,7 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - **Recent commits** (`git log --oneline -10`):
 
 ```
+3005f01 feat(M8b.1): visual identity foundation + v4 cascade fix
 d01be56 fix(M8a-ci): drop environment: production so OIDC sub matches trust policy
 c4c5485 fix(M8a): pnpm/action-setup@v4 — let action read version from packageManager
 46ce808 feat(M8a): deploy website via GitHub Actions OIDC
@@ -342,9 +343,8 @@ cf9f71b feat(M3): F3 plan enforcement — upload limit dialog, voice lock for fr
 cd0f1ad fix(M3): update Creative Nook Pro feature copy — AI-powered content ideas
 c9b997d fix(M3): consolidate billing providers — single billingStatusProvider for Settings, Library, and Change Plan screens, remove legacy subscriptionSummaryProvider
 d1f95bb fix(M3): webhook handler — pass Psitta UUID to audit_log resource_id, isolate subscription_events in independent transaction for crash-safe event storage
-20f7dfa feat(M3): Beta billing UI — plan screen with tier names and marketing copy, StripeObject-to-dict webhook fix, Creative Nook rename, user-scoped plan limits
 ```
-- _Auto-updated by Stop hook at 2026-04-21 15:54 UTC_
+- _Auto-updated by Stop hook at 2026-04-21 16:19 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
