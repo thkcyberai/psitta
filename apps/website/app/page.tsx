@@ -1,6 +1,9 @@
 import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/brand/Logo";
+import MakerNote from "@/components/home/MakerNote";
+import FeatureStrip from "@/components/home/FeatureStrip";
+import WhyListening from "@/components/home/WhyListening";
 
 export default function Home() {
   return (
@@ -44,14 +47,11 @@ export default function Home() {
         </Container>
       </section>
 
-      <section className="py-section border-t border-edge-subtle bg-paper-surface">
-        <Container className="text-center">
-          <h2 className="text-ink-primary">Foundation in place — content coming in M8b.2</h2>
-          <p className="lead mt-4 max-w-2xl mx-auto text-ink-muted">
-            This is the visual foundation for the Psitta marketing site. The next milestone (M8b.2) replaces this section with the real homepage hero, feature strip, and positioning content.
-          </p>
-        </Container>
-      </section>
+      <FeatureStrip />
+
+      <WhyListening />
+
+      <MakerNote />
     </>
   );
 }
