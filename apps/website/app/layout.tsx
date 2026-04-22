@@ -77,6 +77,11 @@ export const metadata: Metadata = {
       "max-image-preview": "large",
     },
   },
+  verification: {
+    other: {
+      "msvalidate.01": "38B8699E77707FFF67F6B16342D50D8B",
+    },
+  },
 };
 
 export default function RootLayout({
