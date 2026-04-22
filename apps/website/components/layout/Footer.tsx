@@ -15,7 +15,7 @@ const NAV_SECTIONS = [
     title: "Company",
     links: [
       { label: "About", href: "/about" },
-      { label: "Contact", href: "mailto:hello@psitta.ai" },
+      { label: "Contact", href: "/contact" },
     ],
   },
   {
