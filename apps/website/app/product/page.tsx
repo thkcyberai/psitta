@@ -1,9 +1,50 @@
 import type { Metadata } from "next";
 import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
+import JsonLd from "@/components/seo/JsonLd";
 
 export const metadata: Metadata = {
   title: "Features — Psitta",
+};
+
+const softwareApplicationSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Psitta",
+  description:
+    "Psitta reads your documents aloud — PDFs and Word documents — with sentence-level and word-level highlighting synchronized to the audio. Built for writers and editors who want to hear their own writing.",
+  url: "https://psitta.ai",
+  applicationCategory: "ProductivityApplication",
+  operatingSystem: "Windows 10, Windows 11",
+  offers: [
+    {
+      "@type": "Offer",
+      name: "Reading Nook Free",
+      price: "0",
+      priceCurrency: "USD",
+      description: "Free tier with 3 documents per month and Edge TTS voices",
+    },
+    {
+      "@type": "Offer",
+      name: "Reading Nook Pro (monthly)",
+      price: "14.99",
+      priceCurrency: "USD",
+      description:
+        "Unlimited documents, premium voices, word-level highlighting",
+    },
+    {
+      "@type": "Offer",
+      name: "Reading Nook Pro (annual)",
+      price: "119",
+      priceCurrency: "USD",
+      description: "Annual subscription, saves ~34% vs monthly",
+    },
+  ],
+  publisher: {
+    "@type": "Organization",
+    name: "Facti AI LLC",
+    url: "https://psitta.ai",
+  },
 };
 
 type Feature = {
@@ -184,6 +225,7 @@ export default function Product() {
 
   return (
     <section className="py-section">
+      <JsonLd data={softwareApplicationSchema} />
       <Container className="max-w-4xl">
         <h1 className="text-ink-primary text-center">
           Everything Psitta does

@@ -4,10 +4,69 @@ import Logo from "@/components/brand/Logo";
 import MakerNote from "@/components/home/MakerNote";
 import FeatureStrip from "@/components/home/FeatureStrip";
 import WhyListening from "@/components/home/WhyListening";
+import JsonLd from "@/components/seo/JsonLd";
+
+const organizationSchema = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "Facti AI LLC",
+  url: "https://psitta.ai",
+  logo: "https://psitta.ai/brand/psitta-horizontal.png",
+  description:
+    "Facti AI LLC builds Psitta, a desktop application that reads your documents aloud so writers and editors can hear their own writing.",
+  email: "support@psitta.ai",
+  address: {
+    "@type": "PostalAddress",
+    addressRegion: "Colorado",
+    addressCountry: "US",
+  },
+};
+
+const softwareApplicationSchema = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "Psitta",
+  description:
+    "Psitta reads your documents aloud — PDFs and Word documents — with sentence-level and word-level highlighting synchronized to the audio. Built for writers and editors who want to hear their own writing.",
+  url: "https://psitta.ai",
+  applicationCategory: "ProductivityApplication",
+  operatingSystem: "Windows 10, Windows 11",
+  offers: [
+    {
+      "@type": "Offer",
+      name: "Reading Nook Free",
+      price: "0",
+      priceCurrency: "USD",
+      description: "Free tier with 3 documents per month and Edge TTS voices",
+    },
+    {
+      "@type": "Offer",
+      name: "Reading Nook Pro (monthly)",
+      price: "14.99",
+      priceCurrency: "USD",
+      description:
+        "Unlimited documents, premium voices, word-level highlighting",
+    },
+    {
+      "@type": "Offer",
+      name: "Reading Nook Pro (annual)",
+      price: "119",
+      priceCurrency: "USD",
+      description: "Annual subscription, saves ~34% vs monthly",
+    },
+  ],
+  publisher: {
+    "@type": "Organization",
+    name: "Facti AI LLC",
+    url: "https://psitta.ai",
+  },
+};
 
 export default function Home() {
   return (
     <>
+      <JsonLd data={organizationSchema} />
+      <JsonLd data={softwareApplicationSchema} />
       <section className="pt-section pb-section-lg">
         <Container className="text-center">
           <div className="flex justify-center mb-8">
