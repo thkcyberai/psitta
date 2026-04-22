@@ -146,9 +146,14 @@ resource "aws_cloudfront_response_headers_policy" "website_security" {
 resource "aws_cloudfront_function" "www_to_apex" {
   name    = "psitta-www-to-apex"
   runtime = "cloudfront-js-2.0"
-  comment = "Permanent redirect www.psitta.ai to psitta.ai"
+  comment = "Permanent redirect www.psitta.ai to psitta.ai + directory-index rewrite"
   publish = true
-  code    = <<-EOT
+  # The URI rewrite (trailing slash → index.html) is required because this
+  # distribution uses an S3 REST origin via OAC, which (unlike the S3 website
+  # endpoint) does not resolve directory indexes. default_root_object only
+  # applies to the apex path "/". Without this rewrite, every subpage
+  # (/pricing/, /product/, /about/, …) 404s on direct URL access.
+  code = <<-EOT
     function handler(event) {
       var request = event.request;
       var host = request.headers.host.value.toLowerCase();
@@ -160,6 +165,9 @@ resource "aws_cloudfront_function" "www_to_apex" {
             'location': { value: 'https://psitta.ai' + request.uri }
           }
         };
+      }
+      if (request.uri.endsWith('/')) {
+        request.uri += 'index.html';
       }
       return request;
     }
