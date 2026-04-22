@@ -154,7 +154,7 @@ const creativeFeatures: Feature[] = [
   },
 ];
 
-function FeatureBlock({
+function FeatureCard({
   feature,
   iconContainerClass,
 }: {
@@ -162,152 +162,25 @@ function FeatureBlock({
   iconContainerClass: string;
 }) {
   return (
-    <div className="mt-12">
+    <div className="flex gap-4 items-start">
       <div className={iconContainerClass}>{feature.icon}</div>
-      <h2 className="text-xl font-semibold text-ink-primary">
-        {feature.title}
-      </h2>
-      <p className="mt-3 text-ink-body leading-relaxed max-w-2xl">
-        {feature.description}
-      </p>
+      <div>
+        <h3 className="text-base font-semibold text-ink-primary">
+          {feature.title}
+        </h3>
+        <p className="mt-1 text-sm text-ink-body leading-relaxed">
+          {feature.description}
+        </p>
+      </div>
     </div>
-  );
-}
-
-function ReadingIllustration() {
-  return (
-    <svg
-      viewBox="0 0 120 120"
-      className="w-24 h-24 shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      {/* Book — open pages forming a shallow V */}
-      <path d="M 18 94 L 60 82 L 60 96 Z" />
-      <path d="M 102 94 L 60 82 L 60 96 Z" />
-      <path d="M 18 96 L 18 100 L 102 100 L 102 96" />
-      <path d="M 26 90 L 55 85" opacity="0.45" />
-      <path d="M 65 85 L 94 90" opacity="0.45" />
-
-      {/* Parrot body — plump teardrop */}
-      <path
-        d="M 58 40 Q 78 42 78 62 Q 76 76 60 78 Q 44 78 40 62 Q 40 42 58 40 Z"
-        fill="currentColor"
-        fillOpacity="0.15"
-      />
-
-      {/* Head */}
-      <circle cx="52" cy="32" r="10" fill="currentColor" fillOpacity="0.15" />
-
-      {/* Crest — little tuft */}
-      <path d="M 46 22 Q 50 14 54 22" />
-
-      {/* Beak */}
-      <path
-        d="M 60 31 L 67 34 L 60 37 Z"
-        fill="currentColor"
-        fillOpacity="0.3"
-      />
-
-      {/* Eye */}
-      <circle cx="54" cy="31" r="1.5" fill="currentColor" stroke="none" />
-
-      {/* Wing */}
-      <path d="M 50 55 Q 60 50 70 60" />
-      <path d="M 52 62 Q 60 58 68 66" opacity="0.6" />
-
-      {/* Tail feathers trailing down behind */}
-      <path d="M 41 68 L 32 82" />
-      <path d="M 45 72 L 38 86" />
-
-      {/* Legs onto the book */}
-      <path d="M 54 78 L 54 82" />
-      <path d="M 62 78 L 62 82" />
-    </svg>
-  );
-}
-
-function CreativeIllustration() {
-  return (
-    <svg
-      viewBox="0 0 120 120"
-      className="w-24 h-24 shrink-0"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.75}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      {/* Canvas on easel */}
-      <rect x="14" y="24" width="44" height="52" rx="1.5" />
-      {/* Abstract brushstroke on canvas */}
-      <path
-        d="M 22 44 Q 32 34 42 46 T 52 52"
-        opacity="0.4"
-      />
-      {/* Easel crossbar + legs */}
-      <path d="M 18 76 L 54 76" />
-      <path d="M 22 76 L 16 98" />
-      <path d="M 50 76 L 56 98" />
-      <path d="M 36 76 L 36 98" />
-
-      {/* Parrot body */}
-      <path
-        d="M 90 50 Q 104 52 104 66 Q 102 78 90 80 Q 76 78 76 64 Q 76 50 90 50 Z"
-        fill="currentColor"
-        fillOpacity="0.1"
-      />
-
-      {/* Head */}
-      <circle cx="86" cy="44" r="8" fill="currentColor" fillOpacity="0.1" />
-
-      {/* Crest */}
-      <path d="M 82 36 Q 85 30 88 36" />
-
-      {/* Beak (holding brush) */}
-      <path
-        d="M 92 43 L 99 45 L 92 47 Z"
-        fill="currentColor"
-        fillOpacity="0.25"
-      />
-
-      {/* Eye */}
-      <circle cx="88" cy="43" r="1.3" fill="currentColor" stroke="none" />
-
-      {/* Paintbrush extending from beak */}
-      <path d="M 99 46 L 114 32" />
-      {/* Ferrule */}
-      <path d="M 110 36 L 113 33" opacity="0.7" />
-      {/* Bristles fan */}
-      <path d="M 114 32 L 118 28" />
-      <path d="M 114 32 L 116 26" />
-      <path d="M 114 32 L 119 31" />
-
-      {/* Wing */}
-      <path d="M 84 62 Q 92 60 99 68" />
-      <path d="M 86 68 Q 92 66 97 72" opacity="0.6" />
-
-      {/* Tail */}
-      <path d="M 78 70 L 72 82" />
-
-      {/* Legs + perch */}
-      <path d="M 87 80 L 87 88" />
-      <path d="M 93 80 L 93 88" />
-      <path d="M 70 90 L 106 90" />
-    </svg>
   );
 }
 
 export default function Product() {
   const readingIconClass =
-    "mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-psitta-50 text-psitta-600";
+    "shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-psitta-50 text-psitta-600";
   const creativeIconClass =
-    "mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-ink-muted";
+    "shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-ink-muted";
 
   return (
     <section className="py-section">
@@ -320,57 +193,71 @@ export default function Product() {
           you actually wrote.
         </p>
 
-        <div className="mt-16 flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-6">
-          <div className="text-psitta-600">
-            <ReadingIllustration />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-ink-primary">
-              Reading Nook
-            </h2>
-            <p className="mt-2 text-ink-body leading-relaxed max-w-xl">
-              Listen to your documents with pixel-accurate highlighting and
-              premium neural voices. Free and Pro tiers available.
-            </p>
+        <div className="mt-16">
+          <h2 className="text-2xl font-bold text-ink-primary">
+            Reading Nook
+          </h2>
+          <p className="mt-2 text-ink-body leading-relaxed max-w-xl">
+            Listen to your documents with pixel-accurate highlighting and
+            premium neural voices. Free and Pro tiers available.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 items-start">
+            <div className="flex justify-center">
+              <img
+                src="/brand/reading-nook-illustration_blended.png"
+                alt="Reading Nook — parrot reading a book with highlighted text and sound waves"
+                width={480}
+                height={480}
+                className="w-72 sm:w-80 lg:w-96 h-auto rounded-3xl bg-[#FAFAF7] mix-blend-multiply"
+              />
+            </div>
+            <div className="space-y-6">
+              {readingFeatures.map((feature) => (
+                <FeatureCard
+                  key={feature.title}
+                  feature={feature}
+                  iconContainerClass={readingIconClass}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
-        {readingFeatures.map((feature) => (
-          <FeatureBlock
-            key={feature.title}
-            feature={feature}
-            iconContainerClass={readingIconClass}
-          />
-        ))}
-
         <div className="mt-20 border-t border-edge-subtle pt-16">
-          <div className="flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-6">
-            <div className="text-ink-muted">
-              <CreativeIllustration />
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-ink-primary">
+              Creative Nook
+            </h2>
+            <span className="rounded-full bg-ink-muted px-3 py-0.5 text-xs font-semibold text-white">
+              Coming soon
+            </span>
+          </div>
+          <p className="mt-2 text-ink-body leading-relaxed max-w-xl">
+            Expand beyond reading into structured content creation.
+            Available as an add-on to Reading Nook Pro.
+          </p>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 items-start">
+            <div className="space-y-6 order-last lg:order-1">
+              {creativeFeatures.map((feature) => (
+                <FeatureCard
+                  key={feature.title}
+                  feature={feature}
+                  iconContainerClass={creativeIconClass}
+                />
+              ))}
             </div>
-            <div>
-              <div className="flex items-center gap-3">
-                <h2 className="text-2xl font-bold text-ink-primary">
-                  Creative Nook
-                </h2>
-                <span className="rounded-full bg-ink-muted px-3 py-0.5 text-xs font-semibold text-white">
-                  Coming soon
-                </span>
-              </div>
-              <p className="mt-2 text-ink-body leading-relaxed max-w-xl">
-                Expand beyond reading into structured content creation.
-                Available as an add-on to Reading Nook Pro.
-              </p>
+            <div className="flex justify-center order-first lg:order-2">
+              <img
+                src="/brand/creative-nook-illustration_blended.png"
+                alt="Creative Nook — parrot on a creative workspace with documents and tools"
+                width={480}
+                height={480}
+                className="w-72 sm:w-80 lg:w-96 h-auto rounded-3xl bg-[#FAFAF7] mix-blend-multiply"
+              />
             </div>
           </div>
-
-          {creativeFeatures.map((feature) => (
-            <FeatureBlock
-              key={feature.title}
-              feature={feature}
-              iconContainerClass={creativeIconClass}
-            />
-          ))}
         </div>
 
         <div className="mt-20 text-center">
