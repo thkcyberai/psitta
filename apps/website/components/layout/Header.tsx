@@ -4,7 +4,7 @@ import Button from "@/components/ui/Button";
 import Container from "@/components/ui/Container";
 
 const NAV_ITEMS = [
-  { label: "Product", href: "/#product" },
+  { label: "Product", href: "/product" },
   { label: "Pricing", href: "/pricing" },
   { label: "Download", href: "/download" },
 ];
