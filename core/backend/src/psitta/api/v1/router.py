@@ -19,6 +19,7 @@ from psitta.api.v1.contact import router as contact_router
 from psitta.api.v1.documents import router as documents_router
 from psitta.api.v1.playback import router as playback_router
 from psitta.api.v1.projects import router as projects_router
+from psitta.api.v1.signup import router as signup_router
 from psitta.api.v1.subscriptions import router as subscriptions_router
 from psitta.api.v1.tts import router as tts_router
 from psitta.api.v1.users import router as users_router
@@ -89,4 +90,10 @@ v1_router.include_router(
 v1_router.include_router(
     contact_router,
     tags=["contact"],
+)
+
+# ── Signup list (public) ──────────────────────────────────────────────
+v1_router.include_router(
+    signup_router,
+    tags=["signup"],
 )
