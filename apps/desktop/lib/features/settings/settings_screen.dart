@@ -7,6 +7,7 @@ import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
+import '../../shared/widgets/psitta_logo.dart';
 import '../../widgets/user_avatar.dart';
 
 String _autoDeleteLabel(int? days) =>
@@ -303,6 +304,7 @@ class _SettingsBrandingPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final primaryText = theme.colorScheme.onSurface;
     final mutedText = theme.colorScheme.onSurfaceVariant;
 
@@ -316,12 +318,12 @@ class _SettingsBrandingPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 16),
-              Image.asset(
-                'assets/branding/psitta-horizontal.png',
-                width: 280,
-                height: 100,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
+              Opacity(
+                opacity: isDark ? 0.30 : 1.0,
+                child: const PsittaLogo(
+                  width: 280,
+                  height: 100,
+                ),
               ),
               const SizedBox(height: 24),
               Text(

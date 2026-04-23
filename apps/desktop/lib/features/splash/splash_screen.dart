@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/services/auth_service.dart';
+import '../../shared/widgets/psitta_logo.dart';
 
 /// First screen shown on cold app launch. Renders the Psitta
 /// horizontal logo on a cream background for 1.5 seconds, then
@@ -31,22 +32,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAF7),
+    return const Scaffold(
+      backgroundColor: Color(0xFFFAFAF7),
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Image.asset(
-              'assets/branding/psitta-horizontal.png',
+            PsittaLogo(
               width: 320,
               height: 120,
-              fit: BoxFit.contain,
-              filterQuality: FilterQuality.high,
             ),
-            const SizedBox(height: 24),
-            const SizedBox(
+            SizedBox(height: 24),
+            SizedBox(
               width: 20,
               height: 20,
               child: CircularProgressIndicator(

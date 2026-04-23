@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'player_bar.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
+import '../../../shared/widgets/psitta_logo.dart';
 
 class SidebarNav extends StatelessWidget {
   const SidebarNav({super.key, required this.isCollapsed});
@@ -103,6 +104,7 @@ class _BrandFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // IMPORTANT: no decoration, no borderRadius, no border, no Card.
     // Just the image on the sidebar surface.
@@ -123,12 +125,12 @@ class _BrandFooter extends StatelessWidget {
               ),
             )
           : Center(
-              child: Image.asset(
-                'assets/branding/psitta-horizontal.png',
-                width: 240,
-                height: 80,
-                fit: BoxFit.contain,
-                filterQuality: FilterQuality.high,
+              child: Opacity(
+                opacity: isDark ? 0.30 : 1.0,
+                child: const PsittaLogo(
+                  width: 240,
+                  height: 80,
+                ),
               ),
             ),
     );
