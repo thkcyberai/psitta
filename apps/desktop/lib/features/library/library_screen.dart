@@ -1036,7 +1036,7 @@ class _LibraryRightPanel extends StatelessWidget {
             Opacity(
               opacity: 0.25,
               child: Image.asset(
-                'assets/branding/Logo.png',
+                'assets/branding/psitta-bird.png',
                 width: 72,
                 height: 72,
               ),

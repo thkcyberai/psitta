@@ -5,6 +5,7 @@ import '../../data/services/auth_service.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/auth/plan_selection_screen.dart';
 import '../../features/shell/desktop_shell.dart';
+import '../../features/splash/splash_screen.dart';
 import '../../features/library/library_screen.dart';
 import '../../features/player/player_screen.dart';
 import '../../features/player/player_landing_screen.dart';
@@ -42,23 +43,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   ref.onDispose(notifier.dispose);
 
   return GoRouter(
-    initialLocation: ref.read(authStateProvider).status == AuthStatus.authenticated
-        ? '/library'
-        : '/login',
+    initialLocation: '/',
     refreshListenable: notifier,
     redirect: (context, state) {
+      final path = state.uri.path;
+      // SplashScreen handles its own post-delay navigation. Skip the
+      // auth guard here so the splash renders on cold launch regardless
+      // of auth state. Re-navigation to '/' is never triggered after
+      // login/logout, so no loop is possible.
+      if (path == '/') return null;
+
       final authState = ref.read(authStateProvider);
       final loggedIn = authState.status == AuthStatus.authenticated;
-      final onLogin = state.uri.toString() == '/login';
+      final onLogin = path == '/login';
 
       // Not logged in and not already on login → go to login.
       if (!loggedIn && !onLogin) return '/login';
       // Logged in but on login page → go to library.
       if (loggedIn && onLogin) return '/library';
-      if (state.uri.toString() == '/') return '/library';
       return null;
     },
     routes: [
+      GoRoute(
+        path: '/',
+        pageBuilder: (context, state) => const NoTransitionPage(
+          child: SplashScreen(),
+        ),
+      ),
       GoRoute(
         path: '/login',
         pageBuilder: (context, state) => const NoTransitionPage(

@@ -115,7 +115,7 @@ class _BrandFooter extends StatelessWidget {
       child: isCollapsed
           ? Center(
               child: Image.asset(
-                'assets/branding/Logo.png',
+                'assets/branding/psitta-bird.png',
                 width: 46,
                 height: 46,
                 fit: BoxFit.contain,
@@ -124,7 +124,7 @@ class _BrandFooter extends StatelessWidget {
             )
           : Center(
               child: Image.asset(
-                'assets/branding/Logo.png',
+                'assets/branding/psitta-horizontal.png',
                 width: 240,
                 height: 80,
                 fit: BoxFit.contain,
