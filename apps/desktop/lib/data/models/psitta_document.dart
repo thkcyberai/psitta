@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import '../../features/player/chunk_slicer.dart' show ChunkPositionRange;
+
 /// Inline text run with optional formatting.
 @immutable
 class DocRun {
@@ -118,6 +120,7 @@ class PsittaDocument {
     required this.plainText,
     required this.sentences,
     required this.chunkMap,
+    this.chunkPositions,
   });
 
   final String id;
@@ -132,6 +135,11 @@ class PsittaDocument {
 
   /// Maps backend chunks to document-level offset ranges.
   final List<ChunkRef> chunkMap;
+
+  /// Authoritative chunk-offset map persisted on `documents.chunk_positions`
+  /// by the M13.1b unified-editor save path. Null for pre-M13.1b documents
+  /// (the client then falls back to [chunkMap] — lazy migration).
+  final List<ChunkPositionRange>? chunkPositions;
 
   /// Find the chunk that contains a given document-level character offset.
   ChunkRef? chunkForOffset(int docOffset) {

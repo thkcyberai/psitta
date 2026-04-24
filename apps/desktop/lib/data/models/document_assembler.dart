@@ -1,3 +1,4 @@
+import '../../features/player/chunk_slicer.dart';
 import 'psitta_document.dart';
 
 /// Builds a [PsittaDocument] from the backend chunks API response.
@@ -59,6 +60,24 @@ class DocumentAssembler {
     final documentId = (data['document_id'] ?? '').toString();
     final rawChunks = (data['chunks'] as List<dynamic>?) ?? [];
 
+    // M13.1b — parse the authoritative chunk-offset map from the
+    // server response when present. Keyed by chunk_id for fast
+    // per-chunk lookup during the assembly loop. Null/absent on
+    // pre-M13.1b documents; we fall back to the computed cursor.
+    final rawPositions = data['chunk_positions'];
+    List<ChunkPositionRange>? chunkPositions;
+    Map<String, ChunkPositionRange>? positionsById;
+    if (rawPositions is List) {
+      chunkPositions = rawPositions
+          .whereType<Map>()
+          .map((e) =>
+              ChunkPositionRange.fromJson(Map<String, dynamic>.from(e)))
+          .toList();
+      positionsById = <String, ChunkPositionRange>{
+        for (final r in chunkPositions) r.chunkId: r,
+      };
+    }
+
     final blocks = <DocBlock>[];
     final sentences = <DocSentence>[];
     final chunkMapEntries = <ChunkRef>[];
@@ -78,7 +97,12 @@ class DocumentAssembler {
       final useFormatted =
           _formattedContentMatchesChunkText(formatted, chunkText);
 
-      final chunkTextOffset = docCharCursor;
+      // Prefer the server-authoritative position map when present; fall
+      // back to the running cursor for pre-M13.1b documents. The cursor
+      // still advances in lockstep so it stays correct as a fallback on
+      // any later chunk that may be missing from positionsById.
+      final serverRange = positionsById?[chunkId];
+      final chunkTextOffset = serverRange?.startOffset ?? docCharCursor;
 
       // ── Build blocks ──
       if (useFormatted) {
@@ -230,6 +254,7 @@ class DocumentAssembler {
       plainText: plainTextBuf.toString(),
       sentences: sentences,
       chunkMap: chunkMapEntries,
+      chunkPositions: chunkPositions,
     );
   }
 

@@ -1572,16 +1572,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return true;
   }
 
-  /// M13.1a unified save path.
+  /// M13.1b unified save path.
   ///
-  /// 1. Serialize the unified Quill Document → flat block-dict list via
-  ///    the existing [_quillDocumentToBlockDicts].
-  /// 2. Slice the flat list into fixed-window chunks (~500 words) via
-  ///    [sliceBlocksIntoChunks].
-  /// 3. Positional one-to-one diff against the pre-edit chunk ID list.
-  ///    If chunk counts match, PATCH each chunk in order. If counts
-  ///    differ, surface a SnackBar and keep the in-memory edit — the
-  ///    structural-change path lands in M13.1b.
+  /// 1. Serialize the unified Quill Document → flat block-dict list.
+  /// 2. Slice into fixed ~500-word windows.
+  /// 3. Match sliced chunks to pre-edit chunk_ids via content hash +
+  ///    same-position fallback ([assignChunkIdsByContent]).
+  /// 4. Orchestrator fans out UPDATEs → INSERTs → DELETEs, then
+  ///    PATCHes `chunk_positions` + `chunk_count` on the document in
+  ///    one backend transaction that also reindexes sequence_index.
+  ///
+  /// Structural changes (inserts, deletes) are fully supported; the
+  /// M13.1a "This edit changes the document structure" SnackBar is no
+  /// longer emitted.
   Future<bool> _saveDocxEditUnified(PsittaDocument document) async {
     debugPrint(
         '[_saveDocxEditUnified] called — _hasUnsavedChanges=$_hasUnsavedChanges');
@@ -1623,12 +1626,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     debugPrint(
         '[_saveDocxEditUnified] serialized ${flatBlocks.length} blocks');
 
-    // No-op guard: if the serialized document is byte-for-byte identical
-    // to the pre-edit snapshot, skip slicing entirely. This prevents the
-    // structural-mismatch SnackBar from firing spuriously when the user
-    // entered edit mode but made no changes (ingest-time chunks may not
-    // align to the 500-word window, so re-slicing would trip the guard
-    // below on an unedited doc).
+    // No-op guard — short-circuit zero-delta saves before any network.
     if (jsonEncode(flatBlocks) ==
         jsonEncode(_docxOriginalUnifiedBlockDicts)) {
       debugPrint(
@@ -1642,117 +1640,106 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     debugPrint(
         '[_saveDocxEditUnified] sliced into ${slicedChunks.length} chunks');
 
-    // Step 3: Match positionally against the pre-edit chunk ID list.
+    // Step 3: Content-hash match against the pre-edit chunk IDs. Keeps
+    // match chunks whose normalized text is identical; same-position
+    // unmatched chunks degrade to UPDATE so the audit trail survives.
     final preEditChunkIds =
         document.chunkMap.map((c) => c.chunkId).toList();
+    final assignments = assignChunkIdsByContent(
+      slicedChunks,
+      preEditChunkIds,
+      _docxOriginalChunkTexts,
+    );
 
-    if (slicedChunks.length != preEditChunkIds.length) {
+    final keeps = assignments.where((a) => a.action == ChunkAction.keep).length;
+    final updates = assignments.where((a) => a.action == ChunkAction.update).length;
+    final inserts = assignments.where((a) => a.action == ChunkAction.insert).length;
+    final deletes = assignments.where((a) => a.action == ChunkAction.delete).length;
+    final nonDeleteCount = assignments.length - deletes;
+    final preservedRatio =
+        nonDeleteCount == 0 ? 0.0 : keeps / nonDeleteCount;
+    debugPrint(
+        '[_saveDocxEditUnified] assignments keeps=$keeps updates=$updates '
+        'inserts=$inserts deletes=$deletes '
+        'chunks_preserved_ratio=${preservedRatio.toStringAsFixed(2)}');
+
+    if (keeps == assignments.length && updates == 0 && inserts == 0 && deletes == 0) {
+      // Everything matched as KEEP — no edits reached the wire.
       debugPrint(
-          '[_saveDocxEditUnified] chunk count mismatch '
-          'sliced=${slicedChunks.length} preEdit=${preEditChunkIds.length} '
-          '— structural-change path not implemented in M13.1a');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'This edit changes the document structure. Full structural '
-              'saves arrive in the next update — your changes are preserved '
-              'in the editor.',
-            ),
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-      return false;
-    }
-
-    // Build per-chunk text + formatted_content maps aligned to the
-    // pre-edit chunk IDs by position.
-    final nextChunkTexts = <String, String>{};
-    final nextChunkFormatted = <String, List<Map<String, dynamic>>>{};
-    for (var i = 0; i < slicedChunks.length; i++) {
-      final chunkId = preEditChunkIds[i];
-      nextChunkTexts[chunkId] = sanitizeForTts(slicedChunks[i].plainText);
-      nextChunkFormatted[chunkId] = slicedChunks[i].blockDicts;
-    }
-
-    // Diff against the pre-edit snapshots to avoid unnecessary PATCHes
-    // (preserves TTS audio cache when the user changed formatting but
-    // not text — or did not touch a chunk at all). Formatted-content
-    // equality is a jsonEncode comparison because maps with the same
-    // keys in different insertion orders would trip on ==.
-    final changedChunkTexts = <String, String>{};
-    final changedChunkFormatted = <String, List<Map<String, dynamic>>>{};
-    for (final entry in nextChunkTexts.entries) {
-      final chunkId = entry.key;
-      final previousText =
-          _docxOriginalChunkTexts[chunkId] ?? '';
-      final textDiffers =
-          sanitizeForTts(entry.value) != sanitizeForTts(previousText);
-      final previousBlocks =
-          _docxOriginalChunkFormatted[chunkId] ?? const <Map<String, dynamic>>[];
-      final currentBlocks = nextChunkFormatted[chunkId] ??
-          const <Map<String, dynamic>>[];
-      final fmtDiffers =
-          jsonEncode(currentBlocks) != jsonEncode(previousBlocks);
-      if (textDiffers || fmtDiffers) {
-        changedChunkTexts[chunkId] = sanitizeForTts(entry.value);
-        changedChunkFormatted[chunkId] = currentBlocks;
-      }
-    }
-
-    if (changedChunkTexts.isEmpty) {
-      debugPrint(
-          '[_saveDocxEditUnified] no text or formatting changes — exiting');
+          '[_saveDocxEditUnified] all keeps, no writes needed — exiting');
       _exitEditMode();
       return true;
     }
 
-    debugPrint(
-        '[_saveDocxEditUnified] saving ${changedChunkTexts.length}/${slicedChunks.length} '
-        'chunks');
-    for (final entry in changedChunkTexts.entries) {
-      debugPrint(
-          '[_saveDocxEditUnified] SAVING chunk_id=${entry.key} '
-          'text.len=${entry.value.length} '
-          'fmt.blocks=${changedChunkFormatted[entry.key]?.length ?? 0}');
-    }
-
+    // Step 4: Fan out via the orchestrator.
     final notifier = ref.read(chunkEditorProvider.notifier);
-    final success = await notifier.saveChunkTexts(
+    final success = await notifier.saveDocumentChunks(
       documentId: widget.documentId,
-      chunkTexts: changedChunkTexts,
-      chunkFormatted: changedChunkFormatted,
+      assignments: assignments,
     );
     debugPrint(
-        '[_saveDocxEditUnified] saveChunkTexts returned success=$success');
+        '[_saveDocxEditUnified] saveDocumentChunks returned success=$success');
 
-    if (!success || !mounted) return false;
+    if (!success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Save failed — please try again. Your changes are preserved.',
+            ),
+            duration: Duration(seconds: 4),
+          ),
+        );
+        setState(() {
+          _hasUnsavedChanges = true;
+        });
+      }
+      return false;
+    }
+    if (!mounted) return false;
 
     // Update snapshots so the next save diff runs from the new baseline.
     _docxOriginalUnifiedBlockDicts = flatBlocks;
     _docxOriginalUnifiedPlainText =
         sanitizeForTts(controller.document.toPlainText());
-    _docxOriginalChunkTexts.addAll(changedChunkTexts);
-    for (final entry in nextChunkFormatted.entries) {
-      _docxOriginalChunkFormatted[entry.key] = entry.value;
+    // For UPDATE chunks the chunk_id is unchanged, so seed the pre-edit
+    // maps from the sliced content. Inserts are handled on the next
+    // load (when chunksProvider refreshes with new chunk_ids).
+    for (final a in assignments) {
+      if (a.action == ChunkAction.update || a.action == ChunkAction.keep) {
+        final cid = a.chunkId;
+        final s = a.slicedChunk;
+        if (cid == null || s == null) continue;
+        _docxOriginalChunkTexts[cid] = sanitizeForTts(s.plainText);
+        _docxOriginalChunkFormatted[cid] = s.blockDicts;
+      } else if (a.action == ChunkAction.delete) {
+        final cid = a.chunkId;
+        if (cid != null) {
+          _docxOriginalChunkTexts.remove(cid);
+          _docxOriginalChunkFormatted.remove(cid);
+        }
+      }
     }
 
     setState(() {
       _hasUnsavedChanges = false;
     });
 
-    // Invalidate audio cache + alignment providers for the affected
-    // chunks so next playback re-synthesizes against the new text.
+    // Invalidate audio cache + alignment providers for every chunk
+    // that changed (updates + all inserts since they're brand-new).
+    // Deletes are already handled server-side by delete_chunk's call
+    // to _invalidate_chunk_audio_cache.
     final voiceId = ref.read(selectedVoiceIdProvider);
     final audio = ref.read(audioServiceProvider);
-    for (final chunkId in changedChunkTexts.keys) {
-      unawaited(audio.invalidateChunkCache(chunkId));
-      ref.invalidate(chunkAlignmentProvider(AlignmentKey(
-        documentId: widget.documentId,
-        chunkId: chunkId,
-        voiceId: voiceId,
-      )));
+    for (final a in assignments) {
+      if (a.action == ChunkAction.update && a.chunkId != null) {
+        unawaited(audio.invalidateChunkCache(a.chunkId!));
+        ref.invalidate(chunkAlignmentProvider(AlignmentKey(
+          documentId: widget.documentId,
+          chunkId: a.chunkId!,
+          voiceId: voiceId,
+        )));
+      }
     }
 
     ref.invalidate(chunksProvider(widget.documentId));
