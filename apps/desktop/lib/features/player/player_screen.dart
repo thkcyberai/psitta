@@ -904,6 +904,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final chunkId = (chunk['id'] ?? '').toString();
       _docxOriginalChunkTexts[chunkId] =
           (chunk['text_content'] ?? '').toString();
+      // Also snapshot formatted_content so the save path can detect
+      // formatting-only edits (those don't alter plain text, so the
+      // content-hash matcher returns KEEP — we rely on the pre-edit
+      // formatted_content to promote KEEP→UPDATE when the block dicts
+      // actually changed).
+      final fc = chunk['formatted_content'];
+      if (fc is List) {
+        _docxOriginalChunkFormatted[chunkId] = fc
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+      }
     }
 
     debugPrint(
@@ -1650,6 +1662,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       preEditChunkIds,
       _docxOriginalChunkTexts,
     );
+
+    // M13.1b regression fix: assignChunkIdsByContent hashes on plain text
+    // only, so formatting-only edits (Bold/Italic/Underline/FontSize) come
+    // back as KEEP for every chunk. Promote to UPDATE when the sliced
+    // blockDicts differ from the pre-edit formatted_content snapshot so
+    // the orchestrator actually writes the new formatted_content.
+    var promoted = 0;
+    for (var i = 0; i < assignments.length; i++) {
+      final a = assignments[i];
+      if (a.action != ChunkAction.keep) continue;
+      final cid = a.chunkId;
+      final s = a.slicedChunk;
+      if (cid == null || s == null) continue;
+      final previousBlocks =
+          _docxOriginalChunkFormatted[cid] ?? const <Map<String, dynamic>>[];
+      if (jsonEncode(s.blockDicts) != jsonEncode(previousBlocks)) {
+        assignments[i] = a.copyWith(action: ChunkAction.update);
+        promoted++;
+      }
+    }
+    if (promoted > 0) {
+      debugPrint(
+          '[_saveDocxEditUnified] promoted $promoted keep→update '
+          '(formatting-only diff)');
+    }
 
     final keeps = assignments.where((a) => a.action == ChunkAction.keep).length;
     final updates = assignments.where((a) => a.action == ChunkAction.update).length;
