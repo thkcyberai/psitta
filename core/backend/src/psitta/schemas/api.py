@@ -229,6 +229,12 @@ class UserPreferencesUpdate(StrictSchema):
 
 class ChunkUpdateRequest(BaseModel):
     text: str
+    # Client-authored block/run JSON matching the formatted_content schema
+    # produced by _extract_formatted_docx. When present, the handler stores
+    # it verbatim; when None, the handler falls back to the server-side
+    # _rebuild_formatted_content_for_chunk inheritance path for backward
+    # compatibility with text-only callers.
+    formatted_content: Optional[list[dict]] = None
 
 
 class ChunkResponse(BaseModel):

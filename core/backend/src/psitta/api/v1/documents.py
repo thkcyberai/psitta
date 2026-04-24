@@ -1492,10 +1492,17 @@ async def update_chunk_text(
         cursor = end
 
     updated_meta = {**existing_meta, "sentence_boundaries": boundaries}
-    updated_formatted = _rebuild_formatted_content_for_chunk(
-        new_text,
-        chunk.formatted_content if isinstance(chunk.formatted_content, list) else None,
-    )
+    # Prefer client-authored formatted_content when supplied (the Phase 1
+    # toolbar-persist path). Falls back to the legacy server-side rebuild
+    # that inherits first-run attributes from pre-edit state when the
+    # caller sent only plain text, preserving backward compatibility.
+    if request.formatted_content is not None:
+        updated_formatted = request.formatted_content
+    else:
+        updated_formatted = _rebuild_formatted_content_for_chunk(
+            new_text,
+            chunk.formatted_content if isinstance(chunk.formatted_content, list) else None,
+        )
     meta_json = json.dumps(updated_meta, ensure_ascii=False)
     fmt_json = json.dumps(updated_formatted, ensure_ascii=False) if updated_formatted else None
 
