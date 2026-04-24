@@ -232,4 +232,46 @@ class DocumentAssembler {
       chunkMap: chunkMapEntries,
     );
   }
+
+  /// Flatten a [PsittaDocument] into the canonical block-dict list used by
+  /// the unified-editor Delta builder. Each block dict has the same shape
+  /// the save-path consumes (`{type, level?, runs:[{text, bold?, italic?,
+  /// underline?, font_size?}]}`), so a load → edit → save round-trip is
+  /// byte-identical when the user makes no changes.
+  static List<Map<String, dynamic>> flatBlockDicts(PsittaDocument doc) {
+    final out = <Map<String, dynamic>>[];
+    for (final block in doc.blocks) {
+      final runs = <Map<String, dynamic>>[];
+      for (final run in block.runs) {
+        if (run.text.isEmpty) continue;
+        final entry = <String, dynamic>{'text': run.text};
+        if (run.bold) entry['bold'] = true;
+        if (run.italic) entry['italic'] = true;
+        if (run.underline) entry['underline'] = true;
+        if (run.fontSize != null) entry['font_size'] = run.fontSize;
+        runs.add(entry);
+      }
+      if (runs.isEmpty) {
+        runs.add(<String, dynamic>{'text': ''});
+      }
+      final dict = <String, dynamic>{
+        'type': _blockTypeToString(block.type),
+        'runs': runs,
+      };
+      if (block.level != null) dict['level'] = block.level;
+      out.add(dict);
+    }
+    return out;
+  }
+
+  static String _blockTypeToString(DocBlockType type) {
+    switch (type) {
+      case DocBlockType.heading:
+        return 'heading';
+      case DocBlockType.listItem:
+        return 'list_item';
+      case DocBlockType.paragraph:
+        return 'paragraph';
+    }
+  }
 }

@@ -7,8 +7,10 @@ class DocxDocumentEditor extends StatefulWidget {
   const DocxDocumentEditor({
     super.key,
     required this.document,
-    required this.controllers,
-    required this.focusNodes,
+    this.controllers = const {},
+    this.focusNodes = const {},
+    this.unifiedController,
+    this.unifiedFocusNode,
     this.error,
     this.isSaving = false,
     this.onChanged,
@@ -16,11 +18,25 @@ class DocxDocumentEditor extends StatefulWidget {
   });
 
   final PsittaDocument document;
+
+  // ── Per-paragraph mode (legacy fallback) ────────────────────────────
   final Map<String, QuillController> controllers;
+
   /// Long-lived focus nodes keyed by blockId, owned by the parent so
   /// external callers (e.g. find-in-document) can request focus for a
-  /// specific block's QuillEditor.
+  /// specific block's QuillEditor. Ignored in unified mode.
   final Map<String, FocusNode> focusNodes;
+
+  // ── Unified mode (M13.1a) ───────────────────────────────────────────
+  /// When non-null, the widget renders a single Quill editor bound to
+  /// this controller instead of one editor per DocBlock. Cursor,
+  /// selection, undo/redo, clipboard and keyboard shortcuts all flow
+  /// across paragraphs natively.
+  final QuillController? unifiedController;
+
+  /// Long-lived focus node for the unified editor.
+  final FocusNode? unifiedFocusNode;
+
   final String? error;
   final bool isSaving;
   final VoidCallback? onChanged;
@@ -34,24 +50,42 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
   QuillController? _activeController;
   final Set<QuillController> _listening = {};
 
+  bool get _isUnifiedMode => widget.unifiedController != null;
+
   @override
   void initState() {
     super.initState();
-    _activeController = _firstController;
-    _attachListeners();
-    // Notify parent of the initial active controller.
-    if (_activeController != null) {
+    if (_isUnifiedMode) {
+      _attachUnifiedListener(widget.unifiedController!);
+      // Toolbar binds to the unified controller — notify the parent once
+      // on first build so the sticky toolbar has a controller to paint.
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        widget.onActiveControllerChanged?.call(_activeController!);
+        widget.onActiveControllerChanged?.call(widget.unifiedController!);
       });
+    } else {
+      _activeController = _firstController;
+      _attachListeners();
+      if (_activeController != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          widget.onActiveControllerChanged?.call(_activeController!);
+        });
+      }
     }
   }
 
   @override
   void didUpdateWidget(covariant DocxDocumentEditor oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // If the active controller was disposed (e.g. edit mode re-entered),
-    // fall back to the first available controller.
+    if (_isUnifiedMode) {
+      if (oldWidget.unifiedController != widget.unifiedController) {
+        _detachListeners();
+        _attachUnifiedListener(widget.unifiedController!);
+        widget.onActiveControllerChanged?.call(widget.unifiedController!);
+      }
+      return;
+    }
+    // Per-paragraph mode: if the active controller was disposed (e.g.
+    // edit mode re-entered), fall back to the first available one.
     if (_activeController == null ||
         !widget.controllers.containsValue(_activeController)) {
       _activeController = _firstController;
@@ -73,6 +107,12 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
       if (_listening.add(controller)) {
         controller.addListener(_onAnyChange);
       }
+    }
+  }
+
+  void _attachUnifiedListener(QuillController controller) {
+    if (_listening.add(controller)) {
+      controller.addListener(_onAnyChange);
     }
   }
 
@@ -107,6 +147,130 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isUnifiedMode) {
+      return _buildUnifiedEditor(context);
+    }
+    return _buildPerParagraphEditor(context);
+  }
+
+  Widget _buildUnifiedEditor(BuildContext context) {
+    final theme = Theme.of(context);
+    final controller = widget.unifiedController!;
+    final focusNode = widget.unifiedFocusNode;
+
+    final paragraphStyle = theme.textTheme.bodyLarge?.copyWith(
+          height: 1.8,
+          fontSize: 16,
+        ) ??
+        const TextStyle(fontSize: 16, height: 1.8);
+    final h1Style = theme.textTheme.headlineMedium?.copyWith(height: 1.6) ??
+        const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, height: 1.6);
+    final h2Style = theme.textTheme.headlineSmall?.copyWith(height: 1.6) ??
+        const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.6);
+    final h3Style = theme.textTheme.titleLarge?.copyWith(height: 1.6) ??
+        const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.6);
+    final listStyle = theme.textTheme.bodyLarge
+            ?.copyWith(height: 1.6, fontSize: 16) ??
+        const TextStyle(fontSize: 16, height: 1.6);
+
+    final children = <Widget>[];
+    if (widget.error != null) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Text(
+            widget.error!,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.error),
+          ),
+        ),
+      );
+    }
+    if (widget.isSaving) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Saving document...',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.primary),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    children.add(
+      QuillEditor.basic(
+        controller: controller,
+        focusNode: focusNode,
+        configurations: QuillEditorConfigurations(
+          expands: false,
+          padding: EdgeInsets.zero,
+          scrollPhysics: const ClampingScrollPhysics(),
+          placeholder: '',
+          enableInteractiveSelection: true,
+          customStyles: DefaultStyles(
+            paragraph: DefaultTextBlockStyle(
+              paragraphStyle,
+              HorizontalSpacing.zero,
+              const VerticalSpacing(0, 8),
+              VerticalSpacing.zero,
+              null,
+            ),
+            h1: DefaultTextBlockStyle(
+              h1Style,
+              HorizontalSpacing.zero,
+              const VerticalSpacing(0, 16),
+              VerticalSpacing.zero,
+              null,
+            ),
+            h2: DefaultTextBlockStyle(
+              h2Style,
+              HorizontalSpacing.zero,
+              const VerticalSpacing(0, 12),
+              VerticalSpacing.zero,
+              null,
+            ),
+            h3: DefaultTextBlockStyle(
+              h3Style,
+              HorizontalSpacing.zero,
+              const VerticalSpacing(0, 12),
+              VerticalSpacing.zero,
+              null,
+            ),
+            lists: DefaultListBlockStyle(
+              listStyle,
+              HorizontalSpacing.zero,
+              const VerticalSpacing(0, 8),
+              VerticalSpacing.zero,
+              null,
+              null,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+
+  Widget _buildPerParagraphEditor(BuildContext context) {
     final theme = Theme.of(context);
     final children = <Widget>[];
 

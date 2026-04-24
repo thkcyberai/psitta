@@ -30,6 +30,27 @@ import 'widgets/pdf_player_navigator.dart';
 import 'widgets/word_highlight_view.dart';
 import '../../data/models/document_assembler.dart';
 import '../../data/models/psitta_document.dart';
+import 'chunk_slicer.dart';
+
+/// Character count above which the unified editor falls back to the
+/// legacy per-paragraph architecture. flutter_quill 10.8.x has known
+/// typing-latency degradation with single Documents above ~100k chars
+/// (GitHub issues #1670, #1842). Above the threshold we continue to
+/// render one controller per block, which stays responsive.
+const int kUnifiedEditorCharThreshold = 100000;
+
+/// Decide whether a document is small enough to use the unified
+/// per-document Quill controller. Measured against the sum of block
+/// plain-text lengths so we do not instantiate the unified controller
+/// on documents that would stutter.
+bool shouldUseUnifiedEditor(PsittaDocument doc) {
+  var total = 0;
+  for (final block in doc.blocks) {
+    total += block.plainText.length;
+    if (total > kUnifiedEditorCharThreshold) return false;
+  }
+  return true;
+}
 
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({
@@ -487,6 +508,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   PsittaDocument? _editingDocxDocument;
   quill.QuillController? _activeDocxController;
 
+  // ── M13.1a unified editor state ─────────────────────────────────────
+  // When active, _docxUnifiedEditMode is true and _docxBlockControllers
+  // stays empty; the whole document lives in the single unified
+  // controller below. When false, the legacy per-paragraph path is used
+  // (kept as a fallback for documents above kUnifiedEditorCharThreshold
+  // and as the first-year safety net for M13.1a).
+  bool _docxUnifiedEditMode = false;
+  quill.QuillController? _docxUnifiedController;
+  FocusNode? _docxUnifiedFocusNode;
+  // Pre-edit snapshot of the flat block-dict list — used by onChanged to
+  // detect dirty state and by _saveDocxEditUnified to compare against
+  // the current serialized document.
+  List<Map<String, dynamic>> _docxOriginalUnifiedBlockDicts = const [];
+  String _docxOriginalUnifiedPlainText = '';
+
   @override
   void initState() {
     super.initState();
@@ -729,19 +765,35 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  /// Enter DOCX edit mode. Dispatches to the unified editor when the
+  /// document fits under [kUnifiedEditorCharThreshold], otherwise falls
+  /// back to the legacy per-paragraph editor. Shared pre-flight steps
+  /// (pause audio, close find bar, flip the global editing provider)
+  /// happen once in this dispatcher.
   void _enterDocxEditMode(
     PsittaDocument document,
     List<dynamic> rawChunks,
   ) {
-    // Close the find bar before entering edit mode. While the QuillEditor
-    // is live it intercepts every keystroke that would otherwise reach
-    // the find-bar TextField, so typed characters get inserted into the
-    // active block instead of the search query.
     if (_showFindBar) _closeFindBar();
     final audioService = ref.read(audioServiceProvider);
     audioService.pause();
     ref.read(isInlineEditingProvider.notifier).state = true;
 
+    if (shouldUseUnifiedEditor(document)) {
+      _enterDocxEditModeUnified(document, rawChunks);
+    } else {
+      _enterDocxEditModePerParagraph(document, rawChunks);
+    }
+  }
+
+  /// Legacy per-paragraph edit mode. One QuillController per DocBlock.
+  /// Kept for large documents (> [kUnifiedEditorCharThreshold] chars)
+  /// where the unified Quill Document would stutter. All fields this
+  /// method populates are mutually exclusive with the unified path.
+  void _enterDocxEditModePerParagraph(
+    PsittaDocument document,
+    List<dynamic> rawChunks,
+  ) {
     for (final controller in _docxBlockControllers.values) {
       controller.dispose();
     }
@@ -777,17 +829,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _docxBlockChunkIds[block.blockId] = chunk.chunkId;
       } else {
         debugPrint(
-            '[_enterDocxEditMode] WARNING: block=${block.blockId} '
+            '[_enterDocxEditModePerParagraph] WARNING: block=${block.blockId} '
             'has NO chunk mapping (textOffset=${block.textOffset}) — '
             'edits to this block will be silently dropped at save');
       }
     }
     debugPrint(
-        '[_enterDocxEditMode] blocks=${document.blocks.length} '
+        '[_enterDocxEditModePerParagraph] blocks=${document.blocks.length} '
         'mapped=${_docxBlockChunkIds.length}');
     for (final entry in _docxBlockChunkIds.entries) {
       debugPrint(
-          '[_enterDocxEditMode] blockId=${entry.key} -> chunkId=${entry.value}');
+          '[_enterDocxEditModePerParagraph] blockId=${entry.key} -> chunkId=${entry.value}');
     }
 
     for (final rawChunk in rawChunks) {
@@ -796,7 +848,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _docxOriginalChunkTexts[chunkId] =
           (chunk['text_content'] ?? '').toString();
     }
-    // Snapshot the per-chunk formatted-block lists so _saveDocxEdit can
+    // Snapshot the per-chunk formatted-block lists so the save path can
     // detect formatting-only edits (which wouldn't change text_content).
     for (final chunkEntry in _docxChunkFormattedBlocks(document).entries) {
       _docxOriginalChunkFormatted[chunkEntry.key] = chunkEntry.value;
@@ -804,6 +856,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     setState(() {
       _isEditing = true;
+      _docxUnifiedEditMode = false;
       _editingChunkId = '';
       _originalText = '';
       _hasUnsavedChanges = false;
@@ -811,8 +864,83 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  /// M13.1a unified edit mode. One QuillController for the whole
+  /// document. Cursor, selection, undo/redo, clipboard and keyboard
+  /// shortcuts all flow across paragraph boundaries natively because
+  /// Quill treats the entire Delta as a single editable surface.
+  void _enterDocxEditModeUnified(
+    PsittaDocument document,
+    List<dynamic> rawChunks,
+  ) {
+    _disposeUnifiedEditorState();
+    // Also clear any lingering per-paragraph maps so the two code paths
+    // never mix. These should already be empty when entering unified
+    // mode, but the clears are cheap and defensive.
+    _docxBlockControllers.clear();
+    _docxBlockFocusNodes.clear();
+    _docxOriginalBlockTexts.clear();
+    _docxOriginalChunkTexts.clear();
+    _docxBlockChunkIds.clear();
+    _docxOriginalBlockFormatted.clear();
+    _docxOriginalChunkFormatted.clear();
+
+    final flatBlocks = DocumentAssembler.flatBlockDicts(document);
+    final quillDoc = _blockDictsToQuillDocument(flatBlocks);
+    final controller = quill.QuillController(
+      document: quillDoc,
+      selection: const TextSelection.collapsed(offset: 0),
+    );
+    final focusNode = FocusNode(debugLabel: 'docx-unified');
+
+    _docxUnifiedController = controller;
+    _docxUnifiedFocusNode = focusNode;
+    _docxOriginalUnifiedBlockDicts = flatBlocks;
+    _docxOriginalUnifiedPlainText = sanitizeForTts(quillDoc.toPlainText());
+
+    // Snapshot pre-edit chunk state for diff-save (M13.1a uses positional
+    // one-to-one matching; M13.1b will extend this with content hashing).
+    for (final rawChunk in rawChunks) {
+      final chunk = rawChunk as Map<String, dynamic>;
+      final chunkId = (chunk['id'] ?? '').toString();
+      _docxOriginalChunkTexts[chunkId] =
+          (chunk['text_content'] ?? '').toString();
+    }
+
+    debugPrint(
+        '[_enterDocxEditModeUnified] blocks=${flatBlocks.length} '
+        'chars=${_docxOriginalUnifiedPlainText.length}');
+
+    setState(() {
+      _isEditing = true;
+      _docxUnifiedEditMode = true;
+      _editingChunkId = '';
+      _originalText = '';
+      _hasUnsavedChanges = false;
+      _editingDocxDocument = document;
+    });
+
+    // Request focus on the next frame so the widget tree is built first.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _docxUnifiedFocusNode != null) {
+        _docxUnifiedFocusNode!.requestFocus();
+      }
+    });
+  }
+
+  void _disposeUnifiedEditorState() {
+    _docxUnifiedController?.dispose();
+    _docxUnifiedFocusNode?.dispose();
+    _docxUnifiedController = null;
+    _docxUnifiedFocusNode = null;
+    _docxOriginalUnifiedBlockDicts = const [];
+    _docxOriginalUnifiedPlainText = '';
+  }
+
   void _exitEditMode() {
     ref.read(isInlineEditingProvider.notifier).state = false;
+    // Tear down BOTH editor modes unconditionally. Only one of them has
+    // live state at any given time; the other's clears are no-ops.
+    _disposeUnifiedEditorState();
     for (final controller in _docxBlockControllers.values) {
       controller.dispose();
     }
@@ -828,6 +956,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _docxOriginalChunkFormatted.clear();
     setState(() {
       _isEditing = false;
+      _docxUnifiedEditMode = false;
       _editingChunkId = '';
       _originalText = '';
       _hasUnsavedChanges = false;
@@ -1033,6 +1162,67 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return quill.Document.fromJson(deltaJson);
   }
 
+  /// Unified-editor counterpart of [_blockDictToQuillDocument]: stitch a
+  /// flat block-dict list into ONE Quill [quill.Document].
+  ///
+  /// Each block's runs become inline `insert` ops carrying the Phase 1
+  /// attribute set ({bold, italic, underline, size}). The block is
+  /// terminated by a `\n` insert that carries block-level attributes
+  /// ({header, list}) — Quill's documented convention for paragraph,
+  /// heading and list styling (see flutter_quill-10.8.5/lib/src/document/
+  /// attribute.dart, `HeaderAttribute` and `ListAttribute`).
+  quill.Document _blockDictsToQuillDocument(
+    List<Map<String, dynamic>> blockDicts,
+  ) {
+    if (blockDicts.isEmpty) {
+      return quill.Document.fromJson(<Map<String, dynamic>>[
+        <String, dynamic>{'insert': '\n'}
+      ]);
+    }
+    final ops = <Map<String, dynamic>>[];
+    for (final block in blockDicts) {
+      final runs = (block['runs'] as List?) ?? const [];
+      for (final raw in runs) {
+        if (raw is! Map) continue;
+        final text = (raw['text'] ?? '') as String;
+        if (text.isEmpty) continue;
+        final attrs = <String, dynamic>{};
+        if (raw['bold'] == true) attrs['bold'] = true;
+        if (raw['italic'] == true) attrs['italic'] = true;
+        if (raw['underline'] == true) attrs['underline'] = true;
+        final fontSize = raw['font_size'];
+        if (fontSize != null) attrs['size'] = fontSize.toString();
+        final op = <String, dynamic>{'insert': text};
+        if (attrs.isNotEmpty) op['attributes'] = attrs;
+        ops.add(op);
+      }
+      // Close the block with a `\n` carrying any block-level attrs.
+      final blockAttrs = _blockLevelAttrs(block);
+      final newlineOp = <String, dynamic>{'insert': '\n'};
+      if (blockAttrs.isNotEmpty) newlineOp['attributes'] = blockAttrs;
+      ops.add(newlineOp);
+    }
+    return quill.Document.fromJson(ops);
+  }
+
+  /// Map a canonical block dict's block-level styling to the Quill
+  /// attribute shape. Heading uses `{'header': int}` (1–6); list items
+  /// use `{'list': 'bullet'}`. Keys and value types match the SDK's
+  /// [HeaderAttribute] (`'header'`, int) and [ListAttribute] (`'list'`,
+  /// string) conventions exactly.
+  Map<String, dynamic> _blockLevelAttrs(Map<String, dynamic> block) {
+    final type = block['type'] as String?;
+    if (type == 'heading') {
+      final level = block['level'];
+      if (level is int && level >= 1 && level <= 6) {
+        return <String, dynamic>{'header': level};
+      }
+    } else if (type == 'list_item') {
+      return <String, dynamic>{'list': 'bullet'};
+    }
+    return const <String, dynamic>{};
+  }
+
   /// Convert a [quill.Document] back into the canonical block-dict list,
   /// grouping consecutive inline inserts by identical attribute-set and
   /// splitting into multiple blocks on paragraph-break boundaries (the
@@ -1164,9 +1354,90 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  /// onChanged handler for the unified editor. Dirty check is a single
+  /// jsonEncode comparison between the current flat block-dict list and
+  /// the pre-edit snapshot captured in [_enterDocxEditModeUnified].
+  void _handleDocxUnifiedChanged() {
+    final controller = _docxUnifiedController;
+    if (controller == null) return;
+    final currentDicts = _quillDocumentToBlockDicts(
+      controller.document,
+      DocBlockType.paragraph,
+      null,
+    );
+    final changed = jsonEncode(currentDicts) !=
+        jsonEncode(_docxOriginalUnifiedBlockDicts);
+    if (changed != _hasUnsavedChanges && mounted) {
+      setState(() {
+        _hasUnsavedChanges = changed;
+      });
+    }
+  }
+
+  /// onChanged handler factory for per-paragraph (legacy) mode. Needs
+  /// [psittaDoc] in closure to look up each block's type/level when
+  /// serializing its QuillController. Returns a zero-arg callback
+  /// compatible with [DocxDocumentEditor.onChanged].
+  VoidCallback _handleDocxPerParagraphChanged(PsittaDocument psittaDoc) {
+    return () {
+      var changed = false;
+      for (final entry in _docxBlockControllers.entries) {
+        final blockId = entry.key;
+        final originalText =
+            _docxOriginalBlockTexts[blockId] ?? '';
+        if (sanitizeForTts(entry.value.document.toPlainText()) !=
+            sanitizeForTts(originalText)) {
+          changed = true;
+          break;
+        }
+        final originalBlock =
+            _docxOriginalBlockFormatted[blockId];
+        if (originalBlock != null) {
+          DocBlock? docBlock;
+          for (final candidate in psittaDoc.blocks) {
+            if (candidate.blockId == blockId) {
+              docBlock = candidate;
+              break;
+            }
+          }
+          if (docBlock != null) {
+            final currentBlockList = _quillDocumentToBlockDicts(
+              entry.value.document,
+              docBlock.type,
+              docBlock.level,
+            );
+            final originalBlockList = <Map<String, dynamic>>[
+              originalBlock,
+            ];
+            if (jsonEncode(currentBlockList) !=
+                jsonEncode(originalBlockList)) {
+              changed = true;
+              break;
+            }
+          }
+        }
+      }
+      if (changed != _hasUnsavedChanges && mounted) {
+        setState(() {
+          _hasUnsavedChanges = changed;
+        });
+      }
+    };
+  }
+
+  /// Save the DOCX edit. Dispatches to the unified save (M13.1a) when
+  /// the unified controller is active; otherwise falls through to the
+  /// legacy per-paragraph save.
   Future<bool> _saveDocxEdit(PsittaDocument document) async {
+    if (_docxUnifiedEditMode) {
+      return _saveDocxEditUnified(document);
+    }
+    return _saveDocxEditPerParagraph(document);
+  }
+
+  Future<bool> _saveDocxEditPerParagraph(PsittaDocument document) async {
     debugPrint(
-        '[_saveDocxEdit] called — _hasUnsavedChanges=$_hasUnsavedChanges');
+        '[_saveDocxEditPerParagraph] called — _hasUnsavedChanges=$_hasUnsavedChanges');
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1297,6 +1568,198 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       }
       return false;
     }
+    _exitEditMode();
+    return true;
+  }
+
+  /// M13.1a unified save path.
+  ///
+  /// 1. Serialize the unified Quill Document → flat block-dict list via
+  ///    the existing [_quillDocumentToBlockDicts].
+  /// 2. Slice the flat list into fixed-window chunks (~500 words) via
+  ///    [sliceBlocksIntoChunks].
+  /// 3. Positional one-to-one diff against the pre-edit chunk ID list.
+  ///    If chunk counts match, PATCH each chunk in order. If counts
+  ///    differ, surface a SnackBar and keep the in-memory edit — the
+  ///    structural-change path lands in M13.1b.
+  Future<bool> _saveDocxEditUnified(PsittaDocument document) async {
+    debugPrint(
+        '[_saveDocxEditUnified] called — _hasUnsavedChanges=$_hasUnsavedChanges');
+    final controller = _docxUnifiedController;
+    if (controller == null) {
+      debugPrint(
+          '[_saveDocxEditUnified] no unified controller — aborting');
+      return false;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Update Audio'),
+        content: const Text(
+          'Saving these changes will regenerate audio for the edited sections. '
+          'You may need to replay from the updated section to hear the new audio.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return false;
+
+    // Step 1: Serialize unified controller → flat block-dict list.
+    final flatBlocks = _quillDocumentToBlockDicts(
+      controller.document,
+      DocBlockType.paragraph,
+      null,
+    );
+    debugPrint(
+        '[_saveDocxEditUnified] serialized ${flatBlocks.length} blocks');
+
+    // No-op guard: if the serialized document is byte-for-byte identical
+    // to the pre-edit snapshot, skip slicing entirely. This prevents the
+    // structural-mismatch SnackBar from firing spuriously when the user
+    // entered edit mode but made no changes (ingest-time chunks may not
+    // align to the 500-word window, so re-slicing would trip the guard
+    // below on an unedited doc).
+    if (jsonEncode(flatBlocks) ==
+        jsonEncode(_docxOriginalUnifiedBlockDicts)) {
+      debugPrint(
+          '[_saveDocxEditUnified] no changes vs pre-edit snapshot — exiting');
+      _exitEditMode();
+      return true;
+    }
+
+    // Step 2: Slice into chunks (fixed ~500-word windows).
+    final slicedChunks = sliceBlocksIntoChunks(flatBlocks);
+    debugPrint(
+        '[_saveDocxEditUnified] sliced into ${slicedChunks.length} chunks');
+
+    // Step 3: Match positionally against the pre-edit chunk ID list.
+    final preEditChunkIds =
+        document.chunkMap.map((c) => c.chunkId).toList();
+
+    if (slicedChunks.length != preEditChunkIds.length) {
+      debugPrint(
+          '[_saveDocxEditUnified] chunk count mismatch '
+          'sliced=${slicedChunks.length} preEdit=${preEditChunkIds.length} '
+          '— structural-change path not implemented in M13.1a');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'This edit changes the document structure. Full structural '
+              'saves arrive in the next update — your changes are preserved '
+              'in the editor.',
+            ),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+      return false;
+    }
+
+    // Build per-chunk text + formatted_content maps aligned to the
+    // pre-edit chunk IDs by position.
+    final nextChunkTexts = <String, String>{};
+    final nextChunkFormatted = <String, List<Map<String, dynamic>>>{};
+    for (var i = 0; i < slicedChunks.length; i++) {
+      final chunkId = preEditChunkIds[i];
+      nextChunkTexts[chunkId] = sanitizeForTts(slicedChunks[i].plainText);
+      nextChunkFormatted[chunkId] = slicedChunks[i].blockDicts;
+    }
+
+    // Diff against the pre-edit snapshots to avoid unnecessary PATCHes
+    // (preserves TTS audio cache when the user changed formatting but
+    // not text — or did not touch a chunk at all). Formatted-content
+    // equality is a jsonEncode comparison because maps with the same
+    // keys in different insertion orders would trip on ==.
+    final changedChunkTexts = <String, String>{};
+    final changedChunkFormatted = <String, List<Map<String, dynamic>>>{};
+    for (final entry in nextChunkTexts.entries) {
+      final chunkId = entry.key;
+      final previousText =
+          _docxOriginalChunkTexts[chunkId] ?? '';
+      final textDiffers =
+          sanitizeForTts(entry.value) != sanitizeForTts(previousText);
+      final previousBlocks =
+          _docxOriginalChunkFormatted[chunkId] ?? const <Map<String, dynamic>>[];
+      final currentBlocks = nextChunkFormatted[chunkId] ??
+          const <Map<String, dynamic>>[];
+      final fmtDiffers =
+          jsonEncode(currentBlocks) != jsonEncode(previousBlocks);
+      if (textDiffers || fmtDiffers) {
+        changedChunkTexts[chunkId] = sanitizeForTts(entry.value);
+        changedChunkFormatted[chunkId] = currentBlocks;
+      }
+    }
+
+    if (changedChunkTexts.isEmpty) {
+      debugPrint(
+          '[_saveDocxEditUnified] no text or formatting changes — exiting');
+      _exitEditMode();
+      return true;
+    }
+
+    debugPrint(
+        '[_saveDocxEditUnified] saving ${changedChunkTexts.length}/${slicedChunks.length} '
+        'chunks');
+    for (final entry in changedChunkTexts.entries) {
+      debugPrint(
+          '[_saveDocxEditUnified] SAVING chunk_id=${entry.key} '
+          'text.len=${entry.value.length} '
+          'fmt.blocks=${changedChunkFormatted[entry.key]?.length ?? 0}');
+    }
+
+    final notifier = ref.read(chunkEditorProvider.notifier);
+    final success = await notifier.saveChunkTexts(
+      documentId: widget.documentId,
+      chunkTexts: changedChunkTexts,
+      chunkFormatted: changedChunkFormatted,
+    );
+    debugPrint(
+        '[_saveDocxEditUnified] saveChunkTexts returned success=$success');
+
+    if (!success || !mounted) return false;
+
+    // Update snapshots so the next save diff runs from the new baseline.
+    _docxOriginalUnifiedBlockDicts = flatBlocks;
+    _docxOriginalUnifiedPlainText =
+        sanitizeForTts(controller.document.toPlainText());
+    _docxOriginalChunkTexts.addAll(changedChunkTexts);
+    for (final entry in nextChunkFormatted.entries) {
+      _docxOriginalChunkFormatted[entry.key] = entry.value;
+    }
+
+    setState(() {
+      _hasUnsavedChanges = false;
+    });
+
+    // Invalidate audio cache + alignment providers for the affected
+    // chunks so next playback re-synthesizes against the new text.
+    final voiceId = ref.read(selectedVoiceIdProvider);
+    final audio = ref.read(audioServiceProvider);
+    for (final chunkId in changedChunkTexts.keys) {
+      unawaited(audio.invalidateChunkCache(chunkId));
+      ref.invalidate(chunkAlignmentProvider(AlignmentKey(
+        documentId: widget.documentId,
+        chunkId: chunkId,
+        voiceId: voiceId,
+      )));
+    }
+
+    ref.invalidate(chunksProvider(widget.documentId));
+    ref.invalidate(documentsProvider);
+    debugPrint(
+        '[_saveDocxEditUnified] invalidated chunksProvider + documentsProvider');
+
     _exitEditMode();
     return true;
   }
@@ -2443,17 +2906,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             if (!mounted) return;
             if (isDocxDocument) {
               _enterDocxEditMode(psittaDoc, chunks);
-              // Focus the first editable block so the caret is visible
-              // immediately. DocxDocumentEditor does not auto-focus on
-              // mount, so the request is scheduled after the rebuild
-              // that attaches focus nodes to the QuillEditor elements.
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                if (psittaDoc.blocks.isNotEmpty) {
-                  _docxBlockFocusNodes[psittaDoc.blocks.first.blockId]
-                      ?.requestFocus();
-                }
-              });
+              // In per-paragraph fallback mode, request focus on the
+              // first block's Quill editor so the caret is visible
+              // immediately. Unified mode handles its own post-frame
+              // focus request inside _enterDocxEditModeUnified.
+              if (!_docxUnifiedEditMode) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!mounted) return;
+                  if (psittaDoc.blocks.isNotEmpty) {
+                    _docxBlockFocusNodes[psittaDoc.blocks.first.blockId]
+                        ?.requestFocus();
+                  }
+                });
+              }
             } else {
               _enterEditMode(chunkId, chunkText);
             }
@@ -2569,10 +3034,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             isFetchingAlignment: isFetchingAlignment,
             editorChild: _isEditing && _editingDocxDocument != null
                 ? DocxDocumentEditor(
-                    key: ValueKey('docx_edit_${widget.documentId}'),
+                    key: ValueKey(_docxUnifiedEditMode
+                        ? 'docx_edit_unified_${widget.documentId}'
+                        : 'docx_edit_${widget.documentId}'),
                     document: _editingDocxDocument!,
-                    controllers: _docxBlockControllers,
-                    focusNodes: _docxBlockFocusNodes,
+                    controllers: _docxUnifiedEditMode
+                        ? const {}
+                        : _docxBlockControllers,
+                    focusNodes: _docxUnifiedEditMode
+                        ? const {}
+                        : _docxBlockFocusNodes,
+                    unifiedController: _docxUnifiedEditMode
+                        ? _docxUnifiedController
+                        : null,
+                    unifiedFocusNode: _docxUnifiedEditMode
+                        ? _docxUnifiedFocusNode
+                        : null,
                     isSaving: editorState.isSaving,
                     error: editorState.error,
                     onActiveControllerChanged: (controller) {
@@ -2582,68 +3059,9 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                         });
                       }
                     },
-                    onChanged: () {
-                      // A change is EITHER text-content (plain-text diff
-                      // against the pre-edit snapshot) OR formatting-only
-                      // (Quill Delta JSON diff against the pre-edit
-                      // block-dict snapshot). The backend now accepts
-                      // client-authored formatted_content so both classes
-                      // of edit round-trip.
-                      var changed = false;
-                      for (final entry in _docxBlockControllers.entries) {
-                        final blockId = entry.key;
-                        final originalText =
-                            _docxOriginalBlockTexts[blockId] ?? '';
-                        if (sanitizeForTts(
-                                entry.value.document.toPlainText()) !=
-                            sanitizeForTts(originalText)) {
-                          changed = true;
-                          break;
-                        }
-                        final originalBlock =
-                            _docxOriginalBlockFormatted[blockId];
-                        if (originalBlock != null) {
-                          // Find the matching DocBlock to learn its type
-                          // and level. Controllers are keyed by blockId;
-                          // psittaDoc.blocks has the authoritative type.
-                          DocBlock? docBlock;
-                          for (final candidate in psittaDoc.blocks) {
-                            if (candidate.blockId == blockId) {
-                              docBlock = candidate;
-                              break;
-                            }
-                          }
-                          if (docBlock != null) {
-                            // Pre-edit snapshot is one block per controller;
-                            // the plural serializer now returns a list, so
-                            // wrap the original for a like-shapes jsonEncode
-                            // comparison. Typing Enter inside a controller
-                            // makes the current list longer than the snapshot
-                            // — a genuine content change that must trigger
-                            // the unsaved-changes guard.
-                            final currentBlockList =
-                                _quillDocumentToBlockDicts(
-                              entry.value.document,
-                              docBlock.type,
-                              docBlock.level,
-                            );
-                            final originalBlockList = <Map<String, dynamic>>[
-                              originalBlock,
-                            ];
-                            if (jsonEncode(currentBlockList) !=
-                                jsonEncode(originalBlockList)) {
-                              changed = true;
-                              break;
-                            }
-                          }
-                        }
-                      }
-                      if (changed != _hasUnsavedChanges && mounted) {
-                        setState(() {
-                          _hasUnsavedChanges = changed;
-                        });
-                      }
-                    },
+                    onChanged: _docxUnifiedEditMode
+                        ? _handleDocxUnifiedChanged
+                        : _handleDocxPerParagraphChanged(psittaDoc),
                   )
                 : null,
             onActiveSentenceChanged: _scrollFromSentence,
