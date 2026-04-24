@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
 from psitta.middleware.auth import TokenClaims
-from psitta.schemas.api import ChunkResponse, ChunkUpdateRequest, ResynthesizeResponse
+from psitta.schemas.api import ChunkCreateRequest, ChunkResponse, ChunkUpdateRequest, ResynthesizeResponse
 from psitta.services import audit_service
 
 logger = structlog.get_logger(__name__)
@@ -1102,7 +1102,7 @@ async def get_document_chunks(
 ) -> dict:
     """Return all chunks for a document, ordered by sequence."""
     doc_result = await db.execute(
-        text("SELECT id, status, source_type FROM documents WHERE id = :did"),
+        text("SELECT id, status, source_type, chunk_positions FROM documents WHERE id = :did"),
         {"did": document_id},
     )
     doc = doc_result.first()
@@ -1153,6 +1153,9 @@ async def get_document_chunks(
         "status": doc.status,
         "total_chunks": len(chunks),
         "chunks": chunks,
+        # M13.1b: null for pre-M13.1b documents; client falls back to
+        # computing from chunkMap in that case (lazy migration).
+        "chunk_positions": doc.chunk_positions if hasattr(doc, "chunk_positions") else None,
     }
 
 
@@ -1577,6 +1580,193 @@ async def update_chunk_text(
     )
 
 
+@router.post("/{document_id}/chunks", response_model=ChunkResponse, status_code=status.HTTP_201_CREATED)
+async def create_chunk(
+    document_id: UUID,
+    request: ChunkCreateRequest,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> ChunkResponse:
+    """Insert a new chunk into an existing document.
+
+    M13.1b save-path helper. The client supplies its desired
+    sequence_index; if a chunk already occupies that slot, the handler
+    shifts the tail up by 100 000 to avoid colliding with the UNIQUE
+    (document_id, sequence_index) constraint. The final authoritative
+    order is established by the subsequent PATCH /documents/{id} call
+    carrying the full chunk_positions list — the caller is expected to
+    make that call atomically after fanning out all inserts/deletes.
+    """
+    # Authorization — confirm the caller owns the document.
+    doc_result = await db.execute(
+        text(
+            "SELECT id FROM documents "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": str(user_id)},
+    )
+    if doc_result.first() is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    # Normalize text (same rules as update_chunk_text).
+    import re as _re
+    import unicodedata
+    new_text = request.text.strip()
+    new_text = new_text.replace('​', '').replace('‌', '')
+    new_text = new_text.replace('‍', '').replace('­', '')
+    new_text = new_text.replace('﻿', '').replace(' ', ' ')
+    new_text = _re.sub(r' {2,}', ' ', new_text)
+    new_text = unicodedata.normalize('NFC', new_text)
+
+    # Sentence boundaries (matches update_chunk_text pipeline).
+    segmenter = pysbd.Segmenter(language="en", clean=False)
+    sentences = segmenter.segment(new_text)
+    boundaries: list[list[int]] = []
+    cursor = 0
+    for sentence in sentences:
+        start = new_text.index(sentence, cursor)
+        end = start + len(sentence)
+        boundaries.append([start, end])
+        cursor = end
+
+    meta_json = json.dumps({"sentence_boundaries": boundaries}, ensure_ascii=False)
+    fmt_json = (
+        json.dumps(request.formatted_content, ensure_ascii=False)
+        if request.formatted_content is not None
+        else None
+    )
+
+    # Shift the tail up by 100 000 if the requested sequence_index is
+    # occupied. This cheap two-pass pattern avoids the UNIQUE collision
+    # and leaves the document in a readable (if temporarily non-dense)
+    # state that the final PATCH /documents/{id} reindex will compact.
+    await db.execute(
+        text(
+            "UPDATE document_chunks SET sequence_index = sequence_index + 100000 "
+            "WHERE document_id = :did AND sequence_index >= :seq"
+        ),
+        {"did": document_id, "seq": request.sequence_index},
+    )
+
+    new_id = uuid4()
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        text(
+            "INSERT INTO document_chunks "
+            "(id, document_id, sequence_index, text_content, character_count, "
+            "metadata_json, formatted_content, is_edited, edited_at, original_text, created_at) "
+            "VALUES "
+            "(:id, :did, :seq, :txt, :chars, CAST(:meta AS jsonb), CAST(:fmt AS jsonb), "
+            "true, :now, NULL, :now)"
+        ),
+        {
+            "id": new_id,
+            "did": document_id,
+            "seq": request.sequence_index,
+            "txt": new_text,
+            "chars": len(new_text),
+            "meta": meta_json,
+            "fmt": fmt_json,
+            "now": now,
+        },
+    )
+
+    await db.commit()
+
+    logger.info(
+        "document.chunk.created",
+        chunk_id=str(new_id),
+        document_id=str(document_id),
+        sequence_index=request.sequence_index,
+    )
+
+    await audit_service.log_event(
+        db,
+        action="document.chunk.create",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(new_id),
+        details={
+            "document_id": str(document_id),
+            "sequence_index": request.sequence_index,
+            "character_count": len(new_text),
+        },
+        ip_address=http_request.client.host if http_request.client else None,
+    )
+
+    return ChunkResponse(
+        id=str(new_id),
+        sequence_index=request.sequence_index,
+        chunk_type="text",
+        text_content=new_text,
+        tone="neutral",
+        page_number=request.page_number or 1,
+        character_count=len(new_text),
+        is_edited=True,
+        edited_at=now,
+        original_text=None,
+    )
+
+
+@router.delete("/{document_id}/chunks/{chunk_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_chunk(
+    document_id: UUID,
+    chunk_id: UUID,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> None:
+    """Delete a chunk from a document.
+
+    M13.1b save-path helper. Invalidates the three-layer audio cache
+    (S3 + local /tmp + audio_segments DB rows) BEFORE the chunk row
+    is removed. The audio_segments FK has ON DELETE CASCADE so the DB
+    layer would purge automatically; the explicit call ensures S3 and
+    /tmp objects (which the FK cannot touch) are also cleared while
+    the chunk_id is still a valid reference.
+    """
+    # Authorization — confirm the caller owns the document and the
+    # chunk belongs to it. One JOIN query rules out both 404 cases.
+    check = await db.execute(
+        text(
+            "SELECT c.id FROM document_chunks c "
+            "JOIN documents d ON d.id = c.document_id "
+            "WHERE c.id = :cid AND d.id = :did "
+            "AND d.user_id = :uid AND d.status != 'deleted'"
+        ),
+        {"cid": chunk_id, "did": document_id, "uid": str(user_id)},
+    )
+    if check.first() is None:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+
+    await _invalidate_chunk_audio_cache(chunk_id, db)
+
+    await db.execute(
+        text(
+            "DELETE FROM document_chunks "
+            "WHERE id = :cid AND document_id = :did"
+        ),
+        {"cid": chunk_id, "did": document_id},
+    )
+    await db.commit()
+
+    logger.info(
+        "document.chunk.deleted",
+        chunk_id=str(chunk_id),
+        document_id=str(document_id),
+    )
+    await audit_service.log_event(
+        db,
+        action="document.chunk.delete",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(chunk_id),
+        details={"document_id": str(document_id)},
+        ip_address=http_request.client.host if http_request.client else None,
+    )
+
+
 @router.post("/{document_id}/chunks/{chunk_id}/resynthesize", response_model=ResynthesizeResponse)
 async def resynthesize_chunk(
     document_id: UUID,
@@ -1723,6 +1913,13 @@ class DocumentUpdateRequest(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=200)
     cover_type: str | None = None
     cover_value: str | None = None
+    # M13.1b: authoritative chunk-offset map. When present, the handler
+    # persists it verbatim to documents.chunk_positions AND rebuilds
+    # document_chunks.sequence_index from the supplied ordering in the
+    # same transaction. List shape: [{"chunk_id": str, "start_offset":
+    # int, "end_offset": int}, ...].
+    chunk_positions: list[dict] | None = None
+    chunk_count: int | None = Field(default=None, ge=0)
 
 
 @router.patch("/{document_id}")
@@ -1785,6 +1982,40 @@ async def update_document(
             except Exception as e:
                 logger.error("document.cover.s3_delete_failed", doc_id=str(document_id), error=str(e))
 
+    # M13.1b — chunk_positions + chunk_count extension ──────────────────
+    chunk_positions_sent = 'chunk_positions' in payload.model_fields_set
+    chunk_count_sent = 'chunk_count' in payload.model_fields_set
+    chunk_positions = payload.chunk_positions if chunk_positions_sent else None
+
+    if chunk_positions_sent and chunk_positions is not None:
+        # Validate shape: each entry must have chunk_id, start_offset,
+        # end_offset; reject malformed input before doing any writes so
+        # the document never ends up with a partial reindex.
+        for entry in chunk_positions:
+            if not isinstance(entry, dict):
+                raise HTTPException(status_code=422, detail="chunk_positions entries must be objects")
+            if 'chunk_id' not in entry or 'start_offset' not in entry or 'end_offset' not in entry:
+                raise HTTPException(
+                    status_code=422,
+                    detail="each chunk_positions entry requires chunk_id, start_offset, end_offset",
+                )
+        # Cross-check count when supplied — guards against client drift.
+        if chunk_count_sent and payload.chunk_count is not None and len(chunk_positions) != payload.chunk_count:
+            raise HTTPException(
+                status_code=422,
+                detail=f"chunk_positions length ({len(chunk_positions)}) does not match chunk_count ({payload.chunk_count})",
+            )
+        set_parts.append("chunk_positions = CAST(:chunk_positions AS jsonb)")
+        params["chunk_positions"] = json.dumps(chunk_positions, ensure_ascii=False)
+        updated_fields.append("chunk_positions")
+
+    if chunk_count_sent and payload.chunk_count is not None:
+        # chunk_count isn't a real column on documents today; the
+        # canonical source is the COUNT(*) over document_chunks.
+        # Accept the field so the client can assert consistency; track
+        # it in updated_fields for audit but skip the SET clause.
+        updated_fields.append("chunk_count")
+
     if not set_parts:
         raise HTTPException(status_code=400, detail="No fields to update")
 
@@ -1800,6 +2031,28 @@ async def update_document(
     )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
+
+    # M13.1b — reindex document_chunks.sequence_index in the same
+    # transaction. Two-pass pattern to avoid the UNIQUE (document_id,
+    # sequence_index) collision: first move everyone out of the
+    # destination range, then assign final indices in the supplied
+    # chunk_positions order.
+    if chunk_positions_sent and chunk_positions is not None and len(chunk_positions) > 0:
+        await db.execute(
+            text(
+                "UPDATE document_chunks SET sequence_index = sequence_index + 100000 "
+                "WHERE document_id = :did"
+            ),
+            {"did": document_id},
+        )
+        for i, entry in enumerate(chunk_positions):
+            await db.execute(
+                text(
+                    "UPDATE document_chunks SET sequence_index = :idx "
+                    "WHERE id = :cid AND document_id = :did"
+                ),
+                {"idx": i, "cid": entry['chunk_id'], "did": document_id},
+            )
 
     await db.commit()
 

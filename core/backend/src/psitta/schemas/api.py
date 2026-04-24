@@ -89,6 +89,12 @@ class DocumentResponse(StrictSchema):
     chunk_count: int = Field(default=0, ge=0)
     created_at: datetime
     updated_at: datetime
+    # Authoritative chunk-offset map persisted by the M13.1b unified
+    # editor save path. Shape: [{"chunk_id": str, "start_offset": int,
+    # "end_offset": int}, ...]. Null for pre-M13.1b documents that
+    # have never been saved through the unified editor — the client
+    # then falls back to recomputing from chunkMap (lazy migration).
+    chunk_positions: Optional[list[dict]] = None
 
 
 class DocumentListResponse(StrictSchema):
@@ -235,6 +241,24 @@ class ChunkUpdateRequest(BaseModel):
     # _rebuild_formatted_content_for_chunk inheritance path for backward
     # compatibility with text-only callers.
     formatted_content: Optional[list[dict]] = None
+
+
+class ChunkCreateRequest(BaseModel):
+    """Request to insert a new chunk into an existing document.
+
+    Used by the M13.1b unified-editor save path when a structural edit
+    produces more chunks than the document currently has. The
+    sequence_index is the CLIENT'S desired position; the handler may
+    bump existing tail chunks via a temporary offset to avoid colliding
+    with the UNIQUE (document_id, sequence_index) constraint. The final
+    authoritative order is established by a subsequent
+    PATCH /documents/{id} carrying chunk_positions.
+    """
+
+    sequence_index: int = Field(ge=0)
+    text: str
+    formatted_content: Optional[list[dict]] = None
+    page_number: Optional[int] = Field(default=1, ge=1)
 
 
 class ChunkResponse(BaseModel):
