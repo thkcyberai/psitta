@@ -9,21 +9,31 @@ class DocumentEditorRepository {
   final ApiClient _api;
 
   /// PATCH /documents/{docId}/chunks/{chunkId}
+  ///
+  /// When [formattedContent] is supplied, it is sent verbatim as
+  /// `formatted_content` in the JSON body and the backend persists it
+  /// exactly as-is (the Phase 1 toolbar-persist path). When omitted, the
+  /// backend falls back to its server-side rebuild heuristic.
   Future<Map<String, dynamic>> updateChunkText({
     required String documentId,
     required String chunkId,
     required String text,
+    List<Map<String, dynamic>>? formattedContent,
   }) async {
     final url = '/documents/$documentId/chunks/$chunkId';
-    final payload = {'text': text};
+    final payload = <String, dynamic>{'text': text};
+    if (formattedContent != null) {
+      payload['formatted_content'] = formattedContent;
+    }
     debugPrint(
-        '[DocumentEditorRepository.updateChunkText] PATCH $url payload=$payload');
+        '[DocumentEditorRepository.updateChunkText] PATCH $url '
+        'text.len=${text.length} fmt.blocks=${formattedContent?.length ?? 0}');
     final response = await _api.dio.patch(
       url,
       data: payload,
     );
     debugPrint(
-        '[DocumentEditorRepository.updateChunkText] response status=${response.statusCode} data=${response.data}');
+        '[DocumentEditorRepository.updateChunkText] response status=${response.statusCode}');
     return response.data as Map<String, dynamic>;
   }
 

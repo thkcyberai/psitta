@@ -72,19 +72,24 @@ class ChunkEditorNotifier extends StateNotifier<ChunkEditorState> {
   Future<bool> saveChunkTexts({
     required String documentId,
     required Map<String, String> chunkTexts,
+    Map<String, List<Map<String, dynamic>>>? chunkFormatted,
   }) async {
     state = state.copyWith(isSaving: true, error: null, successMessage: null);
     debugPrint(
-        '[ChunkEditorNotifier.saveChunkTexts] documentId=$documentId count=${chunkTexts.length}');
+        '[ChunkEditorNotifier.saveChunkTexts] documentId=$documentId '
+        'count=${chunkTexts.length} fmt_count=${chunkFormatted?.length ?? 0}');
 
     try {
       for (final entry in chunkTexts.entries) {
+        final fmt = chunkFormatted?[entry.key];
         debugPrint(
-            '[ChunkEditorNotifier.saveChunkTexts] -> chunk_id=${entry.key} text=${entry.value}');
+            '[ChunkEditorNotifier.saveChunkTexts] -> chunk_id=${entry.key} '
+            'text.len=${entry.value.length} fmt.blocks=${fmt?.length ?? 0}');
         await _repository.updateChunkText(
           documentId: documentId,
           chunkId: entry.key,
           text: entry.value,
+          formattedContent: fmt,
         );
       }
     } catch (e) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -477,6 +478,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final Map<String, String> _docxOriginalBlockTexts = {};
   final Map<String, String> _docxOriginalChunkTexts = {};
   final Map<String, String> _docxBlockChunkIds = {};
+  // Pre-edit formatted-content snapshots — used by onChanged + _saveDocxEdit
+  // so formatting-only edits (e.g. bolding an already-present word) are
+  // detected as dirty state and persisted end-to-end. Keyed by blockId and
+  // chunkId respectively to mirror the plain-text snapshots above.
+  final Map<String, Map<String, dynamic>> _docxOriginalBlockFormatted = {};
+  final Map<String, List<Map<String, dynamic>>> _docxOriginalChunkFormatted = {};
   PsittaDocument? _editingDocxDocument;
   quill.QuillController? _activeDocxController;
 
@@ -746,11 +753,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _docxOriginalBlockTexts.clear();
     _docxOriginalChunkTexts.clear();
     _docxBlockChunkIds.clear();
+    _docxOriginalBlockFormatted.clear();
+    _docxOriginalChunkFormatted.clear();
 
     for (final block in document.blocks) {
       final text = block.plainText;
       _docxOriginalBlockTexts[block.blockId] = text;
-      final doc = quill.Document()..insert(0, text);
+      // Build a block-dict view of the DocBlock so the same converter can
+      // initialise the QuillController AND seed the formatting snapshot
+      // the onChanged/save diff logic compares against.
+      final blockDict = _docBlockToDict(block);
+      _docxOriginalBlockFormatted[block.blockId] = blockDict;
+      final doc = _blockDictToQuillDocument(blockDict);
       _docxBlockControllers[block.blockId] = quill.QuillController(
         document: doc,
         selection: const TextSelection.collapsed(offset: 0),
@@ -782,6 +796,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _docxOriginalChunkTexts[chunkId] =
           (chunk['text_content'] ?? '').toString();
     }
+    // Snapshot the per-chunk formatted-block lists so _saveDocxEdit can
+    // detect formatting-only edits (which wouldn't change text_content).
+    for (final chunkEntry in _docxChunkFormattedBlocks(document).entries) {
+      _docxOriginalChunkFormatted[chunkEntry.key] = chunkEntry.value;
+    }
 
     setState(() {
       _isEditing = true;
@@ -805,6 +824,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _docxOriginalBlockTexts.clear();
     _docxOriginalChunkTexts.clear();
     _docxBlockChunkIds.clear();
+    _docxOriginalBlockFormatted.clear();
+    _docxOriginalChunkFormatted.clear();
     setState(() {
       _isEditing = false;
       _editingChunkId = '';
@@ -920,6 +941,191 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     };
   }
 
+  /// Parallel to [_docxChunkTexts] but emits the list of block dicts for
+  /// each chunk in the canonical `formatted_content` schema. Used at
+  /// edit-mode entry to snapshot the pre-edit state, and at save time to
+  /// produce the payload sent to the backend.
+  Map<String, List<Map<String, dynamic>>> _docxChunkFormattedBlocks(
+      PsittaDocument document) {
+    final chunkOrder = document.chunkMap.map((chunk) => chunk.chunkId).toList();
+    final chunkBuffers = <String, List<Map<String, dynamic>>>{
+      for (final chunkId in chunkOrder) chunkId: <Map<String, dynamic>>[],
+    };
+
+    for (final block in document.blocks) {
+      final chunkId = _docxBlockChunkIds[block.blockId];
+      if (chunkId == null) continue;
+      final controller = _docxBlockControllers[block.blockId];
+      final Map<String, dynamic> blockDict;
+      if (controller != null) {
+        blockDict = _quillDocumentToBlockDict(
+          controller.document,
+          block.type,
+          block.level,
+        );
+      } else {
+        // Fallback for any block whose controller was not instantiated
+        // (shouldn't happen in practice — kept defensive).
+        blockDict = _docBlockToDict(block);
+      }
+      chunkBuffers[chunkId]!.add(blockDict);
+    }
+
+    return {
+      for (final chunkId in chunkOrder) chunkId: chunkBuffers[chunkId]!,
+    };
+  }
+
+  /// Convert a [DocBlock] from the backend-assembled PsittaDocument into
+  /// the canonical block-dict shape (`{type, level?, runs}`) consumed by
+  /// both the Quill initialiser and the save-time payload.
+  Map<String, dynamic> _docBlockToDict(DocBlock block) {
+    final runs = <Map<String, dynamic>>[];
+    for (final run in block.runs) {
+      if (run.text.isEmpty) continue;
+      final entry = <String, dynamic>{'text': run.text};
+      if (run.bold) entry['bold'] = true;
+      if (run.italic) entry['italic'] = true;
+      if (run.underline) entry['underline'] = true;
+      if (run.fontSize != null) entry['font_size'] = run.fontSize;
+      runs.add(entry);
+    }
+    if (runs.isEmpty) {
+      runs.add(<String, dynamic>{'text': ''});
+    }
+    final dict = <String, dynamic>{
+      'type': _blockTypeToString(block.type),
+      'runs': runs,
+    };
+    if (block.level != null) dict['level'] = block.level;
+    return dict;
+  }
+
+  /// Build a [quill.Document] populated with the block's runs as
+  /// attributed Delta ops. The Phase 1 attribute set (bold, italic,
+  /// underline, font_size) maps to Quill's inline attributes. Block-level
+  /// type/level is NOT stored on the Delta itself — the Quill editor
+  /// hosts one block per controller, and the outer widget applies the
+  /// appropriate TextStyle via the DocBlock.type.
+  quill.Document _blockDictToQuillDocument(Map<String, dynamic> block) {
+    final deltaJson = <Map<String, dynamic>>[];
+    final runs = (block['runs'] as List?) ?? const [];
+    for (final raw in runs) {
+      if (raw is! Map) continue;
+      final text = (raw['text'] ?? '') as String;
+      if (text.isEmpty) continue;
+      final attrs = <String, dynamic>{};
+      if (raw['bold'] == true) attrs['bold'] = true;
+      if (raw['italic'] == true) attrs['italic'] = true;
+      if (raw['underline'] == true) attrs['underline'] = true;
+      final fontSize = raw['font_size'];
+      if (fontSize != null) attrs['size'] = fontSize.toString();
+      final op = <String, dynamic>{'insert': text};
+      if (attrs.isNotEmpty) op['attributes'] = attrs;
+      deltaJson.add(op);
+    }
+    // Quill documents require at least one op and must end with a
+    // newline insert. An empty block-dict still yields a valid empty doc.
+    deltaJson.add(<String, dynamic>{'insert': '\n'});
+    return quill.Document.fromJson(deltaJson);
+  }
+
+  /// Convert a [quill.Document] back into the canonical block-dict,
+  /// grouping consecutive inline inserts by identical attribute-set.
+  /// Phase 1 silently drops attributes outside the supported set (color,
+  /// background, align, strike, etc.) — these are also hidden from the
+  /// toolbar so users shouldn't generate them in practice.
+  Map<String, dynamic> _quillDocumentToBlockDict(
+    quill.Document doc,
+    DocBlockType type,
+    int? level,
+  ) {
+    final runs = <Map<String, dynamic>>[];
+    Map<String, dynamic>? pendingAttrs;
+    final pendingText = StringBuffer();
+
+    void flush() {
+      final text = pendingText.toString();
+      if (text.isEmpty) return;
+      final run = <String, dynamic>{'text': text};
+      final attrs = pendingAttrs;
+      if (attrs != null) {
+        if (attrs['bold'] == true) run['bold'] = true;
+        if (attrs['italic'] == true) run['italic'] = true;
+        if (attrs['underline'] == true) run['underline'] = true;
+        final size = attrs['size'];
+        if (size != null) {
+          final parsed = double.tryParse(size.toString());
+          if (parsed != null) run['font_size'] = parsed;
+        }
+      }
+      runs.add(run);
+      pendingText.clear();
+    }
+
+    for (final op in doc.toDelta().toList()) {
+      final data = op.data;
+      if (data is! String) continue; // embeds — ignored in Phase 1
+      // Strip trailing newlines: each Quill block ends with a newline
+      // insert that doesn't belong in the run text.
+      final chunks = data.split('\n');
+      for (var i = 0; i < chunks.length; i++) {
+        final fragment = chunks[i];
+        if (fragment.isNotEmpty) {
+          final attrs = op.attributes ?? const <String, dynamic>{};
+          final current = pendingAttrs;
+          if (current == null || !_attributesEqual(current, attrs)) {
+            flush();
+            pendingAttrs = Map<String, dynamic>.from(attrs);
+          }
+          pendingText.write(fragment);
+        }
+        // Newline between fragments — flush current run; any subsequent
+        // fragments in the same op start a new run boundary.
+        if (i != chunks.length - 1) {
+          flush();
+          pendingAttrs = null;
+        }
+      }
+    }
+    flush();
+
+    if (runs.isEmpty) {
+      runs.add(<String, dynamic>{'text': ''});
+    }
+    final dict = <String, dynamic>{
+      'type': _blockTypeToString(type),
+      'runs': runs,
+    };
+    if (level != null) dict['level'] = level;
+    return dict;
+  }
+
+  /// Compare two Quill inline-attribute maps considering only the Phase 1
+  /// subset. Attributes outside that subset are ignored so a spurious
+  /// color attribute on an otherwise-identical run doesn't fragment runs.
+  bool _attributesEqual(Map<String, dynamic> a, Map<String, dynamic> b) {
+    const keys = ['bold', 'italic', 'underline', 'size'];
+    for (final key in keys) {
+      if ((a[key] ?? false) != (b[key] ?? false)) {
+        if (a[key] == null && b[key] == null) continue;
+        if (a[key] != b[key]) return false;
+      }
+    }
+    return true;
+  }
+
+  String _blockTypeToString(DocBlockType type) {
+    switch (type) {
+      case DocBlockType.heading:
+        return 'heading';
+      case DocBlockType.listItem:
+        return 'list_item';
+      case DocBlockType.paragraph:
+        return 'paragraph';
+    }
+  }
+
   Future<bool> _saveDocxEdit(PsittaDocument document) async {
     debugPrint(
         '[_saveDocxEdit] called — _hasUnsavedChanges=$_hasUnsavedChanges');
@@ -947,16 +1153,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     if (confirmed != true || !mounted) return false;
 
     final nextChunkTexts = _docxChunkTexts(document);
+    final nextChunkFormatted = _docxChunkFormattedBlocks(document);
+
+    // A chunk needs saving if EITHER the plain text differs from the
+    // pre-edit snapshot (old semantics) OR the formatted_content block
+    // list differs (new Phase 1 semantics — catches formatting-only
+    // edits like bolding a word that don't change text_content).
     final changedChunkTexts = <String, String>{};
+    final changedChunkFormatted = <String, List<Map<String, dynamic>>>{};
     for (final entry in nextChunkTexts.entries) {
-      final previous = _docxOriginalChunkTexts[entry.key] ?? '';
-      if (sanitizeForTts(entry.value) != sanitizeForTts(previous)) {
-        changedChunkTexts[entry.key] = sanitizeForTts(entry.value);
+      final chunkId = entry.key;
+      final previousText = _docxOriginalChunkTexts[chunkId] ?? '';
+      final textDiffers =
+          sanitizeForTts(entry.value) != sanitizeForTts(previousText);
+
+      final previousBlocks = _docxOriginalChunkFormatted[chunkId] ?? const [];
+      final currentBlocks = nextChunkFormatted[chunkId] ?? const [];
+      final fmtDiffers = jsonEncode(currentBlocks) != jsonEncode(previousBlocks);
+
+      if (textDiffers || fmtDiffers) {
+        changedChunkTexts[chunkId] = sanitizeForTts(entry.value);
+        changedChunkFormatted[chunkId] = currentBlocks;
       }
     }
 
     if (changedChunkTexts.isEmpty) {
-      debugPrint('[_saveDocxEdit] no plain-text changes — exiting edit mode');
+      debugPrint(
+          '[_saveDocxEdit] no text or formatting changes — exiting edit mode');
       _exitEditMode();
       return true;
     }
@@ -966,13 +1189,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         'entries):');
     for (final entry in changedChunkTexts.entries) {
       debugPrint(
-          '[_saveDocxEdit] SAVING chunk_id=${entry.key} text=${entry.value}');
+          '[_saveDocxEdit] SAVING chunk_id=${entry.key} text.len=${entry.value.length} '
+          'fmt.blocks=${changedChunkFormatted[entry.key]?.length ?? 0}');
     }
 
     final notifier = ref.read(chunkEditorProvider.notifier);
     final success = await notifier.saveChunkTexts(
       documentId: widget.documentId,
       chunkTexts: changedChunkTexts,
+      chunkFormatted: changedChunkFormatted,
     );
     debugPrint('[_saveDocxEdit] saveChunkTexts returned success=$success');
 
@@ -983,6 +1208,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           sanitizeForTts(entry.value.document.toPlainText());
     }
     _docxOriginalChunkTexts.addAll(changedChunkTexts);
+    _docxOriginalChunkFormatted.addAll(changedChunkFormatted);
     setState(() {
       _hasUnsavedChanges = false;
     });
@@ -2319,18 +2545,48 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                       }
                     },
                     onChanged: () {
-                      // Backend stores plain text only — formatting-only
-                      // changes (bold, italic, color) cannot be persisted,
-                      // so only text content changes trigger unsaved state.
+                      // A change is EITHER text-content (plain-text diff
+                      // against the pre-edit snapshot) OR formatting-only
+                      // (Quill Delta JSON diff against the pre-edit
+                      // block-dict snapshot). The backend now accepts
+                      // client-authored formatted_content so both classes
+                      // of edit round-trip.
                       var changed = false;
                       for (final entry in _docxBlockControllers.entries) {
+                        final blockId = entry.key;
                         final originalText =
-                            _docxOriginalBlockTexts[entry.key] ?? '';
+                            _docxOriginalBlockTexts[blockId] ?? '';
                         if (sanitizeForTts(
                                 entry.value.document.toPlainText()) !=
                             sanitizeForTts(originalText)) {
                           changed = true;
                           break;
+                        }
+                        final originalBlock =
+                            _docxOriginalBlockFormatted[blockId];
+                        if (originalBlock != null) {
+                          // Find the matching DocBlock to learn its type
+                          // and level. Controllers are keyed by blockId;
+                          // psittaDoc.blocks has the authoritative type.
+                          DocBlock? docBlock;
+                          for (final candidate in psittaDoc.blocks) {
+                            if (candidate.blockId == blockId) {
+                              docBlock = candidate;
+                              break;
+                            }
+                          }
+                          if (docBlock != null) {
+                            final currentBlock = _quillDocumentToBlockDict(
+                              entry.value.document,
+                              docBlock.type,
+                              docBlock.level,
+                            );
+                            if (jsonEncode(currentBlock) !=
+                                jsonEncode(originalBlock)) {
+                              changed = true;
+                              break;
+                            }
+                          }
                         }
                       }
                       if (changed != _hasUnsavedChanges && mounted) {

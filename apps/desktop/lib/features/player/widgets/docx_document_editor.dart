@@ -194,10 +194,13 @@ Widget buildDocxEditToolbar({
       showItalicButton: true,
       showSmallButton: false,
       showUnderLineButton: true,
-      showStrikeThrough: true,
+      // Phase 1: strike, color, background, alignment are NOT in the
+      // DocRun/formatted_content schema yet, so they would be silently
+      // dropped on save. Hidden here to avoid broken-promise UX.
+      showStrikeThrough: false,
       showInlineCode: false,
-      showColorButton: true,
-      showBackgroundColorButton: true,
+      showColorButton: false,
+      showBackgroundColorButton: false,
       showListNumbers: false,
       showListBullets: false,
       showListCheck: false,
@@ -209,7 +212,7 @@ Widget buildDocxEditToolbar({
       showRedo: true,
       showFontSize: true,
       showHeaderStyle: false,
-      showAlignmentButtons: true,
+      showAlignmentButtons: false,
       showDirection: false,
       showSearchButton: false,
       showSubscript: false,
