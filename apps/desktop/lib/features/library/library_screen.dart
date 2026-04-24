@@ -668,11 +668,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final tokens = PsittaTokens.of(context);
     final documentsAsync = ref.watch(documentsProvider);
     final projectsAsync = ref.watch(projectsProvider);
-    final subAsync = ref.watch(billingStatusProvider);
-    final isProTier = subAsync.whenOrNull(
-          data: (data) => data['plan'] != 'free',
-        ) ??
-        false;
+    // Use planStatusProvider (not billingStatusProvider directly) so a
+    // billing-endpoint error surfaces as PlanStatus.unavailable rather
+    // than collapsing to Free. isProTier fails closed for both Free AND
+    // Unavailable (so Pro-only actions stay disabled during transient
+    // outages), but isPlanUnavailable lets us show a recoverable
+    // "refresh Settings" tooltip instead of a misleading "Upgrade to
+    // Pro" tooltip to an already-paying user.
+    final planStatus = ref.watch(planStatusProvider);
+    final isProTier = planStatus.isPro;
+    final isPlanUnavailable = planStatus.isUnavailable;
 
     // Build project ID → name map for path labels
     final Map<String, String> projectNameMap = {};
@@ -835,14 +840,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               .watch(quotaUsageProvider)
                               .whenOrNull(data: (q) => q);
                           final atLimit = quotaInfo?.atLimit ?? false;
-                          // Tooltip priority: quota wins over Pro-gate so
-                          // Pro users see a reason even though they're
-                          // already Pro, and so Free users at quota see
-                          // "limit reached" rather than "upgrade" (same
-                          // landing page either way, but the copy is
-                          // more accurate to their state).
+                          // Tooltip priority (highest to lowest):
+                          //   1. Plan status unavailable \u2192 recoverable
+                          //      outage copy (not "upgrade"), so a Pro
+                          //      user hitting a transient 401 doesn't
+                          //      see an incorrect "upgrade" prompt.
+                          //   2. At limit \u2192 quota message (wins over
+                          //      Pro-gate because Pro users at cap are
+                          //      still capped).
+                          //   3. Not Pro \u2192 Pro-gate message.
+                          //   4. Enabled (no tooltip).
                           final String newSheetTooltip;
-                          if (atLimit && quotaInfo != null) {
+                          if (isPlanUnavailable) {
+                            newSheetTooltip =
+                                'Plan status temporarily unavailable \u2014 '
+                                'refresh Settings';
+                          } else if (atLimit && quotaInfo != null) {
                             newSheetTooltip = quotaTooltip(quotaInfo);
                           } else if (!isProTier) {
                             newSheetTooltip =
@@ -850,12 +863,22 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                           } else {
                             newSheetTooltip = '';
                           }
-                          final String uploadTooltip = atLimit && quotaInfo != null
-                              ? quotaTooltip(quotaInfo)
-                              : '';
-                          final newSheetDisabled =
-                              _isUploading || !isProTier || atLimit;
-                          final uploadDisabled = _isUploading || atLimit;
+                          final String uploadTooltip;
+                          if (isPlanUnavailable) {
+                            uploadTooltip =
+                                'Plan status temporarily unavailable \u2014 '
+                                'refresh Settings';
+                          } else if (atLimit && quotaInfo != null) {
+                            uploadTooltip = quotaTooltip(quotaInfo);
+                          } else {
+                            uploadTooltip = '';
+                          }
+                          final newSheetDisabled = _isUploading ||
+                              isPlanUnavailable ||
+                              !isProTier ||
+                              atLimit;
+                          final uploadDisabled =
+                              _isUploading || isPlanUnavailable || atLimit;
                           return Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [

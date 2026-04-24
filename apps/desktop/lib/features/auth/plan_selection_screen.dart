@@ -155,12 +155,19 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
     final cs = theme.colorScheme;
     final statusAsync = ref.watch(billingStatusProvider);
 
+    // Explicitly track the error state so we can show a retry prompt
+    // instead of silently marking the Free card as "Current Plan" for a
+    // paying Pro user whose billing fetch transiently failed.
+    final statusHasError = statusAsync.hasError;
     final currentPlan = statusAsync.whenOrNull(
           data: (data) => data['plan'] as String?,
         ) ??
         'free';
-    final isFree = currentPlan == 'free';
-    final isPro = currentPlan == 'reading_nook_pro';
+    // When billing status is unavailable (error state), neither card is
+    // "Current Plan" — we genuinely don't know. The user retries via the
+    // banner rendered below; until then, no card gets the badge.
+    final isFree = !statusHasError && currentPlan == 'free';
+    final isPro = !statusHasError && currentPlan == 'reading_nook_pro';
 
     return Scaffold(
       body: Center(
@@ -193,6 +200,43 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                   color: cs.onSurfaceVariant,
                 ),
               ),
+              if (statusHasError) ...[
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cs.errorContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: cs.error.withOpacity(0.25)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.error_outline,
+                          size: 20, color: cs.onErrorContainer),
+                      const SizedBox(width: 12),
+                      Flexible(
+                        child: Text(
+                          'Plan status temporarily unavailable. '
+                          'Your current plan cannot be shown right now.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onErrorContainer,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      TextButton(
+                        style: TextButton.styleFrom(
+                          foregroundColor: cs.onErrorContainer,
+                        ),
+                        onPressed: () =>
+                            ref.invalidate(billingStatusProvider),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 32),
               _BillingPeriodToggle(
                 isAnnual: _isAnnual,

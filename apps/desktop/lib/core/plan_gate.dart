@@ -7,35 +7,66 @@ import '../data/providers/providers.dart';
 
 /// Current plan snapshot sourced from [billingStatusProvider].
 ///
-/// A user is "Pro" iff [plan] is non-free AND [status] is active.
-/// Anything else -- loading, errored, past-due, canceled -- falls back
-/// to the most restrictive behavior (free tier), so gating defaults to
-/// safety when the billing endpoint is briefly unavailable.
+/// Has three mutually exclusive states:
+///   * **Pro**    — [isPro] is true (plan != free AND status == active)
+///   * **Free**   — [isFree] is true (plan == free)
+///   * **Unavailable** — [isUnavailable] is true (billing endpoint is
+///     loading or errored). The UI must render an explicit "status
+///     temporarily unavailable" affordance for this state instead of
+///     silently rendering Free, which would be indistinguishable from a
+///     legitimate Free user and silently downgrade a paying Pro user
+///     during a transient auth/network failure.
 class PlanStatus {
-  const PlanStatus({required this.plan, required this.status});
+  const PlanStatus({
+    required this.plan,
+    required this.status,
+    this.isUnavailable = false,
+  });
+
+  /// Parse a `/billing/status` response body. Preserves whatever the
+  /// backend says; missing fields fall back to free/none (a legitimate
+  /// Free state — distinct from the unavailable state below).
+  factory PlanStatus.fromMap(Map<String, dynamic> m) => PlanStatus(
+        plan: (m['plan'] as String?) ?? 'free',
+        status: (m['status'] as String?) ?? 'none',
+      );
 
   final String plan;
   final String status;
+  final bool isUnavailable;
 
-  bool get isPro => plan != 'free' && status == 'active';
+  bool get isPro =>
+      !isUnavailable && plan != 'free' && status == 'active';
+  bool get isFree => !isUnavailable && plan == 'free';
 
   static const free = PlanStatus(plan: 'free', status: 'none');
+  static const unavailable = PlanStatus(
+    plan: 'unavailable',
+    status: 'unavailable',
+    isUnavailable: true,
+  );
 }
 
-/// Resolved plan for the current user. Resolves to [PlanStatus.free] while
-/// billing is loading or errored.
+/// Resolved plan for the current user.
+///
+/// Resolves to [PlanStatus.unavailable] while billing is loading OR
+/// errored — distinct from [PlanStatus.free]. Callers that need "Pro
+/// gate, fail-closed" behavior can check [isProUserProvider] which
+/// correctly returns false for both Free AND Unavailable states; callers
+/// that need to distinguish (e.g. show a retry affordance instead of an
+/// upgrade CTA) should check [PlanStatus.isUnavailable].
 final planStatusProvider = Provider.autoDispose<PlanStatus>((ref) {
   final billing = ref.watch(billingStatusProvider);
-  return billing.whenOrNull(
-        data: (data) => PlanStatus(
-          plan: (data['plan'] as String?) ?? 'free',
-          status: (data['status'] as String?) ?? 'none',
-        ),
-      ) ??
-      PlanStatus.free;
+  return billing.when(
+    data: PlanStatus.fromMap,
+    loading: () => PlanStatus.unavailable,
+    error: (_, __) => PlanStatus.unavailable,
+  );
 });
 
 /// Convenience boolean: true when the user has any active paid plan.
+/// Returns false for both Free AND Unavailable — i.e. "not confirmed
+/// Pro" — so Pro-only features fail closed during transient outages.
 final isProUserProvider = Provider.autoDispose<bool>((ref) {
   return ref.watch(planStatusProvider).isPro;
 });

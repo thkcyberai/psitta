@@ -6,9 +6,35 @@ import '../repositories/document_repository.dart';
 import '../repositories/voice_repository.dart';
 import '../repositories/playback_repository.dart';
 import '../repositories/project_repository.dart';
+import '../services/auth_service.dart';
 
 // ── Core ───────────────────────────────────────────────────────
-final apiClientProvider = Provider<ApiClient>((ref) => ApiClient());
+
+/// Shared Dio client with auth interceptors. The [ApiClient.onUnauthorized]
+/// callback invalidates auth-dependent providers so the UI self-heals
+/// once refresh fails — instead of caching a 401 error forever and
+/// silently rendering Free across the app.
+///
+/// The callback is routed through [_invalidateAuthProviders] (not
+/// inlined as a closure literal) to avoid Dart's top-level-type-inference
+/// cycle between [apiClientProvider] and the auth-dependent providers
+/// declared later in this file, each of which depends on the API client.
+final apiClientProvider = Provider<ApiClient>(_buildApiClient);
+
+ApiClient _buildApiClient(Ref ref) {
+  return ApiClient(
+    authService: ref.watch(authServiceProvider),
+    onUnauthorized: () => _invalidateAuthProviders(ref),
+  );
+}
+
+void _invalidateAuthProviders(Ref ref) {
+  // Fresh-fetch plan/quota state on next read. These drive Settings,
+  // Change Plan, Library gating, and the quota banner — all of which
+  // misbehave when their cached error state isn't cleared.
+  ref.invalidate(billingStatusProvider);
+  ref.invalidate(quotaUsageProvider);
+}
 
 // ── Repositories ───────────────────────────────────────────────
 final documentRepositoryProvider = Provider<DocumentRepository>((ref) {

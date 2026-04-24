@@ -411,10 +411,14 @@ class _SubscriptionTile extends ConsumerWidget {
         title: Text('Subscription'),
         subtitle: Text('Loading...'),
       ),
-      error: (_, __) => const ListTile(
-        leading: Icon(Icons.card_membership_outlined),
-        title: Text('Subscription'),
-        subtitle: Text('Could not load plan info'),
+      // The error branch is explicit about "temporarily unavailable"
+      // (not "you're Free") and exposes a tap target to retry, so a
+      // transient 401/network blip doesn't mislead a paying Pro user.
+      error: (_, __) => ListTile(
+        leading: const Icon(Icons.error_outline, color: Colors.orange),
+        title: const Text('Plan status temporarily unavailable'),
+        subtitle: const Text('Tap to retry'),
+        onTap: () => ref.invalidate(billingStatusProvider),
       ),
       data: (data) {
         final plan = (data['plan'] as String?) ?? 'free';

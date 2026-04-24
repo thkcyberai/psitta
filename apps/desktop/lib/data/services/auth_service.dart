@@ -168,47 +168,67 @@ class AuthService {
 
     if (!JwtDecoder.isExpired(token)) return true;
 
+    final newAccess = await refreshAccessToken();
+    return newAccess != null;
+  }
+
+  /// Exchange the stored refresh token for a fresh access token.
+  ///
+  /// Shared by [tryRestoreSession] (on boot) and the [ApiClient]
+  /// response interceptor (on a mid-session 401). Behavior:
+  /// - Returns `null` if no refresh token is stored, if Cognito rejects
+  ///   the refresh, or on any network/parse error. In every failure
+  ///   path, stored tokens are wiped so subsequent [getAccessToken]
+  ///   calls also return null and the UI is forced back to login.
+  /// - On success, writes the new access_token (plus id_token and
+  ///   refresh_token when Cognito rotates them) to secure storage and
+  ///   returns the new access_token string.
+  ///
+  /// Intentionally swallows exceptions: callers must handle null
+  /// gracefully. Logging a stacktrace on a routine refresh miss would
+  /// spam the console during the normal "access token expired" path.
+  Future<String?> refreshAccessToken() async {
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken == null) {
       await _clearStorage();
-      return false;
+      return null;
     }
 
+    final dio = Dio();
     try {
-      final dio = Dio();
-      try {
-        final response = await dio.post(
-          'https://$cognitoDomain/oauth2/token',
-          data: {
-            'grant_type':    'refresh_token',
-            'client_id':     cognitoClientId,
-            'refresh_token': refreshToken,
-          },
-          options: Options(
-            contentType: Headers.formUrlEncodedContentType,
-          ),
-        );
+      final response = await dio.post(
+        'https://$cognitoDomain/oauth2/token',
+        data: {
+          'grant_type':    'refresh_token',
+          'client_id':     cognitoClientId,
+          'refresh_token': refreshToken,
+        },
+        options: Options(
+          contentType: Headers.formUrlEncodedContentType,
+          sendTimeout: const Duration(seconds: 8),
+          receiveTimeout: const Duration(seconds: 8),
+        ),
+      );
 
-        final body = response.data as Map<String, dynamic>;
-        final newAccessToken  = body['access_token']  as String?;
-        final newIdToken      = body['id_token']      as String?;
-        final newRefreshToken = body['refresh_token'] as String?;
+      final body = response.data as Map<String, dynamic>;
+      final newAccessToken  = body['access_token']  as String?;
+      final newIdToken      = body['id_token']      as String?;
+      final newRefreshToken = body['refresh_token'] as String?;
 
-        if (newAccessToken == null) {
-          await _clearStorage();
-          return false;
-        }
-
-        await _storage.write(key: _accessTokenKey, value: newAccessToken);
-        if (newIdToken      != null) await _storage.write(key: _idTokenKey,      value: newIdToken);
-        if (newRefreshToken != null) await _storage.write(key: _refreshTokenKey, value: newRefreshToken);
-        return true;
-      } finally {
-        dio.close();
+      if (newAccessToken == null) {
+        await _clearStorage();
+        return null;
       }
+
+      await _storage.write(key: _accessTokenKey, value: newAccessToken);
+      if (newIdToken      != null) await _storage.write(key: _idTokenKey,      value: newIdToken);
+      if (newRefreshToken != null) await _storage.write(key: _refreshTokenKey, value: newRefreshToken);
+      return newAccessToken;
     } catch (_) {
       await _clearStorage();
-      return false;
+      return null;
+    } finally {
+      dio.close();
     }
   }
 
