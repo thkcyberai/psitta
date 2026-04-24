@@ -45,6 +45,100 @@ final billingStatusProvider =
   return response.data as Map<String, dynamic>;
 });
 
+/// Live monthly document quota snapshot for the current user.
+///
+/// Backed by `GET /users/me/subscription`, which returns the same
+/// `user_subscriptions.plan_id` and `usage_counters.docs_uploaded` values
+/// that `check_and_increment_doc_quota` reads when it decides whether to
+/// return 402. Using this endpoint (rather than `/billing/status`, which
+/// does not carry usage) guarantees the UI reflects exactly what the
+/// backend will enforce on the next mutation.
+///
+/// `resetDate` is the first day of the next calendar month in UTC — the
+/// backend keys `usage_counters` by `year_month` (UTC `YYYY-MM`) so the
+/// counter returns to zero at that instant.
+final quotaUsageProvider = FutureProvider.autoDispose<QuotaInfo>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final response = await api.dio.get('/users/me/subscription');
+  final data = response.data as Map<String, dynamic>;
+  return QuotaInfo.fromSubscriptionSummary(data);
+});
+
+/// Snapshot of the user's monthly-document quota. Fields mirror the
+/// backend's authoritative quota model: `used` is the counter value,
+/// `limit` is the active plan's ceiling (or `-1` for unlimited), `plan`
+/// is the raw backend plan id (`free`, `pro_monthly`, `pro_annual`, ...),
+/// and `resetDate` is the UTC instant at which the monthly counter
+/// returns to zero.
+class QuotaInfo {
+  const QuotaInfo({
+    required this.used,
+    required this.limit,
+    required this.plan,
+    required this.resetDate,
+  });
+
+  /// Build from the `/users/me/subscription` response body. Tolerant of
+  /// missing fields so a partial response degrades gracefully rather
+  /// than throwing — callers will see `atLimit == false` and fall
+  /// through to server-side enforcement.
+  factory QuotaInfo.fromSubscriptionSummary(Map<String, dynamic> body) {
+    final usage = (body['usage'] as Map<String, dynamic>?) ?? const {};
+    final used = (usage['docs_this_month'] as num?)?.toInt() ?? 0;
+    final limit = (usage['docs_limit'] as num?)?.toInt() ?? -1;
+    final plan = (body['plan_id'] as String?) ?? 'free';
+    return QuotaInfo(
+      used: used,
+      limit: limit,
+      plan: plan,
+      resetDate: _nextMonthStartUtc(DateTime.now().toUtc()),
+    );
+  }
+
+  /// Build from the `detail` body of a 402 response (defensive — the
+  /// backend may encode `detail` as a map or, under some FastAPI error
+  /// paths, as a string). When the detail is unparseable we still
+  /// surface a usable QuotaInfo with sensible fallbacks so the dialog
+  /// can render instead of falling back to the raw-exception snackbar.
+  factory QuotaInfo.from402Detail(
+    Object? detail, {
+    String fallbackPlan = 'free',
+  }) {
+    if (detail is Map) {
+      final used = (detail['used'] as num?)?.toInt() ?? 0;
+      final limit = (detail['limit'] as num?)?.toInt() ?? 0;
+      final plan = (detail['plan'] as String?) ?? fallbackPlan;
+      return QuotaInfo(
+        used: used,
+        limit: limit,
+        plan: plan,
+        resetDate: _nextMonthStartUtc(DateTime.now().toUtc()),
+      );
+    }
+    return QuotaInfo(
+      used: 0,
+      limit: 0,
+      plan: fallbackPlan,
+      resetDate: _nextMonthStartUtc(DateTime.now().toUtc()),
+    );
+  }
+
+  final int used;
+  final int limit;
+  final String plan;
+  final DateTime resetDate;
+
+  /// True when the user cannot create another document this period.
+  /// `limit == -1` is the backend's "unlimited" sentinel and never trips.
+  bool get atLimit => limit > 0 && used >= limit;
+}
+
+DateTime _nextMonthStartUtc(DateTime nowUtc) {
+  return nowUtc.month == 12
+      ? DateTime.utc(nowUtc.year + 1, 1, 1)
+      : DateTime.utc(nowUtc.year, nowUtc.month + 1, 1);
+}
+
 /// Fetches document list from API. Invalidate after upload/delete.
 final showArchivedProvider = StateProvider<bool>((ref) => false);
 

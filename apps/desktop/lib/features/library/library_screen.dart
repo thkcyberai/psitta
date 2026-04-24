@@ -12,6 +12,7 @@ import 'package:path/path.dart' as p;
 
 import '../../core/constants.dart';
 import '../../core/plan_gate.dart';
+import '../../core/quota_gate.dart';
 import '../../core/theme/colors.dart';
 import '../../data/services/pdf_text_extractor.dart';
 import '../../core/theme/psitta_tokens.dart';
@@ -57,14 +58,41 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   String? _selectedDocId;
 
   Future<void> _handleNewSheet() async {
+    // Proactive quota check — skip the round-trip when we already know the
+    // backend will 402. Relies on the cached quotaUsageProvider snapshot;
+    // if it's still loading, we let the call proceed and the 402 catch
+    // block below covers the race.
+    final cachedQuota = ref.read(quotaUsageProvider).valueOrNull;
+    if (cachedQuota != null && cachedQuota.atLimit) {
+      await showQuotaDialog(context, cachedQuota);
+      return;
+    }
+
     try {
       final repo = ref.read(documentRepositoryProvider);
       final result = await repo.createBlankDocument();
       final docId = result['id']!;
       ref.invalidate(documentsProvider);
+      ref.invalidate(quotaUsageProvider);
       if (mounted) {
         context.go('/player/$docId?autoplay=0&edit=1');
       }
+    } on DioException catch (e) {
+      if (!mounted) return;
+      if (e.response?.statusCode == 402) {
+        final data = e.response?.data;
+        final detail = data is Map ? data['detail'] : null;
+        final info = QuotaInfo.from402Detail(
+          detail,
+          fallbackPlan: cachedQuota?.plan ?? 'free',
+        );
+        ref.invalidate(quotaUsageProvider);
+        await showQuotaDialog(context, info);
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to create sheet: $e')),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -101,9 +129,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _uploadFiles(List<PlatformFile> files) async {
+    // Same proactive quota check as _handleNewSheet — if the cached
+    // snapshot already says we're at limit, short-circuit with the
+    // dialog instead of spamming 402s one per file.
+    final cachedQuota = ref.read(quotaUsageProvider).valueOrNull;
+    if (cachedQuota != null && cachedQuota.atLimit) {
+      if (!mounted) return;
+      await showQuotaDialog(context, cachedQuota);
+      return;
+    }
     if (!await _canAcceptUploads(files.length)) return;
     setState(() => _isUploading = true);
     final repo = ref.read(documentRepositoryProvider);
+    var shownQuotaDialog = false;
     for (final file in files) {
       if (file.path == null) continue;
       try {
@@ -118,21 +156,38 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           await repo.uploadDocument(file.path!);
         }
       } on DioException catch (e) {
-        if (mounted) {
-          String msg = 'Upload failed: ${file.name}';
-          final statusCode = e.response?.statusCode;
-          if (statusCode == 402 || statusCode == 403) {
-            try {
-              final data = e.response?.data;
-              if (data is Map && data['detail'] is Map) {
-                msg = data['detail']['message'] as String? ?? msg;
-              }
-            } catch (_) {}
+        if (!mounted) return;
+        final statusCode = e.response?.statusCode;
+        if (statusCode == 402) {
+          // Show the structured dialog once per batch — repeated 402s for
+          // subsequent files in the same click are the same underlying
+          // state, and stacking dialogs on top of each other is noisy.
+          if (!shownQuotaDialog) {
+            shownQuotaDialog = true;
+            final data = e.response?.data;
+            final detail = data is Map ? data['detail'] : null;
+            final info = QuotaInfo.from402Detail(
+              detail,
+              fallbackPlan: cachedQuota?.plan ?? 'free',
+            );
+            ref.invalidate(quotaUsageProvider);
+            await showQuotaDialog(context, info);
           }
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg)),
-          );
+          // Stop processing further files — they will all 402 too.
+          break;
         }
+        String msg = 'Upload failed: ${file.name}';
+        if (statusCode == 403) {
+          try {
+            final data = e.response?.data;
+            if (data is Map && data['detail'] is Map) {
+              msg = data['detail']['message'] as String? ?? msg;
+            }
+          } catch (_) {}
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(msg)),
+        );
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -143,6 +198,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
     setState(() => _isUploading = false);
     ref.invalidate(documentsProvider);
+    ref.invalidate(quotaUsageProvider);
   }
 
   /// Big-tech UX: selecting a document in Library should prime the bottom PlayerBar.
@@ -774,29 +830,65 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             );
                           },
                         ),
-                        Tooltip(
-                          message: isProTier
-                              ? ''
-                              : 'Available on Pro \u2014 Upgrade in Settings',
-                          child: OutlinedButton.icon(
-                            onPressed: _isUploading || !isProTier
-                                ? null
-                                : _handleNewSheet,
-                            icon: const Icon(Icons.edit_note, size: 18),
-                            label: const Text('New Sheet'),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton.icon(
-                          onPressed: _isUploading ? null : _handleFilePick,
-                          icon: const Icon(Icons.upload_file, size: 18),
-                          label: const Text('Upload'),
-                        ),
+                        Consumer(builder: (context, ref, _) {
+                          final quotaInfo = ref
+                              .watch(quotaUsageProvider)
+                              .whenOrNull(data: (q) => q);
+                          final atLimit = quotaInfo?.atLimit ?? false;
+                          // Tooltip priority: quota wins over Pro-gate so
+                          // Pro users see a reason even though they're
+                          // already Pro, and so Free users at quota see
+                          // "limit reached" rather than "upgrade" (same
+                          // landing page either way, but the copy is
+                          // more accurate to their state).
+                          final String newSheetTooltip;
+                          if (atLimit && quotaInfo != null) {
+                            newSheetTooltip = quotaTooltip(quotaInfo);
+                          } else if (!isProTier) {
+                            newSheetTooltip =
+                                'Available on Pro \u2014 Upgrade in Settings';
+                          } else {
+                            newSheetTooltip = '';
+                          }
+                          final String uploadTooltip = atLimit && quotaInfo != null
+                              ? quotaTooltip(quotaInfo)
+                              : '';
+                          final newSheetDisabled =
+                              _isUploading || !isProTier || atLimit;
+                          final uploadDisabled = _isUploading || atLimit;
+                          return Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Tooltip(
+                                message: newSheetTooltip,
+                                child: OutlinedButton.icon(
+                                  onPressed: newSheetDisabled
+                                      ? null
+                                      : _handleNewSheet,
+                                  icon: const Icon(Icons.edit_note, size: 18),
+                                  label: const Text('New Sheet'),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Tooltip(
+                                message: uploadTooltip,
+                                child: FilledButton.icon(
+                                  onPressed: uploadDisabled
+                                      ? null
+                                      : _handleFilePick,
+                                  icon: const Icon(Icons.upload_file, size: 18),
+                                  label: const Text('Upload'),
+                                ),
+                              ),
+                            ],
+                          );
+                        }),
                       ],
                     );
                   },
                 ),
                 const SizedBox(height: 24),
+                const QuotaBanner(),
                 Expanded(
                   child: documents.isEmpty
                       ? _EmptyState(onUpload: _handleFilePick)

@@ -2081,16 +2081,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           });
         }
 
-        // Auto-enter edit mode when ?edit=1 is passed (e.g. from New Sheet)
-        final editParam = uri.queryParameters['edit']?.trim();
-        if (_autoEditPending && editParam == '1' && !_isEditing) {
-          _autoEditPending = false;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _enterEditMode(chunkId, chunkText);
-          });
-        } else if (_autoEditPending) {
-          _autoEditPending = false;
-        }
+        // The auto-enter-edit-mode branch for ?edit=1 was moved below the
+        // DocumentAssembler.assemble() call so it can pass psittaDoc into
+        // _enterDocxEditMode. See the block immediately after psittaDoc is
+        // assigned.
 
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _publishNowReading(
@@ -2168,9 +2162,41 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             : DocumentAssembler.assemble(
                 data: data,
                 title: chunkTitle,
+                sourceType: resolvedDoc?.sourceType,
               );
         // Capture for find-bar shortcut callbacks outside this builder.
         _currentPsittaDoc = psittaDoc;
+
+        // Auto-enter edit mode when ?edit=1 is passed (e.g. from New Sheet).
+        // For DOCX documents (new blank sheets now come through as DOCX),
+        // route to the DOCX block editor so the user lands in the
+        // page-styled Word-like editor. Legacy source_type='blank' docs
+        // keep using the inline chunk editor.
+        final editParam = uri.queryParameters['edit']?.trim();
+        if (_autoEditPending && editParam == '1' && !_isEditing) {
+          _autoEditPending = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            if (isDocxDocument) {
+              _enterDocxEditMode(psittaDoc, chunks);
+              // Focus the first editable block so the caret is visible
+              // immediately. DocxDocumentEditor does not auto-focus on
+              // mount, so the request is scheduled after the rebuild
+              // that attaches focus nodes to the QuillEditor elements.
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                if (psittaDoc.blocks.isNotEmpty) {
+                  _docxBlockFocusNodes[psittaDoc.blocks.first.blockId]
+                      ?.requestFocus();
+                }
+              });
+            } else {
+              _enterEditMode(chunkId, chunkText);
+            }
+          });
+        } else if (_autoEditPending) {
+          _autoEditPending = false;
+        }
 
         final pdfHighlight = isPdfDocument
             ? _buildPdfHighlight(

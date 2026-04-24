@@ -792,7 +792,18 @@ async def create_blank_document(
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
-    """Create a blank document with a single empty chunk for direct writing."""
+    """Create a new blank DOCX document.
+
+    source_type='docx' enables the full DOCX editor pipeline
+    (DocxDocumentViewport + DocxDocumentEditor) on the client, giving users
+    a Word-like page-styled editor with toolbar out of the box. Renamed
+    from the legacy 'blank' source type which used the inline plain-text
+    chunk editor.
+
+    The chunk is seeded with an empty paragraph block matching the
+    formatted_content schema produced by _extract_formatted_docx (JSONB
+    list of {"type": "paragraph"|"heading"|"list_item", "runs": [...]}).
+    """
     from psitta.services.subscription_service import check_and_increment_doc_quota
 
     await check_and_increment_doc_quota(db, user_id)
@@ -800,6 +811,9 @@ async def create_blank_document(
     doc_id = uuid4()
     chunk_id = uuid4()
     now = datetime.now(timezone.utc)
+
+    # One empty paragraph block — minimum valid DOCX block structure.
+    empty_docx_blocks = [{"type": "paragraph", "runs": [{"text": ""}]}]
 
     await db.execute(
         text(
@@ -812,7 +826,7 @@ async def create_blank_document(
             "id": doc_id,
             "user_id": str(user_id),
             "title": "Untitled Sheet",
-            "source_type": "blank",
+            "source_type": "docx",
             "status": "ready",
             "now": now,
         },
@@ -821,14 +835,15 @@ async def create_blank_document(
     await db.execute(
         text(
             "INSERT INTO document_chunks "
-            "(id, document_id, sequence_index, text_content, character_count, created_at) "
+            "(id, document_id, sequence_index, text_content, character_count, created_at, formatted_content) "
             "VALUES "
-            "(:id, :doc_id, 0, '', 0, :now)"
+            "(:id, :doc_id, 0, '', 0, :now, CAST(:fmt AS jsonb))"
         ),
         {
             "id": chunk_id,
             "doc_id": doc_id,
             "now": now,
+            "fmt": json.dumps(empty_docx_blocks),
         },
     )
 
@@ -848,7 +863,7 @@ async def create_blank_document(
         "chunk_id": str(chunk_id),
         "title": "Untitled Sheet",
         "status": "ready",
-        "source_type": "blank",
+        "source_type": "docx",
         "created_at": now.isoformat(),
     }
 

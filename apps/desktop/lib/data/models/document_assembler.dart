@@ -46,9 +46,15 @@ class DocumentAssembler {
   ///
   /// [data] is the raw response: `{ 'document_id': ..., 'chunks': [...] }`.
   /// [title] is the document title (from the Document model or first chunk).
+  /// [sourceType] is the document's backend `source_type` (e.g. `'docx'`,
+  /// `'pdf'`, `'blank'`). When `'docx'`, a blank document that would
+  /// otherwise produce zero blocks (all runs empty) is given one synthetic
+  /// empty paragraph so the player's DOCX pipeline has something to render
+  /// instead of falling through to the legacy chunk editor.
   static PsittaDocument assemble({
     required Map<String, dynamic> data,
     required String title,
+    String? sourceType,
   }) {
     final documentId = (data['document_id'] ?? '').toString();
     final rawChunks = (data['chunks'] as List<dynamic>?) ?? [];
@@ -200,6 +206,21 @@ class DocumentAssembler {
       }
 
       docCharCursor = chunkTextOffset + chunkText.length;
+    }
+
+    // Blank DOCX guarantee: a newly-created DOCX (POST /documents/blank/)
+    // persists one empty paragraph block, but the filters above drop empty
+    // runs / empty trimmed paragraphs. Without a synthesized block,
+    // `blocks.isEmpty` would be true and the player would fall through to
+    // the legacy InlineChunkEditor path.
+    if (blocks.isEmpty && sourceType?.toLowerCase() == 'docx') {
+      blocks.add(const DocBlock(
+        blockId: 'b_0',
+        type: DocBlockType.paragraph,
+        runs: [DocRun(text: '')],
+        textOffset: 0,
+        textLength: 0,
+      ));
     }
 
     return PsittaDocument(
