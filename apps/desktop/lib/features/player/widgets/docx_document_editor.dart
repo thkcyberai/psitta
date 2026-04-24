@@ -382,6 +382,27 @@ Widget buildDocxEditToolbar({
       showUndo: true,
       showRedo: true,
       showFontSize: true,
+      // M13.1b font-size fix: override Quill's default Small/Large/Huge/Clear
+      // dropdown with numeric sizes matching Word/Google Docs convention.
+      // Quill applies {"size": <double>} on selection; _quillDocumentToBlockDicts
+      // parses via double.tryParse → font_size double → backend stores as JSONB
+      // number → round-trips end-to-end. The 'Clear' → '0' entry preserves
+      // the SDK's "remove font size attribute" semantics (handler strips the
+      // attribute when value == '0').
+      fontSizesValues: const <String, String>{
+        '10': '10',
+        '12': '12',
+        '14': '14',
+        '16': '16',
+        '18': '18',
+        '20': '20',
+        '24': '24',
+        '28': '28',
+        '32': '32',
+        '36': '36',
+        '48': '48',
+        'Clear': '0',
+      },
       showHeaderStyle: false,
       showAlignmentButtons: false,
       showDirection: false,
