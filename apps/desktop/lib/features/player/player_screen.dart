@@ -956,19 +956,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       final chunkId = _docxBlockChunkIds[block.blockId];
       if (chunkId == null) continue;
       final controller = _docxBlockControllers[block.blockId];
-      final Map<String, dynamic> blockDict;
       if (controller != null) {
-        blockDict = _quillDocumentToBlockDict(
+        // A single controller may now emit multiple block dicts when the
+        // user pressed Enter inside it — each paragraph boundary becomes
+        // a separate block so the load path can rehydrate N paragraphs.
+        final blockDicts = _quillDocumentToBlockDicts(
           controller.document,
           block.type,
           block.level,
         );
+        chunkBuffers[chunkId]!.addAll(blockDicts);
       } else {
         // Fallback for any block whose controller was not instantiated
-        // (shouldn't happen in practice — kept defensive).
-        blockDict = _docBlockToDict(block);
+        // (shouldn't happen in practice — kept defensive). Always yields
+        // a single block dict.
+        chunkBuffers[chunkId]!.add(_docBlockToDict(block));
       }
-      chunkBuffers[chunkId]!.add(blockDict);
     }
 
     return {
@@ -1030,17 +1033,29 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return quill.Document.fromJson(deltaJson);
   }
 
-  /// Convert a [quill.Document] back into the canonical block-dict,
-  /// grouping consecutive inline inserts by identical attribute-set.
+  /// Convert a [quill.Document] back into the canonical block-dict list,
+  /// grouping consecutive inline inserts by identical attribute-set and
+  /// splitting into multiple blocks on paragraph-break boundaries (the
+  /// newline-between-fragments case in the Delta walk).
+  ///
+  /// Paragraph-break demotion: the FIRST emitted block inherits [type]
+  /// and [level]; any additional blocks produced by a newline inside the
+  /// controller use [DocBlockType.paragraph] with `level == null`. This
+  /// matches Word's behavior — pressing Enter inside a heading splits off
+  /// a plain body paragraph, it does not clone the heading.
+  ///
   /// Phase 1 silently drops attributes outside the supported set (color,
   /// background, align, strike, etc.) — these are also hidden from the
   /// toolbar so users shouldn't generate them in practice.
-  Map<String, dynamic> _quillDocumentToBlockDict(
+  List<Map<String, dynamic>> _quillDocumentToBlockDicts(
     quill.Document doc,
     DocBlockType type,
     int? level,
   ) {
-    final runs = <Map<String, dynamic>>[];
+    final outBlocks = <Map<String, dynamic>>[];
+    var currentRuns = <Map<String, dynamic>>[];
+    var currentType = type;
+    int? currentLevel = level;
     Map<String, dynamic>? pendingAttrs;
     final pendingText = StringBuffer();
 
@@ -1059,15 +1074,37 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           if (parsed != null) run['font_size'] = parsed;
         }
       }
-      runs.add(run);
+      currentRuns.add(run);
       pendingText.clear();
+    }
+
+    void closeBlock() {
+      if (currentRuns.isEmpty && outBlocks.isNotEmpty) {
+        // Skip empty trailing blocks produced by the terminating newline
+        // that every Quill document carries. The first block is still
+        // emitted in the empty-document case via the post-walk guard.
+        currentType = DocBlockType.paragraph;
+        currentLevel = null;
+        return;
+      }
+      final runs = currentRuns.isEmpty
+          ? <Map<String, dynamic>>[<String, dynamic>{'text': ''}]
+          : currentRuns;
+      final dict = <String, dynamic>{
+        'type': _blockTypeToString(currentType),
+        'runs': runs,
+      };
+      if (currentLevel != null) dict['level'] = currentLevel;
+      outBlocks.add(dict);
+      currentRuns = <Map<String, dynamic>>[];
+      // Paragraph-break demotion: subsequent blocks are plain paragraphs.
+      currentType = DocBlockType.paragraph;
+      currentLevel = null;
     }
 
     for (final op in doc.toDelta().toList()) {
       final data = op.data;
       if (data is! String) continue; // embeds — ignored in Phase 1
-      // Strip trailing newlines: each Quill block ends with a newline
-      // insert that doesn't belong in the run text.
       final chunks = data.split('\n');
       for (var i = 0; i < chunks.length; i++) {
         final fragment = chunks[i];
@@ -1080,25 +1117,26 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           }
           pendingText.write(fragment);
         }
-        // Newline between fragments — flush current run; any subsequent
-        // fragments in the same op start a new run boundary.
+        // Newline between fragments — close the current block and start
+        // a new one. This is the paragraph-boundary emission point.
         if (i != chunks.length - 1) {
           flush();
           pendingAttrs = null;
+          closeBlock();
         }
       }
     }
     flush();
+    closeBlock();
 
-    if (runs.isEmpty) {
-      runs.add(<String, dynamic>{'text': ''});
+    if (outBlocks.isEmpty) {
+      outBlocks.add(<String, dynamic>{
+        'type': _blockTypeToString(type),
+        'runs': <Map<String, dynamic>>[<String, dynamic>{'text': ''}],
+        if (level != null) 'level': level,
+      });
     }
-    final dict = <String, dynamic>{
-      'type': _blockTypeToString(type),
-      'runs': runs,
-    };
-    if (level != null) dict['level'] = level;
-    return dict;
+    return outBlocks;
   }
 
   /// Compare two Quill inline-attribute maps considering only the Phase 1
@@ -2576,13 +2614,24 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             }
                           }
                           if (docBlock != null) {
-                            final currentBlock = _quillDocumentToBlockDict(
+                            // Pre-edit snapshot is one block per controller;
+                            // the plural serializer now returns a list, so
+                            // wrap the original for a like-shapes jsonEncode
+                            // comparison. Typing Enter inside a controller
+                            // makes the current list longer than the snapshot
+                            // — a genuine content change that must trigger
+                            // the unsaved-changes guard.
+                            final currentBlockList =
+                                _quillDocumentToBlockDicts(
                               entry.value.document,
                               docBlock.type,
                               docBlock.level,
                             );
-                            if (jsonEncode(currentBlock) !=
-                                jsonEncode(originalBlock)) {
+                            final originalBlockList = <Map<String, dynamic>>[
+                              originalBlock,
+                            ];
+                            if (jsonEncode(currentBlockList) !=
+                                jsonEncode(originalBlockList)) {
                               changed = true;
                               break;
                             }
