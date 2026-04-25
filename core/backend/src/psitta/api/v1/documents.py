@@ -2526,16 +2526,60 @@ def _build_branded_docx(
     for chunk in chunks:
         chunk_title = chunk.get("title", "")
         chunk_text = chunk.get("text_content", "")
+        chunk_formatted = chunk.get("formatted_content")
 
         if chunk_title:
             heading = doc.add_heading(chunk_title, level=2)
             for run in heading.runs:
                 run.font.color.rgb = RGBColor(0x2B, 0x2B, 0x2B)
 
-        for para_text in chunk_text.split("\n"):
-            stripped = para_text.strip()
-            if stripped:
-                doc.add_paragraph(stripped)
+        # Prefer formatted_content (M13.1b) when present so Bold/Italic/
+        # Underline/font_size and heading/list block types round-trip into
+        # the downloaded DOCX. Fall back to text_content for pre-M13.1b
+        # chunks where formatted_content IS NULL.
+        if chunk_formatted:
+            for block in chunk_formatted:
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get("type", "paragraph")
+                if btype == "heading":
+                    level = block.get("level", 2)
+                    try:
+                        level_int = max(1, min(int(level), 6))
+                    except (ValueError, TypeError):
+                        level_int = 2
+                    para = doc.add_heading("", level=level_int)
+                elif btype == "list_item":
+                    list_style = "List Bullet" if block.get("list_type") == "bullet" else "List Number"
+                    para = doc.add_paragraph("", style=list_style)
+                else:
+                    para = doc.add_paragraph("")
+
+                runs = block.get("runs") or []
+                for run_data in runs:
+                    if not isinstance(run_data, dict):
+                        continue
+                    text_val = run_data.get("text", "")
+                    if not text_val:
+                        continue
+                    run = para.add_run(text_val)
+                    if run_data.get("bold"):
+                        run.bold = True
+                    if run_data.get("italic"):
+                        run.italic = True
+                    if run_data.get("underline"):
+                        run.underline = True
+                    font_size = run_data.get("font_size")
+                    if font_size is not None:
+                        try:
+                            run.font.size = Pt(int(font_size))
+                        except (ValueError, TypeError):
+                            pass
+        else:
+            for para_text in chunk_text.split("\n"):
+                stripped = para_text.strip()
+                if stripped:
+                    doc.add_paragraph(stripped)
 
     # ── Footer on every section ───────────────────────────────────────
     if include_footer:
@@ -2631,7 +2675,7 @@ async def export_document(
     # Fetch chunks
     chunks_result = await db.execute(
         text(
-            "SELECT sequence_index, text_content, metadata_json "
+            "SELECT sequence_index, text_content, metadata_json, formatted_content "
             "FROM document_chunks WHERE document_id = :did "
             "ORDER BY sequence_index"
         ),
@@ -2640,9 +2684,11 @@ async def export_document(
     chunks = []
     for r in chunks_result.mappings():
         meta = r["metadata_json"] if isinstance(r["metadata_json"], dict) else {}
+        fmt = r["formatted_content"] if isinstance(r["formatted_content"], list) else None
         chunks.append({
             "title": meta.get("title", f"Section {r['sequence_index'] + 1}"),
             "text_content": r["text_content"] or "",
+            "formatted_content": fmt,
         })
 
     if not chunks:
