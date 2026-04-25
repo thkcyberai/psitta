@@ -1249,6 +1249,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         return <String, dynamic>{'header': level};
       }
     } else if (type == 'list_item') {
+      // list_type: 'numbered' → Quill 'ordered'; default/missing/'bullet'
+      // → Quill 'bullet'. Round-trips with the save side, which emits
+      // 'numbered' for Quill 'ordered' and 'bullet' for Quill 'bullet'.
+      final listType = block['list_type'];
+      if (listType == 'numbered') {
+        return <String, dynamic>{'list': 'ordered'};
+      }
       return <String, dynamic>{'list': 'bullet'};
     }
     return const <String, dynamic>{};
@@ -1277,6 +1284,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     var currentRuns = <Map<String, dynamic>>[];
     var currentType = type;
     int? currentLevel = level;
+    String? currentListType;
     Map<String, dynamic>? pendingAttrs;
     final pendingText = StringBuffer();
 
@@ -1306,6 +1314,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // emitted in the empty-document case via the post-walk guard.
         currentType = DocBlockType.paragraph;
         currentLevel = null;
+        currentListType = null;
         return;
       }
       final runs = currentRuns.isEmpty
@@ -1316,11 +1325,13 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         'runs': runs,
       };
       if (currentLevel != null) dict['level'] = currentLevel;
+      if (currentListType != null) dict['list_type'] = currentListType;
       outBlocks.add(dict);
       currentRuns = <Map<String, dynamic>>[];
       // Paragraph-break demotion: subsequent blocks are plain paragraphs.
       currentType = DocBlockType.paragraph;
       currentLevel = null;
+      currentListType = null;
     }
 
     for (final op in doc.toDelta().toList()) {
@@ -1343,6 +1354,33 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (i != chunks.length - 1) {
           flush();
           pendingAttrs = null;
+          // Apply block-level attributes from the op carrying this \n.
+          // Quill stores heading level on the trailing newline as
+          // {"header": int} and list type as {"list": "bullet"|"ordered"}.
+          // Read these BEFORE closeBlock() so the emitted dict has the
+          // correct type/level/list_type. When neither is present, the
+          // existing currentType/currentLevel/currentListType values are
+          // used (paragraph default after demotion, or the parent
+          // function's `type` parameter for the very first block in
+          // per-paragraph legacy mode).
+          final blockAttrs = op.attributes ?? const <String, dynamic>{};
+          final headerAttr = blockAttrs['header'];
+          if (headerAttr is int && headerAttr >= 1 && headerAttr <= 6) {
+            currentType = DocBlockType.heading;
+            currentLevel = headerAttr;
+            currentListType = null;
+          } else {
+            final listAttr = blockAttrs['list'];
+            if (listAttr == 'bullet') {
+              currentType = DocBlockType.listItem;
+              currentLevel = null;
+              currentListType = 'bullet';
+            } else if (listAttr == 'ordered') {
+              currentType = DocBlockType.listItem;
+              currentLevel = null;
+              currentListType = 'numbered';
+            }
+          }
           closeBlock();
         }
       }
