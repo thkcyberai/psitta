@@ -1163,7 +1163,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (raw['italic'] == true) attrs['italic'] = true;
       if (raw['underline'] == true) attrs['underline'] = true;
       final fontSize = raw['font_size'];
-      if (fontSize != null) attrs['size'] = fontSize.toString();
+      if (fontSize != null) {
+        // Emit whole-number sizes as integer strings ("20") to match the
+        // toolbar dropdown's key format; emit fractional sizes with their
+        // full decimal representation. Quill's renderer parses either via
+        // getFontSize, but matching the toolbar's exact shape avoids any
+        // subtle store-shape asymmetry between load and live-edit paths.
+        final d = (fontSize as num).toDouble();
+        final asInt = d.toInt();
+        final isWhole = asInt.toDouble() == d;
+        attrs['size'] = (isWhole ? asInt : d).toString();
+      }
       final op = <String, dynamic>{'insert': text};
       if (attrs.isNotEmpty) op['attributes'] = attrs;
       deltaJson.add(op);
@@ -1203,7 +1213,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (raw['italic'] == true) attrs['italic'] = true;
         if (raw['underline'] == true) attrs['underline'] = true;
         final fontSize = raw['font_size'];
-        if (fontSize != null) attrs['size'] = fontSize.toString();
+        if (fontSize != null) {
+          // Emit whole-number sizes as integer strings ("20") to match
+          // the toolbar dropdown's key format; emit fractional sizes with
+          // their full decimal representation. Matches the toolbar's
+          // exact shape so load and live-edit Deltas agree.
+          final d = (fontSize as num).toDouble();
+          final asInt = d.toInt();
+          final isWhole = asInt.toDouble() == d;
+          attrs['size'] = (isWhole ? asInt : d).toString();
+        }
         final op = <String, dynamic>{'insert': text};
         if (attrs.isNotEmpty) op['attributes'] = attrs;
         ops.add(op);
