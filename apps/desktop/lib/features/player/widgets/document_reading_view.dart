@@ -347,6 +347,11 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
 
     final blocks = widget.visibleBlocks ?? doc.blocks;
 
+    // Counter for numbered list items. Increments across consecutive
+    // numbered list items and resets on any bullet item, paragraph, or
+    // heading. Mirrors Word/Quill list-numbering semantics.
+    int numberedCounter = 0;
+
     for (final block in blocks) {
       final key = _keyForBlock(block.blockId);
       final blockStart = block.textOffset;
@@ -473,9 +478,22 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
         runCursor = runEnd;
       }
 
-      // Prefix for list items
+      // Prefix for list items: numbered \u2192 "  N.  ", bullet/null \u2192 "  \u2022  ".
+      // listPrefix is captured into displayPrefixLength below so pointer
+      // hit-testing stays in sync with the rendered prefix width
+      // (including multi-digit numbers like "10. ", "100. ").
+      String? listPrefix;
       if (block.type == DocBlockType.listItem) {
-        inlineSpans.insert(0, TextSpan(text: '  \u2022  ', style: blockStyle));
+        if (block.listType == 'numbered') {
+          numberedCounter++;
+          listPrefix = '  $numberedCounter.  ';
+        } else {
+          numberedCounter = 0;
+          listPrefix = '  \u2022  ';
+        }
+        inlineSpans.insert(0, TextSpan(text: listPrefix, style: blockStyle));
+      } else {
+        numberedCounter = 0;
       }
 
       final spacing = block.type == DocBlockType.heading ? 16.0 : 8.0;
@@ -487,8 +505,7 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
       );
 
       if (widget.enablePointerSentenceSelection) {
-        final displayPrefixLength =
-            block.type == DocBlockType.listItem ? '  \u2022  '.length : 0;
+        final displayPrefixLength = listPrefix?.length ?? 0;
         final baseBlockChild = blockChild;
         blockChild = LayoutBuilder(
           builder: (context, constraints) => Stack(
