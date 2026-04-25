@@ -412,6 +412,16 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
         if (run.underline) {
           runStyle = runStyle.copyWith(decoration: TextDecoration.underline);
         }
+        if (run.fontSize != null) {
+          runStyle = runStyle.copyWith(fontSize: run.fontSize);
+        }
+
+        // Per-run word-highlight style so the active word during TTS
+        // playback inherits run.fontSize — without this the highlighted
+        // word would flicker back to blockStyle's default fontSize.
+        final runWordHighlightStyle = run.fontSize != null
+            ? wordHighlightStyle.copyWith(fontSize: run.fontSize)
+            : wordHighlightStyle;
 
         // Check if this run overlaps the active sentence
         bool isInActiveSentence = false;
@@ -446,7 +456,7 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
             sentenceHighlightBg: highlightBg,
             activeWordStart: activeWordDocOffset,
             activeWordEnd: activeWordDocEnd,
-            wordHighlightStyle: wordHighlightStyle,
+            wordHighlightStyle: runWordHighlightStyle,
           );
         } else {
           // Sentence-only highlighting
