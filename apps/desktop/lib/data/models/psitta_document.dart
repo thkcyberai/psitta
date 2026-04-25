@@ -41,6 +41,7 @@ class DocBlock {
     required this.textOffset,
     required this.textLength,
     this.level,
+    this.listType,
   });
 
   /// Stable identifier for this block (e.g. "b_0", "b_1").
@@ -50,6 +51,13 @@ class DocBlock {
 
   /// Heading level (1-6). Only meaningful when type == heading.
   final int? level;
+
+  /// List type ('bullet' or 'numbered'). Only meaningful when
+  /// type == listItem. Round-trips through formatted_content as
+  /// `list_type`; consumed by the editor load path
+  /// (_blockLevelAttrs in player_screen.dart) to emit the correct
+  /// Quill `list` attribute ('bullet' vs 'ordered').
+  final String? listType;
 
   /// Inline runs that compose this block's text.
   final List<DocRun> runs;

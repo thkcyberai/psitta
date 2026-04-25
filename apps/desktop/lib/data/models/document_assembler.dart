@@ -114,6 +114,7 @@ class DocumentAssembler {
           final fBlock = fb as Map<String, dynamic>;
           final fType = (fBlock['type'] ?? 'paragraph') as String;
           final fLevel = fBlock['level'] as int?;
+          final fListType = fBlock['list_type'] as String?;
           final fRuns = (fBlock['runs'] as List<dynamic>?) ?? [];
 
           final runs = fRuns.map((r) {
@@ -152,6 +153,7 @@ class DocumentAssembler {
             blockId: bid,
             type: btype,
             level: fLevel,
+            listType: fListType,
             runs: runs,
             textOffset: docOffset,
             textLength: blockPlain.length,
@@ -284,6 +286,7 @@ class DocumentAssembler {
         'runs': runs,
       };
       if (block.level != null) dict['level'] = block.level;
+      if (block.listType != null) dict['list_type'] = block.listType;
       out.add(dict);
     }
     return out;
