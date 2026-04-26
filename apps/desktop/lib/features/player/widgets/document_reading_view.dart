@@ -5,6 +5,41 @@ import '../../../core/theme/colors.dart';
 import '../../../data/models/psitta_document.dart';
 import '../../../data/services/audio_service.dart';
 
+/// Parse a stored DocRun.color hex string into a Flutter Color. Accepts
+/// `#RRGGBB`, `RRGGBB`, `#RRGGBBAA`, or `RRGGBBAA`, case-insensitive.
+/// Returns null on any unparseable shape so the caller can skip the
+/// `copyWith(color: ...)` call rather than rendering a wrong color.
+/// 6-digit input is treated as opaque (alpha = 0xFF); 8-digit preserves
+/// the embedded alpha.
+Color? _parseHexColor(String? hex) {
+  if (hex == null) return null;
+  final s = hex.trim();
+  final body = s.startsWith('#') ? s.substring(1) : s;
+  if (body.length != 6 && body.length != 8) return null;
+  final value = int.tryParse(body, radix: 16);
+  if (value == null) return null;
+  if (body.length == 6) return Color(0xFF000000 | value);
+  return Color(value);
+}
+
+/// Map a stored DocBlock.alignment string to a Flutter [TextAlign].
+/// Default is [TextAlign.start] (LTR-locale equivalent of `left` —
+/// keeps behavior identical for null / unset / unknown values).
+TextAlign _textAlignFor(String? alignment) {
+  switch (alignment) {
+    case 'center':
+      return TextAlign.center;
+    case 'right':
+      return TextAlign.right;
+    case 'justify':
+      return TextAlign.justify;
+    case 'left':
+      return TextAlign.left;
+    default:
+      return TextAlign.start;
+  }
+}
+
 /// Renders a [PsittaDocument] as a scrollable reading canvas with:
 ///   - structured block rendering (headings, paragraphs, lists)
 ///   - sentence highlighting driven by audio position
@@ -414,11 +449,31 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
         if (run.italic) {
           runStyle = runStyle.copyWith(fontStyle: FontStyle.italic);
         }
-        if (run.underline) {
-          runStyle = runStyle.copyWith(decoration: TextDecoration.underline);
+        // Underline + strike compose via TextDecoration.combine — applying
+        // them as separate copyWith(decoration:) calls would overwrite
+        // each other and silently drop one decoration. The combine list
+        // omits TextDecoration.none entries; an empty list collapses to
+        // null so an unstyled run carries no decoration.
+        final decorations = <TextDecoration>[
+          if (run.underline) TextDecoration.underline,
+          if (run.strike) TextDecoration.lineThrough,
+        ];
+        if (decorations.isNotEmpty) {
+          runStyle = runStyle.copyWith(
+            decoration: decorations.length == 1
+                ? decorations.first
+                : TextDecoration.combine(decorations),
+          );
         }
         if (run.fontSize != null) {
           runStyle = runStyle.copyWith(fontSize: run.fontSize);
+        }
+        final parsedColor = _parseHexColor(run.color);
+        if (parsedColor != null) {
+          runStyle = runStyle.copyWith(color: parsedColor);
+        }
+        if (run.fontFamily != null && run.fontFamily!.isNotEmpty) {
+          runStyle = runStyle.copyWith(fontFamily: run.fontFamily);
         }
 
         // Per-run word-highlight style so the active word during TTS
@@ -502,6 +557,7 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
       Widget blockChild = SelectableText.rich(
         textSpan,
         contextMenuBuilder: cmBuilder,
+        textAlign: _textAlignFor(block.alignment),
       );
 
       if (widget.enablePointerSentenceSelection) {

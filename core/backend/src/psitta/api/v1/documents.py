@@ -288,7 +288,19 @@ def _extract_formatted_docx(file_bytes: bytes) -> tuple[str, list[dict]] | None:
     """
     try:
         import docx  # python-docx
-        from docx.enum.text import WD_ALIGN_PARAGRAPH  # noqa: F401
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+        # M13.4 Ship 1: reverse map for paragraph alignment so uploaded
+        # DOCX files preserve the user's center/right/justify intent
+        # through to the Quill editor and back to the downloaded export.
+        # Without this, R9 from the diagnostic would silently strip
+        # alignment at upload time.
+        _ALIGN_REVERSE = {
+            WD_ALIGN_PARAGRAPH.LEFT: "left",
+            WD_ALIGN_PARAGRAPH.CENTER: "center",
+            WD_ALIGN_PARAGRAPH.RIGHT: "right",
+            WD_ALIGN_PARAGRAPH.JUSTIFY: "justify",
+        }
 
         doc = docx.Document(io.BytesIO(file_bytes))
         formatted: list[dict] = []
@@ -329,8 +341,28 @@ def _extract_formatted_docx(file_bytes: bytes) -> tuple[str, list[dict]] | None:
                     run_data["italic"] = True
                 if run.underline:
                     run_data["underline"] = True
+                if run.font and run.font.strike:
+                    run_data["strike"] = True
                 if run.font and run.font.size:
                     run_data["font_size"] = round(run.font.size.pt, 1)
+                # Color: python-docx returns RGBColor; serialize to
+                # lowercase 6-digit hex without `#` to match the canonical
+                # storage shape from the save path normalizer.
+                if (
+                    run.font
+                    and run.font.color
+                    and run.font.color.rgb is not None
+                ):
+                    rgb = run.font.color.rgb
+                    try:
+                        run_data["color"] = str(rgb).lower()
+                    except (TypeError, ValueError):
+                        pass
+                # Font family: run.font.name returns the ascii face if
+                # set on the run. None means "inherit from style cascade"
+                # — don't emit so the Word style decides at re-render.
+                if run.font and run.font.name:
+                    run_data["font_family"] = run.font.name
                 runs.append(run_data)
 
             # If no runs extracted (e.g. field codes), fall back to full text
@@ -340,6 +372,13 @@ def _extract_formatted_docx(file_bytes: bytes) -> tuple[str, list[dict]] | None:
             entry: dict = {"type": ptype, "runs": runs}
             if level is not None:
                 entry["level"] = level
+            # Block-level alignment (M13.4 Ship 1). para.alignment is
+            # None when the paragraph inherits from the style cascade —
+            # we don't emit in that case so the Quill editor and the
+            # downstream export both honor the cascade.
+            align_canon = _ALIGN_REVERSE.get(para.alignment)
+            if align_canon is not None:
+                entry["alignment"] = align_canon
             formatted.append(entry)
             plain_parts.append(para_text)
 
@@ -1419,10 +1458,14 @@ def _summarize_formatted_content(
     formatted_content: list[dict] | None,
 ) -> dict:
     """Privacy-respecting structural summary of formatted_content for
-    ops logging. Captures block types, heading levels, list types, and
-    runs counts. NEVER includes run text content or any user-typed
-    string. Truncates the blocks list at 50 entries with a marker so
-    large documents don't bloat log lines.
+    ops logging. Captures block types, heading levels, list types,
+    alignment, runs counts, and per-block flags signaling whether
+    color/strike/font_family attributes are present on any run.
+
+    NEVER includes run text content, color hex values, or font family
+    names — flags only on M13.4 attributes. Truncates the blocks list
+    at 50 entries with a marker so large documents don't bloat log
+    lines.
 
     Returns:
       {
@@ -1430,10 +1473,20 @@ def _summarize_formatted_content(
         "blocks": [
           {"type": "heading", "level": int|None,
            "level_runtime_type": "int"|"str"|"NoneType"|...,
-           "runs_count": int},
+           "alignment": str|None,
+           "runs_count": int,
+           "has_color": bool, "has_strike": bool,
+           "has_font_family": bool},
           {"type": "list_item", "list_type": "bullet"|"numbered"|None,
-           "runs_count": int},
-          {"type": "paragraph", "runs_count": int},
+           "alignment": str|None,
+           "runs_count": int,
+           "has_color": bool, "has_strike": bool,
+           "has_font_family": bool},
+          {"type": "paragraph",
+           "alignment": str|None,
+           "runs_count": int,
+           "has_color": bool, "has_strike": bool,
+           "has_font_family": bool},
         ],
         "truncated_at": 50  # only present when total_blocks > 50
       }
@@ -1452,7 +1505,39 @@ def _summarize_formatted_content(
         btype = block.get("type", "paragraph")
         runs = block.get("runs")
         runs_count = len(runs) if isinstance(runs, list) else 0
-        entry: dict = {"type": btype, "runs_count": runs_count}
+
+        # M13.4 Ship 1: per-block run-level attribute flags. We log
+        # PRESENCE only — never values — so color hex codes and font
+        # family names stay out of CloudWatch. Defensive isinstance
+        # guards prevent a malformed block from crashing the
+        # summarizer (which would lose forensic value of the log line).
+        has_color = False
+        has_strike = False
+        has_font_family = False
+        if isinstance(runs, list):
+            for r in runs:
+                if not isinstance(r, dict):
+                    continue
+                if r.get("strike") is True:
+                    has_strike = True
+                if isinstance(r.get("color"), str) and r.get("color"):
+                    has_color = True
+                if (
+                    isinstance(r.get("font_family"), str)
+                    and r.get("font_family")
+                ):
+                    has_font_family = True
+
+        entry: dict = {
+            "type": btype,
+            "runs_count": runs_count,
+            "alignment": block.get("alignment")
+            if isinstance(block.get("alignment"), str)
+            else None,
+            "has_color": has_color,
+            "has_strike": has_strike,
+            "has_font_family": has_font_family,
+        }
         if btype == "heading":
             raw_level = block.get("level")
             entry["level"] = raw_level if isinstance(raw_level, int) else None
@@ -2611,6 +2696,16 @@ def _build_branded_docx(
         # the downloaded DOCX. Fall back to text_content for pre-M13.1b
         # chunks where formatted_content IS NULL.
         if chunk_formatted:
+            # M13.4 Ship 1: alignment maps to python-docx WD_ALIGN_PARAGRAPH;
+            # only emit when the saved value is one of the four canonical
+            # values so unknown shapes fall through to Word's style
+            # cascade default rather than raising.
+            _ALIGN_MAP = {
+                "left": WD_ALIGN_PARAGRAPH.LEFT,
+                "center": WD_ALIGN_PARAGRAPH.CENTER,
+                "right": WD_ALIGN_PARAGRAPH.RIGHT,
+                "justify": WD_ALIGN_PARAGRAPH.JUSTIFY,
+            }
             for block in chunk_formatted:
                 if not isinstance(block, dict):
                     continue
@@ -2628,6 +2723,12 @@ def _build_branded_docx(
                 else:
                     para = doc.add_paragraph("")
 
+                # Block-level alignment (M13.4 Ship 1) — composes with
+                # heading/list_item styles, never replaces them.
+                align_val = block.get("alignment")
+                if align_val in _ALIGN_MAP:
+                    para.alignment = _ALIGN_MAP[align_val]
+
                 runs = block.get("runs") or []
                 for run_data in runs:
                     if not isinstance(run_data, dict):
@@ -2642,12 +2743,33 @@ def _build_branded_docx(
                         run.italic = True
                     if run_data.get("underline"):
                         run.underline = True
+                    if run_data.get("strike"):
+                        run.font.strike = True
                     font_size = run_data.get("font_size")
                     if font_size is not None:
                         try:
                             run.font.size = Pt(int(font_size))
                         except (ValueError, TypeError):
                             pass
+                    # Color: stored as lowercase 6-digit hex without `#`.
+                    # RGBColor.from_string requires uppercase 6-digit; we
+                    # uppercase at the boundary. Defensive try/except in
+                    # case malformed hex slipped past the save normalizer.
+                    color_val = run_data.get("color")
+                    if isinstance(color_val, str) and color_val:
+                        try:
+                            run.font.color.rgb = RGBColor.from_string(
+                                color_val.lstrip("#").upper()
+                            )
+                        except (ValueError, TypeError):
+                            pass
+                    # Font family: setting run.font.name in python-docx
+                    # writes <w:rFonts w:ascii=...>. Word falls back to a
+                    # system substitute if the name isn't installed —
+                    # accepted behavior (R3).
+                    font_family = run_data.get("font_family")
+                    if isinstance(font_family, str) and font_family:
+                        run.font.name = font_family
         else:
             for para_text in chunk_text.split("\n"):
                 stripped = para_text.strip()

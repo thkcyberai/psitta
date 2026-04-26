@@ -10,7 +10,10 @@ class DocRun {
     this.bold = false,
     this.italic = false,
     this.underline = false,
+    this.strike = false,
     this.fontSize,
+    this.color,
+    this.fontFamily,
   });
 
   factory DocRun.fromJson(Map<String, dynamic> j) => DocRun(
@@ -18,14 +21,26 @@ class DocRun {
         bold: j['bold'] == true,
         italic: j['italic'] == true,
         underline: j['underline'] == true,
+        strike: j['strike'] == true,
         fontSize: j['font_size'] != null ? (j['font_size'] as num).toDouble() : null,
+        color: j['color'] is String ? j['color'] as String : null,
+        fontFamily: j['font_family'] is String ? j['font_family'] as String : null,
       );
 
   final String text;
   final bool bold;
   final bool italic;
   final bool underline;
+  final bool strike;
   final double? fontSize;
+
+  /// Hex color string in lowercase 6-digit format without `#` (e.g. `ff0000`).
+  /// Stored normalized at the save boundary; null if unset.
+  final String? color;
+
+  /// Font family name (e.g. `Arial`). Falls back to system default in
+  /// renderers that don't have the font installed (R3 accepted behavior).
+  final String? fontFamily;
 }
 
 /// Block types supported by the document model.
@@ -42,6 +57,7 @@ class DocBlock {
     required this.textLength,
     this.level,
     this.listType,
+    this.alignment,
   });
 
   /// Stable identifier for this block (e.g. "b_0", "b_1").
@@ -58,6 +74,13 @@ class DocBlock {
   /// (_blockLevelAttrs in player_screen.dart) to emit the correct
   /// Quill `list` attribute ('bullet' vs 'ordered').
   final String? listType;
+
+  /// Block-level alignment ('left' | 'center' | 'right' | 'justify').
+  /// Round-trips through formatted_content as `alignment`. Composes with
+  /// heading and list_item — orthogonal to type/level/listType. Null means
+  /// "inherit / default left start" so unset and explicit-left are
+  /// distinguishable on the wire (matters for the Word style cascade).
+  final String? alignment;
 
   /// Inline runs that compose this block's text.
   final List<DocRun> runs;

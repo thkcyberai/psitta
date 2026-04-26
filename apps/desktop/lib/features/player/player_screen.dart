@@ -52,6 +52,29 @@ bool shouldUseUnifiedEditor(PsittaDocument doc) {
   return true;
 }
 
+/// Normalize a Quill `color` attribute value to lowercase 6-digit hex
+/// without `#`. Accepts `#RRGGBB`, `RRGGBB`, `#RRGGBBAA` (alpha truncated),
+/// case-insensitive. Returns null on any unparseable shape — the save
+/// path then drops the attribute silently rather than poisoning the
+/// stored formatted_content with a string the export builder can't feed
+/// to `RGBColor.from_string`. flutter_quill 10.8.4's standard color
+/// picker emits `#RRGGBB`; the alpha tolerance is defensive in case a
+/// pasted Delta carries it.
+String? _normalizeHexColor(String? raw) {
+  if (raw == null) return null;
+  final trimmed = raw.trim();
+  final body = trimmed.startsWith('#') ? trimmed.substring(1) : trimmed;
+  if (body.length != 6 && body.length != 8) return null;
+  for (int i = 0; i < 6; i++) {
+    final c = body.codeUnitAt(i);
+    final isDigit = c >= 0x30 && c <= 0x39;
+    final isHexLower = c >= 0x61 && c <= 0x66;
+    final isHexUpper = c >= 0x41 && c <= 0x46;
+    if (!isDigit && !isHexLower && !isHexUpper) return null;
+  }
+  return body.substring(0, 6).toLowerCase();
+}
+
 class PlayerScreen extends ConsumerStatefulWidget {
   const PlayerScreen({
     super.key,
@@ -1212,6 +1235,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (raw['bold'] == true) attrs['bold'] = true;
         if (raw['italic'] == true) attrs['italic'] = true;
         if (raw['underline'] == true) attrs['underline'] = true;
+        if (raw['strike'] == true) attrs['strike'] = true;
         final fontSize = raw['font_size'];
         if (fontSize != null) {
           // Emit whole-number sizes as integer strings ("20") to match
@@ -1222,6 +1246,19 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           final asInt = d.toInt();
           final isWhole = asInt.toDouble() == d;
           attrs['size'] = (isWhole ? asInt : d).toString();
+        }
+        // Color: stored as lowercase 6-digit hex without `#`. Quill's
+        // ColorAttribute expects the `#`-prefixed form so the toolbar's
+        // current-color indicator and the picker round-trip cleanly.
+        final colorRaw = raw['color'];
+        if (colorRaw is String && colorRaw.isNotEmpty) {
+          attrs['color'] = colorRaw.startsWith('#') ? colorRaw : '#$colorRaw';
+        }
+        // Font family: stored as `font_family` (matching python-docx
+        // run.font.name); Quill's FontAttribute uses the `font` key.
+        final fontFamily = raw['font_family'];
+        if (fontFamily is String && fontFamily.isNotEmpty) {
+          attrs['font'] = fontFamily;
         }
         final op = <String, dynamic>{'insert': text};
         if (attrs.isNotEmpty) op['attributes'] = attrs;
@@ -1238,27 +1275,36 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Map a canonical block dict's block-level styling to the Quill
   /// attribute shape. Heading uses `{'header': int}` (1–6); list items
-  /// use `{'list': 'bullet'}`. Keys and value types match the SDK's
-  /// [HeaderAttribute] (`'header'`, int) and [ListAttribute] (`'list'`,
-  /// string) conventions exactly.
+  /// use `{'list': 'bullet'|'ordered'}`. Alignment uses
+  /// `{'align': 'left'|'center'|'right'|'justify'}` and composes
+  /// orthogonally with header/list — a centered heading is a valid
+  /// merged map `{header: 1, align: 'center'}`. Keys and value types
+  /// match the SDK's HeaderAttribute, ListAttribute and AlignAttribute
+  /// conventions exactly.
   Map<String, dynamic> _blockLevelAttrs(Map<String, dynamic> block) {
+    final attrs = <String, dynamic>{};
     final type = block['type'] as String?;
     if (type == 'heading') {
       final level = block['level'];
       if (level is int && level >= 1 && level <= 6) {
-        return <String, dynamic>{'header': level};
+        attrs['header'] = level;
       }
     } else if (type == 'list_item') {
       // list_type: 'numbered' → Quill 'ordered'; default/missing/'bullet'
       // → Quill 'bullet'. Round-trips with the save side, which emits
       // 'numbered' for Quill 'ordered' and 'bullet' for Quill 'bullet'.
       final listType = block['list_type'];
-      if (listType == 'numbered') {
-        return <String, dynamic>{'list': 'ordered'};
-      }
-      return <String, dynamic>{'list': 'bullet'};
+      attrs['list'] = (listType == 'numbered') ? 'ordered' : 'bullet';
     }
-    return const <String, dynamic>{};
+    final alignment = block['alignment'];
+    if (alignment is String &&
+        (alignment == 'left' ||
+            alignment == 'center' ||
+            alignment == 'right' ||
+            alignment == 'justify')) {
+      attrs['align'] = alignment;
+    }
+    return attrs;
   }
 
   /// Convert a [quill.Document] back into the canonical block-dict list,
@@ -1285,6 +1331,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     var currentType = type;
     int? currentLevel = level;
     String? currentListType;
+    String? currentAlignment;
     Map<String, dynamic>? pendingAttrs;
     final pendingText = StringBuffer();
 
@@ -1297,10 +1344,30 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         if (attrs['bold'] == true) run['bold'] = true;
         if (attrs['italic'] == true) run['italic'] = true;
         if (attrs['underline'] == true) run['underline'] = true;
+        if (attrs['strike'] == true) run['strike'] = true;
         final size = attrs['size'];
         if (size != null) {
           final parsed = double.tryParse(size.toString());
           if (parsed != null) run['font_size'] = parsed;
+        }
+        // Color: flutter_quill emits a hex string (`#RRGGBB`). Normalize to
+        // lowercase 6-digit no-`#` so the export builder can hand it to
+        // RGBColor.from_string without further coercion. Unparseable shapes
+        // (rgba(...), named colors, malformed hex) are dropped silently —
+        // we never poison formatted_content with a value the backend can't
+        // consume.
+        final rawColor = attrs['color'];
+        if (rawColor is String) {
+          final normalized = _normalizeHexColor(rawColor);
+          if (normalized != null) run['color'] = normalized;
+        }
+        // Font family: flutter_quill emits `font` (string family name).
+        // Stored as `font_family` to match the python-docx run.font.name
+        // contract on the export side. No normalization — we trust the
+        // toolbar's font picker output.
+        final rawFont = attrs['font'];
+        if (rawFont is String && rawFont.isNotEmpty) {
+          run['font_family'] = rawFont;
         }
       }
       currentRuns.add(run);
@@ -1315,6 +1382,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         currentType = DocBlockType.paragraph;
         currentLevel = null;
         currentListType = null;
+        currentAlignment = null;
         return;
       }
       final runs = currentRuns.isEmpty
@@ -1326,12 +1394,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       };
       if (currentLevel != null) dict['level'] = currentLevel;
       if (currentListType != null) dict['list_type'] = currentListType;
+      if (currentAlignment != null) dict['alignment'] = currentAlignment;
       outBlocks.add(dict);
       currentRuns = <Map<String, dynamic>>[];
       // Paragraph-break demotion: subsequent blocks are plain paragraphs.
       currentType = DocBlockType.paragraph;
       currentLevel = null;
       currentListType = null;
+      currentAlignment = null;
     }
 
     for (final op in doc.toDelta().toList()) {
@@ -1356,13 +1426,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           pendingAttrs = null;
           // Apply block-level attributes from the op carrying this \n.
           // Quill stores heading level on the trailing newline as
-          // {"header": int} and list type as {"list": "bullet"|"ordered"}.
+          // {"header": int}, list type as {"list": "bullet"|"ordered"},
+          // and alignment as {"align": "left"|"center"|"right"|"justify"}.
           // Read these BEFORE closeBlock() so the emitted dict has the
-          // correct type/level/list_type. When neither is present, the
-          // existing currentType/currentLevel/currentListType values are
-          // used (paragraph default after demotion, or the parent
-          // function's `type` parameter for the very first block in
-          // per-paragraph legacy mode).
+          // correct type/level/list_type/alignment. Alignment is
+          // orthogonal — it composes with heading and list_item rather
+          // than replacing them (a centered heading and a right-aligned
+          // numbered item are both valid). When neither header nor list
+          // is present, the existing currentType/currentLevel/
+          // currentListType values are used (paragraph default after
+          // demotion, or the parent function's `type` parameter for the
+          // very first block in per-paragraph legacy mode).
           final blockAttrs = op.attributes ?? const <String, dynamic>{};
           final headerAttr = blockAttrs['header'];
           if (headerAttr is int && headerAttr >= 1 && headerAttr <= 6) {
@@ -1380,6 +1454,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               currentLevel = null;
               currentListType = 'numbered';
             }
+          }
+          final alignAttr = blockAttrs['align'];
+          if (alignAttr is String &&
+              (alignAttr == 'left' ||
+                  alignAttr == 'center' ||
+                  alignAttr == 'right' ||
+                  alignAttr == 'justify')) {
+            currentAlignment = alignAttr;
           }
           closeBlock();
         }

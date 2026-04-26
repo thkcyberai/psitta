@@ -358,19 +358,16 @@ Widget buildDocxEditToolbar({
       showItalicButton: true,
       showSmallButton: false,
       showUnderLineButton: true,
-      // Phase 1: strike, color, background, alignment, and font family are
-      // NOT in the DocRun/formatted_content schema. Strike/color/background/
-      // alignment are dropped silently; font family is worse — applying it
-      // adds a 'font' attribute that the save-path converter does not
-      // recognize and the run is wiped from the document. Hidden here to
-      // avoid broken-promise UX and active content loss. FontSize IS a
-      // Phase 1 supported attribute and stays visible (showFontSize: true
-      // below). Font family returns in Phase 2 when DocRun grows a
-      // font-family field and the schema supports it end-to-end.
-      showFontFamily: false,
-      showStrikeThrough: false,
+      // M13.4 Ship 1: strike, color, font family, and alignment all
+      // round-trip end-to-end (Quill → save → DocBlock → reading view →
+      // /export to Word). Background-color (highlight) stays hidden by
+      // design — it's out of M13.4 scope and the schema does not carry
+      // it. Page break ships in M13.4 Ship 2 as a custom toolbar button;
+      // flutter_quill 10.8.4 has no native page-break flag.
+      showFontFamily: true,
+      showStrikeThrough: true,
       showInlineCode: false,
-      showColorButton: false,
+      showColorButton: true,
       showBackgroundColorButton: false,
       showListNumbers: true,
       showListBullets: true,
@@ -404,7 +401,7 @@ Widget buildDocxEditToolbar({
         'Clear': '0',
       },
       showHeaderStyle: true,
-      showAlignmentButtons: false,
+      showAlignmentButtons: true,
       showDirection: false,
       showSearchButton: false,
       showSubscript: false,

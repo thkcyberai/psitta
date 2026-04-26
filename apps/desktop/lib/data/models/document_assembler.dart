@@ -115,6 +115,9 @@ class DocumentAssembler {
           final fType = (fBlock['type'] ?? 'paragraph') as String;
           final fLevel = fBlock['level'] as int?;
           final fListType = fBlock['list_type'] as String?;
+          final fAlignment = fBlock['alignment'] is String
+              ? fBlock['alignment'] as String
+              : null;
           final fRuns = (fBlock['runs'] as List<dynamic>?) ?? [];
 
           final runs = fRuns.map((r) {
@@ -154,6 +157,7 @@ class DocumentAssembler {
             type: btype,
             level: fLevel,
             listType: fListType,
+            alignment: fAlignment,
             runs: runs,
             textOffset: docOffset,
             textLength: blockPlain.length,
@@ -275,7 +279,10 @@ class DocumentAssembler {
         if (run.bold) entry['bold'] = true;
         if (run.italic) entry['italic'] = true;
         if (run.underline) entry['underline'] = true;
+        if (run.strike) entry['strike'] = true;
         if (run.fontSize != null) entry['font_size'] = run.fontSize;
+        if (run.color != null) entry['color'] = run.color;
+        if (run.fontFamily != null) entry['font_family'] = run.fontFamily;
         runs.add(entry);
       }
       if (runs.isEmpty) {
@@ -287,6 +294,7 @@ class DocumentAssembler {
       };
       if (block.level != null) dict['level'] = block.level;
       if (block.listType != null) dict['list_type'] = block.listType;
+      if (block.alignment != null) dict['alignment'] = block.alignment;
       out.add(dict);
     }
     return out;
