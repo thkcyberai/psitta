@@ -1415,6 +1415,58 @@ async def _invalidate_chunk_audio_cache(chunk_id: UUID, db: AsyncSession) -> Non
     logger.info("cache_invalidation.db_delete", chunk_id=str(chunk_id), rows_deleted=result.rowcount)
 
 
+def _summarize_formatted_content(
+    formatted_content: list[dict] | None,
+) -> dict:
+    """Privacy-respecting structural summary of formatted_content for
+    ops logging. Captures block types, heading levels, list types, and
+    runs counts. NEVER includes run text content or any user-typed
+    string. Truncates the blocks list at 50 entries with a marker so
+    large documents don't bloat log lines.
+
+    Returns:
+      {
+        "total_blocks": int,
+        "blocks": [
+          {"type": "heading", "level": int|None,
+           "level_runtime_type": "int"|"str"|"NoneType"|...,
+           "runs_count": int},
+          {"type": "list_item", "list_type": "bullet"|"numbered"|None,
+           "runs_count": int},
+          {"type": "paragraph", "runs_count": int},
+        ],
+        "truncated_at": 50  # only present when total_blocks > 50
+      }
+
+    Defensive: returns {"total_blocks": 0, "blocks": []} on None input
+    or any non-list structure.
+    """
+    if not isinstance(formatted_content, list):
+        return {"total_blocks": 0, "blocks": []}
+
+    summary_blocks: list[dict] = []
+    total = len(formatted_content)
+    for block in formatted_content[:50]:
+        if not isinstance(block, dict):
+            continue
+        btype = block.get("type", "paragraph")
+        runs = block.get("runs")
+        runs_count = len(runs) if isinstance(runs, list) else 0
+        entry: dict = {"type": btype, "runs_count": runs_count}
+        if btype == "heading":
+            raw_level = block.get("level")
+            entry["level"] = raw_level if isinstance(raw_level, int) else None
+            entry["level_runtime_type"] = type(raw_level).__name__
+        elif btype == "list_item":
+            entry["list_type"] = block.get("list_type")
+        summary_blocks.append(entry)
+
+    result: dict = {"total_blocks": total, "blocks": summary_blocks}
+    if total > 50:
+        result["truncated_at"] = 50
+    return result
+
+
 def _rebuild_formatted_content_for_chunk(
     text_content: str,
     existing_formatted: list[dict] | None,
@@ -1495,6 +1547,27 @@ async def update_chunk_text(
         cursor = end
 
     updated_meta = {**existing_meta, "sentence_boundaries": boundaries}
+
+    # Log a sanitized structural summary of the incoming formatted_content
+    # for ops debugging — block types, heading levels, list_types, and runs
+    # counts only. NEVER includes run text content. Wrapped in try/except so
+    # a malformed payload can never break the API request.
+    try:
+        _fc_summary = _summarize_formatted_content(request.formatted_content)
+        logger.info(
+            "chunk.update.formatted_content_received",
+            document_id=str(document_id),
+            chunk_id=str(chunk_id),
+            summary=_fc_summary,
+        )
+    except Exception as _fc_log_err:
+        logger.warning(
+            "chunk.update.summary_failed",
+            document_id=str(document_id),
+            chunk_id=str(chunk_id),
+            error=str(_fc_log_err),
+        )
+
     # Prefer client-authored formatted_content when supplied (the Phase 1
     # toolbar-persist path). Falls back to the legacy server-side rebuild
     # that inherits first-run attributes from pre-edit state when the
