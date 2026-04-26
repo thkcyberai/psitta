@@ -21,6 +21,7 @@ import '../editor/chunk_editor_provider.dart';
 import '../shell/widgets/player_bar.dart';
 import 'widgets/docx_document_editor.dart';
 import 'widgets/docx_page_layout.dart';
+import 'widgets/page_break_embed.dart';
 import 'widgets/docx_document_viewport.dart';
 import 'widgets/docx_player_navigator.dart';
 import 'widgets/document_reading_view.dart';
@@ -1226,6 +1227,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     final ops = <Map<String, dynamic>>[];
     for (final block in blockDicts) {
+      // SPIKE — page_break blocks have no runs, no text, no
+      // block-level attrs. Emit the BlockEmbed.custom op (which
+      // serializes to {custom: '<jsonString>'} — the shape
+      // text_line.dart:148 recognizes) + a trailing \n so the embed
+      // owns its line per the single-child-line invariant.
+      if (block['type'] == 'page_break') {
+        ops.add(<String, dynamic>{
+          'insert': quill.BlockEmbed.custom(const PageBreakEmbed()).toJson(),
+        });
+        ops.add(<String, dynamic>{'insert': '\n'});
+        continue;
+      }
       final runs = (block['runs'] as List?) ?? const [];
       for (final raw in runs) {
         if (raw is! Map) continue;
@@ -1406,7 +1419,34 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     for (final op in doc.toDelta().toList()) {
       final data = op.data;
-      if (data is! String) continue; // embeds — ignored in Phase 1
+      // SPIKE — detect a PageBreakEmbed serialized as
+      // {insert: {custom: '{"page_break":""}'}}. flutter_quill
+      // wraps a BlockEmbed.custom by stuffing the inner type+data as
+      // a JSON-encoded string into the outer "custom" key (see
+      // CustomBlockEmbed.toJsonString in embeddable.dart). Decode
+      // once to inspect the inner type.
+      if (data is Map) {
+        final customJson = data['custom'];
+        if (customJson is String) {
+          try {
+            final inner = jsonDecode(customJson);
+            if (inner is Map && inner.containsKey('page_break')) {
+              // Flush any pending text + close the previous block,
+              // then emit the page_break block directly.
+              flush();
+              closeBlock();
+              outBlocks.add(<String, dynamic>{
+                'type': 'page_break',
+                'runs': const <Map<String, dynamic>>[],
+              });
+            }
+          } catch (_) {
+            // malformed embed JSON — drop silently for the spike
+          }
+        }
+        continue; // skip non-page-break embeds (and the failed page_break)
+      }
+      if (data is! String) continue; // other unexpected shapes
       final chunks = data.split('\n');
       for (var i = 0; i < chunks.length; i++) {
         final fragment = chunks[i];

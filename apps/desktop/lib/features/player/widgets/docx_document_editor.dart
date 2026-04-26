@@ -2,6 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 import '../../../data/models/psitta_document.dart';
+import 'page_break_embed.dart';
+
+/// SPIKE — insert a page break embed at the controller's current
+/// selection. Three sequential replaceText calls:
+///   1. \n before the embed (if not already at line start)
+///   2. The PageBreakEmbed itself (BlockEmbed.custom serialization)
+///   3. \n after, with selection landing immediately after the trailing
+///      newline so the user can keep typing on the post-break line.
+/// flutter_quill's InsertEmbedsRule does NOT auto-wrap newlines for
+/// custom embeds (only video) — see insert.dart:291. So we own the
+/// wrapping here. Behavior validated in spike phase 3.
+void _insertPageBreak(QuillController controller) {
+  final selection = controller.selection;
+  final idx = selection.baseOffset.clamp(0, controller.document.length);
+  // 1. leading \n
+  controller.replaceText(idx, 0, '\n', null);
+  // 2. embed
+  controller.replaceText(idx + 1, 0, const PageBreakEmbed(), null);
+  // 3. trailing \n + selection lands after it
+  controller.replaceText(
+    idx + 2,
+    0,
+    '\n',
+    TextSelection.collapsed(offset: idx + 3),
+  );
+}
 
 class DocxDocumentEditor extends StatefulWidget {
   const DocxDocumentEditor({
@@ -222,6 +248,7 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
           scrollPhysics: const ClampingScrollPhysics(),
           placeholder: '',
           enableInteractiveSelection: true,
+          embedBuilders: [PageBreakEmbedBuilder()],
           customStyles: DefaultStyles(
             paragraph: DefaultTextBlockStyle(
               paragraphStyle,
@@ -409,6 +436,16 @@ Widget buildDocxEditToolbar({
       showClipboardCut: false,
       showClipboardCopy: false,
       showClipboardPaste: false,
+      // SPIKE — page break custom toolbar button. Inserts a
+      // PageBreakEmbed flanked by newlines at the current selection.
+      // Validates the BlockEmbed.custom approach end-to-end.
+      customButtons: [
+        QuillToolbarCustomButtonOptions(
+          icon: const Icon(Icons.insert_page_break, size: 18),
+          tooltip: 'Insert page break',
+          onPressed: () => _insertPageBreak(controller),
+        ),
+      ],
       toolbarIconAlignment: WrapAlignment.start,
       toolbarSectionSpacing: 2,
       multiRowsDisplay: false,
@@ -467,6 +504,7 @@ class _DocxEditableBlock extends StatelessWidget {
         padding: EdgeInsets.zero,
         scrollPhysics: const ClampingScrollPhysics(),
         placeholder: '',
+        embedBuilders: [PageBreakEmbedBuilder()],
         customStyles: DefaultStyles(
           paragraph: DefaultTextBlockStyle(
             _paragraphStyle(theme),
