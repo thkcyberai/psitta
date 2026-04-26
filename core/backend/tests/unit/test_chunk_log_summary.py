@@ -25,8 +25,9 @@ from psitta.api.v1.documents import _summarize_formatted_content
 # ── Single-block shape tests ───────────────────────────────────────────
 
 class TestHeadingSummary:
-    """Heading blocks must surface type, level, level_runtime_type, and
-    runs_count — and nothing else."""
+    """Heading blocks surface type, level, level_runtime_type, runs_count,
+    plus the M13.4 stable-shape fields (alignment + per-block has_color /
+    has_strike / has_font_family flags) on every block."""
 
     def test_heading_block_emits_type_level_runs_count(self):
         out = _summarize_formatted_content([
@@ -34,7 +35,16 @@ class TestHeadingSummary:
         ])
         assert out["total_blocks"] == 1
         assert out["blocks"] == [
-            {"type": "heading", "level": 2, "level_runtime_type": "int", "runs_count": 1},
+            {
+                "type": "heading",
+                "runs_count": 1,
+                "alignment": None,
+                "has_color": False,
+                "has_strike": False,
+                "has_font_family": False,
+                "level": 2,
+                "level_runtime_type": "int",
+            },
         ]
 
     def test_heading_with_string_level_records_runtime_type(self):
@@ -56,14 +66,23 @@ class TestHeadingSummary:
 
 
 class TestListItemSummary:
-    """list_item blocks must surface type, list_type, and runs_count."""
+    """list_item blocks surface type, list_type, runs_count, plus the
+    M13.4 stable-shape fields (alignment + run-attr flags)."""
 
     def test_bullet_list_item(self):
         out = _summarize_formatted_content([
             {"type": "list_item", "list_type": "bullet", "runs": [{"text": "x"}]},
         ])
         assert out["blocks"] == [
-            {"type": "list_item", "list_type": "bullet", "runs_count": 1},
+            {
+                "type": "list_item",
+                "runs_count": 1,
+                "alignment": None,
+                "has_color": False,
+                "has_strike": False,
+                "has_font_family": False,
+                "list_type": "bullet",
+            },
         ]
 
     def test_numbered_list_item(self):
@@ -71,7 +90,15 @@ class TestListItemSummary:
             {"type": "list_item", "list_type": "numbered", "runs": [{"text": "x"}]},
         ])
         assert out["blocks"] == [
-            {"type": "list_item", "list_type": "numbered", "runs_count": 1},
+            {
+                "type": "list_item",
+                "runs_count": 1,
+                "alignment": None,
+                "has_color": False,
+                "has_strike": False,
+                "has_font_family": False,
+                "list_type": "numbered",
+            },
         ]
 
     def test_list_item_missing_list_type_records_none(self):
@@ -82,7 +109,8 @@ class TestListItemSummary:
 
 
 class TestParagraphSummary:
-    """Paragraph blocks must surface type and runs_count only."""
+    """Paragraph blocks surface type and runs_count, plus the M13.4
+    stable-shape fields (alignment + run-attr flags)."""
 
     def test_paragraph_block(self):
         out = _summarize_formatted_content([
@@ -90,7 +118,16 @@ class TestParagraphSummary:
                 {"text": "a"}, {"text": "b"}, {"text": "c"},
             ]},
         ])
-        assert out["blocks"] == [{"type": "paragraph", "runs_count": 3}]
+        assert out["blocks"] == [
+            {
+                "type": "paragraph",
+                "runs_count": 3,
+                "alignment": None,
+                "has_color": False,
+                "has_strike": False,
+                "has_font_family": False,
+            },
+        ]
 
     def test_paragraph_default_when_type_missing(self):
         # block.get("type", "paragraph") falls through to paragraph.
