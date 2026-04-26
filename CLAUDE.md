@@ -326,25 +326,58 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-04-20: Browser extensions (Speechify, Grammarly, Honey, LastPass) inject DOM nodes at document root on every page. These appear as <div id="extension-name-*"> in DevTools. Not application bugs; but test sites periodically in incognito mode or on a clean browser to see what real visitors see without extensions.
 - 2026-04-20: Case-sensitivity mismatch between Windows NTFS (case-insensitive) and Linux (case-sensitive) causes silent CI failures. A folder created as apps/website/public/Brand/ on Windows reads the same as apps/website/public/brand/ locally, but git tracks them separately AND Linux CI will 404 on /brand/ references if git has /Brand/ indexed. Always match case exactly with existing committed paths; verify via git ls-files before staging new files in previously-committed directories.
 - 2026-04-20: Pre-existing CI workflows that silently fail for weeks are a common solo-founder tech debt pattern — red badges become background noise when production is deployed via other mechanisms. Queue CI remediation as its own milestone; enabling branch protection requiring green CI to merge prevents future drift.
+- 2026-04-21: Pre-push code review via Claude Code saved production: email-validator missing from pyproject.toml would have caused every POST /api/v1/contact to 500. Always run a read-only verification prompt before pushing backend changes to production.
+- 2026-04-21: Pydantic v2 EmailStr requires the email-validator package. Add pydantic[email] (not just pydantic) to pyproject.toml when using EmailStr. The import resolves at module load but validation fails at runtime without the package.
+- 2026-04-21: ECS container does NOT auto-run alembic on startup. Dockerfile CMD goes straight to uvicorn. Migrations must be run via one-off ECS task: aws ecs run-task with --overrides command override ['alembic', 'upgrade', 'head']. Task definition :3 references :latest tag so new images are pulled automatically.
+- 2026-04-21: CORS config in config.py defaults can be overridden by Secrets Manager env vars (Pydantic Settings precedence). Always verify with aws secretsmanager get-secret-value before assuming code defaults take effect in production.
+- 2026-04-21: Chrome DevTools mobile device toolbar auto-requests /manifest.json for PWA heuristics. This produces a mobile-only-looking 404 in the Network tab that can be mistaken for a page 404. Always check the actual page request status, not ancillary resource requests.
+- 2026-04-21: Build pages one at a time with screenshot verification between each. This catches issues early and keeps commits atomic. The M8b.2 session landed 10 commits over 8 hours with zero production regressions.
+- 2026-04-21: Windows curl CRYPT_E_NO_REVOCATION_CHECK error on HTTPS: use --ssl-no-revoke flag in Git Bash. Not a server issue — Windows schannel certificate revocation check fails on some network configs.
+- 2026-04-21: Footer mailto link (hello@psitta.ai) was a stale alias not matching the canonical support@psitta.ai. When replacing mailto links with route links, check for address mismatches — stale aliases in footer/header are common.
+- 2026-04-22: CloudFront S3 REST origin + OAC does NOT perform directory-index resolution. default_root_object handles only the apex /. Every Next.js static-export site using OAC needs a CloudFront Function to rewrite /path/ to /path/index.html, or the entire site is broken for direct-URL access to subpages. Only the homepage will work. This bug is catastrophic but invisible during in-app navigation because Next.js SPA hydration fetches RSC payloads, not HTML files.
+- 2026-04-22: CloudFront cached error responses (403 mapped to 404 via custom_error_response) persist in cache just like success responses. After fixing an origin or function bug that was causing 404s, always invalidate /* to flush the cached error pages — otherwise browsers keep getting the stale 404 until TTL expires.
+- 2026-04-22: SessionStart hook's docx-parser matches on exact heading text. A V2 DevLog with heading “5. Key Learnings (append to CLAUDE.md)” was rejected with “no Key Learnings section — skipping.” Future DevLogs must use plain “Key Learnings” as the heading text to match the hook's regex.
+- 2026-04-22: Gemini and most AI image generators cannot produce true alpha-channel transparent PNGs. Their “transparent background” output usually has a checkerboard pattern or cream color baked into the pixels. Workaround: use the cream-background version and apply CSS mix-blend-multiply with bg-[matching-color] so the image merges into the page background via blend mode rather than alpha.
+- 2026-04-22: Next.js 16 static export requires export const dynamic = “force-static” on route-handler-backed conventions like sitemap.ts and robots.ts. Without it, the build fails with dynamic-route errors. No-op at runtime; pure build-time directive.
+- 2026-04-22: Next.js Metadata API has first-class verification fields for google, yandex, me, and yahoo — but NOT bing. For Bing Webmaster Tools verification, use verification.other[“msvalidate.01”] to emit the Microsoft-specific meta tag.
+- 2026-04-22: INSERT ... ON CONFLICT (email) DO NOTHING is race-free and anti-enumeration-safe for email capture endpoints. Returning the same success message for new and duplicate submissions prevents attackers from probing for list membership. Cleaner than try/catch IntegrityError — no transaction rollback needed.
+- 2026-04-22: IndexNow keys are public by design. They go in plain-text files at the site root and should NOT be stored in password managers. Saving them in project notes or a plain file is appropriate; treating them like secrets is misguided.
+- 2026-04-22: In 2026, Bing's index matters more than its raw search-traffic share suggests because ChatGPT and Microsoft Copilot both query Bing, not Google, when their AI agents need web search. Being in Bing's index is table-stakes for being discoverable by AI assistants.
+- 2026-04-22: ECS task definition :3 references :latest tag, so new Docker images are pulled automatically on each task run without needing a new task definition revision. Migrations via one-off ECS task (aws ecs run-task --overrides command=["alembic","upgrade","head"]) remain the correct pattern and just work, as long as the new image has been pushed to ECR first.
+- 2026-04-23: flutter_native_splash does not support Windows. Use an in-app Flutter widget splash with GoRouter redirect pattern (auth-aware routing to /library or /login) instead.
+- 2026-04-23: Cognito Hosted UI CSS only honors documented .xxx-customizable selectors. Generic CSS rules are silently ignored. aws cognito-idp set-ui-customization requires --image-file whenever --css is provided (atomic bundle). CSSVersion timestamp is the cache-buster.
+- 2026-04-23: Theme-aware assets in Flutter: use Theme.of(context).brightness == Brightness.dark with a centralized widget like PsittaLogo. Opacity can be conditional on brightness (watermark only on dark themes, full opacity on light themes).
+- 2026-04-23: Pillow can generate multi-resolution Windows ICO files directly: img.save(path, format="ICO", sizes=[(16,16),(20,20),(24,24),(32,32),(40,40),(48,48),(64,64),(128,128),(256,256)]). ImageMagick is not required.
+- 2026-04-23: git add + git commit without an explicit file list sweeps ALL staged files — backend, frontend, unrelated test fixtures, everything. Use explicit git add <file> <file> per commit for atomic per-commit separation (backend vs frontend vs security).
+- 2026-04-23: Riverpod FutureProvider.autoDispose never disposes while ANY listener is mounted. Persistent shell widgets (sidebar, library, settings all watching billingStatusProvider) prevent refresh. Cold restart clears Dart process memory → fresh fetch with a real token → the UI recovers. This masked a latent auth bug for an unknown amount of time.
+- 2026-04-23: Dual subscription table architecture is tech debt: user_subscriptions (populated by set_plan_override dev/admin PATCH) is read by the quota enforcer; subscriptions (populated by Stripe webhook) is read by /billing/status. Real Stripe customers without a matching user_subscriptions row will 402 after doc #4 despite being Pro. M9 backlog item: consolidate onto a single table.
+- 2026-04-23: Quota counter increments BEFORE the document INSERT commits. Any failure after the counter bump leaves an orphan. luisaao's 50-vs-49 discrepancy was one such orphan. Fix options: (a) same transaction as the INSERT, or (b) replace the counter with SELECT COUNT(*) FROM documents WHERE created_at IN current_month AND status != 'deleted'.
+- 2026-04-24: Production Flutter client sending the literal fallback string "dev-bypass-token" on null-storage race. Backend correctly rejected in production (1ms sub-millisecond 401 at JWT parse) but Riverpod cached the 401 forever → silent Free UI for Pro users. Security-critical; the fix removes the string entirely from the production binary, adds refresh+retry on 401, and introduces PlanStatus.unavailable (fail-closed).
+- 2026-04-24: CloudWatch latency signature differentiates auth failure from business-logic failure. 1ms 401 = rejected at JWT parse (before handler body ran). 100-400ms 200 = handler ran (JWKS fetch + DB + audit log). When diagnosing auth issues, filter CloudWatch by latency ranges in addition to status codes.
+- 2026-04-24: DOCX formatting round-trip requires THREE coordinated changes or the fix is worse than no fix: (1) backend schema accepts formatted_content, (2) client save serializes Quill Delta → block/run JSON, (3) client load deserializes block/run JSON → Quill Delta with attributes. Fixing just one leaves the other paths silently wiping formatting on save or load.
+- 2026-04-24: flutter_quill 10.8.x Delta format: Document.toDelta().toList() returns List<Op>. Each Op has .data (string or object) and .attributes (Map<String, dynamic>? or Style). Inline attributes are Attribute.bold, .italic, .underline, .size (for font_size) — keyed as 'size' not 'font_size' in the Delta. Custom key-value attributes via Attribute.fromKeyValue.
+- 2026-04-24: pysbd sentence segmentation and the TTS pipeline consume plain text_content only — formatting never affects audio synthesis or alignment. Safe to layer Bold/Italic/Underline/FontSize formatting on top without touching the playback code path.
+- 2026-04-24: Quota dialog + banner UX pattern: proactive banner on Library (persistent, X-dismissible, reappears on next app launch if still at limit), disabled action buttons with tooltip priority (unavailable > at-limit > not-Pro > enabled), safety-net dialog for 402 responses that slip through. Replaces cryptic "DioException: bad response" with actionable messaging that shows actual plan, actual usage, and actual reset date.
+- 2026-04-24: Surgical production DB writes: use ECS one-off task (same codepath as the app), composite-key WHERE clause enforced by schema natural key, UPDATE.rowcount guard that aborts if != 1, and audit_log append via audit_service.log_event for SOC 2 tamper-evident schema. Before → UPDATE → After re-SELECT → collateral count SELECT for last 30 seconds = 1. Trivially reversible via opposite UPDATE.
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260420_M8aShipped_M8b1BrandFoundationPaused_v1_0.docx`
-- **Date**: April 20, 2026
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260425_M13_3_DownloadBug_CIUnblock_v1_0.docx`
+- **Date**: April 25, 2026
 - **Recent commits** (`git log --oneline -10`):
 
 ```
-3005f01 feat(M8b.1): visual identity foundation + v4 cascade fix
-d01be56 fix(M8a-ci): drop environment: production so OIDC sub matches trust policy
-c4c5485 fix(M8a): pnpm/action-setup@v4 — let action read version from packageManager
-46ce808 feat(M8a): deploy website via GitHub Actions OIDC
-c6fe714 chore: cleanup .claude config, fix gitignore, rescue OnlyBird.png asset
-cf9f71b feat(M3): F3 plan enforcement — upload limit dialog, voice lock for free users, speed cap 2x, SWH disabled, download/archive hidden for free plan
-70e5b19 fix: SessionStart hook — scan DevLogs folder for newest devlog by mtime, override stale marker when a newer file exists
-cd0f1ad fix(M3): update Creative Nook Pro feature copy — AI-powered content ideas
-c9b997d fix(M3): consolidate billing providers — single billingStatusProvider for Settings, Library, and Change Plan screens, remove legacy subscriptionSummaryProvider
-d1f95bb fix(M3): webhook handler — pass Psitta UUID to audit_log resource_id, isolate subscription_events in independent transaction for crash-safe event storage
+2b5d14d feat(backend): structured logging of formatted_content structure on chunk update
+c77a170 test(backend): skip test_schemas.py — broken imports deferred to M11
+e1b7f8a ci: make Lint a warning so downstream jobs run
+4ed4686 test(backend): regression guard for /export heading level rendering
+cbd5708 fix(desktop): DocumentReadingView renders numbered lists as numbers
+0016119 fix(desktop): preserve list_type through DocBlock model and assembler
+970a17d feat(desktop): M13.3 headings + bulleted/numbered lists round-trip
+7512245 fix(backend): /export reads formatted_content and renders B/I/U/font_size + bullet/numbered lists
+e4bc25f fix(desktop): DocumentReadingView now applies run.fontSize
+9f8b0d1 fix(desktop): emit font_size as integer-string on load so Quill renders at saved size
 ```
-- _Auto-updated by Stop hook at 2026-04-21 16:19 UTC_
+- _Auto-updated by Stop hook at 2026-04-26 14:12 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
