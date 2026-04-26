@@ -1521,11 +1521,21 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     return outBlocks;
   }
 
-  /// Compare two Quill inline-attribute maps considering only the Phase 1
-  /// subset. Attributes outside that subset are ignored so a spurious
-  /// color attribute on an otherwise-identical run doesn't fragment runs.
+  /// Compare two Quill inline-attribute maps for run-grouping equality.
+  ///
+  /// MUST list every inline attribute the formatted_content schema supports.
+  /// If an attribute is missing here, adjacent ops differing only in that
+  /// attribute will be incorrectly merged into one run on save, producing:
+  ///   - Scope spread (when the attributed op is the seed of a run group)
+  ///   - Attribute loss (when the attributed op is mid-iteration)
+  ///
+  /// History: M13.4 Ship 1 (commit 9983260) added strike/color/font to the
+  /// schema and to flush() emission, but the keys list here was not
+  /// updated. Symptoms surfaced as strike-spreads-to-whole-sentence; latent
+  /// bugs existed for color and font_family. Repaired by adding all three
+  /// to the keys array.
   bool _attributesEqual(Map<String, dynamic> a, Map<String, dynamic> b) {
-    const keys = ['bold', 'italic', 'underline', 'size'];
+    const keys = ['bold', 'italic', 'underline', 'size', 'strike', 'color', 'font'];
     for (final key in keys) {
       if ((a[key] ?? false) != (b[key] ?? false)) {
         if (a[key] == null && b[key] == null) continue;
