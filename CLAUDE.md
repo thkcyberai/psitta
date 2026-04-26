@@ -359,6 +359,14 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-04-24: pysbd sentence segmentation and the TTS pipeline consume plain text_content only — formatting never affects audio synthesis or alignment. Safe to layer Bold/Italic/Underline/FontSize formatting on top without touching the playback code path.
 - 2026-04-24: Quota dialog + banner UX pattern: proactive banner on Library (persistent, X-dismissible, reappears on next app launch if still at limit), disabled action buttons with tooltip priority (unavailable > at-limit > not-Pro > enabled), safety-net dialog for 402 responses that slip through. Replaces cryptic "DioException: bad response" with actionable messaging that shows actual plan, actual usage, and actual reset date.
 - 2026-04-24: Surgical production DB writes: use ECS one-off task (same codepath as the app), composite-key WHERE clause enforced by schema natural key, UPDATE.rowcount guard that aborts if != 1, and audit_log append via audit_service.log_event for SOC 2 tamper-evident schema. Before → UPDATE → After re-SELECT → collateral count SELECT for last 30 seconds = 1. Trivially reversible via opposite UPDATE.
+- 2026-04-25: ECS task definition pinned to :latest tag — force-new-deployment re-pulls without bumping revision number. Task def revision staying same after deploy is normal. Ground truth is image digest match between ECR :latest and running task's container imageDigest. Never use revision number as deploy-completed signal.
+- 2026-04-25: AWS CLI cross-account — psitta-cluster lives in psitta-prod (808765744063) but default profile is Blowmymind management account. Always use --profile psitta-prod for ECS/ECR operations.
+- 2026-04-25: AWS and ECS timestamps with -06:00 offset are already in local Mountain Time (MDT) — do not 'convert to local,' they're already local.
+- 2026-04-25: THREE render paths exist for DOCX content, not two: Quill QuillEditor.basic (live editing), DocumentReadingView (post-save reading), and the backend /export builder (download regeneration). All three must handle every attribute symmetrically. Today found and fixed asymmetries in all three (font_size yesterday, list_type and heading-level rendering today, formatted_content reading in /export).
+- 2026-04-25: Pre-launch test rot — months of CI being broken meant accumulated test failures (test_schemas.py, test_document_service.py, test_middleware/* all reference renamed/removed symbols). Unblocking CI surfaced the rot. M11 must include systematic test repair, not just lint cleanup.
+- 2026-04-25: When localizing a multi-layer bug, write the regression test BEFORE picking a layer. The test of _build_branded_docx eliminated three hypotheses (export builder, python-docx interaction, level coercion) in one CI run. Beats single-shot diagnostic curls because the test stays as a permanent guard.
+- 2026-04-25: Privacy-respecting observability — structural summaries (types, integer values, length counts) can be logged permanently in production. Run text and any user-typed string must never enter logs. Enforce with regression tests that include sensitive-looking strings as inputs and assert they don't appear in summary output.
+- 2026-04-25: Never trust a 'bug report' from a previously-downloaded artifact. ALWAYS test against a freshly-generated download after a fix has been deployed. Today's H2/H3 mystery dissolved when we tested fresh — the artifact was stale.
 
 ## Last Devlog
 - **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260425_M13_3_DownloadBug_CIUnblock_v1_0.docx`
@@ -377,7 +385,7 @@ cbd5708 fix(desktop): DocumentReadingView renders numbered lists as numbers
 e4bc25f fix(desktop): DocumentReadingView now applies run.fontSize
 9f8b0d1 fix(desktop): emit font_size as integer-string on load so Quill renders at saved size
 ```
-- _Auto-updated by Stop hook at 2026-04-26 14:12 UTC_
+- _Auto-updated by Stop hook at 2026-04-26 14:20 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
