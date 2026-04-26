@@ -54,13 +54,24 @@ bool shouldUseUnifiedEditor(PsittaDocument doc) {
 }
 
 /// Normalize a Quill `color` attribute value to lowercase 6-digit hex
-/// without `#`. Accepts `#RRGGBB`, `RRGGBB`, `#RRGGBBAA` (alpha truncated),
+/// without `#`. Accepts `#RRGGBB`, `RRGGBB`, `#AARRGGBB`, `AARRGGBB`,
 /// case-insensitive. Returns null on any unparseable shape — the save
 /// path then drops the attribute silently rather than poisoning the
 /// stored formatted_content with a string the export builder can't feed
-/// to `RGBColor.from_string`. flutter_quill 10.8.4's standard color
-/// picker emits `#RRGGBB`; the alpha tolerance is defensive in case a
-/// pasted Delta carries it.
+/// to `RGBColor.from_string`.
+///
+/// 8-digit format is what flutter_quill's color picker emits. Its
+/// `colorToHex` (color_button.dart:220) computes
+/// `color.value.toRadixString(16).padLeft(8, '0')`, and Flutter's
+/// `Color.value` is laid out **AARRGGBB** (alpha first). For Material
+/// red `0xFFF44336`, the picker emits `"#FFF44336"`, which this
+/// normalizer must reduce to `"f44336"` (drop the leading 2 alpha
+/// chars), NOT `"fff443"`.
+///
+/// History: M13.4 Ship 1 originally implemented this assuming CSS
+/// `RRGGBBAA` byte order (alpha trailing) and stripped the wrong end,
+/// causing red to render as yellow because alpha+R+G was kept and B
+/// was discarded. Corrected after manual testing surfaced the symptom.
 String? _normalizeHexColor(String? raw) {
   if (raw == null) return null;
   final trimmed = raw.trim();
@@ -73,7 +84,7 @@ String? _normalizeHexColor(String? raw) {
     final isHexUpper = c >= 0x41 && c <= 0x46;
     if (!isDigit && !isHexLower && !isHexUpper) return null;
   }
-  return body.substring(0, 6).toLowerCase();
+  return (body.length == 8 ? body.substring(2) : body).toLowerCase();
 }
 
 class PlayerScreen extends ConsumerStatefulWidget {
