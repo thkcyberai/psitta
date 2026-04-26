@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 import '../../../data/models/psitta_document.dart';
+import 'page_break_embed.dart';
 
 class DocxDocumentEditor extends StatefulWidget {
   const DocxDocumentEditor({
@@ -222,6 +223,12 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
           scrollPhysics: const ClampingScrollPhysics(),
           placeholder: '',
           enableInteractiveSelection: true,
+          // M13.5 scaffolding — embed builder registered ahead of the
+          // toolbar customButton (which lives on spike/page-break-embed-validation
+          // tag m13.5-pagebreak-spike) so any data containing a
+          // page_break embed loads without the UnimplementedError that
+          // flutter_quill raises for unknown embed types.
+          embedBuilders: [PageBreakEmbedBuilder()],
           customStyles: DefaultStyles(
             paragraph: DefaultTextBlockStyle(
               paragraphStyle,
@@ -467,6 +474,10 @@ class _DocxEditableBlock extends StatelessWidget {
         padding: EdgeInsets.zero,
         scrollPhysics: const ClampingScrollPhysics(),
         placeholder: '',
+        // M13.5 scaffolding — see _buildUnifiedEditor's matching
+        // embedBuilders comment. Both editor instances must register
+        // the builder so neither mode crashes on unknown-embed data.
+        embedBuilders: [PageBreakEmbedBuilder()],
         customStyles: DefaultStyles(
           paragraph: DefaultTextBlockStyle(
             _paragraphStyle(theme),
