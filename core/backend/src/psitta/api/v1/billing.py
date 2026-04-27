@@ -210,8 +210,8 @@ async def create_checkout_session(
             mode="subscription",
             customer=stripe_customer_id,
             line_items=[{"price": price_id, "quantity": 1}],
-            success_url="https://psitta.ai/billing/success?session_id={CHECKOUT_SESSION_ID}",
-            cancel_url="https://psitta.ai/billing/cancel",
+            success_url="https://psitta.ai/billing/success/?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url="https://psitta.ai/billing/cancel/",
             metadata={
                 "psitta_user_id": str(user_id),
                 "lookup_key": body.lookup_key,
