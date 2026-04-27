@@ -367,25 +367,33 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-04-25: When localizing a multi-layer bug, write the regression test BEFORE picking a layer. The test of _build_branded_docx eliminated three hypotheses (export builder, python-docx interaction, level coercion) in one CI run. Beats single-shot diagnostic curls because the test stays as a permanent guard.
 - 2026-04-25: Privacy-respecting observability — structural summaries (types, integer values, length counts) can be logged permanently in production. Run text and any user-typed string must never enter logs. Enforce with regression tests that include sensitive-looking strings as inputs and assert they don't appear in summary output.
 - 2026-04-25: Never trust a 'bug report' from a previously-downloaded artifact. ALWAYS test against a freshly-generated download after a fix has been deployed. Today's H2/H3 mystery dissolved when we tested fresh — the artifact was stale.
+- 2026-04-26: A whitelist comparator that decides run-merge boundaries MUST list EVERY schema-supported attribute; missing one produces scope-spread (when at seed position) or attribute-loss (mid-iteration). The doc comment on such a comparator must state this contract explicitly so future schema additions don't silently regress. f2acd2b is the exemplar.
+- 2026-04-26: When wiring a typed value (color hex, font size, alignment) through Quill → save → storage → load → render layers, NEVER trust the apparent runtime type OR byte order. Source-trace what the upstream library emits. Flutter's Color.value is AARRGGBB; CSS hex is RRGGBBAA. Two characters of substring difference rendered red as yellow for an entire day.
+- 2026-04-26: Font family attributes mean nothing without registered font assets. Flutter's font resolver silently falls back to platform default if a family is unknown — no error, no warning. The fix is either bundle .ttf assets in pubspec.yaml OR override the dropdown with platform-installed font names. For a Word-like product, platform-installed Microsoft Word fonts is the right product fit.
+- 2026-04-26: When extending an observability surface that has existing brittle full-dict equality tests, AUDIT those tests in the diagnostic phase. Adding 4 new keys to a per-block summary broke 4 pre-existing tests in a separate file that asserted the old shape exactly. Ship 1 had to land in 2 commits instead of 1.
+- 2026-04-26: BlockEmbed.custom in flutter_quill 10.8.5 renders correctly in the editor but has documented gaps (InsertEmbedsRule and EnsureEmbedLineRule both apply ONLY to video, not custom embeds). Save round-trip requires an explicit skip-next-newline state machine in the save path to prevent phantom paragraphs and embed-drop. A 60-minute spike validated this in time to defer page break to M13.5 instead of consuming a full day.
+- 2026-04-26: When scope-spike a feature reveals 4x the original LoC estimate plus unresolved risks, defer rather than push through. Today's spike branch commit (1db3772) tagged as m13.5-pagebreak-spike is the canonical "this is what we tried" reference for resume work — tags are lighter than long-lived branches and accumulate zero rebase debt against develop.
+- 2026-04-26: Hide unfinished features behind a flag (toolbar customButton omitted on develop while page_break_embed.dart, embedBuilders registration, and save/load path detection ARE on develop). This protects future data-shape collisions without exposing a broken UI surface. Re-enable in M13.5 by restoring exactly the toolbar entry and the _insertPageBreak helper.
+- 2026-04-26: When an executor (Claude Code) reports an honest integrity check that questions YOUR previously-drafted commit message OR phasing, take the pushback seriously. Today: the commit message draft for the CLAUDE.md catch-up understated the diff by ~5x; Claude Code refused to push it. The correct response was to widen the commit message and split into two commits, not to override the integrity check. Senior-engineer-grade executors are worth the round trip.
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260425_M13_3_DownloadBug_CIUnblock_v1_0.docx`
-- **Date**: April 25, 2026
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260426_M13_4_Ship1_BugFixes_PageBreakDeferred_v1_0.docx`
+- **Date**: April 26, 2026
 - **Recent commits** (`git log --oneline -10`):
 
 ```
+dc8d868 fix(desktop): override font family list with Windows-installed fonts
+78c2d2a fix(desktop): _normalizeHexColor strips alpha from leading bytes (red→yellow bug)
+f2acd2b fix(desktop): _attributesEqual now compares strike/color/font (scope expansion bug)
+8f21d25 feat(desktop): page break embed scaffolding (toolbar hidden)
+b3f1b1a test(backend): update test_chunk_log_summary.py for M13.4 summary shape
+9983260 feat: M13.4 Ship 1 — strike, color, font family, alignment
+4bfdbf9 docs: manual append of 2026-04-25 Key Learnings to CLAUDE.md
+9c74552 chore: catch up CLAUDE.md auto-sync from past 4 days
 2b5d14d feat(backend): structured logging of formatted_content structure on chunk update
 c77a170 test(backend): skip test_schemas.py — broken imports deferred to M11
-e1b7f8a ci: make Lint a warning so downstream jobs run
-4ed4686 test(backend): regression guard for /export heading level rendering
-cbd5708 fix(desktop): DocumentReadingView renders numbered lists as numbers
-0016119 fix(desktop): preserve list_type through DocBlock model and assembler
-970a17d feat(desktop): M13.3 headings + bulleted/numbered lists round-trip
-7512245 fix(backend): /export reads formatted_content and renders B/I/U/font_size + bullet/numbered lists
-e4bc25f fix(desktop): DocumentReadingView now applies run.fontSize
-9f8b0d1 fix(desktop): emit font_size as integer-string on load so Quill renders at saved size
 ```
-- _Auto-updated by Stop hook at 2026-04-26 14:20 UTC_
+- _Auto-updated by Stop hook at 2026-04-27 13:38 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
