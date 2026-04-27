@@ -168,6 +168,53 @@ def _mtime_iso(path: Path) -> str:
 # "Key Learnings" heading at all (legitimate no-op, not a structural error).
 _NO_HEADING: List[Tuple[str, str]] = []
 
+# Heading matcher: tolerates a numbered prefix ("5. Key Learnings",
+# "5) Key Learnings") and any free-text or parenthetical suffix
+# ("Key Learnings from Today", "Key Learnings (Append to CLAUDE.md, ...)").
+# Style-gated downstream by _is_kl_heading, so a body sentence that
+# mentions "key learnings" in prose cannot match.
+_KL_HEADING_RE = re.compile(
+    r"^\s*(?:\d+[.)]\s*)?Key\s+Learnings\b.*$", re.IGNORECASE
+)
+
+# Modern devlogs (2026-04-25 onwards) store entries as ListBullet /
+# ListParagraph paragraphs whose text begins with the ISO date.
+# Captures (date, content); older table-format devlogs never reach it.
+_KL_BULLET_RE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2})\s*:\s*(.+?)\s*$")
+
+
+def _para_text(p_element) -> str:
+    """Return the concatenated text of a <w:p> element."""
+    return "".join(t.text or "" for t in p_element.iter(qn("w:t")))
+
+
+def _para_pstyle(p_element) -> str:
+    """Return the pStyle val of a <w:p> element, or "" if absent."""
+    style_el = p_element.find(".//" + qn("w:pStyle"))
+    if style_el is None:
+        return ""
+    return style_el.get(qn("w:val")) or ""
+
+
+def _is_heading_style(pstyle_val: str) -> bool:
+    """True if the pStyle val identifies a Word heading (any level)."""
+    return pstyle_val.lower().startswith("heading")
+
+
+def _is_kl_heading(p_element) -> bool:
+    """True iff the paragraph is a 'Key Learnings' section heading.
+
+    Two gates must both pass: the visible text matches _KL_HEADING_RE
+    (which tolerates numbered prefix and free-text suffix variants) AND
+    the pStyle starts with "Heading" (any level).  The style gate
+    prevents prose mentioning the phrase from being mistaken for a
+    section start.
+    """
+    if not _KL_HEADING_RE.match(_para_text(p_element).strip()):
+        return False
+    return _is_heading_style(_para_pstyle(p_element))
+
+
 # -- Phase 3: Devlog parsing -----------------------------------------------
 
 def extract_devlog_learnings(
@@ -175,56 +222,89 @@ def extract_devlog_learnings(
     filename: str,
     log_path: Path,
 ) -> Optional[List[Tuple[str, str]]]:
-    """Parse the Key Learnings table from a devlog .docx file.
+    """Parse Key Learnings entries from a devlog .docx file.
 
-    Walks the document's XML body to locate a paragraph whose text is
-    exactly ``Key Learnings`` (case-sensitive), then reads the first
-    ``<w:tbl>`` element that follows it.
+    Two body formats are supported (selected by which element type
+    appears between the heading and the next Heading-styled paragraph):
+
+        - Legacy table: a <w:tbl> with [date, learning] columns
+          immediately following the heading paragraph.
+        - Modern bullets: ListBullet / ListParagraph paragraphs whose
+          text begins with ``YYYY-MM-DD: ...``.
+
+    Heading matching is style-gated and tolerates numbered prefixes and
+    free-text/parenthetical suffixes (see _is_kl_heading).
 
     Returns:
-        List of ``(date, learning)`` tuples on success (may be empty if
-        the table has only a header row).
+        List of ``(date, learning)`` tuples on success.  May be empty if
+        the heading was found but no entries followed (table with only
+        a header row, or paragraph-mode body without date-prefix
+        entries).
         The module-level ``_NO_HEADING`` sentinel when the devlog has no
-        "Key Learnings" heading -- caller should treat this as a graceful
-        no-op, not an error.
-        ``None`` on structural error (heading found but table missing or
-        malformed) -- caller should abort.
+        "Key Learnings" heading -- caller should treat this as a
+        graceful no-op, not an error.
+        ``None`` on structural error (heading matched but a following
+        table is malformed) -- caller should abort.
     """
     doc = docx.Document(str(devlog_path))
+    body_children = list(doc.element.body)
 
-    found_heading = False
+    heading_index = -1
+    for i, child in enumerate(body_children):
+        tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
+        if tag != "p":
+            continue
+        if _is_kl_heading(child):
+            heading_index = i
+            break
+
+    if heading_index < 0:
+        # No heading is a legitimate case (devlog predates the Key
+        # Learnings convention, or the heading regex would have to be
+        # widened further).  Return sentinel, not None.
+        return _NO_HEADING
+
     target_table = None
+    bullet_tuples: List[Tuple[str, str]] = []
 
-    for child in doc.element.body:
+    for child in body_children[heading_index + 1:]:
         tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
-        if tag == "p" and not found_heading:
-            text = "".join(
-                node.text or "" for node in child.iter(qn("w:t"))
-            )
-            if text.strip() == "Key Learnings":
-                found_heading = True
-                continue
+        if tag == "p":
+            pstyle = _para_pstyle(child)
+            if _is_heading_style(pstyle):
+                # Reached the next section -- stop scanning.
+                break
+            text = _para_text(child)
+            m = _KL_BULLET_RE.match(text.strip())
+            if m:
+                bullet_tuples.append((m.group(1), m.group(2)))
+            # Non-matching paragraphs (preamble, blank lines, free
+            # prose) are skipped silently.
+            continue
 
-        if tag == "tbl" and found_heading:
+        if tag == "tbl":
+            # Legacy table body.  Bind the matching docx Table object
+            # for cell access, then stop -- one table per section.
             for table in doc.tables:
                 if table._element is child:
                     target_table = table
                     break
             break
 
-    if not found_heading:
-        # No heading is a legitimate case (devlog predates the Key
-        # Learnings table convention).  Return sentinel, not None.
-        return _NO_HEADING
-
     if target_table is None:
-        log(
-            f"Devlog {filename} has 'Key Learnings' heading but no table "
-            "follows it. Aborting.",
-            log_path,
-        )
-        return None
+        # Paragraph-mode result.  May be 0 entries for devlogs whose
+        # body uses ListParagraph without the date-prefix convention
+        # (e.g. Apr 24).  Logged as a no-op rather than a structural
+        # error so the hook does not abort the session.
+        if not bullet_tuples:
+            log(
+                f"Devlog {filename} has Key Learnings heading but no "
+                "table and no date-prefixed bullet entries. "
+                "Returning 0 entries.",
+                log_path,
+            )
+        return bullet_tuples
 
     if len(target_table.columns) < 2:
         log(
@@ -234,7 +314,7 @@ def extract_devlog_learnings(
         )
         return None
 
-    tuples: List[Tuple[str, str]] = []
+    table_tuples: List[Tuple[str, str]] = []
     for i, row in enumerate(target_table.rows):
         if i == 0:
             continue  # skip header row
@@ -246,9 +326,9 @@ def extract_devlog_learnings(
                 log_path,
             )
             continue
-        tuples.append((date_text, learning_text))
+        table_tuples.append((date_text, learning_text))
 
-    return tuples
+    return table_tuples
 
 
 # -- Phase 4: CLAUDE.md parsing & dedup ------------------------------------
