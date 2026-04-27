@@ -30,6 +30,74 @@ from psitta.services import audit_service
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
+# ── lookup_key / status mappers ──────────────────────────────────────────
+
+# Map Stripe lookup_keys onto the M3a quota plan_ids used by
+# user_subscriptions.plan_id (ENUM: free|pro_monthly|pro_annual).
+# Both reading_nook_pro and creative_nook_pro collapse onto the same
+# pro_* tier because PLAN_LIMITS in subscription_service.py applies
+# identical quotas to both products. Keys MUST track every value in
+# billing.py's VALID_LOOKUP_KEYS allowlist -- adding a new lookup_key
+# without updating this dict would silently downgrade paying customers
+# to 'free' (or skip the user_subscriptions write entirely). The
+# Stripe-side legacy "creativity_nook_pro_*" prefix is preserved because
+# that's what the Stripe Dashboard ships; see _PLAN_NAME_ALIASES in
+# api/v1/billing.py for the corresponding read-side mapping.
+_LOOKUP_KEY_TO_PLAN_ID: dict[str, str] = {
+    "reading_nook_pro_monthly": "pro_monthly",
+    "reading_nook_pro_annual": "pro_annual",
+    "creativity_nook_pro_monthly": "pro_monthly",
+    "creativity_nook_pro_annual": "pro_annual",
+}
+
+
+def _lookup_key_to_plan_id(lookup_key: str) -> str | None:
+    """Map a Stripe lookup_key to a user_subscriptions.plan_id ENUM value.
+
+    Returns None for unrecognized keys so callers can fail-open (log
+    a warning, skip the user_subscriptions write) rather than write
+    'free' and downgrade a paying customer.
+    """
+    return _LOOKUP_KEY_TO_PLAN_ID.get(lookup_key)
+
+
+# Map Stripe subscription status to user_subscriptions.status ENUM
+# (subscription_status: active|cancelled|expired|trialing).
+#
+# Two deliberate choices encoded here:
+#   * past_due maps to 'active' on purpose. Stripe retries payment for
+#     3-21 days; the customer is still entitled during that grace
+#     period. The actual downgrade fires when Stripe sends
+#     customer.subscription.deleted at the end of the retry window.
+#   * incomplete / incomplete_expired / unpaid map to 'cancelled' so
+#     never-paid sessions don't leave a 'pending' row that the quota
+#     enforcer reads as Pro.
+#
+# Note the spelling drift: the subscriptions table (M3 B1, migration
+# 012) uses 'canceled' (American), the user_subscriptions ENUM (M3a,
+# migration 009) uses 'cancelled' (British). Writing 'canceled' to
+# user_subscriptions trips the ENUM check.
+_STRIPE_STATUS_TO_US_STATUS: dict[str, str] = {
+    "active": "active",
+    "trialing": "trialing",
+    "past_due": "active",
+    "canceled": "cancelled",
+    "incomplete": "cancelled",
+    "incomplete_expired": "cancelled",
+    "unpaid": "cancelled",
+}
+
+
+def _stripe_status_to_us_status(stripe_status: str) -> str | None:
+    """Map a Stripe subscription status to user_subscriptions.status.
+
+    Returns None for unrecognized future Stripe statuses so callers
+    can fail-open rather than risk downgrading a paying customer
+    because of an enum drift on Stripe's side.
+    """
+    return _STRIPE_STATUS_TO_US_STATUS.get(stripe_status)
+
+
 # ── checkout.session.completed ───────────────────────────────────────────
 
 async def handle_checkout_session_completed(
@@ -109,6 +177,74 @@ async def handle_checkout_session_completed(
             ),
         },
     )
+
+    # Mirror the new subscription into user_subscriptions so the quota
+    # enforcer (subscription_service._get_active_plan_id) recognises
+    # the customer as Pro. Same DB session as the subscriptions INSERT
+    # above -- atomicity is preserved by the request transaction.
+    # Background: CLAUDE.md Key Learning 2026-04-23 (dual-table tech
+    # debt). The full consolidation is M9; this commit is the
+    # surgical fix that unblocks paying customers.
+    plan_id_value = _lookup_key_to_plan_id(resolved_lookup_key)
+    if plan_id_value is None:
+        logger.warning(
+            "billing.handler.unknown_lookup_key",
+            lookup_key=resolved_lookup_key,
+            event_id=event["id"],
+            stripe_subscription_id=stripe_subscription_id,
+        )
+    elif user_id is None:
+        # Stripe metadata.psitta_user_id should always be present (set
+        # at Checkout Session creation in api/v1/billing.py:215-218),
+        # but treat its absence as an observable warning rather than
+        # a crash so a single misconfigured event doesn't poison the
+        # request transaction.
+        logger.warning(
+            "billing.handler.no_psitta_user_id",
+            event_id=event["id"],
+            stripe_subscription_id=stripe_subscription_id,
+        )
+    else:
+        # Cancel any prior active row -- one user, one active sub at
+        # a time. Mirrors subscription_service.set_plan_override's
+        # established pattern (subscription_service.py:217-225).
+        await db.execute(
+            text(
+                "UPDATE user_subscriptions SET "
+                "  status = 'cancelled', "
+                "  cancelled_at = NOW(), "
+                "  updated_at = NOW() "
+                "WHERE user_id = :uid AND status = 'active'"
+            ),
+            {"uid": user_id},
+        )
+        await db.execute(
+            text(
+                "INSERT INTO user_subscriptions "
+                "(user_id, plan_id, status, started_at, "
+                " current_period_start, current_period_end, "
+                " stripe_subscription_id, stripe_customer_id) "
+                "VALUES "
+                "(:uid, :plan_id, 'active', NOW(), "
+                " :period_start, :period_end, "
+                " :stripe_sub_id, :stripe_customer_id)"
+            ),
+            {
+                "uid": user_id,
+                "plan_id": plan_id_value,
+                "period_start": period_start,
+                "period_end": period_end,
+                "stripe_sub_id": stripe_subscription_id,
+                "stripe_customer_id": stripe_customer_id_str,
+            },
+        )
+        logger.info(
+            "user_subscription.upserted",
+            user_id=user_id,
+            plan_id=plan_id_value,
+            status="active",
+            stripe_subscription_id=stripe_subscription_id,
+        )
 
     # resource_id stores the Psitta user UUID (audit_log.resource_id is
     # a UUID column). The Stripe identifiers are kept in details_json so
@@ -211,6 +347,56 @@ async def handle_subscription_updated(
         },
     )
 
+    # Mirror to user_subscriptions for the quota enforcer. Fail-open
+    # on unrecognized Stripe statuses (log warning, leave row
+    # untouched) so a future Stripe enum value doesn't downgrade a
+    # paying customer. plan_id is only updated when the lookup_key
+    # resolves cleanly -- otherwise we'd risk overwriting a valid
+    # plan_id with the legacy 'free' default.
+    new_us_status = _stripe_status_to_us_status(new_status)
+    new_plan_id = _lookup_key_to_plan_id(lookup_key)
+    if new_us_status is None:
+        logger.warning(
+            "billing.handler.unknown_stripe_status",
+            stripe_subscription_id=stripe_sub_id,
+            stripe_status=new_status,
+            event_id=event["id"],
+        )
+    else:
+        params = {
+            "status": new_us_status,
+            "period_start": period_start,
+            "period_end": period_end,
+            "cancelled_at": canceled_at,
+            "now": now,
+            "sub_id": stripe_sub_id,
+        }
+        plan_clause = ""
+        if new_plan_id is not None:
+            plan_clause = "  plan_id = :plan_id, "
+            params["plan_id"] = new_plan_id
+
+        await db.execute(
+            text(
+                "UPDATE user_subscriptions SET "
+                "  status = :status, "
+                + plan_clause
+                + "  current_period_start = :period_start, "
+                "  current_period_end = :period_end, "
+                "  cancelled_at = :cancelled_at, "
+                "  updated_at = :now "
+                "WHERE stripe_subscription_id = :sub_id"
+            ),
+            params,
+        )
+        logger.info(
+            "user_subscription.upserted",
+            user_id=psitta_user_id,
+            plan_id=new_plan_id,
+            status=new_us_status,
+            stripe_subscription_id=stripe_sub_id,
+        )
+
     await audit_service.log_event(
         db,
         action="billing.subscription_updated",
@@ -274,6 +460,27 @@ async def handle_subscription_deleted(
             "WHERE stripe_subscription_id = :sub_id"
         ),
         {"now": now, "sub_id": stripe_sub_id},
+    )
+
+    # Mirror cancellation to user_subscriptions for the quota enforcer.
+    # Note the spelling drift -- subscriptions uses 'canceled'
+    # (American), the user_subscriptions ENUM uses 'cancelled' (British,
+    # see migration 009).
+    await db.execute(
+        text(
+            "UPDATE user_subscriptions SET "
+            "  status = 'cancelled', "
+            "  cancelled_at = :now, "
+            "  updated_at = :now "
+            "WHERE stripe_subscription_id = :sub_id"
+        ),
+        {"now": now, "sub_id": stripe_sub_id},
+    )
+    logger.info(
+        "user_subscription.upserted",
+        user_id=psitta_user_id,
+        status="cancelled",
+        stripe_subscription_id=stripe_sub_id,
     )
 
     await audit_service.log_event(
