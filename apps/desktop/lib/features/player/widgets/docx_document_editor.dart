@@ -372,6 +372,42 @@ Widget buildDocxEditToolbar({
       // it. Page break ships in M13.4 Ship 2 as a custom toolbar button;
       // flutter_quill 10.8.4 has no native page-break flag.
       showFontFamily: true,
+      // Curated to 6 fonts that ship with Microsoft Word on Windows.
+      // Each is guaranteed installed at the OS level — Flutter's font
+      // resolver finds them without any pubspec.yaml `fonts:` asset
+      // registration, and they round-trip through /export to .docx
+      // because Word ships with the same families.
+      //
+      // The default list flutter_quill 10.8.5 surfaces (Pacifico,
+      // SquarePeg, Nunito, Ibarra Real Nova, Roboto Mono, plus generic
+      // CSS keywords sans-serif/serif/monospace) is wrong for two
+      // reasons: (1) none of those fonts are bundled as Flutter assets,
+      // so picking them silently falls back to Segoe UI; (2) they're
+      // web-design fonts, not the Word-document fonts our users expect.
+      //
+      // Hidden-bonus fix: _extract_formatted_docx (backend) reads
+      // run.font.name from uploaded .docx files. Pre-fix, names like
+      // "Calibri" or "Cambria" were technically preserved in storage
+      // but rendered as Segoe UI in the editor. With these family
+      // names recognized, uploaded fonts now render correctly.
+      //
+      // Cross-platform note: Mac and Linux ports must override this
+      // with platform-installed fonts (e.g. Helvetica/Avenir/Menlo on
+      // Mac). Adding a font here requires it to be installed on every
+      // target system — OR registered as a Flutter font asset under
+      // `flutter: fonts:` in pubspec.yaml.
+      //
+      // The 'Clear' entry is required by flutter_quill — it triggers
+      // the "remove font attribute" path in font_family_button.dart.
+      fontFamilyValues: const <String, String>{
+        'Calibri': 'Calibri',
+        'Arial': 'Arial',
+        'Times New Roman': 'Times New Roman',
+        'Georgia': 'Georgia',
+        'Courier New': 'Courier New',
+        'Cambria': 'Cambria',
+        'Clear': 'Clear',
+      },
       showStrikeThrough: true,
       showInlineCode: false,
       showColorButton: true,
