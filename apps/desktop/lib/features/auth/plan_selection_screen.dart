@@ -259,7 +259,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                         features: const [
                           _PlanFeature('Listen to your documents'),
                           _PlanFeature('Basic voices'),
-                          _PlanFeature('3 documents per month'),
+                          _PlanFeature('10 documents per month'),
                           _PlanFeature('Edit DOCX in real time',
                               included: false),
                           _PlanFeature('Premium voices', included: false),

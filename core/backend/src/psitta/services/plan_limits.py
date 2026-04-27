@@ -55,7 +55,7 @@ class PlanLimits:
 
 PLAN_LIMITS: dict[str, PlanLimits] = {
     "free": PlanLimits(
-        documents_per_month=3,
+        documents_per_month=10,
         tts_minutes_per_month=30,
         audio_cache_days=7,
         voices=[
@@ -67,7 +67,7 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         word_highlight=False,
         download_docx=False,
         can_edit_docx=False,
-        monthly_upload_limit=3,
+        monthly_upload_limit=10,
     ),
     "reading_nook_pro": PlanLimits(
         documents_per_month=50,

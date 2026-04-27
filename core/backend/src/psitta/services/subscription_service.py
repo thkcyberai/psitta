@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 PLAN_LIMITS: dict[str, dict] = {
     "free": {
-        "docs_per_month": 3,
+        "docs_per_month": 10,
         "max_doc_size_mb": 10,
         "voices_tier": "edge_only",
         "audio_cache_days": 7,

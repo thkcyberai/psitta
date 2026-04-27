@@ -58,7 +58,7 @@ async def get_current_user_profile(
             "display_name": claims.email.split("@")[0] if claims.email else "User",
             "tier": "free",
             "email": claims.email,
-            "usage": {"documents_this_month": 0, "documents_limit": 3, "storage_used_mb": 0},
+            "usage": {"documents_this_month": 0, "documents_limit": 10, "storage_used_mb": 0},
         }
 
     tier = user["tier"]

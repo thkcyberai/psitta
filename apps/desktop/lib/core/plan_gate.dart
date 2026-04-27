@@ -74,7 +74,7 @@ final isProUserProvider = Provider.autoDispose<bool>((ref) {
 // ── Per-plan numeric limits ──────────────────────────────────────────────
 
 /// Monthly document upload limits by plan.
-const int kFreeMonthlyDocLimit = 3;
+const int kFreeMonthlyDocLimit = 10;
 const int kProMonthlyDocLimit = 50;
 
 /// Playback speed ceilings by plan.

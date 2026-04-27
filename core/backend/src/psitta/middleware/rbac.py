@@ -28,7 +28,7 @@ class TierLimits:
 
 TIER_LIMITS: dict[str, TierLimits] = {
     "free": TierLimits(
-        documents_per_month=3,
+        documents_per_month=10,
         storage_mb=500,
         max_document_pages=50,
         tts_characters_per_month=50_000,
