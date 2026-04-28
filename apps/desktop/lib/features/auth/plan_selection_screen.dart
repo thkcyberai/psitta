@@ -155,19 +155,28 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
     final cs = theme.colorScheme;
     final statusAsync = ref.watch(billingStatusProvider);
 
-    // Explicitly track the error state so we can show a retry prompt
-    // instead of silently marking the Free card as "Current Plan" for a
-    // paying Pro user whose billing fetch transiently failed.
+    // Explicitly track loading + error states so we can show the right
+    // affordance (loading message vs retry banner) instead of silently
+    // marking the Free card as "Current Plan" while the billing fetch
+    // is mid-flight or has failed -- the original of the test3@facti.ai
+    // bug on 2026-04-27, where a paying Pro user logging in saw "Free"
+    // briefly because whenOrNull defaulted to 'free' during loading.
     final statusHasError = statusAsync.hasError;
+    final statusIsLoading = statusAsync.isLoading;
     final currentPlan = statusAsync.whenOrNull(
           data: (data) => data['plan'] as String?,
         ) ??
         'free';
-    // When billing status is unavailable (error state), neither card is
-    // "Current Plan" — we genuinely don't know. The user retries via the
-    // banner rendered below; until then, no card gets the badge.
-    final isFree = !statusHasError && currentPlan == 'free';
-    final isPro = !statusHasError && currentPlan == 'reading_nook_pro';
+    // Neither card is "Current Plan" until the fetch resolves. During
+    // loading the Plans page shows the inline 'Loading your plan...'
+    // strip and both cards display their default CTAs; the badge only
+    // appears once the data resolution lands.
+    final isFree = !statusHasError &&
+        !statusIsLoading &&
+        currentPlan == 'free';
+    final isPro = !statusHasError &&
+        !statusIsLoading &&
+        currentPlan == 'reading_nook_pro';
 
     return Scaffold(
       body: Center(
@@ -235,6 +244,33 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                       ),
                     ],
                   ),
+                ),
+              ] else if (statusIsLoading) ...[
+                const SizedBox(height: 24),
+                // Mirrors the Settings → Subscription tile's "Loading..."
+                // pattern. Brief by design (the underlying GET resolves
+                // in <1s on the warm path); cards below render in their
+                // default CTA state with no "Current Plan" badge until
+                // the fetch lands.
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Loading your plan…',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ),
               ],
               const SizedBox(height: 32),

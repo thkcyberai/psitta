@@ -21,8 +21,19 @@ class PsittaApp extends ConsumerWidget {
     // Downgrade guard: when the resolved plan is Free, enforce the Free
     // caps on any preferences the user may have set while on Pro. Runs
     // whenever the billing status transitions (login, refresh, webhook).
+    //
+    // The early-return predicate is `!next.isFree` (not `next.isPro`):
+    // we must only act on a CONFIRMED Free resolution. After
+    // _invalidateUserScopedFetches() fires on login (auth_service.dart),
+    // planStatusProvider briefly resolves to PlanStatus.unavailable
+    // (loading state). The old `if (next.isPro) return` predicate let
+    // unavailable through -- which would then silently clamp a Pro
+    // user's saved speed/SWH back to the Free ceiling on every
+    // login/logout boundary. PlanStatus.isFree is true ONLY for the
+    // data(plan='free') case, so it correctly excludes both Pro AND
+    // unavailable.
     ref.listen<PlanStatus>(planStatusProvider, (prev, next) {
-      if (next.isPro) return;
+      if (!next.isFree) return;
       final currentSpeed = ref.read(selectedSpeedProvider);
       if (currentSpeed > kFreeMaxSpeed) {
         ref
