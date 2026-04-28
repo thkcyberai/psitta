@@ -318,6 +318,27 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
         ? _hoveredSentenceIdx
         : null;
 
+    // Resolve sentence character ranges in document coordinates once so
+    // the per-run intersection helper doesn't have to look them up on
+    // every run. Null when no active/preview sentence exists or the
+    // index is out of range.
+    int? activeSentStart;
+    int? activeSentEnd;
+    if (activeSentenceIdx != null &&
+        activeSentenceIdx < doc.sentences.length) {
+      final sent = doc.sentences[activeSentenceIdx];
+      activeSentStart = sent.startOffset;
+      activeSentEnd = sent.endOffset;
+    }
+    int? previewSentStart;
+    int? previewSentEnd;
+    if (previewSentenceIdx != null &&
+        previewSentenceIdx < doc.sentences.length) {
+      final sent = doc.sentences[previewSentenceIdx];
+      previewSentStart = sent.startOffset;
+      previewSentEnd = sent.endOffset;
+    }
+
     // Fire scroll callback when sentence changes
     if (audioSentenceIdx != null &&
         audioSentenceIdx > 0 &&
@@ -483,52 +504,29 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
             ? wordHighlightStyle.copyWith(fontSize: run.fontSize)
             : wordHighlightStyle;
 
-        // Check if this run overlaps the active sentence
-        bool isInActiveSentence = false;
-        if (activeSentenceIdx != null &&
-            activeSentenceIdx < doc.sentences.length) {
-          final sent = doc.sentences[activeSentenceIdx];
-          isInActiveSentence =
-              runStart < sent.endOffset && runEnd > sent.startOffset;
-        }
-
-        bool isInPreviewSentence = false;
-        if (previewSentenceIdx != null &&
-            previewSentenceIdx < doc.sentences.length) {
-          final sent = doc.sentences[previewSentenceIdx];
-          isInPreviewSentence =
-              runStart < sent.endOffset && runEnd > sent.startOffset;
-        }
-
-        // Check if this run overlaps the active word
-        if (activeWordDocOffset != null && activeWordDocEnd != null) {
-          final highlightBg = isInPreviewSentence
-              ? previewSentenceBg
-              : isInActiveSentence
-                  ? sentenceBg
-                  : null;
-          // Split run into sub-spans for word highlighting
-          _addWordHighlightedSpans(
-            spans: inlineSpans,
-            text: runText,
-            textDocStart: runStart,
-            runStyle: runStyle,
-            sentenceHighlightBg: highlightBg,
-            activeWordStart: activeWordDocOffset,
-            activeWordEnd: activeWordDocEnd,
-            wordHighlightStyle: runWordHighlightStyle,
-          );
-        } else {
-          // Sentence-only highlighting
-          final bgColor = isInPreviewSentence
-              ? previewSentenceBg
-              : isInActiveSentence
-                  ? sentenceBg
-                  : null;
-          final style =
-              bgColor != null ? runStyle.copyWith(backgroundColor: bgColor) : runStyle;
-          inlineSpans.add(TextSpan(text: runText, style: style));
-        }
+        // Boundary-driven span emission. The helper intersects the run
+        // with each highlight range (active sentence, preview sentence,
+        // active word) and emits one TextSpan per non-empty segment so
+        // only the in-sentence characters carry the bg — fixes Bug A
+        // for runs that contain multiple sentences (a Quill paragraph
+        // with sentences separated only by ". "). For runs that contain
+        // exactly one sentence the helper degrades to a single TextSpan
+        // with the bg, preserving today's visual output.
+        _emitRunSpans(
+          spans: inlineSpans,
+          text: runText,
+          runStart: runStart,
+          runStyle: runStyle,
+          wordHighlightStyle: runWordHighlightStyle,
+          sentenceBg: sentenceBg,
+          previewBg: previewSentenceBg,
+          activeSentenceStart: activeSentStart,
+          activeSentenceEnd: activeSentEnd,
+          previewSentenceStart: previewSentStart,
+          previewSentenceEnd: previewSentEnd,
+          activeWordStart: activeWordDocOffset,
+          activeWordEnd: activeWordDocEnd,
+        );
 
         runCursor = runEnd;
       }
@@ -634,58 +632,111 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     );
   }
 
-  /// Split a run into sub-spans to highlight the active word within it.
-  void _addWordHighlightedSpans({
+  /// Emit one or more TextSpans for a single run into [spans], applying
+  /// sentence/preview/word highlights according to character-range
+  /// intersections rather than a binary "any overlap" test.
+  ///
+  /// All offsets are document-level (same coordinate system as
+  /// [runStart]). Pass null for any state that does not exist or does not
+  /// overlap this run; the helper clamps internally.
+  ///
+  /// Resolution order at each character: active word > preview sentence >
+  /// active sentence > none. The word style replaces the sentence
+  /// background under the active word; preview hover beats playback
+  /// highlight (matches the prior implementation's preview-vs-active
+  /// priority).
+  ///
+  /// Backwards-compatible: when one sentence covers the whole run and no
+  /// other state overlaps, the boundary-driven loop emits exactly one
+  /// TextSpan with the bg — visually identical to the prior single-span
+  /// emission. When a run contains multiple sentences (Bug A path), only
+  /// the active sentence's intersected character range carries the bg.
+  void _emitRunSpans({
     required List<TextSpan> spans,
     required String text,
-    required int textDocStart,
+    required int runStart,
     required TextStyle runStyle,
-    required Color? sentenceHighlightBg,
-    required int activeWordStart,
-    required int activeWordEnd,
     required TextStyle wordHighlightStyle,
+    required Color sentenceBg,
+    required Color previewBg,
+    int? activeSentenceStart,
+    int? activeSentenceEnd,
+    int? previewSentenceStart,
+    int? previewSentenceEnd,
+    int? activeWordStart,
+    int? activeWordEnd,
   }) {
-    final textDocEnd = textDocStart + text.length;
+    final runEnd = runStart + text.length;
 
-    // Does the active word overlap this run at all?
-    if (activeWordEnd <= textDocStart || activeWordStart >= textDocEnd) {
-      // No overlap — just sentence highlight
-      final style = sentenceHighlightBg != null
-          ? runStyle.copyWith(backgroundColor: sentenceHighlightBg)
-          : runStyle;
-      spans.add(TextSpan(text: text, style: style));
+    // Clamp each range to this run; an empty result (start >= end after
+    // clamping) is reported as null so downstream cut-point collection
+    // stays minimal.
+    (int, int)? clampToRun(int? s, int? e) {
+      if (s == null || e == null) return null;
+      final cs = s.clamp(runStart, runEnd);
+      final ce = e.clamp(runStart, runEnd);
+      return cs < ce ? (cs, ce) : null;
+    }
+
+    final aSent = clampToRun(activeSentenceStart, activeSentenceEnd);
+    final pSent = clampToRun(previewSentenceStart, previewSentenceEnd);
+    final aWord = clampToRun(activeWordStart, activeWordEnd);
+
+    // Fast path: nothing overlaps → one TextSpan with the run's base
+    // style. This is the common case for runs outside the active block.
+    if (aSent == null && pSent == null && aWord == null) {
+      spans.add(TextSpan(text: text, style: runStyle));
       return;
     }
 
-    // Clamp word boundaries to run boundaries
-    final wStart = activeWordStart.clamp(textDocStart, textDocEnd);
-    final wEnd = activeWordEnd.clamp(textDocStart, textDocEnd);
-
-    // Before word
-    if (wStart > textDocStart) {
-      final style = sentenceHighlightBg != null
-          ? runStyle.copyWith(backgroundColor: sentenceHighlightBg)
-          : runStyle;
-      spans.add(TextSpan(
-        text: text.substring(0, wStart - textDocStart),
-        style: style,
-      ));
+    // Cut points along the run. ≤8 entries in the worst case
+    // (run start/end + each of 3 ranges' start/end), so a Set + sort is
+    // adequate — no need for a sorted-set data structure.
+    final cuts = <int>{runStart, runEnd};
+    if (aSent != null) {
+      cuts.add(aSent.$1);
+      cuts.add(aSent.$2);
     }
+    if (pSent != null) {
+      cuts.add(pSent.$1);
+      cuts.add(pSent.$2);
+    }
+    if (aWord != null) {
+      cuts.add(aWord.$1);
+      cuts.add(aWord.$2);
+    }
+    final sortedCuts = cuts.toList()..sort();
 
-    // The word itself
-    spans.add(TextSpan(
-      text: text.substring(wStart - textDocStart, wEnd - textDocStart),
-      style: wordHighlightStyle,
-    ));
+    // Emit one TextSpan per non-empty segment. Membership is decided at
+    // the segment midpoint — every cut point sits at a state transition,
+    // so the midpoint membership is constant across the segment.
+    for (int i = 0; i < sortedCuts.length - 1; i++) {
+      final segStart = sortedCuts[i];
+      final segEnd = sortedCuts[i + 1];
+      if (segStart >= segEnd) continue;
 
-    // After word
-    if (wEnd < textDocEnd) {
-      final style = sentenceHighlightBg != null
-          ? runStyle.copyWith(backgroundColor: sentenceHighlightBg)
-          : runStyle;
+      final mid = segStart + (segEnd - segStart) ~/ 2;
+      final inActiveWord =
+          aWord != null && mid >= aWord.$1 && mid < aWord.$2;
+      final inPreviewSent =
+          pSent != null && mid >= pSent.$1 && mid < pSent.$2;
+      final inActiveSent =
+          aSent != null && mid >= aSent.$1 && mid < aSent.$2;
+
+      TextStyle segStyle;
+      if (inActiveWord) {
+        segStyle = wordHighlightStyle;
+      } else if (inPreviewSent) {
+        segStyle = runStyle.copyWith(backgroundColor: previewBg);
+      } else if (inActiveSent) {
+        segStyle = runStyle.copyWith(backgroundColor: sentenceBg);
+      } else {
+        segStyle = runStyle;
+      }
+
       spans.add(TextSpan(
-        text: text.substring(wEnd - textDocStart),
-        style: style,
+        text: text.substring(segStart - runStart, segEnd - runStart),
+        style: segStyle,
       ));
     }
   }
