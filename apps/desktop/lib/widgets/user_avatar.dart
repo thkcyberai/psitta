@@ -26,10 +26,28 @@ class _UserProfile {
   }
 }
 
-/// Provider that decodes the ID token once and caches the profile.
+/// Provider that decodes the ID token and caches the profile.
 /// The ID token (not the access token) contains user profile claims
 /// like name, email, and picture from the Google OAuth provider.
+///
+/// Re-resolves on user-identity change. The provider has no formal
+/// dependency on the JWT itself (which lives in secure storage) and
+/// no .family key, so without an explicit Riverpod dependency it
+/// would return user A's cached profile after user B logs in. The
+/// `ref.watch(currentUserIdProvider)` below establishes that
+/// dependency: when AuthStateNotifier flips userId on logout/login,
+/// this provider's body re-runs and the JWT is re-decoded with the
+/// new user's claims. Mirrors the pattern used by the 8 user-scoped
+/// preference notifiers in preferences_service.dart.
 final _userProfileProvider = FutureProvider.autoDispose<_UserProfile>((ref) async {
+  // The watched value isn't used directly -- the JWT is the source
+  // of truth for the profile claims, and it's read from secure
+  // storage on every invocation below. The watch exists ONLY to
+  // tell Riverpod to invalidate the cached _UserProfile when the
+  // current user changes. Do not delete this line as "dead code";
+  // see the doc comment above for the full rationale.
+  ref.watch(currentUserIdProvider);
+
   final authService = ref.read(authServiceProvider);
 
   // Prefer ID token — it contains profile claims (name, email, picture).
