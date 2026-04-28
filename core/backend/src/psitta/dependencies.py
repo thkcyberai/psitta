@@ -49,10 +49,27 @@ async def get_current_user_id(
     claims: TokenClaims = Depends(get_current_user),
     db=Depends(get_db_session),
 ) -> UUID:
-    """Look up the user by auth0_user_id, auto-provisioning if not found."""
+    """Look up the user by auth0_user_id, auto-provisioning if not found.
+
+    Race-safe under concurrent first-login. The desktop client
+    dispatches ~5 parallel API calls on first login (splash → library
+    fans out to /documents, /projects, /billing/status, /users/me,
+    /voices). The previous check-then-insert pattern raced -- all
+    requests passed the SELECT, then one won the INSERT and the rest
+    returned 500 with UniqueViolationError on users_email_key (or
+    users_auth0_user_id_key, depending on which constraint PostgreSQL
+    evaluated first).
+
+    Two unique constraints can race here -- ``(auth0_user_id)`` and
+    ``(email)`` (the synthetic ``{sub}@auth0.local`` email is
+    deterministic from the Cognito sub). Using ``ON CONFLICT DO
+    NOTHING`` with no target column catches both atomically.
+    """
     sub = claims.sub
 
-    # Look up existing user
+    # Fast path: existing user. This SELECT runs on every authenticated
+    # request, so we keep it ahead of the INSERT to avoid wasting an
+    # INSERT-with-conflict on every call.
     result = await db.execute(
         text("SELECT id FROM users WHERE auth0_user_id = :sub"),
         {"sub": sub},
@@ -61,16 +78,22 @@ async def get_current_user_id(
     if row is not None:
         return row[0]
 
-    # Auto-provision new user
+    # First-login path: race-safe insert. ``ON CONFLICT DO NOTHING``
+    # (no target) catches *any* unique-constraint violation -- both
+    # ``users_auth0_user_id_key`` and ``users_email_key`` race for the
+    # same logical conflict (both are deterministic from the Cognito
+    # sub), and PostgreSQL doesn't guarantee which one fires first.
     new_id = uuid4()
     email = getattr(claims, "email", None) or f"{sub.replace('|', '_')}@auth0.local"
     display_name = getattr(claims, "name", None) or email.split("@")[0]
     now = datetime.now(UTC)
 
-    await db.execute(
+    insert_result = await db.execute(
         text(
             "INSERT INTO users (id, external_id, email, display_name, auth0_user_id, tier, is_active, created_at, updated_at) "
-            "VALUES (:id, :external_id, :email, :display_name, :auth0_user_id, 'free', true, :now, :now)"
+            "VALUES (:id, :external_id, :email, :display_name, :auth0_user_id, 'free', true, :now, :now) "
+            "ON CONFLICT DO NOTHING "
+            "RETURNING id"
         ),
         {
             "id": new_id,
@@ -81,10 +104,46 @@ async def get_current_user_id(
             "now": now,
         },
     )
+    inserted = insert_result.fetchone()
     await db.flush()
 
-    logger.info("user.provisioned", auth0_sub=sub, user_id=str(new_id))
-    return new_id
+    if inserted is not None:
+        logger.info("user.provisioned", auth0_sub=sub, user_id=str(new_id))
+        return inserted[0]
+
+    # ON CONFLICT fired -- another concurrent request inserted the
+    # canonical row first. Re-fetch by auth0_user_id (the canonical
+    # lookup key). Under READ COMMITTED, the winning transaction must
+    # have committed for the conflict to apply, so this SELECT sees
+    # the row.
+    result = await db.execute(
+        text("SELECT id FROM users WHERE auth0_user_id = :sub"),
+        {"sub": sub},
+    )
+    row = result.fetchone()
+    if row is not None:
+        logger.info(
+            "user.provision_race_recovered",
+            auth0_sub=sub,
+            user_id=str(row[0]),
+        )
+        return row[0]
+
+    # Defensive: ON CONFLICT fired but no row matches the auth0_user_id.
+    # This means the conflict was on a different constraint -- most
+    # likely ``users_email_key`` because a *different* user has the
+    # same email (real email collision, not a synthetic-email race).
+    # Surface as 500 with a specific log so the operator can
+    # disambiguate from the latent race condition.
+    logger.error(
+        "user.provision_email_collision",
+        auth0_sub=sub,
+        attempted_email=email,
+    )
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Could not provision user: email conflict with existing account.",
+    )
 
 
 # ── Settings Dependency ────────────────────────────────────────────────
