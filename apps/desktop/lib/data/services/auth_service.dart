@@ -358,12 +358,14 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
     final userId = await _authService.getUserIdFromAccessToken();
     state = AuthState(status: AuthStatus.authenticated, userId: userId);
+    _invalidateUserScopedFetches();
     await _restoreLastSession(userId);
   }
 
   Future<void> login() async {
     final userId = await _authService.getUserIdFromAccessToken();
     state = AuthState(status: AuthStatus.authenticated, userId: userId);
+    _invalidateUserScopedFetches();
     await _restoreLastSession(userId);
   }
 
@@ -385,6 +387,12 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   /// Preference notifiers themselves rebuild automatically when
   /// currentUserIdProvider flips to null after the state change below,
   /// so they are NOT invalidated here — the user_id watch handles it.
+  ///
+  /// User-scoped FutureProviders (billing/quota/projects/documents) do
+  /// NOT watch currentUserIdProvider, so they require explicit
+  /// invalidation -- handled by [_invalidateUserScopedFetches] which is
+  /// also called from login() and _init() to defend the auth-boundary
+  /// from both sides.
   Future<void> _clearTransientUserState() async {
     try {
       await _ref.read(audioServiceProvider).clearUserSession();
@@ -402,6 +410,31 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _ref.invalidate(showArchivedProvider);
     _ref.invalidate(activeProjectIdProvider);
     _ref.invalidate(isInlineEditingProvider);
+
+    _invalidateUserScopedFetches();
+  }
+
+  /// Invalidate every cached user-scoped FutureProvider so the next
+  /// listener read fires a fresh fetch with the correct JWT.
+  ///
+  /// Background: persistent shell widgets (sidebar, library, settings)
+  /// keep listeners attached across logout/login transitions, which
+  /// prevents `autoDispose` from firing. Without explicit invalidation
+  /// here, user B sees user A's cached billing/quota/projects/documents
+  /// state -- the bug surfaced by test3@facti.ai's first login on
+  /// 2026-04-27 (CloudWatch showed zero /billing/status calls during
+  /// the session because the cached future from a prior test1 session
+  /// was returned without re-fetching).
+  ///
+  /// This list MUST stay in sync with the user-scoped autoDispose
+  /// FutureProviders in data/providers/providers.dart. Adding a new
+  /// provider that hits a user-filtered endpoint without adding it
+  /// here will reintroduce the leak.
+  void _invalidateUserScopedFetches() {
+    _ref.invalidate(billingStatusProvider);
+    _ref.invalidate(quotaUsageProvider);
+    _ref.invalidate(projectsProvider);
+    _ref.invalidate(documentsProvider);
   }
 
   /// Persist the player-bar snapshot so re-login restores exactly what
