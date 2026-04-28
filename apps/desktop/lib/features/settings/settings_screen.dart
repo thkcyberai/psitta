@@ -1,7 +1,9 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/plan_gate.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
@@ -106,6 +108,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const _SectionHeader(title: 'Account'),
           const _AccountTile(),
           const _SubscriptionTile(),
+          const _ManageSubscriptionTile(),
           const _ChangePlanTile(),
           const _StaySignedInTile(),
           _LogoutTile(),
@@ -448,6 +451,125 @@ class _ChangePlanTile extends StatelessWidget {
       title: const Text('Change Plan'),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.go('/plan'),
+    );
+  }
+}
+
+/// Launches the Stripe Customer Portal in the user's default browser.
+///
+/// Visible only to confirmed Pro users. The gate uses [isProUserProvider]
+/// (true ONLY when billing is loaded AND plan != free AND status ==
+/// active), so Free, loading, and unavailable states all hide the tile —
+/// preventing a paying user from being told "you have no subscription"
+/// during a transient billing fetch.
+///
+/// On success the portal URL opens in the system browser via
+/// url_launcher and [billingStatusProvider] is invalidated so any plan
+/// change made in the portal (cancel, swap tier, swap period) is
+/// reflected in the UI when the user returns to the app. Per the
+/// 2026-04-23 Key Learning, FutureProvider.autoDispose does not auto-
+/// dispose while persistent shell widgets keep listeners alive — explicit
+/// invalidate is the only reliable cache bust.
+class _ManageSubscriptionTile extends ConsumerStatefulWidget {
+  const _ManageSubscriptionTile();
+
+  @override
+  ConsumerState<_ManageSubscriptionTile> createState() =>
+      _ManageSubscriptionTileState();
+}
+
+class _ManageSubscriptionTileState
+    extends ConsumerState<_ManageSubscriptionTile> {
+  bool _isLaunching = false;
+
+  Future<void> _openPortal() async {
+    setState(() => _isLaunching = true);
+    final api = ref.read(apiClientProvider);
+    try {
+      final response = await api.dio.post('/billing/portal-session');
+      final data = response.data as Map<String, dynamic>;
+      final url = data['url'] as String?;
+      if (url == null) {
+        _showSnack('Subscription portal returned no URL. Please try again.');
+        return;
+      }
+
+      final launched = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        _showSnack('Could not open browser. Please try again.');
+        return;
+      }
+
+      ref.invalidate(billingStatusProvider);
+
+      _showSnack(
+        'Manage your subscription in the browser. '
+        'This page will refresh when you return.',
+        durationSeconds: 5,
+      );
+    } on DioException catch (e) {
+      _handlePortalError(e);
+    } catch (_) {
+      _showSnack('Connection error. Please check your internet.');
+    } finally {
+      if (mounted) setState(() => _isLaunching = false);
+    }
+  }
+
+  void _handlePortalError(DioException e) {
+    final status = e.response?.statusCode;
+    switch (status) {
+      case 404:
+        _showSnack('No active subscription. Subscribe first to manage.');
+      case 502:
+        _showSnack(
+          'Subscription portal temporarily unavailable. Please try again.',
+        );
+      default:
+        if (e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout) {
+          _showSnack('Connection error. Please check your internet.');
+        } else {
+          _showSnack('Could not open subscription portal. Please try again.');
+        }
+    }
+  }
+
+  void _showSnack(String message, {int durationSeconds = 4}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: Duration(seconds: durationSeconds),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isPro = ref.watch(isProUserProvider);
+    if (!isPro) return const SizedBox.shrink();
+
+    return ListTile(
+      leading: const Icon(Icons.credit_card_outlined),
+      title: const Text('Manage Subscription'),
+      subtitle: const Text(
+        'Update payment, swap plan, or cancel — opens in your browser',
+        style: TextStyle(fontSize: 11),
+      ),
+      trailing: _isLaunching
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.open_in_new),
+      enabled: !_isLaunching,
+      onTap: _isLaunching ? null : _openPortal,
     );
   }
 }
