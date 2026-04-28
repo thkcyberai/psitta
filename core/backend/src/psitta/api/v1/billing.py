@@ -2,6 +2,7 @@
 
 Endpoints:
   POST /billing/checkout-session  — create a Stripe Checkout session
+  POST /billing/portal-session    — create a Stripe Customer Portal session
   GET  /billing/status            — current user's subscription status
   POST /billing/webhook           — Stripe webhook receiver (no auth, sig-verified)
 
@@ -92,6 +93,12 @@ class CheckoutSessionResponse(BaseModel):
     """Response containing the Stripe Checkout URL."""
 
     checkout_url: str
+
+
+class PortalSessionResponse(BaseModel):
+    """Response containing the Stripe Customer Portal URL."""
+
+    url: str
 
 
 class BillingStatusResponse(BaseModel):
@@ -241,6 +248,82 @@ async def create_checkout_session(
     )
 
     return CheckoutSessionResponse(checkout_url=session.url)
+
+
+# ── POST /billing/portal-session ─────────────────────────────────────────
+
+@router.post(
+    "/portal-session",
+    response_model=PortalSessionResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a Stripe Customer Portal session",
+)
+async def create_portal_session(
+    request: Request,
+    user_id=Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """Create a Stripe Customer Portal session for subscription management.
+
+    Returns a URL to the Stripe-hosted Customer Portal where the user
+    can swap plans, switch billing periods, update payment method,
+    download invoices, and cancel their subscription. The portal
+    configuration (eligible products, cancellation reasons, proration
+    behaviour, header text) is managed in the Stripe Dashboard.
+
+    Free users with no stripe_customers row receive a 404 — they have
+    nothing to manage. Stripe API failures return 502 with a clean
+    message rather than leaking provider details.
+    """
+    settings = get_settings()
+
+    # 1. Look up Stripe Customer
+    row = await db.execute(
+        text(
+            "SELECT stripe_customer_id FROM stripe_customers "
+            "WHERE user_id = :user_id"
+        ),
+        {"user_id": user_id},
+    )
+    customer_row = row.mappings().first()
+
+    if not customer_row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No Stripe customer record. Subscribe first to manage subscription.",
+        )
+
+    # 2. Configure Stripe + create portal session
+    stripe.api_key = settings.STRIPE_SECRET_KEY_TEST.get_secret_value()
+    try:
+        session = stripe.billing_portal.Session.create(
+            customer=customer_row["stripe_customer_id"],
+            return_url="https://psitta.ai/",
+        )
+    except stripe.StripeError as exc:
+        logger.error("billing.stripe_portal_session_failed", error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Payment provider error. Please try again later.",
+        ) from exc
+
+    # 3. Audit log
+    await audit_service.log_event(
+        db,
+        action="billing.portal_session_created",
+        resource_type="billing",
+        user_id=str(user_id),
+        details={"session_id": session.id},
+        ip_address=request.client.host if request.client else None,
+    )
+
+    logger.info(
+        "billing.portal_session.created",
+        user_id=str(user_id),
+        session_id=session.id,
+    )
+
+    return PortalSessionResponse(url=session.url)
 
 
 # ── GET /billing/status ──────────────────────────────────────────────────
