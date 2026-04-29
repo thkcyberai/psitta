@@ -1346,15 +1346,17 @@ async def get_chunk_alignment(
         logger.error("audio.alignment_failed", error=str(e), voice_id=voice_id)
         raise HTTPException(status_code=502, detail=f"TTS alignment failed: {e}")
 
-    # Only ElevenLabs produces valid alignment timestamps.
-    # If a fallback provider was used, discard alignment to prevent
-    # mismatched timestamps against audio from a different provider.
-    if provider != "elevenlabs" and alignment is not None:
+    # ElevenLabs and Edge both produce valid alignment for the audio they
+    # returned (ElevenLabs via /with-timestamps; Edge via WordBoundary
+    # chunks expanded server-side to char-level in the ElevenLabs schema).
+    # Discard alignment from any other provider so a future Azure path
+    # can't ship mismatched timestamps against its audio.
+    if provider not in {"elevenlabs", "edge"} and alignment is not None:
         logger.warning(
             "audio.alignment_discarded",
             provider=provider,
             voice_id=voice_id,
-            reason="alignment only valid for elevenlabs",
+            reason="alignment only valid for elevenlabs/edge",
         )
         alignment = None
 

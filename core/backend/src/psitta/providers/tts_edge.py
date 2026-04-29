@@ -46,6 +46,33 @@ class EdgeTTSProvider:
     def _get_voice(self, elevenlabs_voice_id: str) -> str:
         return EDGE_VOICES.get(elevenlabs_voice_id, EDGE_DEFAULT_VOICE)
 
+    async def _stream(self, text: str, edge_voice: str) -> tuple[bytes, list[dict]]:
+        # WordBoundary offset/duration are 100-ns ticks — normalize to ms here
+        # so callers don't have to know the edge_tts wire format.
+        communicate = edge_tts.Communicate(
+            text=text[:5000],
+            voice=edge_voice,
+            rate=EDGE_RATE,
+        )
+
+        audio_chunks: list[bytes] = []
+        boundaries: list[dict] = []
+        async for chunk in communicate.stream():
+            ctype = chunk.get("type")
+            if ctype == "audio":
+                audio_chunks.append(chunk["data"])
+            elif ctype == "WordBoundary":
+                boundaries.append({
+                    "text": chunk.get("text", ""),
+                    "offset_ms": int(chunk.get("offset", 0)) // 10_000,
+                    "duration_ms": int(chunk.get("duration", 0)) // 10_000,
+                })
+
+        if not audio_chunks:
+            raise RuntimeError(f"Edge TTS returned no audio for voice {edge_voice}")
+
+        return b"".join(audio_chunks), boundaries
+
     async def synthesize(
         self,
         text: str,
@@ -63,21 +90,7 @@ class EdgeTTSProvider:
             rate=EDGE_RATE,
         )
 
-        communicate = edge_tts.Communicate(
-            text=text[:5000],
-            voice=edge_voice,
-            rate=EDGE_RATE,
-        )
-
-        audio_chunks: list[bytes] = []
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                audio_chunks.append(chunk["data"])
-
-        if not audio_chunks:
-            raise RuntimeError(f"Edge TTS returned no audio for voice {edge_voice}")
-
-        audio_bytes = b"".join(audio_chunks)
+        audio_bytes, _ = await self._stream(text, edge_voice)
 
         logger.info(
             "tts.edge.synthesize.ok",
@@ -85,6 +98,34 @@ class EdgeTTSProvider:
             size=len(audio_bytes),
         )
         return audio_bytes
+
+    async def synthesize_with_timestamps(
+        self,
+        text: str,
+        voice_id: str,
+        output_format: str = "mp3_44100_128",
+    ) -> tuple[bytes, list[dict]]:
+        """Audio + raw word-level boundaries. Pair with edge_alignment.expand
+        to produce ElevenLabs-shaped char-level alignment."""
+        edge_voice = self._get_voice(voice_id)
+
+        logger.info(
+            "tts.edge.synthesize_with_timestamps",
+            voice=edge_voice,
+            original_voice_id=voice_id,
+            text_length=len(text),
+            rate=EDGE_RATE,
+        )
+
+        audio_bytes, boundaries = await self._stream(text, edge_voice)
+
+        logger.info(
+            "tts.edge.synthesize_with_timestamps.ok",
+            voice=edge_voice,
+            size=len(audio_bytes),
+            boundaries=len(boundaries),
+        )
+        return audio_bytes, boundaries
 
     async def health_check(self) -> bool:
         try:

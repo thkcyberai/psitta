@@ -184,7 +184,9 @@ class TTSRouter:
 
         For now:
           - ElevenLabs uses /with-timestamps (character-level alignment)
-          - Azure/Edge return alignment=None
+          - Edge captures WordBoundary events and expands to char-level
+            alignment in the ElevenLabs schema
+          - Azure returns alignment=None
         """
         primary = self._provider_selected
         provider = self._get_provider(primary)
@@ -220,12 +222,80 @@ class TTSRouter:
             except Exception as e:
                 logger.warning("tts_router.timestamps_failed", provider="elevenlabs", error=str(e))
 
-        # Fallback: audio only (no alignment)
-        audio, actual_provider = await self._fallback_synthesize(
+        # Edge primary: capture WordBoundary chunks and expand to ElevenLabs
+        # char-level shape so the frontend's _charIndexAtMs path works
+        # without any client change.
+        if primary == "edge" and self._edge:
+            try:
+                audio, alignment = await self._edge_with_alignment(text, voice_id)
+                return audio, alignment, "edge"
+            except Exception as e:
+                logger.warning("tts_router.edge.primary_failed", error=str(e))
+
+        # Fallback chain — also captures Edge alignment when fallback is Edge.
+        audio, alignment, actual_provider = await self._fallback_synthesize_with_alignment(
             primary=primary, text=text, voice_id=voice_id,
             speed=1.0, output_format=output_format,
         )
-        return audio, None, actual_provider
+        return audio, alignment, actual_provider
+
+    async def _edge_with_alignment(
+        self, text: str, voice_id: str
+    ) -> tuple[bytes, dict[str, Any]]:
+        from psitta.providers.edge_alignment import expand
+
+        audio, boundaries = await self._edge.synthesize_with_timestamps(
+            text=text,
+            voice_id=voice_id,
+        )
+        alignment = expand(text, boundaries)
+        logger.info(
+            "tts_router.ok",
+            provider="edge",
+            voice_id=voice_id,
+            size=len(audio),
+            boundaries=len(boundaries),
+            alignment="yes",
+        )
+        return audio, alignment
+
+    async def _fallback_synthesize_with_alignment(
+        self,
+        primary: str,
+        text: str,
+        voice_id: str,
+        speed: float,
+        output_format: str,
+    ) -> tuple[bytes, dict[str, Any] | None, str]:
+        # Mirror of _fallback_synthesize, but yields alignment when the
+        # resolved fallback supports it (Edge today; Azure word-boundaries
+        # are queued as M7 SWH Option B).
+        fallback = self._fallback_selected
+        if fallback and fallback != "edge":
+            provider = self._get_provider(fallback)
+            if provider:
+                try:
+                    logger.info("tts_router.fallback", from_provider=primary, to_provider=fallback)
+                    audio = await self._synthesize_with_provider(
+                        provider=fallback,
+                        text=text,
+                        voice_id=voice_id,
+                        speed=speed,
+                        output_format=output_format,
+                    )
+                    return audio, None, fallback
+                except Exception as e:
+                    logger.warning("tts_router.fallback_failed", provider=fallback, error=str(e))
+
+        if primary != "edge" and self._edge:
+            try:
+                logger.info("tts_router.fallback", from_provider=primary, to_provider="edge")
+                audio, alignment = await self._edge_with_alignment(text, voice_id)
+                return audio, alignment, "edge"
+            except Exception as e:
+                logger.warning("tts_router.edge_failed", error=str(e))
+
+        raise RuntimeError(f"TTS failed: no fallback available (primary={primary})")
 
     async def _fallback_synthesize(
         self,
