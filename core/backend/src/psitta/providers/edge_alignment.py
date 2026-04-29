@@ -127,6 +127,18 @@ def expand(text: str, boundaries: list[dict]) -> dict:
             boundaries_matched=matched,
         )
 
+    # If nothing matched, every char came from the 50ms/char tail path.
+    # That used to ship silently — until 2026-04-29 production showed 35s
+    # alignment over 21.4s audio because edge_tts defaulted to
+    # SentenceBoundary. Emit a loud warning so future regressions of the
+    # same shape are visible in CloudWatch instead of just-feeling-fast.
+    if matched == 0 and len(text) > 0:
+        logger.warning(
+            "edge_alignment.no_boundaries_matched",
+            boundaries_total=len(boundaries),
+            text_length=len(text),
+        )
+
     block = {
         "characters": chars,
         "character_start_times_seconds": starts,

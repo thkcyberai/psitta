@@ -49,10 +49,15 @@ class EdgeTTSProvider:
     async def _stream(self, text: str, edge_voice: str) -> tuple[bytes, list[dict]]:
         # WordBoundary offset/duration are 100-ns ticks — normalize to ms here
         # so callers don't have to know the edge_tts wire format.
+        # boundary="WordBoundary" — edge_tts defaults to SentenceBoundary, so
+        # without this we get one event per sentence and edge_alignment.expand
+        # falls through to its 50ms/char tail fill path (alignment span 1.6×
+        # actual audio duration → highlight runs ahead of voice).
         communicate = edge_tts.Communicate(
             text=text[:5000],
             voice=edge_voice,
             rate=EDGE_RATE,
+            boundary="WordBoundary",
         )
 
         audio_chunks: list[bytes] = []
