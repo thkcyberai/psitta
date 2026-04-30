@@ -424,15 +424,16 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                         priceSubtitle: '',
                         features: const [
                           _PlanFeature('Premium voices'),
-                          _PlanFeature('50 documents per month'),
+                          _PlanFeature('Unlimited documents'),
                           _PlanFeature('Word-by-word highlighting'),
                           _PlanFeature('Download branded DOCX'),
                           _PlanFeature('Archive documents'),
                           _PlanFeature('Priority support'),
-                          _PlanFeature('Creative Nooks — coming soon',
+                          _PlanFeature(
+                              'Drag and drop for sources of inspiration and write prompts to get content ideas',
                               comingSoon: true),
                           _PlanFeature(
-                              'AI-powered content ideas — coming soon',
+                              'Clone Voice reading (record your own voice)',
                               comingSoon: true),
                         ],
                         isCurrent: false,
