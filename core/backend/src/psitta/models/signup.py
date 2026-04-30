@@ -34,7 +34,7 @@ class SignupListEntry(Base):
     email: Mapped[str] = mapped_column(
         String(255), nullable=False, unique=True
     )
-    first_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    first_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
     source: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
