@@ -322,9 +322,9 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                       child: _PlanCard(
                         tierName: 'Reading Nook Pro',
                         title: 'Read. Refine.',
-                        price: _isAnnual ? '\$119/yr' : '\$14.99/mo',
+                        price: _isAnnual ? '\$99/yr' : '\$14.99/mo',
                         priceSubtitle: _isAnnual
-                            ? '\$9.92/mo billed annually'
+                            ? '\$8.25/mo billed annually'
                             : 'Billed monthly',
                         features: const [
                           _PlanFeature('Listen while you write'),
@@ -341,7 +341,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                         buttonLabel: isPro ? 'Current Plan' : 'Upgrade',
                         isPrimary: true,
                         savingsLabel:
-                            _isAnnual && !isPro ? 'Save 34%' : null,
+                            _isAnnual && !isPro ? 'Save 44%' : null,
                         isLoading: _isSubmitting,
                         onPressed: _isSubmitting || isPro
                             ? null
@@ -420,7 +420,7 @@ class _BillingPeriodToggle extends StatelessWidget {
           ),
           _ToggleOption(
             label: 'Annual',
-            trailingBadge: 'Save 34%',
+            trailingBadge: 'Save 44%',
             selected: isAnnual,
             onTap: onChanged == null ? null : () => onChanged!(true),
           ),
@@ -524,7 +524,7 @@ class _PlanCard extends StatelessWidget {
   final bool isPrimary;
   final bool isLoading;
   final bool isCurrent;
-  /// Optional discount pill (e.g. "Save 34%"). Rendered alongside any
+  /// Optional discount pill (e.g. "Save 44%"). Rendered alongside any
   /// status pill so Creative Nook Pro can show both "Coming Soon" and
   /// "Save 17%" simultaneously when the annual toggle is active.
   final String? savingsLabel;

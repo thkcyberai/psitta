@@ -35,9 +35,9 @@ const softwareApplicationSchema = {
     {
       "@type": "Offer",
       name: "Reading Nook Pro (annual)",
-      price: "119",
+      price: "99",
       priceCurrency: "USD",
-      description: "Annual subscription, saves ~34% vs monthly",
+      description: "Annual subscription, saves ~44% vs monthly",
     },
   ],
   publisher: {

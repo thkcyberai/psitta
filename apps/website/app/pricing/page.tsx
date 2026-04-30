@@ -110,7 +110,7 @@ export default function Pricing() {
             <p className="mt-4 text-4xl font-bold text-ink-primary">$14.99</p>
             <p className="mt-1 text-sm text-ink-muted">per month</p>
             <p className="mt-1 text-sm text-psitta-600 font-medium">
-              or $119 / year (save 34%)
+              or $99 / year (save 44%)
             </p>
 
             <hr className="my-8 border-edge-subtle" />

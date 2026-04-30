@@ -51,7 +51,7 @@ export default function Terms() {
             Free tier — limited to 3 documents per month using Edge TTS voices.
           </li>
           <li>
-            Pro tier — $14.99 per month or $119 per year, including premium
+            Pro tier — $14.99 per month or $99 per year, including premium
             voices and higher usage limits.
           </li>
           <li>
