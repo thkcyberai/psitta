@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
 import JsonLd from "@/components/seo/JsonLd";
+import CreativityWaitlistForm from "@/components/waitlist/CreativityWaitlistForm";
 
 export const metadata: Metadata = {
   title: "Features — Psitta",
@@ -299,6 +300,10 @@ export default function Product() {
                 className="w-72 sm:w-80 lg:w-96 h-auto rounded-3xl bg-[#FAFAF7] mix-blend-multiply"
               />
             </div>
+          </div>
+
+          <div className="mt-12 max-w-md mx-auto">
+            <CreativityWaitlistForm />
           </div>
         </div>
 

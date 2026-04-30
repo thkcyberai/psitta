@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
+import CreativityWaitlistForm from "@/components/waitlist/CreativityWaitlistForm";
 
 export const metadata: Metadata = {
   title: "Pricing — Psitta",
@@ -137,12 +138,7 @@ export default function Pricing() {
             <p className="mt-1 text-sm font-semibold uppercase tracking-wider text-ink-muted">
               Pro
             </p>
-            <p className="mt-4 text-4xl font-bold text-ink-primary">$19.99</p>
-            <p className="mt-1 text-sm text-ink-muted">per month</p>
-            <p className="mt-1 text-sm text-ink-muted font-medium">
-              or $199 / year
-            </p>
-            <p className="mt-2 text-xs text-ink-muted">
+            <p className="mt-4 text-xs text-ink-muted">
               Includes Reading Nook Pro
             </p>
 
@@ -150,9 +146,9 @@ export default function Pricing() {
 
             <FeatureList items={creativeFeatures} />
 
-            <p className="mt-8 text-sm font-medium text-ink-muted text-center">
-              Notify me when available
-            </p>
+            <div className="mt-8">
+              <CreativityWaitlistForm />
+            </div>
           </div>
         </div>
 
