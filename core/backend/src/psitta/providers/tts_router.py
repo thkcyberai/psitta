@@ -267,9 +267,18 @@ class TTSRouter:
         speed: float,
         output_format: str,
     ) -> tuple[bytes, dict[str, Any] | None, str]:
-        # Mirror of _fallback_synthesize, but yields alignment when the
-        # resolved fallback supports it (Edge today; Azure word-boundaries
-        # are queued as M7 SWH Option B).
+        # Edge is preferred over the named TTS_FALLBACK because Edge is the
+        # only fallback today that produces character-level alignment
+        # (commit 7050182). The configured TTS_FALLBACK (Azure by default)
+        # is the second-tier backstop for when Edge itself is unavailable.
+        if primary != "edge" and self._edge:
+            try:
+                logger.info("tts_router.fallback", from_provider=primary, to_provider="edge")
+                audio, alignment = await self._edge_with_alignment(text, voice_id)
+                return audio, alignment, "edge"
+            except Exception as e:
+                logger.warning("tts_router.edge_failed", error=str(e))
+
         fallback = self._fallback_selected
         if fallback and fallback != "edge":
             provider = self._get_provider(fallback)
@@ -287,14 +296,6 @@ class TTSRouter:
                 except Exception as e:
                     logger.warning("tts_router.fallback_failed", provider=fallback, error=str(e))
 
-        if primary != "edge" and self._edge:
-            try:
-                logger.info("tts_router.fallback", from_provider=primary, to_provider="edge")
-                audio, alignment = await self._edge_with_alignment(text, voice_id)
-                return audio, alignment, "edge"
-            except Exception as e:
-                logger.warning("tts_router.edge_failed", error=str(e))
-
         raise RuntimeError(f"TTS failed: no fallback available (primary={primary})")
 
     async def _fallback_synthesize(
@@ -305,6 +306,24 @@ class TTSRouter:
         speed: float,
         output_format: str,
     ) -> tuple[bytes, str]:
+        # Mirror of _fallback_synthesize_with_alignment: Edge first, named
+        # TTS_FALLBACK second. Audio-only path stays consistent with the
+        # alignment path so the fallback chain a user observes is identical
+        # whether they hit /audio or /alignment first.
+        if primary != "edge" and self._edge:
+            try:
+                logger.info("tts_router.fallback", from_provider=primary, to_provider="edge")
+                audio = await self._synthesize_with_provider(
+                    provider="edge",
+                    text=text,
+                    voice_id=voice_id,
+                    speed=speed,
+                    output_format=output_format,
+                )
+                return audio, "edge"
+            except Exception as e:
+                logger.warning("tts_router.edge_failed", error=str(e))
+
         fallback = self._fallback_selected
         if fallback and fallback != "edge":
             provider = self._get_provider(fallback)
@@ -321,20 +340,6 @@ class TTSRouter:
                     return audio, fallback
                 except Exception as e:
                     logger.warning("tts_router.fallback_failed", provider=fallback, error=str(e))
-
-        if primary != "edge" and self._edge:
-            try:
-                logger.info("tts_router.fallback", from_provider=primary, to_provider="edge")
-                audio = await self._synthesize_with_provider(
-                    provider="edge",
-                    text=text,
-                    voice_id=voice_id,
-                    speed=speed,
-                    output_format=output_format,
-                )
-                return audio, "edge"
-            except Exception as e:
-                logger.warning("tts_router.edge_failed", error=str(e))
 
         raise RuntimeError(f"TTS failed: no fallback available (primary={primary})")
 
