@@ -148,28 +148,75 @@ resource "aws_cloudfront_function" "www_to_apex" {
   runtime = "cloudfront-js-2.0"
   comment = "Permanent redirect www.psitta.ai to psitta.ai + directory-index rewrite"
   publish = true
-  # The URI rewrite (trailing slash → index.html) is required because this
-  # distribution uses an S3 REST origin via OAC, which (unlike the S3 website
-  # endpoint) does not resolve directory indexes. default_root_object only
-  # applies to the apex path "/". Without this rewrite, every subpage
-  # (/pricing/, /product/, /about/, …) 404s on direct URL access.
+  # Two URL-shape concerns are handled here because S3 REST origins via OAC
+  # (unlike the S3 website endpoint) do not resolve directory indexes:
+  #   (a) /pricing/ → rewrite to /pricing/index.html (else 403→404)
+  #   (b) /pricing  → 301 redirect to /pricing/ (matches Next.js trailingSlash:
+  #       true canonical form, preserves query strings — fixes Stripe success_url
+  #       and any bare-path direct URL or social-link preview access).
+  # default_root_object only handles "/".
   code = <<-EOT
     function handler(event) {
       var request = event.request;
       var host = request.headers.host.value.toLowerCase();
+      var uri = request.uri;
+
+      // 1. Permanent redirect www.psitta.ai → psitta.ai (preserve URI + qs)
       if (host === 'www.psitta.ai') {
         return {
           statusCode: 301,
           statusDescription: 'Moved Permanently',
           headers: {
-            'location': { value: 'https://psitta.ai' + request.uri }
+            'location': { value: 'https://psitta.ai' + uri + buildQs(request.querystring) }
           }
         };
       }
-      if (request.uri.endsWith('/')) {
-        request.uri += 'index.html';
+
+      // 2. Apex passes through (default_root_object handles /)
+      if (uri === '/') {
+        return request;
       }
-      return request;
+
+      // 3. Trailing slash → rewrite to /path/index.html (S3 OAC has no dir-index)
+      if (uri.endsWith('/')) {
+        request.uri = uri + 'index.html';
+        return request;
+      }
+
+      // 4. Looks like a file (dot in last segment) → pass through untouched
+      var lastSegment = uri.substring(uri.lastIndexOf('/') + 1);
+      if (lastSegment.indexOf('.') !== -1) {
+        return request;
+      }
+
+      // 5. Bare path → 301 to canonical trailing-slash form (preserving qs)
+      return {
+        statusCode: 301,
+        statusDescription: 'Moved Permanently',
+        headers: {
+          'location': { value: 'https://psitta.ai' + uri + '/' + buildQs(request.querystring) }
+        }
+      };
+    }
+
+    function buildQs(qs) {
+      if (!qs) return '';
+      var keys = Object.keys(qs);
+      if (keys.length === 0) return '';
+      var parts = [];
+      for (var i = 0; i < keys.length; i++) {
+        var k = encodeURIComponent(keys[i]);
+        var v = qs[keys[i]];
+        if (v.value !== undefined) {
+          parts.push(k + '=' + encodeURIComponent(v.value));
+        }
+        if (v.multiValue) {
+          for (var j = 0; j < v.multiValue.length; j++) {
+            parts.push(k + '=' + encodeURIComponent(v.multiValue[j].value));
+          }
+        }
+      }
+      return '?' + parts.join('&');
     }
   EOT
 }
