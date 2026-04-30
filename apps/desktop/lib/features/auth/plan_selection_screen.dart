@@ -4,9 +4,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/providers/providers.dart';
+import '../../data/services/auth_service.dart';
 
 /// Plan selection screen — accessible from Settings > Change Plan.
 ///
@@ -27,6 +29,14 @@ class PlanSelectionScreen extends ConsumerStatefulWidget {
 class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
   bool _isAnnual = false;
   bool _isSubmitting = false;
+
+  // Creativity Nook waitlist state. The C-Pro card is gated as "Coming
+  // Soon" at v1 launch; clicking the CTA POSTs the user's email to
+  // /api/v1/waitlist/creativity-nook. The success state survives only
+  // for the lifetime of this screen — backend dedupes via ON CONFLICT
+  // (email) DO NOTHING, so re-submission on a future visit is harmless.
+  bool _isCreativityWaitlistSubmitting = false;
+  bool _isOnCreativityWaitlist = false;
 
   // Post-checkout polling — drives the UI to flip to "Current Plan" on Pro
   // once the Stripe webhook has activated the subscription on the backend.
@@ -99,6 +109,63 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         } else {
           _showSnack('Payment service error. Please try again.');
         }
+    }
+  }
+
+  Future<void> _joinCreativityWaitlist() async {
+    if (_isOnCreativityWaitlist || _isCreativityWaitlistSubmitting) return;
+    setState(() => _isCreativityWaitlistSubmitting = true);
+    try {
+      // Resolve the signed-in user's email from the same JWT claims path
+      // user_avatar.dart uses (ID token preferred, access token fallback).
+      // Decoded inline rather than reading the private _userProfileProvider
+      // so we stay decoupled from a private widget-internal symbol.
+      final authService = ref.read(authServiceProvider);
+      final idToken = await authService.getIdToken();
+      final token = idToken ?? await authService.getAccessToken();
+      String? email;
+      if (token != null) {
+        try {
+          final claims = JwtDecoder.decode(token);
+          email = (claims['email'] as String?) ??
+              (claims['https://psitta.app/email'] as String?);
+        } catch (_) {
+          email = null;
+        }
+      }
+      if (email == null || email.isEmpty) {
+        _showSnack('Could not read your email. Please try again later.');
+        return;
+      }
+
+      final api = ref.read(apiClientProvider);
+      final response = await api.dio.post(
+        '/waitlist/creativity-nook',
+        data: {'email': email},
+      );
+      if (response.statusCode == 200) {
+        setState(() => _isOnCreativityWaitlist = true);
+        _showSnack(
+          "You're on the waitlist. We'll email you when Creativity Nook launches.",
+          durationSeconds: 5,
+        );
+      } else {
+        _showSnack('Could not save your spot. Please try again.');
+      }
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.connectionError ||
+          e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        _showSnack('Connection error. Please check your internet.');
+      } else {
+        _showSnack('Could not save your spot. Please try again.');
+      }
+    } catch (_) {
+      _showSnack('Could not save your spot. Please try again.');
+    } finally {
+      if (mounted) {
+        setState(() => _isCreativityWaitlistSubmitting = false);
+      }
     }
   }
 
@@ -353,10 +420,8 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                       child: _PlanCard(
                         tierName: 'Creative Nook Pro',
                         title: 'Create. Refine. Research.',
-                        price: _isAnnual ? '\$199/yr' : '\$19.99/mo',
-                        priceSubtitle: _isAnnual
-                            ? '\$16.58/mo billed annually'
-                            : 'Billed monthly',
+                        price: '',
+                        priceSubtitle: '',
                         features: const [
                           _PlanFeature('Premium voices'),
                           _PlanFeature('50 documents per month'),
@@ -371,12 +436,17 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                               comingSoon: true),
                         ],
                         isCurrent: false,
-                        buttonLabel: 'Coming Soon',
+                        buttonLabel: _isOnCreativityWaitlist
+                            ? 'On the waitlist ✓'
+                            : 'Notify me when it launches',
                         isPrimary: false,
-                        isLoading: false,
+                        isLoading: _isCreativityWaitlistSubmitting,
                         comingSoon: true,
-                        savingsLabel: _isAnnual ? 'Save 17%' : null,
-                        onPressed: null,
+                        savingsLabel: null,
+                        onPressed: _isOnCreativityWaitlist ||
+                                _isCreativityWaitlistSubmitting
+                            ? null
+                            : _joinCreativityWaitlist,
                       ),
                     ),
                   ],
@@ -593,23 +663,32 @@ class _PlanCard extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              price,
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.w700,
-                color: comingSoon
-                    ? cs.onSurfaceVariant
-                    : (isPrimary ? cs.primary : null),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              priceSubtitle,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: cs.onSurfaceVariant,
-              ),
-            ),
+            // Price block is omitted entirely when both price and
+            // priceSubtitle are empty (e.g. Creative Nook Pro hidden
+            // pricing pre-launch). The 24-pixel gap below is preserved
+            // either way to keep features list spacing consistent.
+            if (price.isNotEmpty || priceSubtitle.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              if (price.isNotEmpty)
+                Text(
+                  price,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: comingSoon
+                        ? cs.onSurfaceVariant
+                        : (isPrimary ? cs.primary : null),
+                  ),
+                ),
+              if (price.isNotEmpty && priceSubtitle.isNotEmpty)
+                const SizedBox(height: 4),
+              if (priceSubtitle.isNotEmpty)
+                Text(
+                  priceSubtitle,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+            ],
             const SizedBox(height: 24),
             ...features.map((f) => _FeatureRow(feature: f)),
             const SizedBox(height: 24),
@@ -624,7 +703,11 @@ class _PlanCard extends StatelessWidget {
   }
 
   Widget _buildButton(ThemeData theme, ColorScheme cs) {
-    if (comingSoon || isCurrent || onPressed == null) {
+    // A `comingSoon` card is now allowed to expose an active CTA when
+    // the caller passes a non-null `onPressed` (e.g. Creative Nook Pro
+    // routes to the waitlist endpoint). Disabled rendering only kicks
+    // in for the current plan or when no handler is wired up.
+    if (isCurrent || onPressed == null) {
       return FilledButton.tonal(
         onPressed: null,
         child: Text(buttonLabel),
