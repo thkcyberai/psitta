@@ -3,17 +3,88 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/plan_gate.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'data/providers/providers.dart';
 import 'data/services/preferences_service.dart';
+
+/// Throttle window for resume-driven billing invalidation. Prevents
+/// /billing/status from being hammered when the user rapidly toggles
+/// focus between Psitta and another window (taskbar hover, debugger
+/// pause, double-click activation, etc.).
+const Duration _resumeInvalidateThrottle = Duration(seconds: 5);
 
 /// Root application widget.
 ///
-/// Configures GoRouter for shell-based desktop navigation,
-/// and applies the selected Theme (template).
-class PsittaApp extends ConsumerWidget {
+/// Owns three responsibilities at the app lifetime:
+///   * Configures GoRouter for shell-based desktop navigation and
+///     applies the selected Theme.
+///   * Listens for plan-downgrade transitions and clamps user
+///     preferences (speed, SWH) back to Free ceilings — the
+///     `ref.listen<PlanStatus>` block in [build].
+///   * Listens for [AppLifecycleState.resumed] and invalidates the
+///     billing/quota providers so subscription state refreshes
+///     automatically when the user returns from an external browser
+///     side-trip (Stripe Checkout, Stripe Customer Portal). Without
+///     this, the screen-scoped 30-second poll on
+///     [PlanSelectionScreen] is the only catcher and it dies as soon
+///     as the user navigates away from /plan.
+class PsittaApp extends ConsumerStatefulWidget {
   const PsittaApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PsittaApp> createState() => _PsittaAppState();
+}
+
+class _PsittaAppState extends ConsumerState<PsittaApp>
+    with WidgetsBindingObserver {
+  /// Wall-clock of the last resume that actually fired an invalidation.
+  /// Initialised to the epoch so the first resume after launch always
+  /// passes the throttle check.
+  DateTime _lastResumeInvalidation =
+      DateTime.fromMillisecondsSinceEpoch(0);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Fires on every Flutter lifecycle transition. The 2026-05-01
+  /// Windows spike confirmed [AppLifecycleState.resumed] lands
+  /// reliably on alt-tab return, which is precisely the moment a
+  /// Stripe checkout or Customer Portal session completes in the
+  /// system browser and the user comes back to Psitta.
+  ///
+  /// Invalidating [billingStatusProvider] and [quotaUsageProvider]
+  /// causes the next consumer `ref.watch` to fetch fresh
+  /// `/billing/status` and `/users/me/subscription` responses, so
+  /// the UI flips off stale Free state within ~1s of return. The
+  /// 30-second poll on [PlanSelectionScreen] remains as a redundant
+  /// safety net for users who stay on /plan.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final now = DateTime.now();
+    if (now.difference(_lastResumeInvalidation) <
+        _resumeInvalidateThrottle) {
+      return;
+    }
+    _lastResumeInvalidation = now;
+    debugPrint(
+      '[BILLING] billing_state.invalidate_on_resume '
+      'at ${now.toIso8601String()}',
+    );
+    ref.invalidate(billingStatusProvider);
+    ref.invalidate(quotaUsageProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(appRouterProvider);
     final themeName = ref.watch(selectedThemeNameProvider);
     final theme = AppTheme.forName(themeName);
