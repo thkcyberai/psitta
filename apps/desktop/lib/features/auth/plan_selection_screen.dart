@@ -358,7 +358,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                         tierName: 'Free',
                         title: 'Read',
                         price: '\$0',
-                        priceSubtitle: 'No credit card required',
+                        priceSubtitle: '',
                         features: const [
                           _PlanFeature('Listen to your documents'),
                           _PlanFeature('Basic voices'),
@@ -423,6 +423,8 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                         price: '',
                         priceSubtitle: '',
                         features: const [
+                          _PlanFeature('Listen while you write'),
+                          _PlanFeature('Edit DOCX in real time'),
                           _PlanFeature('Premium voices'),
                           _PlanFeature('Unlimited documents'),
                           _PlanFeature('Word-by-word highlighting'),
