@@ -430,7 +430,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                           _PlanFeature('Archive documents'),
                           _PlanFeature('Priority support'),
                           _PlanFeature(
-                              'Drag and drop for sources of inspiration and write prompts to get content ideas',
+                              'Drop in inspiration. Prompt your way to ideas.',
                               comingSoon: true),
                           _PlanFeature(
                               'Clone Voice reading (record your own voice)',
