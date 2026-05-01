@@ -95,9 +95,53 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
 }
 
 
+# Legacy and period-suffixed plan_id aliases. Maps every non-canonical
+# string the system might encounter (Postgres user_subscriptions.plan_id
+# ENUM values written by the Stripe webhook handler, forward-compat
+# Creative Nook period suffixes, the legacy "creativity" prefix
+# retained on the Stripe side) onto the canonical PLAN_LIMITS keys.
+# Keep in sync with billing_handlers._LOOKUP_KEY_TO_PLAN_ID (write
+# side) and api/v1/billing._PLAN_NAME_ALIASES (parse boundary).
+_LEGACY_PLAN_ID_ALIASES: dict[str, str] = {
+    "pro_monthly": "reading_nook_pro",
+    "pro_annual": "reading_nook_pro",
+    "creative_pro_monthly": "creative_nook_pro",
+    "creative_pro_annual": "creative_nook_pro",
+    "creativity_nook_pro": "creative_nook_pro",
+}
+
+
+def _normalize_plan_id(plan: str) -> str:
+    """Canonicalize an inbound plan_id string for PLAN_LIMITS lookup.
+
+    Pure function — no logging, no side effects. Returns the canonical
+    PLAN_LIMITS key for known legacy/period-suffixed inputs, or the
+    cleaned input unchanged when no alias applies (the caller decides
+    how to handle unknowns).
+    """
+    cleaned = plan.strip().lower()
+    return _LEGACY_PLAN_ID_ALIASES.get(cleaned, cleaned)
+
+
 def get_plan_limits(plan: str) -> PlanLimits:
-    """Return limits for the given plan, defaulting to free."""
-    return PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    """Return limits for the given plan, defaulting to free.
+
+    Accepts canonical PLAN_LIMITS keys, the legacy Postgres plan_id
+    ENUM values written by the Stripe webhook handler ('pro_monthly',
+    'pro_annual'), and forward-compat creative period values. Unknown
+    inputs emit a structured warning and fall back to the free tier
+    so a typo or future schema drift fails loudly rather than silently.
+    """
+    canonical = _normalize_plan_id(plan)
+    limits = PLAN_LIMITS.get(canonical)
+    if limits is None:
+        logger.warning(
+            "plan_limits.unknown_plan_id",
+            plan=plan,
+            normalized=canonical,
+        )
+        return PLAN_LIMITS["free"]
+    return limits
 
 
 def plan_limits_to_dict() -> dict[str, dict[str, Any]]:
