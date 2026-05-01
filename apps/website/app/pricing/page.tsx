@@ -7,27 +7,50 @@ export const metadata: Metadata = {
   title: "Pricing — Psitta",
 };
 
-const freeFeatures = [
-  "3 documents per month",
-  "Edge TTS voices",
-  "PDF and DOCX support",
-  "Sentence-level highlighting",
+type FeatureState = "active" | "excluded" | "coming";
+
+type Feature = {
+  label: string;
+  state?: FeatureState;
+};
+
+const freeFeatures: Feature[] = [
+  { label: "Listen to your documents" },
+  { label: "Basic voices" },
+  { label: "10 documents per month" },
+  { label: "Edit DOCX in real time", state: "excluded" },
+  { label: "Premium voices", state: "excluded" },
+  { label: "50 documents per month", state: "excluded" },
+  { label: "Word-by-word highlighting", state: "excluded" },
+  { label: "Download branded DOCX", state: "excluded" },
+  { label: "Archive documents", state: "excluded" },
+  { label: "Priority support", state: "excluded" },
+  { label: "Creative Nooks", state: "excluded" },
 ];
 
-const proFeatures = [
-  "50 documents per month",
-  "Premium ElevenLabs and Azure voices",
-  "PDF and DOCX support",
-  "Sentence-level highlighting",
-  "Word-level highlighting",
-  "Priority support",
+const proFeatures: Feature[] = [
+  { label: "Listen while you write" },
+  { label: "Edit DOCX in real time" },
+  { label: "Premium voices" },
+  { label: "50 documents per month" },
+  { label: "Word-by-word highlighting" },
+  { label: "Download branded DOCX" },
+  { label: "Archive documents" },
+  { label: "Priority support" },
+  { label: "Creative Nooks", state: "excluded" },
 ];
 
-const creativeFeatures = [
-  "Everything in Reading Nook Pro",
-  "4 Creative Nook workspaces",
-  "Advanced content tools",
-  "More features announced soon",
+const creativeFeatures: Feature[] = [
+  { label: "Listen while you write" },
+  { label: "Edit DOCX in real time" },
+  { label: "Premium voices" },
+  { label: "Unlimited documents" },
+  { label: "Word-by-word highlighting" },
+  { label: "Download branded DOCX" },
+  { label: "Archive documents" },
+  { label: "Priority support" },
+  { label: "Drop in inspiration. Prompt your way to ideas.", state: "coming" },
+  { label: "Clone Voice reading (record your own voice)", state: "coming" },
 ];
 
 function CheckIcon() {
@@ -49,14 +72,77 @@ function CheckIcon() {
   );
 }
 
-function FeatureList({ items }: { items: string[] }) {
+function DashIcon() {
   return (
-    <ul className="space-y-4 text-left text-ink-body">
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className="mt-1 shrink-0 text-gray-400"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12h8" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className="mt-1 shrink-0 text-ink-muted"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function FeatureRow({ feature }: { feature: Feature }) {
+  const state = feature.state ?? "active";
+  if (state === "excluded") {
+    return (
+      <li className="flex items-start gap-3">
+        <DashIcon />
+        <span className="text-ink-muted/70">{feature.label}</span>
+      </li>
+    );
+  }
+  if (state === "coming") {
+    return (
+      <li className="flex items-start gap-3">
+        <ClockIcon />
+        <span className="text-ink-muted italic">{feature.label}</span>
+      </li>
+    );
+  }
+  return (
+    <li className="flex items-start gap-3">
+      <CheckIcon />
+      <span className="text-ink-body">{feature.label}</span>
+    </li>
+  );
+}
+
+function FeatureList({ items }: { items: Feature[] }) {
+  return (
+    <ul className="space-y-4 text-left">
       {items.map((item) => (
-        <li key={item} className="flex items-start gap-3">
-          <CheckIcon />
-          <span>{item}</span>
-        </li>
+        <FeatureRow key={item.label} feature={item} />
       ))}
     </ul>
   );
@@ -82,7 +168,6 @@ export default function Pricing() {
               Free
             </p>
             <p className="mt-4 text-4xl font-bold text-ink-primary">$0</p>
-            <p className="mt-1 text-sm text-ink-muted">forever</p>
 
             <hr className="my-8 border-edge-subtle" />
 
@@ -138,9 +223,6 @@ export default function Pricing() {
             <p className="mt-1 text-sm font-semibold uppercase tracking-wider text-ink-muted">
               Pro
             </p>
-            <p className="mt-4 text-xs text-ink-muted">
-              Includes Reading Nook Pro
-            </p>
 
             <hr className="my-8 border-edge-subtle" />
 
@@ -151,10 +233,6 @@ export default function Pricing() {
             </div>
           </div>
         </div>
-
-        <p className="mt-12 text-center text-sm text-ink-muted">
-          All plans include a free trial. No credit card required to start.
-        </p>
       </Container>
     </section>
   );
