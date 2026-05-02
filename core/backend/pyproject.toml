@@ -69,7 +69,7 @@ dependencies = [
     "pysbd>=0.3.4",        # Sentence boundary disambiguation
 
     # ── Payments ───────────────────────────────────────────────────────
-    "stripe>=11.0.0",
+    "stripe>=15.0.0,<16.0.0",
 
     # ── Utilities ──────────────────────────────────────────────────────
     "tenacity>=9.0.0",

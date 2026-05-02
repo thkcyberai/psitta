@@ -27,6 +27,8 @@ from psitta.config import get_settings
 from psitta.db.session import async_session_factory
 from psitta.services import audit_service
 
+# Stripe SDK API version: Basil (March 2025) — period fields on items, not subscription root.
+
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 
@@ -148,8 +150,11 @@ async def handle_checkout_session_completed(
 
     resolved_lookup_key = lookup_key or price.get("lookup_key", "")
 
-    period_start = _ts_to_dt(sub.get("current_period_start"))
-    period_end = _ts_to_dt(sub.get("current_period_end"))
+    # Stripe Basil API (March 2025) moved period fields from subscription
+    # root to subscription item. Schema assumes single-item subscription,
+    # which is true for Psitta v1.
+    period_start = _ts_to_dt(item.get("current_period_start"))
+    period_end = _ts_to_dt(item.get("current_period_end"))
 
     await db.execute(
         text(
@@ -313,8 +318,11 @@ async def handle_subscription_updated(
     lookup_key = price.get("lookup_key", "")
 
     canceled_at = _ts_to_dt(sub_obj.get("canceled_at"))
-    period_start = _ts_to_dt(sub_obj.get("current_period_start"))
-    period_end = _ts_to_dt(sub_obj.get("current_period_end"))
+    # Stripe Basil API (March 2025) moved period fields from subscription
+    # root to subscription item. Schema assumes single-item subscription,
+    # which is true for Psitta v1.
+    period_start = _ts_to_dt(item.get("current_period_start"))
+    period_end = _ts_to_dt(item.get("current_period_end"))
     now = datetime.now(UTC)
 
     await db.execute(
