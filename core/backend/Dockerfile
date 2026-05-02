@@ -35,6 +35,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy source
 COPY alembic.ini ./
 COPY src/ ./src/
+COPY scripts/ ./scripts/
 COPY tests/ ./tests/
 
 # ── Runtime Stage ────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application source
 COPY --from=builder /app/alembic.ini ./
 COPY --from=builder /app/src/ ./src/
+COPY --from=builder /app/scripts/ ./scripts/
 
 # Set Python path
 ENV PYTHONPATH=/app/src
