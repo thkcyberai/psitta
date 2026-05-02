@@ -119,7 +119,7 @@ class BillingStatusResponse(BaseModel):
     status_code=status.HTTP_201_CREATED,
     summary="Create a Stripe Checkout session",
 )
-async def create_checkout_session(
+async def create_checkout_session(  # noqa: PLR0912, PLR0915 -- numbered steps 1-7, each a distinct Stripe/DB interaction; extracting helpers would push noise around without clarifying intent
     body: CheckoutSessionRequest,
     request: Request,
     user_id=Depends(get_current_user_id),
@@ -197,6 +197,34 @@ async def create_checkout_session(
             {"user_id": user_id, "stripe_customer_id": stripe_customer_id},
         )
         await db.flush()
+
+    # 4a. Sync Stripe Customer email to current JWT email (Bug B). The
+    # Customer was created (line 180) with whatever JWT email was
+    # present at the user's first /billing/checkout-session call and
+    # is never refreshed afterwards. If the user subsequently changed
+    # their email in Cognito, Stripe Dashboard / billing portal /
+    # receipts all show the stale address. stripe.Customer.modify is
+    # idempotent on Stripe's side — sending the current email when it
+    # already matches is a no-op. Skip when customer_row is None
+    # (just-created with current email from step 4) and when
+    # claims.email is empty (sending "" would clear Stripe's record).
+    # Failures are logged but do NOT block checkout — a stale email
+    # is a UX nit, a failed checkout is a revenue event.
+    if customer_row is not None and claims.email:
+        try:
+            stripe.Customer.modify(stripe_customer_id, email=claims.email)
+            logger.info(
+                "billing.stripe_customer_email_synced",
+                user_id=str(user_id),
+                stripe_customer_id=stripe_customer_id,
+            )
+        except stripe.StripeError as exc:
+            logger.warning(
+                "billing.stripe_customer_email_sync_failed",
+                user_id=str(user_id),
+                stripe_customer_id=stripe_customer_id,
+                error=str(exc),
+            )
 
     # 4b. Stripe-direct duplicate check. Defends against webhook lag: the
     # local check at step 2 reads the subscriptions table which is only
