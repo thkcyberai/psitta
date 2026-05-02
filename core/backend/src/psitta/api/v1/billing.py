@@ -383,6 +383,17 @@ async def get_billing_status(
     Always returns a valid response — free plan defaults if no
     subscription exists.
     """
+    # Default to Free; the resolution branches below upgrade these
+    # locals when an active subscription is found. Single-exit at the
+    # bottom so the audit log fires on every code path (regression
+    # avoidance: pre-2026-05-02 audit only fired on the Pro success
+    # path, making Free returns invisible to forensics).
+    plan: str = _FREE_STATUS["plan"]
+    billing_period = _FREE_STATUS["billing_period"]
+    status_value: str = _FREE_STATUS["status"]
+    period_end_str = _FREE_STATUS["current_period_end"]
+    cancel_at_period_end: bool = _FREE_STATUS["cancel_at_period_end"]
+
     # 1. Look up Stripe Customer
     row = await db.execute(
         text("SELECT id FROM stripe_customers WHERE user_id = :user_id"),
@@ -391,47 +402,53 @@ async def get_billing_status(
     customer_row = row.fetchone()
 
     if not customer_row:
-        return BillingStatusResponse(**_FREE_STATUS)
+        outcome = "no_customer"
+    else:
+        # 2. Get most recent ACTIVE subscription. Filter to status='active'
+        # explicitly — older canceled rows would otherwise mask the
+        # genuinely active row when picked by ORDER BY created_at DESC
+        # LIMIT 1 (production incident May 2 2026: test3 had a newer
+        # canceled monthly row above an older active annual row, and
+        # /billing/status returned Free for a paying customer).
+        result = await db.execute(
+            text(
+                "SELECT lookup_key, status, current_period_end, "
+                "       cancel_at_period_end "
+                "FROM subscriptions "
+                "WHERE stripe_customer_id = :sc_id "
+                "  AND status = 'active' "
+                "ORDER BY created_at DESC LIMIT 1"
+            ),
+            {"sc_id": customer_row[0]},
+        )
+        sub = result.mappings().first()
 
-    # 2. Get most recent subscription
-    result = await db.execute(
-        text(
-            "SELECT lookup_key, status, current_period_end, cancel_at_period_end "
-            "FROM subscriptions "
-            "WHERE stripe_customer_id = :sc_id "
-            "ORDER BY created_at DESC LIMIT 1"
-        ),
-        {"sc_id": customer_row[0]},
-    )
-    sub = result.mappings().first()
+        if not sub:
+            outcome = "no_active_sub"
+        else:
+            outcome = "found_active"
+            plan, billing_period = _parse_lookup_key(sub["lookup_key"])
+            status_value = sub["status"]
+            period_end = sub["current_period_end"]
+            period_end_str = period_end.isoformat() if period_end else None
+            cancel_at_period_end = sub["cancel_at_period_end"]
 
-    if not sub or sub["status"] == "canceled":
-        return BillingStatusResponse(**_FREE_STATUS)
-
-    # 3. Map lookup_key to plan and billing_period
-    lookup_key = sub["lookup_key"]
-    plan, billing_period = _parse_lookup_key(lookup_key)
-
-    # 4. Format period end
-    period_end = sub["current_period_end"]
-    period_end_str = period_end.isoformat() if period_end else None
-
-    # 5. Audit log
+    # 3. Audit log — emitted on every code path, including Free.
     await audit_service.log_event(
         db,
         action="billing.status_checked",
         resource_type="billing",
         user_id=str(user_id),
-        details={"plan": plan},
+        details={"plan": plan, "outcome": outcome},
         ip_address=request.client.host if request.client else None,
     )
 
     return BillingStatusResponse(
         plan=plan,
         billing_period=billing_period,
-        status=sub["status"],
+        status=status_value,
         current_period_end=period_end_str,
-        cancel_at_period_end=sub["cancel_at_period_end"],
+        cancel_at_period_end=cancel_at_period_end,
     )
 
 
