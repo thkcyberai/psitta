@@ -140,7 +140,11 @@ async def create_checkout_session(
             detail=f"Invalid lookup_key. Must be one of: {', '.join(sorted(VALID_LOOKUP_KEYS))}",
         )
 
-    # 2. Check for existing active subscription
+    # 2. Fast-path: local-DB check for existing active subscription. This
+    # short-circuits the common case without a Stripe API call. The
+    # Stripe-direct check at step 4b is the source of truth — local rows
+    # lag behind real Stripe state by however long the webhook takes to
+    # arrive, so this check alone is not sufficient.
     result = await db.execute(
         text(
             "SELECT s.id FROM subscriptions s "
@@ -193,6 +197,42 @@ async def create_checkout_session(
             {"user_id": user_id, "stripe_customer_id": stripe_customer_id},
         )
         await db.flush()
+
+    # 4b. Stripe-direct duplicate check. Defends against webhook lag: the
+    # local check at step 2 reads the subscriptions table which is only
+    # populated after Stripe sends checkout.session.completed. A user who
+    # clicks Subscribe twice between the two webhook arrivals would pass
+    # step 2 and end up with two active Stripe subscriptions on the same
+    # customer (production incident May 2 2026 — test3 with monthly +
+    # annual R-Pro).
+    # Skip when customer_row is None: a Stripe Customer that was just
+    # created in step 4 cannot have any subscriptions yet, so the API
+    # round-trip is wasted on every brand-new signup.
+    if customer_row is not None:
+        try:
+            active_subs = stripe.Subscription.list(
+                customer=stripe_customer_id, status="active", limit=1
+            )
+        except stripe.StripeError as exc:
+            logger.error("billing.stripe_active_sub_check_failed", error=str(exc))
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Payment provider error. Please try again later.",
+            ) from exc
+        if active_subs.data:
+            logger.warning(
+                "billing.duplicate_subscription_blocked",
+                user_id=str(user_id),
+                stripe_customer_id=stripe_customer_id,
+                existing_stripe_subscription_id=active_subs.data[0].id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "Active subscription already exists. "
+                    "Use the billing portal to manage your plan."
+                ),
+            )
 
     # 5. Resolve lookup_key to Stripe Price
     try:
