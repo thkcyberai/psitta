@@ -29,6 +29,7 @@ PLAN_LIMITS: dict[str, dict] = {
         "voices_tier": "edge_only",
         "audio_cache_days": 7,
         "can_archive": False,
+        "el_chars_per_period": 0,
     },
     "pro_monthly": {
         "docs_per_month": 50,
@@ -36,6 +37,7 @@ PLAN_LIMITS: dict[str, dict] = {
         "voices_tier": "all",
         "audio_cache_days": 90,
         "can_archive": True,
+        "el_chars_per_period": 150_000,
     },
     "pro_annual": {
         "docs_per_month": 50,
@@ -43,6 +45,7 @@ PLAN_LIMITS: dict[str, dict] = {
         "voices_tier": "all",
         "audio_cache_days": 90,
         "can_archive": True,
+        "el_chars_per_period": 150_000,
     },
 }
 

@@ -51,6 +51,10 @@ class PlanLimits:
     # Count of Creative Nooks the plan includes. Held at 0 across all
     # plans for the Beta — no Creative Nook features are shipped yet.
     creative_nooks_limit: int = 0
+    # ElevenLabs character allowance per billing period. 0 = no EL
+    # access (router degrades to Edge). Populated by C.1, enforced by
+    # C.2 (router pre-call check) against the el_usage_counters table.
+    el_chars_per_period: int = 0
 
 
 PLAN_LIMITS: dict[str, PlanLimits] = {
@@ -68,6 +72,7 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         download_docx=False,
         can_edit_docx=False,
         monthly_upload_limit=10,
+        el_chars_per_period=0,
     ),
     "reading_nook_pro": PlanLimits(
         documents_per_month=50,
@@ -79,6 +84,7 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         download_docx=True,
         can_edit_docx=True,
         monthly_upload_limit=50,
+        el_chars_per_period=150_000,
     ),
     "creative_nook_pro": PlanLimits(
         documents_per_month=50,
@@ -91,6 +97,7 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         can_edit_docx=True,
         monthly_upload_limit=50,
         creative_nooks_limit=0,  # Beta — no Creative Nook features built yet
+        el_chars_per_period=400_000,
     ),
 }
 
