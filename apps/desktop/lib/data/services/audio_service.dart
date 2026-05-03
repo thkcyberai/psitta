@@ -8,7 +8,8 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
-import '../../core/constants.dart';
+import '../api/api_client.dart';
+import '../providers/providers.dart';
 import '../repositories/playback_repository.dart';
 
 /// Audio service with prefetch support for near-instant voice/section switching.
@@ -22,6 +23,14 @@ import '../repositories/playback_repository.dart';
 /// - Use a monotonic request token to cancel superseded operations.
 /// - Guard all state transitions (set source/play/synth indicator) by token.
 class AudioService {
+  AudioService(this._api);
+
+  /// Shared HTTP client with the Cognito auth interceptor (Bearer token
+  /// injection + one-shot 401 refresh+retry + onUnauthorized escalation).
+  /// Audio fetch routes through here so the audio endpoint authenticates
+  /// the same way every other API call does.
+  final ApiClient _api;
+
   final AudioPlayer _player = AudioPlayer();
 
   /// Broadcast stream for synthesizing state (true = downloading/synthesizing).
@@ -82,8 +91,8 @@ class AudioService {
     return '${tempDir.path}/psitta_${chunkId}_$voiceId.mp3';
   }
 
-  String _audioUrl(String documentId, String chunkId, String voiceId) =>
-      '${AppConstants.apiBaseUrl}/documents/$documentId/chunks/$chunkId/audio?voice_id=$voiceId';
+  String _audioPath(String documentId, String chunkId, String voiceId) =>
+      '/documents/$documentId/chunks/$chunkId/audio?voice_id=$voiceId';
 
   Future<String?> _downloadToFile(
     String documentId,
@@ -106,20 +115,24 @@ class AudioService {
       }
     }
 
-    final url = _audioUrl(documentId, chunkId, voiceId);
+    final pathParam = _audioPath(documentId, chunkId, voiceId);
     _logPdfPerf(
       'audio',
-      'request_start doc=$documentId chunk=$chunkId voice=$voiceId url=$url',
+      'request_start doc=$documentId chunk=$chunkId voice=$voiceId path=$pathParam',
     );
     try {
-      final dio = Dio(
-        BaseOptions(
-          connectTimeout: AppConstants.httpTimeout,
-          receiveTimeout: const Duration(seconds: 90),
+      // Route via shared ApiClient so the auth interceptor injects the
+      // Cognito Bearer token, handles one-shot 401 refresh+retry, and
+      // escalates to onUnauthorized on hard auth failure. TTS synthesis
+      // can take 60+ seconds for long chunks, so the receive timeout is
+      // overridden per-request.
+      final response = await _api.dio.get<List<int>>(
+        pathParam,
+        options: Options(
           responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 90),
         ),
       );
-      final response = await dio.get<List<int>>(url);
       if (response.statusCode != 200 || response.data == null) return null;
 
       final path = await _tempPath(chunkId, voiceId);
@@ -574,8 +587,13 @@ class AudioService {
 }
 
 /// Singleton audio service provider.
+///
+/// Injects the shared [ApiClient] so audio fetch carries the Cognito
+/// Bearer token via the standard auth interceptor — same path as every
+/// other repository in the app.
 final audioServiceProvider = Provider<AudioService>((ref) {
-  final service = AudioService();
+  final api = ref.watch(apiClientProvider);
+  final service = AudioService(api);
   ref.onDispose(() => service.dispose());
   return service;
 });
