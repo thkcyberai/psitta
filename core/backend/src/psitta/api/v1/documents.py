@@ -1017,7 +1017,7 @@ async def upload_document(
     chunk_count, chunk_ids = await _process_document(doc_id, file_bytes, extension, db, page_texts_json=page_texts)
     doc_status = "ready" if chunk_count > 0 else "uploaded"
     if chunk_count > 0:
-        background_tasks.add_task(_eager_synthesize_chunks, doc_id, chunk_ids)
+        background_tasks.add_task(_eager_synthesize_chunks, doc_id, chunk_ids, user_id)
         logger.info("tts.eager_synthesis.queued", doc_id=str(doc_id), chunks=chunk_count)
 
     logger.info("document.upload.accepted", doc_id=str(doc_id), title=title, chunks=chunk_count)
@@ -1204,6 +1204,7 @@ async def get_chunk_audio(
     chunk_id: UUID,
     voice_id: str = "21m00Tcm4TlvDq8ikWAM",
     db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> None:
     """Stream audio for a specific chunk. Auto-synthesizes on cache miss."""
     from fastapi.responses import FileResponse
@@ -1235,11 +1236,13 @@ async def get_chunk_audio(
 
     logger.info("audio.cache_miss", chunk_id=str(chunk_id), voice_id=voice_id)
 
-    # Synthesize
+    # Synthesize via quota-aware path — graceful Edge fallback when EL exhausted.
     from psitta.providers.tts_router import TTSRouter
     tts = TTSRouter()
     try:
-        audio_bytes = await tts.synthesize(chunk_text, voice_id)
+        audio_bytes, _provider = await tts.synthesize_with_quota(
+            chunk_text, voice_id, user_id=user_id, db=db,
+        )
     except Exception as e:
         logger.error("audio.synthesize_failed", error=str(e), voice_id=voice_id)
         raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {e}")
@@ -1283,6 +1286,7 @@ async def get_chunk_alignment(
     chunk_id: UUID,
     voice_id: str = "21m00Tcm4TlvDq8ikWAM",
     db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     """Return alignment (timing) metadata for a chunk+voice.
 
@@ -1333,14 +1337,16 @@ async def get_chunk_alignment(
     if cached and chunk_text == chunk_row.text_content:
         return cached
 
-    # Synthesize with optional alignment
+    # Synthesize with optional alignment, quota-aware (graceful Edge fallback).
     from psitta.providers.tts_router import TTSRouter
 
     tts = TTSRouter()
     try:
-        audio_bytes, alignment, provider = await tts.synthesize_with_alignment(
+        audio_bytes, alignment, provider = await tts.synthesize_with_alignment_and_quota(
             chunk_text,
             voice_id,
+            user_id=user_id,
+            db=db,
         )
     except Exception as e:
         logger.error("audio.alignment_failed", error=str(e), voice_id=voice_id)
@@ -2922,8 +2928,16 @@ async def export_document(
     )
 
 
-async def _eager_synthesize_chunks(doc_id: UUID, chunk_ids: list[UUID]) -> None:
-    """Pre-synthesize all chunks in background after upload."""
+async def _eager_synthesize_chunks(
+    doc_id: UUID, chunk_ids: list[UUID], user_id: UUID
+) -> None:
+    """Pre-synthesize all chunks in background after upload.
+
+    user_id threads through to synthesize_with_quota so per-user EL char
+    quota is enforced on eager synthesis just like on-demand calls. A
+    Pro user mid-month who exhausts EL during eager batch falls through
+    to Edge for the remaining chunks.
+    """
     DEFAULT_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"
     try:
         from psitta.db.session import async_session_factory
@@ -2958,7 +2972,11 @@ async def _eager_synthesize_chunks(doc_id: UUID, chunk_ids: list[UUID]) -> None:
                 skipped += 1
                 continue
             try:
-                audio_bytes = await tts.synthesize(chunk_text, DEFAULT_VOICE_ID)
+                async with async_session_factory() as quota_db:
+                    audio_bytes, _provider = await tts.synthesize_with_quota(
+                        chunk_text, DEFAULT_VOICE_ID,
+                        user_id=user_id, db=quota_db,
+                    )
                 await put_mp3(chunk_id, DEFAULT_VOICE_ID, audio_bytes)
                 synthesized += 1
                 logger.info("tts.eager_synthesis.chunk_done", doc_id=str(doc_id), chunk_id=chunk_id, size=len(audio_bytes))

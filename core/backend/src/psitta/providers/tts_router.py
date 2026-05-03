@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import structlog
 from typing import Any
+from uuid import UUID
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.config import Settings, get_settings
 from psitta.providers.tts_errors import TTSProviderError
@@ -138,21 +141,27 @@ class TTSRouter:
         voice_id: str,
         speed: float = 1.0,
         output_format: str = "mp3_44100_128",
-    ) -> bytes:
-        """Synthesize text with provider selection + failover (audio only)."""
+    ) -> tuple[bytes, str]:
+        """Synthesize text with provider selection + failover.
+
+        Returns (audio_bytes, provider_name). provider_name lets callers
+        attribute char usage to the actual serving provider — only EL
+        counts against the per-period char quota (C.2).
+        """
         primary = self._provider_selected
         provider = self._get_provider(primary)
         if provider is None:
             raise RuntimeError(f"No TTS provider configured (selected={primary})")
 
         try:
-            return await self._synthesize_with_provider(
+            audio = await self._synthesize_with_provider(
                 provider=primary,
                 text=text,
                 voice_id=voice_id,
                 speed=speed,
                 output_format=output_format,
             )
+            return audio, primary
         except TTSProviderError as e:
             logger.warning(
                 "tts_router.primary_failed",
@@ -160,14 +169,13 @@ class TTSRouter:
                 status_code=e.status_code,
                 error=str(e),
             )
-            audio, _ = await self._fallback_synthesize(
+            return await self._fallback_synthesize(
                 primary=primary,
                 text=text,
                 voice_id=voice_id,
                 speed=speed,
                 output_format=output_format,
             )
-            return audio
 
     async def synthesize_with_alignment(
         self,
@@ -208,6 +216,7 @@ class TTSRouter:
                     provider="elevenlabs",
                     voice_id=voice_id,
                     size=len(audio),
+                    char_count=len(text),
                     alignment="yes" if alignment else "no",
                 )
                 return audio, alignment, "elevenlabs"
@@ -239,6 +248,129 @@ class TTSRouter:
         )
         return audio, alignment, actual_provider
 
+    async def synthesize_with_quota(
+        self,
+        text: str,
+        voice_id: str,
+        user_id: UUID,
+        db: AsyncSession,
+        speed: float = 1.0,
+        output_format: str = "mp3_44100_128",
+    ) -> tuple[bytes, str]:
+        """synthesize() wrapped with per-user EL char-quota enforcement.
+
+        Pre-call: read (used, limit, period_start) from el_usage_counters
+        + plan_limits. If used >= limit AND limit > 0 (i.e. plan grants
+        EL access but cap reached), skip the EL primary and fall straight
+        through to the Edge-first fallback chain. Audio always plays —
+        the quota path is a graceful degrade, never a 402.
+
+        Post-call: when EL actually served the request and the plan has
+        a non-zero limit, increment the counter by len(text). EL bills
+        by request character count, so len(text) is the canonical bill.
+        """
+        # Lazy imports — avoid circular risk if subscription_service ever
+        # grows a TTS dependency.
+        from psitta.services.plan_limits import _normalize_plan_id
+        from psitta.services.subscription_service import (
+            _get_active_plan_id,
+            check_el_quota,
+            increment_el_chars,
+        )
+
+        used, limit, period_start = await check_el_quota(db, user_id)
+        char_count = len(text)
+        primary = self._provider_selected
+
+        if limit > 0 and used >= limit and primary == "elevenlabs":
+            raw_plan_id = await _get_active_plan_id(db, user_id)
+            plan = _normalize_plan_id(raw_plan_id)
+            logger.info(
+                "tts_router.quota_exhausted_fallback",
+                user_id=str(user_id),
+                plan=plan,
+                used=used,
+                limit=limit,
+                period_start=period_start.isoformat() if period_start else None,
+                char_count=char_count,
+            )
+            audio, provider_name = await self._fallback_synthesize(
+                primary=primary,
+                text=text,
+                voice_id=voice_id,
+                speed=speed,
+                output_format=output_format,
+            )
+            return audio, provider_name
+
+        audio, provider_name = await self.synthesize(
+            text=text,
+            voice_id=voice_id,
+            speed=speed,
+            output_format=output_format,
+        )
+        if provider_name == "elevenlabs" and limit > 0:
+            await increment_el_chars(db, user_id, period_start, char_count)
+        return audio, provider_name
+
+    async def synthesize_with_alignment_and_quota(
+        self,
+        text: str,
+        voice_id: str,
+        user_id: UUID,
+        db: AsyncSession,
+        output_format: str = "mp3_44100_128",
+    ) -> tuple[bytes, dict[str, Any] | None, str]:
+        """synthesize_with_alignment() wrapped with EL char-quota enforcement.
+
+        Mirrors synthesize_with_quota but preserves the alignment payload
+        produced by ElevenLabs (/with-timestamps) or Edge (WordBoundary
+        events). When the EL quota is exhausted the call is forced into
+        the alignment-aware fallback path which keeps Edge's char-level
+        alignment available for SWH.
+        """
+        from psitta.services.plan_limits import _normalize_plan_id
+        from psitta.services.subscription_service import (
+            _get_active_plan_id,
+            check_el_quota,
+            increment_el_chars,
+        )
+
+        used, limit, period_start = await check_el_quota(db, user_id)
+        char_count = len(text)
+        primary = self._provider_selected
+
+        if limit > 0 and used >= limit and primary == "elevenlabs":
+            raw_plan_id = await _get_active_plan_id(db, user_id)
+            plan = _normalize_plan_id(raw_plan_id)
+            logger.info(
+                "tts_router.quota_exhausted_fallback",
+                user_id=str(user_id),
+                plan=plan,
+                used=used,
+                limit=limit,
+                period_start=period_start.isoformat() if period_start else None,
+                char_count=char_count,
+                with_alignment=True,
+            )
+            audio, alignment, provider_name = await self._fallback_synthesize_with_alignment(
+                primary=primary,
+                text=text,
+                voice_id=voice_id,
+                speed=1.0,
+                output_format=output_format,
+            )
+            return audio, alignment, provider_name
+
+        audio, alignment, provider_name = await self.synthesize_with_alignment(
+            text=text,
+            voice_id=voice_id,
+            output_format=output_format,
+        )
+        if provider_name == "elevenlabs" and limit > 0:
+            await increment_el_chars(db, user_id, period_start, char_count)
+        return audio, alignment, provider_name
+
     async def _edge_with_alignment(
         self, text: str, voice_id: str
     ) -> tuple[bytes, dict[str, Any]]:
@@ -254,6 +386,7 @@ class TTSRouter:
             provider="edge",
             voice_id=voice_id,
             size=len(audio),
+            char_count=len(text),
             boundaries=len(boundaries),
             alignment="yes",
         )
@@ -351,6 +484,7 @@ class TTSRouter:
         speed: float,
         output_format: str,
     ) -> bytes:
+        char_count = len(text)
         if provider == "elevenlabs":
             audio = await self._elevenlabs.synthesize(
                 text=text,
@@ -358,7 +492,13 @@ class TTSRouter:
                 speed=speed,
                 output_format=output_format,
             )
-            logger.info("tts_router.ok", provider="elevenlabs", voice_id=voice_id, size=len(audio))
+            logger.info(
+                "tts_router.ok",
+                provider="elevenlabs",
+                voice_id=voice_id,
+                size=len(audio),
+                char_count=char_count,
+            )
             return audio
         if provider == "azure":
             from psitta.models.domain import ToneCategory
@@ -372,7 +512,13 @@ class TTSRouter:
                 tone=ToneCategory.NEUTRAL,
                 output_format="mp3",
             )
-            logger.info("tts_router.ok", provider="azure", azure_voice=azure_voice, size=len(audio))
+            logger.info(
+                "tts_router.ok",
+                provider="azure",
+                azure_voice=azure_voice,
+                size=len(audio),
+                char_count=char_count,
+            )
             return audio
         if provider == "edge":
             audio = await self._edge.synthesize(
@@ -380,7 +526,13 @@ class TTSRouter:
                 voice_id=voice_id,
                 speed=speed,
             )
-            logger.info("tts_router.ok", provider="edge", voice_id=voice_id, size=len(audio))
+            logger.info(
+                "tts_router.ok",
+                provider="edge",
+                voice_id=voice_id,
+                size=len(audio),
+                char_count=char_count,
+            )
             return audio
         if provider == "stub":
             return await self._stub.synthesize(text=text, voice_id=voice_id, speed=speed)
