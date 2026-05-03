@@ -1107,16 +1107,28 @@ async def list_documents(
 @router.get("/{document_id}")
 async def get_document(
     document_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     result = await db.execute(
         text(
             "SELECT id, title, status, source_type, page_count, word_count, file_size_bytes, created_at, cover_type, cover_value "
-            "FROM documents WHERE id = :did"
+            "FROM documents WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
-        {"did": document_id},
+        {"did": document_id, "uid": str(user_id)},
     )
     row = result.first()
+    outcome = "found" if row else "not_found_or_unauthorized"
+    await audit_service.log_event(
+        db,
+        action="document.fetched",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details={"outcome": outcome},
+        ip_address=request.client.host if request.client else None,
+    )
     if not row:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -1137,14 +1149,29 @@ async def get_document(
 @router.get("/{document_id}/chunks")
 async def get_document_chunks(
     document_id: UUID,
+    request: Request,
     db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     """Return all chunks for a document, ordered by sequence."""
     doc_result = await db.execute(
-        text("SELECT id, status, source_type, chunk_positions FROM documents WHERE id = :did"),
-        {"did": document_id},
+        text(
+            "SELECT id, status, source_type, chunk_positions FROM documents "
+            "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+        ),
+        {"did": document_id, "uid": str(user_id)},
     )
     doc = doc_result.first()
+    outcome = "found" if doc else "not_found_or_unauthorized"
+    await audit_service.log_event(
+        db,
+        action="document.chunks_fetched",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details={"outcome": outcome},
+        ip_address=request.client.host if request.client else None,
+    )
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -1202,6 +1229,7 @@ async def get_document_chunks(
 async def get_chunk_audio(
     document_id: UUID,
     chunk_id: UUID,
+    request: Request,
     voice_id: str = "21m00Tcm4TlvDq8ikWAM",
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
@@ -1211,17 +1239,28 @@ async def get_chunk_audio(
 
     from psitta.services.audio_cache import get_mp3, put_mp3, s3_key_mp3
 
-    # Get chunk text
+    # Get chunk text — scoped to the authenticated user's documents.
     chunk_result = await db.execute(
         text(
             "SELECT c.text_content, c.page_number, d.source_type "
             "FROM document_chunks c "
             "JOIN documents d ON d.id = c.document_id "
-            "WHERE c.id = :cid AND c.document_id = :did"
+            "WHERE c.id = :cid AND c.document_id = :did "
+            "AND d.user_id = :uid AND d.status != 'deleted'"
         ),
-        {"cid": chunk_id, "did": document_id},
+        {"cid": chunk_id, "did": document_id, "uid": str(user_id)},
     )
     chunk_row = chunk_result.first()
+    outcome = "found" if (chunk_row and chunk_row.text_content) else "not_found_or_unauthorized"
+    await audit_service.log_event(
+        db,
+        action="chunk.audio_fetched",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(chunk_id),
+        details={"document_id": str(document_id), "voice_id": voice_id, "outcome": outcome},
+        ip_address=request.client.host if request.client else None,
+    )
     if not chunk_row or not chunk_row.text_content:
         raise HTTPException(status_code=404, detail="Chunk not found")
 
@@ -1284,6 +1323,7 @@ async def get_chunk_audio(
 async def get_chunk_alignment(
     document_id: UUID,
     chunk_id: UUID,
+    request: Request,
     voice_id: str = "21m00Tcm4TlvDq8ikWAM",
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
@@ -1314,17 +1354,28 @@ async def get_chunk_alignment(
         await put_alignment(str(chunk_id), voice_id, payload)
         return payload
 
-    # Load chunk text
+    # Load chunk text — scoped to the authenticated user's documents.
     chunk_result = await db.execute(
         text(
             "SELECT c.text_content, c.page_number, d.source_type "
             "FROM document_chunks c "
             "JOIN documents d ON d.id = c.document_id "
-            "WHERE c.id = :cid AND c.document_id = :did"
+            "WHERE c.id = :cid AND c.document_id = :did "
+            "AND d.user_id = :uid AND d.status != 'deleted'"
         ),
-        {"cid": chunk_id, "did": document_id},
+        {"cid": chunk_id, "did": document_id, "uid": str(user_id)},
     )
     chunk_row = chunk_result.first()
+    outcome = "found" if (chunk_row and chunk_row.text_content) else "not_found_or_unauthorized"
+    await audit_service.log_event(
+        db,
+        action="chunk.alignment_fetched",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(chunk_id),
+        details={"document_id": str(document_id), "voice_id": voice_id, "outcome": outcome},
+        ip_address=request.client.host if request.client else None,
+    )
     if not chunk_row or not chunk_row.text_content:
         raise HTTPException(status_code=404, detail="Chunk not found")
 
@@ -1606,13 +1657,26 @@ async def update_chunk_text(
     """Update the text content of a chunk. Stores original text on first edit."""
     result = await db.execute(
         text(
-            "SELECT id, sequence_index, chunk_type, text_content, tone, page_number, "
-            "character_count, is_edited, edited_at, original_text, metadata_json, formatted_content "
-            "FROM document_chunks WHERE id = :cid AND document_id = :did"
+            "SELECT c.id, c.sequence_index, c.chunk_type, c.text_content, c.tone, c.page_number, "
+            "c.character_count, c.is_edited, c.edited_at, c.original_text, c.metadata_json, c.formatted_content "
+            "FROM document_chunks c "
+            "JOIN documents d ON d.id = c.document_id "
+            "WHERE c.id = :cid AND c.document_id = :did "
+            "AND d.user_id = :uid AND d.status != 'deleted'"
         ),
-        {"cid": chunk_id, "did": document_id},
+        {"cid": chunk_id, "did": document_id, "uid": str(user_id)},
     )
     chunk = result.first()
+    outcome = "found" if chunk else "not_found_or_unauthorized"
+    await audit_service.log_event(
+        db,
+        action="chunk.text_updated",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(chunk_id),
+        details={"document_id": str(document_id), "outcome": outcome},
+        ip_address=http_request.client.host if http_request.client else None,
+    )
     if not chunk:
         raise HTTPException(status_code=404, detail="Chunk not found")
 
@@ -1946,11 +2010,25 @@ async def resynthesize_chunk(
     """Re-synthesize audio for an edited chunk using its current text_content."""
     result = await db.execute(
         text(
-            "SELECT id FROM document_chunks WHERE id = :cid AND document_id = :did"
+            "SELECT c.id FROM document_chunks c "
+            "JOIN documents d ON d.id = c.document_id "
+            "WHERE c.id = :cid AND c.document_id = :did "
+            "AND d.user_id = :uid AND d.status != 'deleted'"
         ),
-        {"cid": chunk_id, "did": document_id},
+        {"cid": chunk_id, "did": document_id, "uid": str(user_id)},
     )
-    if not result.first():
+    chunk_owned = result.first() is not None
+    outcome = "found" if chunk_owned else "not_found_or_unauthorized"
+    await audit_service.log_event(
+        db,
+        action="chunk.resynthesized",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(chunk_id),
+        details={"document_id": str(document_id), "voice_id": voice_id, "outcome": outcome},
+        ip_address=request.client.host if request.client else None,
+    )
+    if not chunk_owned:
         raise HTTPException(status_code=404, detail="Chunk not found")
 
     # Invalidate cache so next audio request re-synthesizes
