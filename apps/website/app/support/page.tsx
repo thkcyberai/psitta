@@ -69,13 +69,13 @@ const faqs: Faq[] = [
   {
     q: "What are Psitta's support hours?",
     a: [
-      "Founder-led support, Monday through Friday, 9 AM – 6 PM Mountain Time. Emails received outside those hours are answered the next business day. Critical issues affecting paid subscribers are prioritized — flag your email subject with [Urgent] for fastest response.",
+      "Our support team is available Monday through Friday, 9 AM – 6 PM Mountain Time. Emails received outside those hours are answered the next business day. Critical issues affecting paid subscribers are prioritized — flag your email subject with [Urgent] for fastest response.",
     ],
   },
   {
     q: "I'm an alpha tester. How do I send feedback?",
     a: [
-      "Email support@psitta.ai — your feedback shapes v1. Include the issue, what you expected, what happened, and (if useful) your Psitta version from Settings. Founder-led support — typical response within 24 hours.",
+      "Email support@psitta.ai — your feedback shapes v1. Include the issue, what you expected, what happened, and (if useful) your Psitta version from Settings. Our support team typically responds within 24 hours.",
     ],
   },
 ];
@@ -88,7 +88,7 @@ export default function Support() {
           Need help? We&apos;re here.
         </h1>
         <p className="lead mt-4 text-center text-ink-muted">
-          Founder-led support, Monday through Friday, 9 AM – 6 PM Mountain Time.
+          Our support team is available Monday through Friday, 9 AM – 6 PM Mountain Time.
         </p>
 
         <div className="mt-16 rounded-2xl border border-edge-subtle bg-paper-subtle p-8 md:p-12 text-center">
