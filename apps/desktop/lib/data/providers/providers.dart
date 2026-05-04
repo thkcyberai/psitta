@@ -102,6 +102,10 @@ class QuotaInfo {
     required this.limit,
     required this.plan,
     required this.resetDate,
+    this.elCharsUsed = 0,
+    this.elCharsLimit = 0,
+    this.elCharsRemaining = 0,
+    this.elCharsResetAt,
   });
 
   /// Build from the `/users/me/subscription` response body. Tolerant of
@@ -113,11 +117,23 @@ class QuotaInfo {
     final used = (usage['docs_this_month'] as num?)?.toInt() ?? 0;
     final limit = (usage['docs_limit'] as num?)?.toInt() ?? -1;
     final plan = (body['plan_id'] as String?) ?? 'free';
+    // C.3 endpoint additions — safe defaults preserve compat with
+    // older backend builds that haven't yet shipped the el_chars_*
+    // fields.
+    final elUsed = (usage['el_chars_used'] as num?)?.toInt() ?? 0;
+    final elLimit = (usage['el_chars_limit'] as num?)?.toInt() ?? 0;
+    final elRemaining = (usage['el_chars_remaining'] as num?)?.toInt() ?? 0;
+    final elResetIso = usage['el_chars_reset_at'] as String?;
+    final elResetAt = elResetIso != null ? DateTime.tryParse(elResetIso) : null;
     return QuotaInfo(
       used: used,
       limit: limit,
       plan: plan,
       resetDate: _nextMonthStartUtc(DateTime.now().toUtc()),
+      elCharsUsed: elUsed,
+      elCharsLimit: elLimit,
+      elCharsRemaining: elRemaining,
+      elCharsResetAt: elResetAt,
     );
   }
 
@@ -154,9 +170,36 @@ class QuotaInfo {
   final String plan;
   final DateTime resetDate;
 
+  // C.3 endpoint extension — ElevenLabs char usage for the current
+  // billing period. elCharsResetAt is null for Free / non-Stripe-Pro
+  // (no active subscription period exists for those users).
+  final int elCharsUsed;
+  final int elCharsLimit;
+  final int elCharsRemaining;
+  final DateTime? elCharsResetAt;
+
   /// True when the user cannot create another document this period.
   /// `limit == -1` is the backend's "unlimited" sentinel and never trips.
   bool get atLimit => limit > 0 && used >= limit;
+
+  /// True when the active plan grants any premium-voice allowance.
+  bool get hasElQuota => elCharsLimit > 0;
+
+  /// True when the user has consumed their full premium-voice
+  /// allowance for the current period — backend has degraded to
+  /// standard voices.
+  bool get elAtLimit => elCharsLimit > 0 && elCharsUsed >= elCharsLimit;
+
+  /// True when premium-voice usage is at or above 90% of the period
+  /// allowance. Drives the warning banner.
+  bool get elNearLimit =>
+      elCharsLimit > 0 && elCharsUsed >= (elCharsLimit * 0.9);
+
+  /// 0.0–1.0 fraction for progress-bar rendering. Zero for plans
+  /// without EL access.
+  double get elFraction => elCharsLimit > 0
+      ? (elCharsUsed / elCharsLimit).clamp(0.0, 1.0)
+      : 0.0;
 }
 
 DateTime _nextMonthStartUtc(DateTime nowUtc) {

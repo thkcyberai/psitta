@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/plan_gate.dart';
+import '../../core/quota_gate.dart';
 import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
@@ -112,6 +113,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const _ChangePlanTile(),
           const _StaySignedInTile(),
           _LogoutTile(),
+          const SizedBox(height: 16),
+          const _SectionHeader(title: 'Usage'),
+          const _PremiumVoicesUsageTile(),
           const SizedBox(height: 16),
           const _SectionHeader(title: 'Appearance'),
           ListTile(
@@ -439,6 +443,96 @@ class _SubscriptionTile extends ConsumerWidget {
     );
   }
 }
+
+/// Premium-voices (ElevenLabs) char usage for the current billing
+/// period. Sourced from [quotaUsageProvider] which calls
+/// `GET /users/me/subscription`. Free users see a Pro-gate row instead
+/// of the progress bar — the EL counters are zero for them anyway.
+class _PremiumVoicesUsageTile extends ConsumerWidget {
+  const _PremiumVoicesUsageTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final quotaAsync = ref.watch(quotaUsageProvider);
+    return quotaAsync.when(
+      loading: () => const ListTile(
+        leading: Icon(Icons.graphic_eq_outlined),
+        title: Text('Premium voices'),
+        subtitle: Text('Loading...'),
+      ),
+      error: (_, __) => ListTile(
+        leading: const Icon(Icons.error_outline, color: Colors.orange),
+        title: const Text('Premium voices'),
+        subtitle: const Text('Usage temporarily unavailable — tap to retry'),
+        onTap: () => ref.invalidate(quotaUsageProvider),
+      ),
+      data: (info) {
+        if (!info.hasElQuota) {
+          return ListTile(
+            leading: const Icon(Icons.graphic_eq_outlined),
+            title: const Text('Premium voices'),
+            subtitle: const Text('Standard voices on Free plan'),
+            trailing: TextButton(
+              onPressed: () => context.go('/plan'),
+              child: const Text('Upgrade'),
+            ),
+          );
+        }
+        final theme = Theme.of(context);
+        final progressColor = elProgressColor(context, info);
+        final resetText = info.elCharsResetAt != null
+            ? 'Resets ${formatResetDate(info.elCharsResetAt!)}'
+            : '';
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.graphic_eq_outlined, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Premium voices',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                  ),
+                  if (resetText.isNotEmpty)
+                    Text(
+                      resetText,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: info.elFraction,
+                  minHeight: 6,
+                  color: progressColor,
+                  backgroundColor:
+                      theme.colorScheme.surfaceContainerHighest,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                elQuotaSubtitle(info),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
 
 /// Navigate to plan selection screen.
 class _ChangePlanTile extends StatelessWidget {

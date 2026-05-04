@@ -18,6 +18,7 @@ import '../../data/services/pdf_text_extractor.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
+import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../data/models/document.dart';
 import '../../data/repositories/project_repository.dart';
@@ -679,6 +680,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final isProTier = planStatus.isPro;
     final isPlanUnavailable = planStatus.isUnavailable;
 
+    // C.4 — fire one-shot premium-voices toast when the quota refresh
+    // pushes the user into elAtLimit. The helper guards on a
+    // period-stamped SharedPreferences key, so duplicate firings within
+    // the same period are no-ops.
+    ref.listen<AsyncValue<QuotaInfo>>(quotaUsageProvider, (prev, next) {
+      final info = next.whenOrNull(data: (q) => q);
+      final userId = ref.read(currentUserIdProvider);
+      if (info == null || userId == null) return;
+      unawaited(maybeShowElQuotaToast(
+        context: context,
+        userId: userId,
+        info: info,
+      ));
+    });
+
     // Build project ID → name map for path labels
     final Map<String, String> projectNameMap = {};
     projectsAsync.whenData((projects) {
@@ -912,6 +928,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
                 const SizedBox(height: 24),
                 const QuotaBanner(),
+                const ElQuotaBanner(),
                 Expanded(
                   child: documents.isEmpty
                       ? _EmptyState(onUpload: _handleFilePick)
