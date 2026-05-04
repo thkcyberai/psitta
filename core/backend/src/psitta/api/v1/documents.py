@@ -1237,7 +1237,7 @@ async def get_chunk_audio(
     """Stream audio for a specific chunk. Auto-synthesizes on cache miss."""
     from fastapi.responses import FileResponse
 
-    from psitta.services.audio_cache import get_mp3, put_mp3, s3_key_mp3
+    from psitta.services.audio_cache import get_mp3, put_alignment, put_mp3, s3_key_mp3
 
     # Get chunk text — scoped to the authenticated user's documents.
     chunk_result = await db.execute(
@@ -1269,25 +1269,67 @@ async def get_chunk_audio(
     if source_type == "pdf":
         chunk_text = _clean_pdf_chunk_text(chunk_text, getattr(chunk_row, "page_number", None))
 
+    # Cache invalidation on edit is already handled by
+    # _invalidate_chunk_audio_cache, so the previous
+    # `chunk_text == chunk_row.text_content` predicate was paranoid AND
+    # broken: for PDFs it always failed (chunk_text is post-cleaning,
+    # text_content is raw), causing every play of every PDF chunk to
+    # re-synthesize and re-bill EL. Bug-EL-1 fix.
     cached = await get_mp3(str(chunk_id), voice_id)
-    if cached and chunk_text == chunk_row.text_content:
+    if cached is not None:
+        logger.info(
+            "audio.cache_hit",
+            chunk_id=str(chunk_id),
+            voice_id=voice_id,
+            source_type=source_type,
+            user_id=str(user_id),
+        )
         return FileResponse(cached, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
 
     logger.info("audio.cache_miss", chunk_id=str(chunk_id), voice_id=voice_id)
 
-    # Synthesize via quota-aware path — graceful Edge fallback when EL exhausted.
+    # Synthesize via the alignment-producing quota-aware path. Using
+    # the alignment variant on the audio cache-miss path means a single
+    # EL bill produces BOTH the mp3 and the word-level timestamps the
+    # subsequent /alignment fetch needs — the alternative
+    # (synthesize_with_quota here, then waiting for /alignment to call
+    # EL again) double-bills the user. Bug-EL-1 (May 3 2026): a
+    # 186-char chunk was charged 372 (186 audio + 186 alignment) on
+    # first play.
     from psitta.providers.tts_router import TTSRouter
     tts = TTSRouter()
     try:
-        audio_bytes, _provider = await tts.synthesize_with_quota(
-            chunk_text, voice_id, user_id=user_id, db=db,
+        audio_bytes, alignment, provider = (
+            await tts.synthesize_with_alignment_and_quota(
+                chunk_text, voice_id, user_id=user_id, db=db,
+            )
         )
     except Exception as e:
         logger.error("audio.synthesize_failed", error=str(e), voice_id=voice_id)
         raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {e}")
 
-    # Save to local + S3
+    # Save mp3 to local + S3
     local_path = await put_mp3(str(chunk_id), voice_id, audio_bytes)
+
+    # Persist alignment sidecar so a subsequent /alignment fetch hits
+    # the cache instead of triggering a second EL synthesis. Only
+    # ElevenLabs and Edge produce alignment with valid timestamps for
+    # the audio they returned (see contract on
+    # synthesize_with_alignment); discard for any other provider so a
+    # future Azure path can't ship mismatched timestamps against the
+    # cached audio.
+    if alignment is not None and provider in {"elevenlabs", "edge"}:
+        await put_alignment(
+            str(chunk_id),
+            voice_id,
+            {
+                "document_id": str(document_id),
+                "chunk_id": str(chunk_id),
+                "voice_id": voice_id,
+                "provider": provider,
+                "alignment": alignment,
+            },
+        )
     storage_key = s3_key_mp3(str(chunk_id), voice_id)
 
     # Insert cache record (delete stale row first to avoid unique constraint)
@@ -1384,8 +1426,20 @@ async def get_chunk_alignment(
     if source_type == "pdf":
         chunk_text = _clean_pdf_chunk_text(chunk_text, getattr(chunk_row, "page_number", None))
 
+    # Cache invalidation on edit is already handled by
+    # _invalidate_chunk_audio_cache, so the previous
+    # `chunk_text == chunk_row.text_content` predicate was paranoid AND
+    # broken (PDF cleaning made it always fail, see Bug-EL-1).
     cached = await get_alignment(str(chunk_id), voice_id)
-    if cached and chunk_text == chunk_row.text_content:
+    if cached is not None:
+        logger.info(
+            "audio.cache_hit",
+            chunk_id=str(chunk_id),
+            voice_id=voice_id,
+            source_type=source_type,
+            user_id=str(user_id),
+            kind="alignment",
+        )
         return cached
 
     # Synthesize with optional alignment, quota-aware (graceful Edge fallback).
