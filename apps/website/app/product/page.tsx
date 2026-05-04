@@ -159,38 +159,50 @@ const creativeFeatures: Feature[] = [
     ),
   },
   {
-    title: "Advanced content tools",
+    title: "Listen while you write",
     description:
-      "Tools designed for content creators — outline generation, section restructuring, and readability analysis powered by your listening workflow.",
+      "Hear your draft as you write. Catch awkward phrasing, broken rhythm, and unclear passages by ear before anyone else does — at any stage of writing.",
     icon: (
       <svg {...iconProps}>
-        <path d="M12 3v18" />
-        <path d="M5 8h14" />
-        <path d="M7 13h10" />
-        <path d="M9 18h6" />
+        <path d="M3 12a9 9 0 0 1 18 0" />
+        <rect x="3" y="12" width="4" height="7" rx="1.5" />
+        <rect x="17" y="12" width="4" height="7" rx="1.5" />
       </svg>
     ),
   },
   {
-    title: "Multi-format export",
+    title: "All Reading Nook Pro features included",
     description:
-      "Export your polished documents in multiple formats — branded DOCX, PDF, and more — ready to share with clients or publish directly.",
-    icon: (
-      <svg {...iconProps}>
-        <path d="M12 3v12" />
-        <path d="m7 10 5 5 5-5" />
-        <path d="M5 21h14" />
-      </svg>
-    ),
-  },
-  {
-    title: "More on the way",
-    description:
-      "Creative Nook is actively being developed. Features will be announced as they ship. Join the waitlist to be the first to know.",
+      "Everything in Reading Nook Pro — premium voices, word-by-word highlighting, branded DOCX export, archives, priority support — plus the creative workflow tools below. One subscription, both modes.",
     icon: (
       <svg {...iconProps}>
         <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
+        <path d="m8 12 3 3 5-6" />
+      </svg>
+    ),
+  },
+  {
+    title: "Drop in inspiration. Prompt your way to ideas.",
+    description:
+      "Pull in source material and prompt Psitta to expand sections, generate outlines, or draft new pieces in your voice. Coming soon.",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M9 18h6" />
+        <path d="M10 21h4" />
+        <path d="M12 3a6 6 0 0 0-3.5 10.9c.4.3.5.8.5 1.3v1.8h6v-1.8c0-.5.1-1 .5-1.3A6 6 0 0 0 12 3z" />
+      </svg>
+    ),
+  },
+  {
+    title: "Clone Voice reading",
+    description:
+      "Record a short voice sample and Psitta reads your documents back in your own voice. Built for podcasters, audiobook drafts, and authors who want to hear their own delivery. Coming soon.",
+    icon: (
+      <svg {...iconProps}>
+        <rect x="9" y="3" width="6" height="12" rx="3" />
+        <path d="M5 11a7 7 0 0 0 14 0" />
+        <path d="M12 18v3" />
+        <path d="M9 21h6" />
       </svg>
     ),
   },
