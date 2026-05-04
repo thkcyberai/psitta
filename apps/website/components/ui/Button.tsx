@@ -12,6 +12,7 @@ interface ButtonProps {
   size?: ButtonSize;
   className?: string;
   type?: "button" | "submit" | "reset";
+  external?: boolean;
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
@@ -37,10 +38,21 @@ export default function Button({
   size = "md",
   className = "",
   type = "button",
+  external,
 }: ButtonProps) {
   const classes = `inline-flex items-center justify-center gap-2 rounded-md font-medium transition-all duration-150 ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`;
 
   if (href) {
+    // External links bypass Next.js Link routing and render as native <a>.
+    // Triggered explicitly via `external` prop or auto-detected from absolute URLs.
+    const isExternal = external || /^https?:\/\//.test(href);
+    if (isExternal) {
+      return (
+        <a href={href} className={classes}>
+          {children}
+        </a>
+      );
+    }
     return (
       <Link href={href} className={classes}>
         {children}

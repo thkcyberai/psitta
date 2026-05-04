@@ -17,8 +17,8 @@ const requirements: Array<{ label: string; value: string }> = [
 ];
 
 const installSteps: string[] = [
-  "Download the .msix installer above",
-  "Double-click the file to open the Windows App Installer",
+  "Click the Download button above",
+  "Open the downloaded psitta.appinstaller file",
   "Click Install — no admin rights required",
   "Psitta appears in your Start menu. Launch and sign in.",
 ];
@@ -54,15 +54,20 @@ export default function Download() {
           </div>
 
           <p className="text-sm text-ink-muted">
-            Version 1.0.3.0 · Windows 10/11 · 64-bit
+            Version 1.0.5.0 · Windows 10/11 · 64-bit
           </p>
 
-          <Button href="#" variant="primary" size="lg" className="mt-6">
+          <Button
+            href="https://download.psitta.ai/psitta.appinstaller"
+            variant="primary"
+            size="lg"
+            className="mt-6"
+          >
             Download for Windows
           </Button>
 
           <p className="mt-4 text-xs text-ink-muted">
-            Installer coming soon. Join the waitlist to be notified.
+            One-click install · Auto-updates as new versions ship
           </p>
         </div>
 
