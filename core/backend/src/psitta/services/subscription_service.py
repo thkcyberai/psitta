@@ -378,6 +378,12 @@ async def get_subscription_summary(db: AsyncSession, user_id: UUID) -> dict:
     monthly_used = await get_monthly_doc_count(db, user_id)
     limit = plan_info["limits"]["docs_per_month"]
 
+    # ElevenLabs char usage for the current billing period (C.3 endpoint
+    # extension). check_el_quota's UNION lookup picks the correct period
+    # (subscriptions preferred, user_subscriptions fallback) so el_used
+    # reflects the current period even mid-rollover.
+    el_used, el_limit, _el_period_start = await check_el_quota(db, user_id)
+
     row = await db.execute(
         text("""
             SELECT id, plan_id, status, started_at, current_period_start,
@@ -390,6 +396,12 @@ async def get_subscription_summary(db: AsyncSession, user_id: UUID) -> dict:
     )
     sub = row.fetchone()
 
+    # v1.1 cleanup: consolidate period_start resolution with
+    # _get_active_period_start UNION pattern from check_el_quota so the
+    # endpoint's reset_at always agrees with the row that backs the
+    # quota counter for Stripe-paying users mid-rollover.
+    el_reset_at = sub[5].isoformat() if sub and sub[5] else None
+
     return {
         "plan_id": plan_info["plan_id"],
         "limits": plan_info["limits"],
@@ -397,6 +409,10 @@ async def get_subscription_summary(db: AsyncSession, user_id: UUID) -> dict:
             "docs_this_month": monthly_used,
             "docs_limit": limit,
             "docs_remaining": max(0, limit - monthly_used) if limit != -1 else None,
+            "el_chars_used": el_used,
+            "el_chars_limit": el_limit,
+            "el_chars_remaining": max(0, el_limit - el_used),
+            "el_chars_reset_at": el_reset_at,
         },
         "subscription": {
             "id": str(sub[0]) if sub else None,

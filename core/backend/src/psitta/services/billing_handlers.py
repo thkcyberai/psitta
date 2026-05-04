@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from psitta.config import get_settings
 from psitta.db.session import async_session_factory
 from psitta.services import audit_service
+from psitta.services.plan_limits import _normalize_plan_id, get_plan_limits
 
 # Stripe SDK API version: Basil (March 2025) — period fields on items, not subscription root.
 
@@ -293,9 +294,11 @@ async def handle_subscription_updated(
     # Find existing local subscription. The JOIN pulls the Psitta user
     # UUID for the audit_log row — Stripe webhooks don't carry it on
     # subscription updates, so we resolve it through stripe_customers.
+    # current_period_start is fetched so the C.3 rotation block can
+    # detect a renewal (old period_start != new period_start).
     row = await db.execute(
         text(
-            "SELECT s.id, s.status, sc.user_id "
+            "SELECT s.id, s.status, s.current_period_start, sc.user_id "
             "FROM subscriptions s "
             "JOIN stripe_customers sc ON sc.id = s.stripe_customer_id "
             "WHERE s.stripe_subscription_id = :sub_id"
@@ -312,6 +315,7 @@ async def handle_subscription_updated(
         return
 
     previous_status = existing["status"]
+    previous_period_start = existing["current_period_start"]
     psitta_user_id = str(existing["user_id"])
     item = sub_obj["items"]["data"][0]
     price = item["price"]
@@ -404,6 +408,73 @@ async def handle_subscription_updated(
             status=new_us_status,
             stripe_subscription_id=stripe_sub_id,
         )
+
+    # ── EL quota period rotation (C.3) ──────────────────────────────────
+    # The (user_id, period_start) compound key in el_usage_counters means
+    # the new period naturally starts at zero — check_el_quota reads
+    # against the current period_start and either finds the new row at 0
+    # or finds no row and returns 0. The eager INSERT here makes the
+    # rotation observable in the table for forensic / SQL audit purposes.
+    #
+    # Wrapped in try/except so a rotation-block failure can never block
+    # the webhook ack — Stripe will retry for 3 days on non-200, and the
+    # subscription update itself is the load-bearing work above.
+    #
+    # v1.1 fix queued: _lookup_key_to_plan_id collapses both Reading Nook
+    # Pro and Creative Nook Pro lookup_keys onto pro_monthly/pro_annual,
+    # which _normalize_plan_id then maps to reading_nook_pro. C-Pro
+    # subscribers get the R-Pro 150k EL limit until the ENUM
+    # differentiation is fixed. lookup_key is logged here so the audit
+    # trail preserves the real source-of-truth.
+    if (
+        previous_period_start is not None
+        and period_start is not None
+        and previous_period_start != period_start
+        and new_status == "active"
+    ):
+        try:
+            canonical_plan_id = _normalize_plan_id(new_plan_id or "")
+            new_chars_limit = get_plan_limits(canonical_plan_id).el_chars_per_period
+            await db.execute(
+                text(
+                    "INSERT INTO el_usage_counters "
+                    "(user_id, period_start, chars_consumed, created_at, updated_at) "
+                    "VALUES (:uid, :ps, 0, NOW(), NOW()) "
+                    "ON CONFLICT (user_id, period_start) DO NOTHING"
+                ),
+                {"uid": psitta_user_id, "ps": period_start},
+            )
+            logger.info(
+                "billing.el_period_rotated",
+                user_id=psitta_user_id,
+                plan=canonical_plan_id,
+                lookup_key=lookup_key,
+                previous_period_start=previous_period_start.isoformat(),
+                new_period_start=period_start.isoformat(),
+                chars_limit=new_chars_limit,
+            )
+            await audit_service.log_event(
+                db,
+                action="billing.el_period_rotated",
+                resource_type="subscription",
+                user_id=psitta_user_id,
+                resource_id=psitta_user_id,
+                details={
+                    "stripe_subscription_id": stripe_sub_id,
+                    "plan": canonical_plan_id,
+                    "lookup_key": lookup_key,
+                    "previous_period_start": previous_period_start.isoformat(),
+                    "new_period_start": period_start.isoformat(),
+                    "chars_limit": new_chars_limit,
+                },
+            )
+        except Exception as e:
+            logger.warning(
+                "billing.el_period_rotation_failed",
+                user_id=psitta_user_id,
+                stripe_subscription_id=stripe_sub_id,
+                error=str(e),
+            )
 
     await audit_service.log_event(
         db,
