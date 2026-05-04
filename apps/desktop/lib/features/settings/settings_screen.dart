@@ -49,7 +49,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final info = await PackageInfo.fromPlatform();
     if (!mounted) return;
     setState(() {
-      _appVersion = '${info.version}+${info.buildNumber}';
+      _appVersion = info.version;
     });
   }
 
@@ -279,12 +279,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 }
               },
             ),
-          ),
-          const SizedBox(height: 16),
-          const ListTile(
-            title: Text('API Server'),
-            subtitle: Text('http://localhost:8000'),
-            trailing: Icon(Icons.chevron_right),
           ),
           const SizedBox(height: 32),
           Padding(
