@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import Container from "@/components/ui/Container";
 import ContactForm from "@/components/contact/ContactForm";
 
@@ -14,6 +15,14 @@ export default function Contact() {
         <p className="lead mt-4 text-ink-muted">
           Have a question, found a bug, or just want to say hello?
           We&apos;d love to hear from you.
+        </p>
+
+        <p className="mt-6 text-sm text-ink-muted">
+          Need help with installation or playback? Visit our{" "}
+          <Link href="/support" className="text-psitta-600 hover:underline">
+            support page
+          </Link>{" "}
+          for FAQs first.
         </p>
 
         <div className="mt-16">

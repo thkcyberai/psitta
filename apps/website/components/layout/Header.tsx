@@ -6,6 +6,7 @@ import Container from "@/components/ui/Container";
 const NAV_ITEMS = [
   { label: "Product", href: "/product" },
   { label: "Pricing", href: "/pricing" },
+  { label: "Support", href: "/support" },
   { label: "Download", href: "/download" },
 ];
 
