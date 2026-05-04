@@ -18,7 +18,7 @@ export default function MakerNote() {
           writing before your readers do.
         </p>
         <p className="mt-6 text-sm font-medium text-ink-muted">
-          — Luis Oliveira, Founder
+          — Luis Oliveira, Founder & CEO
         </p>
       </Container>
     </section>
