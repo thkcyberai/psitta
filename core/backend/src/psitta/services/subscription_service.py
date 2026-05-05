@@ -1,7 +1,9 @@
 """subscription_service.py — M3a tier enforcement (no Stripe).
 
 Responsibilities:
-  - Look up a user's active plan
+  - Look up a user's active plan via the unified ``get_effective_plan``
+    resolver — Stripe → user_subscriptions dev_override → tester_allowlist
+    → free
   - Check monthly doc upload quota
   - Check voice tier access
   - Increment usage counter
@@ -11,14 +13,16 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import func, select, text, update
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.services.plan_limits import _normalize_plan_id, get_plan_limits
+from psitta.services.tester_allowlist import check_allowlist_entitlement
 
 logger = logging.getLogger(__name__)
 
@@ -74,23 +78,184 @@ EDGE_TTS_VOICES = {
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _current_year_month() -> str:
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     return f"{now.year}-{now.month:02d}"
 
 
-async def _get_active_plan_id(db: AsyncSession, user_id: UUID) -> str:
-    """Return the user's current plan id, defaulting to 'free'."""
+# ── Effective plan resolver (Item 11 — Pattern 3 backend allowlist) ──────────
+
+@dataclass(frozen=True)
+class EffectivePlan:
+    """Resolved entitlement for a user across all three storage paths.
+
+    The single source of truth for "is this user Pro and through which
+    mechanism?" — collapses the historical dual-table read pattern
+    (subscriptions vs user_subscriptions, Apr 23 / Apr 27 Key Learnings)
+    into one resolver and adds the tester_allowlist path on top.
+
+    Fields:
+        plan_id: canonical PLAN_LIMITS key (`free`, `reading_nook_pro`,
+            `creative_nook_pro`). Safe to feed straight into
+            ``get_plan_limits``.
+        raw_plan_id: the plan id in the storage shape that wrote it
+            (Stripe lookup_key, Postgres ENUM string, allowlist canonical).
+            Preserved so legacy callers and audit logs don't lose
+            information.
+        current_period_start / current_period_end: billing-anniversary
+            window. For ``stripe`` these are subscription period dates;
+            for ``dev_override`` they're whatever ``set_plan_override``
+            wrote; for ``tester_allowlist`` they're ``granted_at`` and
+            ``expires_at``; for ``free`` both are ``None``.
+        cancel_at_period_end: only meaningful for ``stripe``. Other
+            sources default to ``False``.
+        source: ``stripe`` | ``dev_override`` | ``tester_allowlist`` | ``free``.
+    """
+
+    plan_id: str
+    raw_plan_id: str
+    current_period_start: datetime | None
+    current_period_end: datetime | None
+    cancel_at_period_end: bool
+    source: str
+
+
+def _canonicalize_lookup_key(lookup_key: str) -> str:
+    """Strip Stripe billing-period suffix and normalize legacy prefix.
+
+    Stripe lookup_keys look like ``reading_nook_pro_monthly`` or
+    ``creativity_nook_pro_annual``. We need ``reading_nook_pro`` /
+    ``creative_nook_pro`` (canonical PLAN_LIMITS keys). Mirrors the
+    parse done in ``api/v1/billing._parse_lookup_key`` but kept local
+    here to avoid a service → API import.
+    """
+    base = lookup_key.removesuffix("_monthly").removesuffix("_annual")
+    return {"creativity_nook_pro": "creative_nook_pro"}.get(base, base)
+
+
+async def _lookup_user_email(db: AsyncSession, user_id: UUID) -> str | None:
+    """Fetch users.email by internal user id. None if user row is missing."""
     row = await db.execute(
-        text("""
-            SELECT plan_id FROM user_subscriptions
-            WHERE user_id = :uid AND status = 'active'
-            ORDER BY created_at DESC
-            LIMIT 1
-        """),
+        text("SELECT email FROM users WHERE id = :uid LIMIT 1"),
         {"uid": str(user_id)},
     )
     result = row.fetchone()
-    return result[0] if result else "free"
+    return result[0] if result else None
+
+
+async def get_effective_plan(
+    db: AsyncSession,
+    user_id: UUID,
+    email: str | None = None,
+) -> EffectivePlan:
+    """Resolve a user's entitlement across all three storage paths.
+
+    Resolution order (highest precedence first):
+      1. ``subscriptions`` ⋈ ``stripe_customers`` — real Stripe-paying
+         customer. Only ``status='active'`` rows.
+      2. ``user_subscriptions`` (dev/admin override via
+         ``set_plan_override``). Only ``status='active'`` rows.
+      3. ``tester_allowlist`` (Item 11 Internal Alpha pathway). Active =
+         ``revoked_at IS NULL AND expires_at > NOW()``. Lookup uses the
+         caller-provided ``email`` if present, else ``users.email`` for
+         the given user_id.
+      4. Free.
+
+    The first match wins — when a tester later subscribes via Stripe,
+    the Stripe row supersedes the allowlist automatically without
+    requiring the allowlist row to be revoked.
+
+    ``email`` is taken when the caller has a fresher source than
+    ``users.email`` (typically the JWT ``TokenClaims.email``). Auto-
+    provisioned users may have a synthetic ``<uuid>@auth0.local``
+    placeholder in ``users.email`` (Apr 27 Key Learning) — passing the
+    JWT email avoids a benign allowlist miss in that window.
+    """
+    # 1. Stripe — highest precedence
+    row = await db.execute(
+        text(
+            """
+            SELECT s.lookup_key, s.current_period_start,
+                   s.current_period_end, s.cancel_at_period_end
+            FROM subscriptions s
+            JOIN stripe_customers sc ON sc.id = s.stripe_customer_id
+            WHERE sc.user_id = :uid AND s.status = 'active'
+            ORDER BY s.created_at DESC LIMIT 1
+            """
+        ),
+        {"uid": str(user_id)},
+    )
+    sub = row.mappings().first()
+    if sub:
+        canonical = _canonicalize_lookup_key(sub["lookup_key"])
+        return EffectivePlan(
+            plan_id=canonical,
+            raw_plan_id=sub["lookup_key"],
+            current_period_start=sub["current_period_start"],
+            current_period_end=sub["current_period_end"],
+            cancel_at_period_end=bool(sub["cancel_at_period_end"]),
+            source="stripe",
+        )
+
+    # 2. Dev/admin override
+    row = await db.execute(
+        text(
+            """
+            SELECT plan_id, current_period_start, current_period_end
+            FROM user_subscriptions
+            WHERE user_id = :uid AND status = 'active'
+            ORDER BY created_at DESC LIMIT 1
+            """
+        ),
+        {"uid": str(user_id)},
+    )
+    dev = row.mappings().first()
+    if dev:
+        canonical = _normalize_plan_id(dev["plan_id"])
+        return EffectivePlan(
+            plan_id=canonical,
+            raw_plan_id=dev["plan_id"],
+            current_period_start=dev["current_period_start"],
+            current_period_end=dev["current_period_end"],
+            cancel_at_period_end=False,
+            source="dev_override",
+        )
+
+    # 3. Tester allowlist
+    if email is None:
+        email = await _lookup_user_email(db, user_id)
+    if email:
+        entry = await check_allowlist_entitlement(db, email)
+        if entry:
+            return EffectivePlan(
+                plan_id=_normalize_plan_id(entry.plan_id),
+                raw_plan_id=entry.plan_id,
+                current_period_start=entry.granted_at,
+                current_period_end=entry.expires_at,
+                cancel_at_period_end=False,
+                source="tester_allowlist",
+            )
+
+    # 4. Free
+    return EffectivePlan(
+        plan_id="free",
+        raw_plan_id="free",
+        current_period_start=None,
+        current_period_end=None,
+        cancel_at_period_end=False,
+        source="free",
+    )
+
+
+async def _get_active_plan_id(db: AsyncSession, user_id: UUID) -> str:
+    """Return the user's current raw plan id (legacy shape, default 'free').
+
+    Thin wrapper around ``get_effective_plan`` preserved for callers
+    that only need the plan id string. New code should call
+    ``get_effective_plan`` directly so all five entitlement fields are
+    available without re-resolution.
+    """
+    plan = await get_effective_plan(db, user_id)
+    return plan.raw_plan_id
 
 
 async def get_user_plan(db: AsyncSession, user_id: UUID) -> dict:
@@ -197,51 +362,13 @@ async def _get_active_period_start(
 ) -> datetime | None:
     """Return the user's current billing period start, or None.
 
-    Source-of-truth resolution order:
-      1. subscriptions.current_period_start joined via stripe_customers
-         (Stripe-managed Reading/Creative Nook Pro subscribers — real
-         billing-anniversary date from Stripe Basil API items[0]).
-      2. user_subscriptions.current_period_start (dev/admin override path
-         via set_plan_override; no Stripe row exists for these users).
-
-    Returns None when neither table has an active row — caller decides
-    whether to treat as a free user or short-circuit the quota check.
-
-    The dual-table read documents the live tech debt from the Apr 23 /
-    Apr 27 Key Learnings (subscriptions vs user_subscriptions split).
-    Collapses to a single subscriptions read once dev-override paths
-    are migrated off user_subscriptions (M9 backlog).
+    Thin wrapper around ``get_effective_plan`` preserved for legacy
+    callers. The resolver covers all three entitlement sources
+    (Stripe subscriptions, user_subscriptions dev_override,
+    tester_allowlist) with the same precedence order.
     """
-    row = await db.execute(
-        text(
-            """
-            SELECT s.current_period_start
-            FROM subscriptions s
-            JOIN stripe_customers sc ON sc.id = s.stripe_customer_id
-            WHERE sc.user_id = :uid AND s.status = 'active'
-            ORDER BY s.created_at DESC LIMIT 1
-            """
-        ),
-        {"uid": str(user_id)},
-    )
-    result = row.fetchone()
-    if result and result[0] is not None:
-        return result[0]
-
-    row = await db.execute(
-        text(
-            """
-            SELECT current_period_start FROM user_subscriptions
-            WHERE user_id = :uid AND status = 'active'
-            ORDER BY created_at DESC LIMIT 1
-            """
-        ),
-        {"uid": str(user_id)},
-    )
-    result = row.fetchone()
-    if result and result[0] is not None:
-        return result[0]
-    return None
+    plan = await get_effective_plan(db, user_id)
+    return plan.current_period_start
 
 
 async def check_el_quota(
@@ -257,15 +384,18 @@ async def check_el_quota(
     period_start defaults to NOW() when no active subscription row
     exists; in that case limit is also 0 so the value is never used to
     key a counter row.
+
+    Single resolver call (down from 2 in the pre-T11.2 implementation
+    that delegated to ``_get_active_plan_id`` + ``_get_active_period_start``
+    independently). Net DB read reduction in tts_router synthesize path:
+    3 → 2 per call.
     """
-    raw_plan_id = await _get_active_plan_id(db, user_id)
-    canonical_plan_id = _normalize_plan_id(raw_plan_id)
-    limits = get_plan_limits(canonical_plan_id)
+    plan = await get_effective_plan(db, user_id)
+    limits = get_plan_limits(plan.plan_id)
     chars_limit = limits.el_chars_per_period
 
-    period_start = await _get_active_period_start(db, user_id)
-    if period_start is None:
-        return (0, chars_limit, datetime.now(timezone.utc))
+    if plan.current_period_start is None:
+        return (0, chars_limit, datetime.now(UTC))
 
     row = await db.execute(
         text(
@@ -274,11 +404,11 @@ async def check_el_quota(
             WHERE user_id = :uid AND period_start = :ps
             """
         ),
-        {"uid": str(user_id), "ps": period_start},
+        {"uid": str(user_id), "ps": plan.current_period_start},
     )
     result = row.fetchone()
     chars_used = result[0] if result else 0
-    return (chars_used, chars_limit, period_start)
+    return (chars_used, chars_limit, plan.current_period_start)
 
 
 async def increment_el_chars(

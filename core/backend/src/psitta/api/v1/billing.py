@@ -41,6 +41,7 @@ from psitta.services.billing_handlers import (
     stripe_obj_to_dict,
 )
 from psitta.services.plan_limits import plan_limits_to_dict
+from psitta.services.subscription_service import get_effective_plan
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -61,6 +62,7 @@ _FREE_STATUS = {
     "status": "none",
     "current_period_end": None,
     "cancel_at_period_end": False,
+    "source": "free",
 }
 
 
@@ -102,13 +104,21 @@ class PortalSessionResponse(BaseModel):
 
 
 class BillingStatusResponse(BaseModel):
-    """Current subscription status for the authenticated user."""
+    """Current subscription status for the authenticated user.
+
+    ``source`` (T11.2) discloses which storage path resolved the
+    entitlement: ``stripe`` (real paying customer), ``dev_override``
+    (PATCH /users/me/plan), ``tester_allowlist`` (Item 11 alpha cohort),
+    or ``free``. Desktop UI uses this to render the alpha-tester badge
+    and hide the Stripe Customer Portal button for non-Stripe sources.
+    """
 
     plan: str
     billing_period: str | None
     status: str
     current_period_end: str | None
     cancel_at_period_end: bool
+    source: str
 
 
 # ── POST /billing/checkout-session ───────────────────────────────────────
@@ -404,79 +414,95 @@ async def create_portal_session(
 async def get_billing_status(
     request: Request,
     user_id=Depends(get_current_user_id),
+    claims: TokenClaims = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ):
     """Return the current user's subscription status.
 
     Always returns a valid response — free plan defaults if no
-    subscription exists.
+    entitlement exists. T11.2 routes resolution through the unified
+    ``get_effective_plan`` resolver so all four sources (stripe,
+    dev_override, tester_allowlist, free) flow through one path; the
+    response gains a ``source`` field exposing which path resolved.
+
+    JWT email is forwarded to the resolver so allowlist lookup uses
+    the freshest known address — auto-provisioned users may carry a
+    synthetic ``users.email`` placeholder (Apr 27 Key Learning) which
+    would otherwise miss a real-email allowlist row.
     """
-    # Default to Free; the resolution branches below upgrade these
-    # locals when an active subscription is found. Single-exit at the
-    # bottom so the audit log fires on every code path (regression
-    # avoidance: pre-2026-05-02 audit only fired on the Pro success
-    # path, making Free returns invisible to forensics).
-    plan: str = _FREE_STATUS["plan"]
-    billing_period = _FREE_STATUS["billing_period"]
-    status_value: str = _FREE_STATUS["status"]
-    period_end_str = _FREE_STATUS["current_period_end"]
-    cancel_at_period_end: bool = _FREE_STATUS["cancel_at_period_end"]
+    plan_state = await get_effective_plan(db, user_id, email=claims.email)
 
-    # 1. Look up Stripe Customer
-    row = await db.execute(
-        text("SELECT id FROM stripe_customers WHERE user_id = :user_id"),
-        {"user_id": user_id},
-    )
-    customer_row = row.fetchone()
-
-    if not customer_row:
-        outcome = "no_customer"
+    # Map the resolver's source back into the BillingStatusResponse
+    # shape that pre-T11.2 clients understand. Stripe is the only path
+    # with a meaningful billing_period; dev_override / tester_allowlist
+    # carry plan + period_end but never a Stripe-style monthly/annual
+    # cadence label.
+    if plan_state.source == "stripe":
+        plan_name, billing_period = _parse_lookup_key(plan_state.raw_plan_id)
+        status_value = "active"
+        outcome = "found_active"
+    elif plan_state.source in ("dev_override", "tester_allowlist"):
+        plan_name = plan_state.plan_id
+        billing_period = None
+        status_value = "active"
+        outcome = "found_active"
     else:
-        # 2. Get most recent ACTIVE subscription. Filter to status='active'
-        # explicitly — older canceled rows would otherwise mask the
-        # genuinely active row when picked by ORDER BY created_at DESC
-        # LIMIT 1 (production incident May 2 2026: test3 had a newer
-        # canceled monthly row above an older active annual row, and
-        # /billing/status returned Free for a paying customer).
-        result = await db.execute(
-            text(
-                "SELECT lookup_key, status, current_period_end, "
-                "       cancel_at_period_end "
-                "FROM subscriptions "
-                "WHERE stripe_customer_id = :sc_id "
-                "  AND status = 'active' "
-                "ORDER BY created_at DESC LIMIT 1"
-            ),
-            {"sc_id": customer_row[0]},
-        )
-        sub = result.mappings().first()
+        plan_name = _FREE_STATUS["plan"]
+        billing_period = _FREE_STATUS["billing_period"]
+        status_value = _FREE_STATUS["status"]
+        outcome = "no_active_sub"
 
-        if not sub:
-            outcome = "no_active_sub"
-        else:
-            outcome = "found_active"
-            plan, billing_period = _parse_lookup_key(sub["lookup_key"])
-            status_value = sub["status"]
-            period_end = sub["current_period_end"]
-            period_end_str = period_end.isoformat() if period_end else None
-            cancel_at_period_end = sub["cancel_at_period_end"]
+    period_end_str = (
+        plan_state.current_period_end.isoformat()
+        if plan_state.current_period_end
+        else None
+    )
 
-    # 3. Audit log — emitted on every code path, including Free.
+    # Audit — emitted on every code path including Free, with the
+    # resolver source exposed in details for forensic filtering.
     await audit_service.log_event(
         db,
         action="billing.status_checked",
         resource_type="billing",
         user_id=str(user_id),
-        details={"plan": plan, "outcome": outcome},
+        details={
+            "plan": plan_name,
+            "outcome": outcome,
+            "source": plan_state.source,
+        },
         ip_address=request.client.host if request.client else None,
     )
 
+    # Tester allowlist resolution gets its own event so CloudWatch
+    # alerts can fire on a single action filter ("alpha tester X
+    # resolved at Y") without sifting through every billing.status_checked
+    # record. Frontend polls /billing/status periodically, so this
+    # event provides natural surprise-expiry detection granularity
+    # without flooding logs (no per-quota-check emission).
+    if plan_state.source == "tester_allowlist":
+        await audit_service.log_event(
+            db,
+            action="tester.entitlement_resolved",
+            resource_type="billing",
+            user_id=str(user_id),
+            details={
+                "email": claims.email,
+                "expires_at": (
+                    plan_state.current_period_end.isoformat()
+                    if plan_state.current_period_end
+                    else None
+                ),
+            },
+            ip_address=request.client.host if request.client else None,
+        )
+
     return BillingStatusResponse(
-        plan=plan,
+        plan=plan_name,
         billing_period=billing_period,
         status=status_value,
         current_period_end=period_end_str,
-        cancel_at_period_end=cancel_at_period_end,
+        cancel_at_period_end=plan_state.cancel_at_period_end,
+        source=plan_state.source,
     )
 
 
