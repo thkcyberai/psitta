@@ -16,28 +16,66 @@ import '../data/providers/providers.dart';
 ///     silently rendering Free, which would be indistinguishable from a
 ///     legitimate Free user and silently downgrade a paying Pro user
 ///     during a transient auth/network failure.
+///
+/// [source] (T11.2 backend / T11.3b client) discloses which storage
+/// path resolved the entitlement: `stripe`, `dev_override`,
+/// `tester_allowlist`, or `free`. Used by Settings UI to render the
+/// alpha-tester badge and hide the Stripe Customer Portal tile (which
+/// would 502 for non-Stripe sources). Defaults to null when the
+/// backend doesn't include it (older deployments) — callers must
+/// treat null as "unknown source, fall back to legacy isPro/isFree
+/// gating".
 class PlanStatus {
   const PlanStatus({
     required this.plan,
     required this.status,
     this.isUnavailable = false,
+    this.source,
+    this.currentPeriodEnd,
   });
 
   /// Parse a `/billing/status` response body. Preserves whatever the
   /// backend says; missing fields fall back to free/none (a legitimate
   /// Free state — distinct from the unavailable state below).
-  factory PlanStatus.fromMap(Map<String, dynamic> m) => PlanStatus(
-        plan: (m['plan'] as String?) ?? 'free',
-        status: (m['status'] as String?) ?? 'none',
-      );
+  factory PlanStatus.fromMap(Map<String, dynamic> m) {
+    final periodEndRaw = m['current_period_end'] as String?;
+    DateTime? periodEnd;
+    if (periodEndRaw != null && periodEndRaw.isNotEmpty) {
+      // ISO-8601 from backend; tryParse fails-soft to null on
+      // unexpected shapes so a backend hiccup never crashes Settings.
+      periodEnd = DateTime.tryParse(periodEndRaw);
+    }
+    return PlanStatus(
+      plan: (m['plan'] as String?) ?? 'free',
+      status: (m['status'] as String?) ?? 'none',
+      source: m['source'] as String?,
+      currentPeriodEnd: periodEnd,
+    );
+  }
 
   final String plan;
   final String status;
   final bool isUnavailable;
 
+  /// Resolver source from `/billing/status` (T11.2). Null when the
+  /// backend response predates the field — callers fall back to
+  /// legacy plan/status gating in that case.
+  final String? source;
+
+  /// Sunset date for the current entitlement. For Stripe this is the
+  /// next billing-anniversary; for tester_allowlist it's the row's
+  /// expires_at. Null for Free.
+  final DateTime? currentPeriodEnd;
+
   bool get isPro =>
       !isUnavailable && plan != 'free' && status == 'active';
   bool get isFree => !isUnavailable && plan == 'free';
+
+  /// True when entitlement was resolved via the alpha tester allowlist
+  /// (Item 11). Implies [isPro] is also true (allowlist users get
+  /// reading_nook_pro entitlement), but no Stripe customer record
+  /// exists — Stripe Customer Portal must be hidden for this state.
+  bool get isTesterAllowlist => source == 'tester_allowlist';
 
   static const free = PlanStatus(plan: 'free', status: 'none');
   static const unavailable = PlanStatus(

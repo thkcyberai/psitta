@@ -422,12 +422,34 @@ class _SubscriptionTile extends ConsumerWidget {
         onTap: () => ref.invalidate(billingStatusProvider),
       ),
       data: (data) {
-        final plan = (data['plan'] as String?) ?? 'free';
-        final status = (data['status'] as String?) ?? 'none';
-        final planLabel = _kPlanDisplayNames[plan] ?? plan;
-        final subtitle = plan == 'free'
+        final planStatus = PlanStatus.fromMap(data);
+        final planLabel = _kPlanDisplayNames[planStatus.plan] ?? planStatus.plan;
+
+        // Tester-allowlist users get a distinct title + sunset-date
+        // subtitle and a tooltip explaining the alpha access. The
+        // tile itself stays the same shape so the Settings list
+        // layout doesn't shift between sources.
+        if (planStatus.isTesterAllowlist) {
+          final periodEnd = planStatus.currentPeriodEnd;
+          final dateText = periodEnd != null
+              ? formatResetDate(periodEnd)
+              : 'unknown date';
+          return Tooltip(
+            message: 'Alpha tester access — paid plan features active '
+                'until $dateText',
+            child: ListTile(
+              leading: const Icon(Icons.card_membership_outlined),
+              title: Text('Plan: $planLabel · Alpha tester'),
+              subtitle: Text('Active until $dateText'),
+            ),
+          );
+        }
+
+        final subtitle = planStatus.plan == 'free'
             ? 'No active subscription'
-            : (status == 'active' ? 'Active' : status);
+            : (planStatus.status == 'active'
+                ? 'Active'
+                : planStatus.status);
         return ListTile(
           leading: const Icon(Icons.card_membership_outlined),
           title: Text('Plan: $planLabel'),
@@ -641,6 +663,14 @@ class _ManageSubscriptionTileState
   Widget build(BuildContext context) {
     final isPro = ref.watch(isProUserProvider);
     if (!isPro) return const SizedBox.shrink();
+
+    // T11.3b — allowlist-source Pro users have no Stripe customer
+    // record. The portal-session call would 502 with "no Stripe
+    // customer record" from the backend (api/v1/billing.py:359).
+    // Hide the tile rather than letting users tap into a confusing
+    // error state. Conversion path stays open via _ChangePlanTile.
+    final planStatus = ref.watch(planStatusProvider);
+    if (planStatus.isTesterAllowlist) return const SizedBox.shrink();
 
     return ListTile(
       leading: const Icon(Icons.credit_card_outlined),
