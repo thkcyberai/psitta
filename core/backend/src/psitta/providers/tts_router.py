@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 import structlog
 from typing import Any
 from uuid import UUID
@@ -12,6 +14,21 @@ from psitta.config import Settings, get_settings
 from psitta.providers.tts_errors import TTSProviderError
 
 logger = structlog.get_logger(__name__)
+
+
+@lru_cache(maxsize=None)
+def _voice_provider(voice_id: str) -> str:
+    """Resolve voice_id → catalog provider field. Returns 'elevenlabs',
+    'azure', or 'unknown'. Cached per-process per-id; catalog is static
+    so the lookup happens once per voice. Returning 'unknown' falls
+    through to the legacy EL-primary path so any voice missing from the
+    catalog (e.g., during a deploy where catalog and code are temporarily
+    out of sync) preserves prior behavior."""
+    from psitta.providers.voice_catalog_static import VOICE_CATALOG
+    for v in VOICE_CATALOG:
+        if v["id"] == voice_id:
+            return v.get("provider", "unknown")
+    return "unknown"
 
 
 class TTSRouter:
@@ -148,6 +165,11 @@ class TTSRouter:
         attribute char usage to the actual serving provider — only EL
         counts against the per-period char quota (C.2).
         """
+        if _voice_provider(voice_id) == "azure":
+            return await self._dispatch_azure_voice(
+                text=text, voice_id=voice_id, speed=speed,
+                output_format=output_format,
+            )
         primary = self._provider_selected
         provider = self._get_provider(primary)
         if provider is None:
@@ -196,6 +218,10 @@ class TTSRouter:
             alignment in the ElevenLabs schema
           - Azure returns alignment=None
         """
+        if _voice_provider(voice_id) == "azure":
+            return await self._dispatch_azure_voice_with_alignment(
+                text=text, voice_id=voice_id, output_format=output_format,
+            )
         primary = self._provider_selected
         provider = self._get_provider(primary)
         if provider is None:
@@ -370,6 +396,110 @@ class TTSRouter:
         if provider_name == "elevenlabs" and limit > 0:
             await increment_el_chars(db, user_id, period_start, char_count)
         return audio, alignment, provider_name
+
+    async def _dispatch_azure_voice(
+        self,
+        text: str,
+        voice_id: str,
+        speed: float,
+        output_format: str,
+    ) -> tuple[bytes, str]:
+        """Edge-first dispatch for catalog provider=azure voices.
+
+        For native Microsoft voice IDs (e.g., 'en-US-AriaNeural'), the
+        catalog id IS the Edge/Azure voice id — no translation required.
+        Bypasses the elevenlabs_to_azure() translator's broken
+        'unknown→Jenny' fallback. ElevenLabs is intentionally NOT in the
+        chain for these voices: their ids are not valid at EL and would
+        always 4xx, wasting a round trip and consuming EL rate budget.
+        """
+        if self._edge:
+            try:
+                audio = await self._edge.synthesize(
+                    text=text, voice_id=voice_id, speed=speed,
+                    output_format=output_format,
+                )
+                logger.info(
+                    "tts_router.ok",
+                    provider="edge", voice_id=voice_id,
+                    size=len(audio), char_count=len(text),
+                    dispatch="azure_voice",
+                )
+                return audio, "edge"
+            except Exception as e:
+                logger.warning(
+                    "tts_router.azure_voice.edge_failed",
+                    voice_id=voice_id, error=str(e),
+                )
+        if self._azure:
+            try:
+                from psitta.models.domain import ToneCategory
+                audio = await self._azure.synthesize(
+                    text=text, voice_id=voice_id, speed=speed,
+                    tone=ToneCategory.NEUTRAL, output_format="mp3",
+                )
+                logger.info(
+                    "tts_router.ok",
+                    provider="azure", voice_id=voice_id,
+                    size=len(audio), char_count=len(text),
+                    dispatch="azure_voice",
+                )
+                return audio, "azure"
+            except Exception as e:
+                logger.warning(
+                    "tts_router.azure_voice.azure_failed",
+                    voice_id=voice_id, error=str(e),
+                )
+        raise RuntimeError(
+            f"TTS failed for azure voice {voice_id}: "
+            "Edge and Azure both unavailable"
+        )
+
+    async def _dispatch_azure_voice_with_alignment(
+        self,
+        text: str,
+        voice_id: str,
+        output_format: str,
+    ) -> tuple[bytes, dict[str, Any] | None, str]:
+        """Edge-first dispatch with alignment for provider=azure voices.
+
+        Edge produces char-level alignment via WordBoundary expansion;
+        Azure cannot, so the Azure failover returns alignment=None.
+        """
+        if self._edge:
+            try:
+                audio, alignment = await self._edge_with_alignment(
+                    text, voice_id,
+                )
+                return audio, alignment, "edge"
+            except Exception as e:
+                logger.warning(
+                    "tts_router.azure_voice.edge_failed",
+                    voice_id=voice_id, error=str(e),
+                )
+        if self._azure:
+            try:
+                from psitta.models.domain import ToneCategory
+                audio = await self._azure.synthesize(
+                    text=text, voice_id=voice_id, speed=1.0,
+                    tone=ToneCategory.NEUTRAL, output_format="mp3",
+                )
+                logger.info(
+                    "tts_router.ok",
+                    provider="azure", voice_id=voice_id,
+                    size=len(audio), char_count=len(text),
+                    alignment="no", dispatch="azure_voice",
+                )
+                return audio, None, "azure"
+            except Exception as e:
+                logger.warning(
+                    "tts_router.azure_voice.azure_failed",
+                    voice_id=voice_id, error=str(e),
+                )
+        raise RuntimeError(
+            f"TTS failed for azure voice {voice_id}: "
+            "Edge and Azure both unavailable"
+        )
 
     async def _edge_with_alignment(
         self, text: str, voice_id: str

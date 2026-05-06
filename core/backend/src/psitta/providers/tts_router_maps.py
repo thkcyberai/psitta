@@ -3,6 +3,10 @@
 Only uses verified available voices.
 """
 
+import re
+
+_MICROSOFT_NEURAL_PATTERN = re.compile(r"^[a-z]{2}-[A-Z]{2}-\w+Neural$")
+
 ELEVENLABS_TO_AZURE: dict[str, str] = {
     "21m00Tcm4TlvDq8ikWAM": "en-US-JennyNeural",       # Rachel
     "AZnzlk1XvdvUeBnXmlld": "en-US-AriaNeural",         # Domi
@@ -19,4 +23,7 @@ ELEVENLABS_TO_AZURE: dict[str, str] = {
 }
 
 def elevenlabs_to_azure(voice_id: str) -> str:
+    # Native Microsoft ID — pass through; no translation required.
+    if _MICROSOFT_NEURAL_PATTERN.match(voice_id):
+        return voice_id
     return ELEVENLABS_TO_AZURE.get(voice_id, "en-US-JennyNeural")

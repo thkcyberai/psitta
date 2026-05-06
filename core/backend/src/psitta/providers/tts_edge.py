@@ -8,6 +8,8 @@ Same voice quality as Azure Neural voices. Zero cost.
 
 from __future__ import annotations
 
+import re
+
 import edge_tts
 import structlog
 
@@ -39,12 +41,20 @@ EDGE_DEFAULT_VOICE = "en-US-JennyNeural"
 # Hard lock. We do not allow per-voice or per-request synthesis speed drift.
 EDGE_RATE = "+0%"
 
+_MICROSOFT_NEURAL_PATTERN = re.compile(r"^[a-z]{2}-[A-Z]{2}-\w+Neural$")
+
 
 class EdgeTTSProvider:
     """Free Microsoft Neural TTS via edge-tts library."""
 
-    def _get_voice(self, elevenlabs_voice_id: str) -> str:
-        return EDGE_VOICES.get(elevenlabs_voice_id, EDGE_DEFAULT_VOICE)
+    def _get_voice(self, voice_id: str) -> str:
+        # EL hash → Edge voice (legacy translation for the 12 EL voices)
+        if voice_id in EDGE_VOICES:
+            return EDGE_VOICES[voice_id]
+        # Native Microsoft ID — pass through (catalog provider=azure path)
+        if _MICROSOFT_NEURAL_PATTERN.match(voice_id):
+            return voice_id
+        return EDGE_DEFAULT_VOICE
 
     async def _stream(self, text: str, edge_voice: str) -> tuple[bytes, list[dict]]:
         # WordBoundary offset/duration are 100-ns ticks — normalize to ms here
