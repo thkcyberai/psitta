@@ -6,6 +6,7 @@ import '../../../core/extensions.dart';
 import '../../../data/providers/providers.dart';
 import '../../../data/services/audio_service.dart';
 import '../../../data/services/preferences_service.dart';
+import '../../../widgets/voice_avatar.dart';
 
 /// Shared state for current document info in the player bar.
 final currentDocTitleProvider = StateProvider<String?>((ref) => null);
@@ -61,6 +62,28 @@ class PlayerBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
+          if (hasActiveSession)
+            Builder(builder: (context) {
+              final voicesAsync = ref.watch(voicesProvider);
+              final selectedId = ref.watch(selectedVoiceIdProvider);
+              final displayName = voicesAsync.whenOrNull(
+                data: (voices) {
+                  for (final v in voices) {
+                    if (v.id == selectedId) return v.displayName;
+                  }
+                  return null;
+                },
+              );
+              if (displayName == null) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: VoiceAvatar(
+                  voiceName: displayName,
+                  size: 32,
+                  variant: VoiceAvatarVariant.small,
+                ),
+              );
+            }),
           // Document info (left)
           SizedBox(
             width: 200,

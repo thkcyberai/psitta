@@ -12,6 +12,7 @@ import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../shared/widgets/psitta_logo.dart';
 import '../../widgets/user_avatar.dart';
+import '../../widgets/voice_avatar.dart';
 
 String _autoDeleteLabel(int? days) =>
     days == null ? 'Never' : 'After $days days';
@@ -148,23 +149,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           const _SectionHeader(title: 'Playback'),
-          ListTile(
-            title: const Text('Default Voice'),
-            subtitle: Text(
-              ref.watch(voicesProvider).whenOrNull(
-                    data: (voices) {
-                      final id = ref.watch(selectedVoiceIdProvider);
-                      for (final v in voices) {
-                        if (v.id == id) return v.displayName;
-                      }
-                      return null;
-                    },
-                  ) ??
-                  'Select a voice',
-            ),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go('/voices'),
-          ),
+          Builder(builder: (context) {
+            final voicesAsync = ref.watch(voicesProvider);
+            final selectedId = ref.watch(selectedVoiceIdProvider);
+            final displayName = voicesAsync.whenOrNull(
+              data: (voices) {
+                for (final v in voices) {
+                  if (v.id == selectedId) return v.displayName;
+                }
+                return null;
+              },
+            );
+            return ListTile(
+              leading: displayName == null
+                  ? const SizedBox(width: 32, height: 32)
+                  : VoiceAvatar(
+                      voiceName: displayName,
+                      size: 32,
+                      variant: VoiceAvatarVariant.small,
+                    ),
+              title: const Text('Default Voice'),
+              subtitle: Text(displayName ?? 'Select a voice'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go('/voices'),
+            );
+          }),
           ListTile(
             title: const Text('Playback Speed'),
             subtitle: isPro

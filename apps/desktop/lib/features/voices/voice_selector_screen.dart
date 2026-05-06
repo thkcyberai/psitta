@@ -1,5 +1,3 @@
-import 'dart:math';
-import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/plan_gate.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/preferences_service.dart';
+import '../../widgets/voice_avatar.dart';
 
 class VoiceSelectorScreen extends ConsumerWidget {
   const VoiceSelectorScreen({super.key});
@@ -131,31 +130,12 @@ class _VoiceCell extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: isSelected
-                  ? Border.all(color: cs.primary, width: 3)
-                  : null,
-            ),
-            padding: EdgeInsets.all(isSelected ? 0 : 3),
-            child: ClipOval(
-              child: SizedBox(
-                width: 110,
-                height: 110,
-                child: CustomPaint(
-                  painter: VoiceAvatarPainter(
-                    isFemale: gender == 'female',
-                    isSelected: isSelected,
-                    primaryColor: cs.primary,
-                    primaryContainer: cs.primaryContainer,
-                    secondaryColor: cs.secondary,
-                    secondaryContainer: cs.secondaryContainer,
-                    surfaceHighest: cs.surfaceContainerHighest,
-                  ),
-                ),
-              ),
-            ),
+          VoiceAvatar(
+            voiceName: displayName,
+            size: 110,
+            variant: VoiceAvatarVariant.big,
+            ringWidth: isSelected ? 3 : 2,
+            ringColor: isSelected ? cs.primary : null,
           ),
           const SizedBox(height: 6),
           Text(
@@ -219,214 +199,4 @@ class _VoiceCell extends StatelessWidget {
       ),
     );
   }
-}
-
-class VoiceAvatarPainter extends CustomPainter {
-  VoiceAvatarPainter({
-    required this.isFemale,
-    required this.isSelected,
-    required this.primaryColor,
-    required this.primaryContainer,
-    required this.secondaryColor,
-    required this.secondaryContainer,
-    required this.surfaceHighest,
-  });
-
-  static const _skinLight = Color(0xFFFFE0C8);
-  static const _skinMid = Color(0xFFFFBFA0);
-
-  final bool isFemale;
-  final bool isSelected;
-  final Color primaryColor;
-  final Color primaryContainer;
-  final Color secondaryColor;
-  final Color secondaryContainer;
-  final Color surfaceHighest;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final cx = w / 2;
-
-    // --- Background radial gradient ---
-    final bgCenter = Offset(cx, h * 0.4);
-    if (isFemale) {
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, w, h),
-        Paint()
-          ..shader = ui.Gradient.radial(
-            bgCenter,
-            w * 0.7,
-            [primaryContainer, primaryColor.withOpacity(0.15)],
-          ),
-      );
-    } else {
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, w, h),
-        Paint()
-          ..shader = ui.Gradient.radial(
-            bgCenter,
-            w * 0.7,
-            [secondaryContainer, secondaryColor.withOpacity(0.15)],
-          ),
-      );
-    }
-
-    final accentColor = isFemale ? primaryColor : secondaryColor;
-    final accentContainer =
-        isFemale ? primaryContainer : secondaryContainer;
-
-    // --- Body / Shoulders ---
-    final shoulderWidth = isFemale ? w * 0.40 : w * 0.48;
-    final shoulderY = h * 0.76;
-    final bodyPath = Path();
-    bodyPath.moveTo(cx - shoulderWidth, h);
-    bodyPath.quadraticBezierTo(
-      cx - shoulderWidth, shoulderY,
-      cx, shoulderY - (isFemale ? 5 : 3),
-    );
-    bodyPath.quadraticBezierTo(
-      cx + shoulderWidth, shoulderY,
-      cx + shoulderWidth, h,
-    );
-    bodyPath.close();
-    canvas.drawPath(
-      bodyPath,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(cx, shoulderY),
-          Offset(cx, h),
-          [accentColor.withOpacity(isFemale ? 0.6 : 0.5), accentContainer],
-        ),
-    );
-
-    // Male collar V-shape
-    if (!isFemale) {
-      final collarPath = Path();
-      final collarTop = shoulderY - 2;
-      collarPath.moveTo(cx - 6, collarTop);
-      collarPath.lineTo(cx, collarTop + 10);
-      collarPath.lineTo(cx + 6, collarTop);
-      canvas.drawPath(
-        collarPath,
-        Paint()
-          ..color = accentContainer
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-
-    // --- Neck ---
-    final neckW = w * 0.09;
-    final neckTop = h * 0.56;
-    canvas.drawRect(
-      Rect.fromLTRB(cx - neckW, neckTop, cx + neckW, h * 0.78),
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(cx, neckTop),
-          Offset(cx, h * 0.78),
-          [_skinLight, _skinMid],
-        ),
-    );
-
-    // --- Head ---
-    final headRadius = w * 0.24;
-    final headCy = h * 0.38;
-    canvas.drawCircle(
-      Offset(cx, headCy),
-      headRadius,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(cx - 2, headCy - 3),
-          headRadius * 1.2,
-          [_skinLight, _skinMid],
-        ),
-    );
-
-    // --- Hair ---
-    final hairColor = accentColor.withOpacity(0.85);
-    final hairPaint = Paint()..color = hairColor;
-
-    if (isFemale) {
-      // Top hair cap — covers top 60% of head
-      final topHair = Path();
-      final hairCapBottom = headCy - headRadius * 0.1;
-      topHair.moveTo(cx - headRadius - 3, hairCapBottom);
-      topHair.quadraticBezierTo(
-        cx - headRadius - 3, headCy - headRadius - 5,
-        cx, headCy - headRadius - 6,
-      );
-      topHair.quadraticBezierTo(
-        cx + headRadius + 3, headCy - headRadius - 5,
-        cx + headRadius + 3, hairCapBottom,
-      );
-      topHair.arcTo(
-        Rect.fromCircle(
-            center: Offset(cx, headCy), radius: headRadius + 3),
-        0,
-        -pi,
-        false,
-      );
-      topHair.close();
-      canvas.drawPath(topHair, hairPaint);
-
-      // Left hair strand flowing down
-      final leftHair = Path();
-      leftHair.moveTo(cx - headRadius - 2, headCy - 4);
-      leftHair.cubicTo(
-        cx - headRadius - 7, headCy + headRadius * 0.8,
-        cx - headRadius - 4, headCy + headRadius * 1.6,
-        cx - headRadius + 3, h * 0.85,
-      );
-      leftHair.lineTo(cx - headRadius + 8, h * 0.85);
-      leftHair.cubicTo(
-        cx - headRadius + 4, headCy + headRadius * 1.2,
-        cx - headRadius + 1, headCy + headRadius * 0.5,
-        cx - headRadius + 1, headCy,
-      );
-      leftHair.close();
-      canvas.drawPath(leftHair, hairPaint);
-
-      // Right hair strand flowing down
-      final rightHair = Path();
-      rightHair.moveTo(cx + headRadius + 2, headCy - 4);
-      rightHair.cubicTo(
-        cx + headRadius + 7, headCy + headRadius * 0.8,
-        cx + headRadius + 4, headCy + headRadius * 1.6,
-        cx + headRadius - 3, h * 0.85,
-      );
-      rightHair.lineTo(cx + headRadius - 8, h * 0.85);
-      rightHair.cubicTo(
-        cx + headRadius - 4, headCy + headRadius * 1.2,
-        cx + headRadius - 1, headCy + headRadius * 0.5,
-        cx + headRadius - 1, headCy,
-      );
-      rightHair.close();
-      canvas.drawPath(rightHair, hairPaint);
-    } else {
-      // Short hair — flat top arc, slightly angular
-      final topHair = Path();
-      final hairTop = headCy - headRadius - 4;
-      topHair.moveTo(cx - headRadius - 2, headCy - headRadius * 0.15);
-      topHair.lineTo(cx - headRadius - 2, hairTop + 6);
-      topHair.lineTo(cx - headRadius * 0.4, hairTop);
-      topHair.lineTo(cx + headRadius * 0.4, hairTop);
-      topHair.lineTo(cx + headRadius + 2, hairTop + 6);
-      topHair.lineTo(cx + headRadius + 2, headCy - headRadius * 0.15);
-      topHair.arcTo(
-        Rect.fromCircle(
-            center: Offset(cx, headCy), radius: headRadius + 2),
-        0,
-        -pi,
-        false,
-      );
-      topHair.close();
-      canvas.drawPath(topHair, hairPaint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(VoiceAvatarPainter oldDelegate) => false;
 }
