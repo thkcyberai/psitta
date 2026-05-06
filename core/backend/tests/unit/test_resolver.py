@@ -312,6 +312,37 @@ async def test_email_fallback_fetches_from_users_table():
 
 
 @pytest.mark.asyncio
+async def test_email_fallback_handles_empty_string():
+    """JWT email claim defaults to '' (empty string) when Cognito's
+    access token omits the email claim — the auth middleware sets
+    TokenClaims.email='' in that case, so callers pass '' not None.
+
+    The resolver must treat empty-string email the same as missing
+    email and fall back to users.email for the allowlist lookup.
+    Pre-fix the check was 'if email is None' which silently skipped
+    the fallback for empty strings, and every alpha tester whose
+    JWT lacks the email claim resolved to source=free regardless of
+    their allowlist entry.
+    """
+    user_id = uuid4()
+    user_email = "alice@example.com"
+    db = RecordingSession({
+        SQL_USER_EMAIL: _FakeResult(row=(user_email,)),
+        SQL_ALLOWLIST: _FakeResult(mapping=_allowlist_entry_row(email=user_email)),
+    })
+
+    # Caller passes "" (empty string) — same shape as the JWT no-email
+    # path in production.
+    plan = await get_effective_plan(db, user_id, email="")
+
+    assert plan.source == "tester_allowlist"
+    sqls = [c[0] for c in db.calls]
+    assert any(SQL_USER_EMAIL in s for s in sqls), (
+        "users.email fallback must fire for empty-string email"
+    )
+
+
+@pytest.mark.asyncio
 async def test_email_fallback_user_row_missing():
     user_id = uuid4()
     # users SELECT returns no row → resolver must fall through to free

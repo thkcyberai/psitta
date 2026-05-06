@@ -221,7 +221,14 @@ async def get_effective_plan(
         )
 
     # 3. Tester allowlist
-    if email is None:
+    # JWT email claim may be empty string (not None) for Cognito
+    # auto-provisioned users — TokenClaims.email defaults to "" when
+    # the access token omits the email claim, so callers pass "" not
+    # None for those sessions. Treat empty as missing so the
+    # users.email fallback fires; otherwise allowlist lookup is
+    # silently skipped for every alpha tester whose JWT lacks the
+    # claim. Discovered during T11.3b visual smoke.
+    if not email:
         email = await _lookup_user_email(db, user_id)
     if email:
         entry = await check_allowlist_entitlement(db, email)
