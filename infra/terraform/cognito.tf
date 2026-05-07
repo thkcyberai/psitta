@@ -57,6 +57,16 @@ resource "aws_cognito_user_pool" "main" {
   # ── Deletion Protection ──────────────────────────────────────────────
   deletion_protection = "ACTIVE"
 
+  # ── Pre-Token-Generation v2 trigger (Item 11.4) ─────────────────────
+  # Injects email claim into access tokens. V2_0 schema is required for
+  # access-token modification — V1_0 only supports ID-token claims.
+  lambda_config {
+    pre_token_generation_config {
+      lambda_arn     = aws_lambda_function.pre_token_gen.arn
+      lambda_version = "V2_0"
+    }
+  }
+
   tags = {
     Project     = var.project
     Environment = var.environment
@@ -94,9 +104,9 @@ resource "aws_cognito_user_pool_client" "flutter_desktop" {
   supported_identity_providers = ["COGNITO"]
 
   # ── Token Validity ───────────────────────────────────────────────────
-  access_token_validity  = 1   # hours
-  id_token_validity      = 1   # hours
-  refresh_token_validity = 30  # days
+  access_token_validity  = 1  # hours
+  id_token_validity      = 1  # hours
+  refresh_token_validity = 30 # days
 
   token_validity_units {
     access_token  = "hours"
@@ -105,8 +115,8 @@ resource "aws_cognito_user_pool_client" "flutter_desktop" {
   }
 
   # ── Security ─────────────────────────────────────────────────────────
-  enable_token_revocation               = true
-  prevent_user_existence_errors         = "ENABLED"
+  enable_token_revocation                       = true
+  prevent_user_existence_errors                 = "ENABLED"
   enable_propagate_additional_user_context_data = false
 }
 
