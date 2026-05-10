@@ -65,6 +65,7 @@ resource "aws_cognito_user_pool" "main" {
       lambda_arn     = aws_lambda_function.pre_token_gen.arn
       lambda_version = "V2_0"
     }
+    post_confirmation = aws_lambda_function.welcome_email.arn
   }
 
   tags = {

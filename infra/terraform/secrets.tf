@@ -32,3 +32,23 @@ resource "aws_secretsmanager_secret_version" "app_secrets" {
     S3_BUCKET_NAME  = "${var.project}-documents-prod"
   })
 }
+
+# ── Resend API Key (Welcome Email Lambda) ────────────────────────────────────
+# Value populated manually via aws secretsmanager put-secret-value — never via
+# Terraform. Keeps the API key out of Terraform state entirely. The Welcome
+# Email Lambda's IAM role is scoped to read this secret only (least-privilege,
+# distinct from the broader app_secrets blob above).
+resource "aws_secretsmanager_secret" "resend_api_key" {
+  name        = "${var.project}/prod/resend-api-key"
+  description = "Resend API key for Welcome Email Lambda. Value populated manually via aws secretsmanager put-secret-value — never via Terraform."
+
+  tags = {
+    Project     = var.project
+    Environment = var.environment
+  }
+}
+
+output "resend_api_key_secret_arn" {
+  description = "ARN of the resend-api-key secret (referenced by lambda_welcome_email.tf)"
+  value       = aws_secretsmanager_secret.resend_api_key.arn
+}
