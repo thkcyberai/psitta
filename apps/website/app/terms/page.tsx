@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Container from "@/components/ui/Container";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Psitta",
+  title: "Terms of Service",
+  description:
+    "The terms covering use of Psitta and psitta.ai — accounts, subscriptions, acceptable use, intellectual property, and dispute resolution.",
 };
 
 export default function Terms() {

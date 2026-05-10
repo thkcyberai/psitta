@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Container from "@/components/ui/Container";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Psitta",
+  title: "Privacy Policy",
+  description:
+    "How Psitta and Facti AI LLC handle your account data, document content, audio cache, and analytics — written in plain language, not legalese.",
 };
 
 export default function Privacy() {

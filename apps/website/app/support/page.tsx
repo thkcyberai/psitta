@@ -4,8 +4,9 @@ import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
 
 export const metadata: Metadata = {
-  title: "Support — Psitta",
-  description: "Help, FAQs, and direct support for Psitta users.",
+  title: "Support",
+  description:
+    "FAQs covering install, voices, document handling, and account setup — plus a direct line to the team behind Psitta when you need a person.",
 };
 
 type Faq = {

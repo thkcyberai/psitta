@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
 import Logo from "@/components/brand/Logo";
@@ -5,6 +6,14 @@ import MakerNote from "@/components/home/MakerNote";
 import FeatureStrip from "@/components/home/FeatureStrip";
 import WhyListening from "@/components/home/WhyListening";
 import JsonLd from "@/components/seo/JsonLd";
+
+export const metadata: Metadata = {
+  title: {
+    absolute: "Psitta — Listen to your documents. Improve your writing.",
+  },
+  description:
+    "Psitta turns your documents into audio so writers and editors can hear their work. Catch awkward phrasing, rhythm issues, and unclear passages by listening.",
+};
 
 const organizationSchema = {
   "@context": "https://schema.org",

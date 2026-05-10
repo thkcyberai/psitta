@@ -5,7 +5,9 @@ import JsonLd from "@/components/seo/JsonLd";
 import CreativityWaitlistForm from "@/components/waitlist/CreativityWaitlistForm";
 
 export const metadata: Metadata = {
-  title: "Features — Psitta",
+  title: "Features",
+  description:
+    "Import a PDF or Word document, hear it read aloud with sentence and word highlighting synced to the audio, and edit your draft while listening.",
 };
 
 const softwareApplicationSchema = {

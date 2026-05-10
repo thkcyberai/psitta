@@ -4,7 +4,9 @@ import Container from "@/components/ui/Container";
 import ContactForm from "@/components/contact/ContactForm";
 
 export const metadata: Metadata = {
-  title: "Contact — Psitta",
+  title: "Contact",
+  description:
+    "Reach the Psitta team directly. We answer questions, take feature requests, and read every bug report from real writers using the product.",
 };
 
 export default function Contact() {

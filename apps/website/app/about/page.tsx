@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Container from "@/components/ui/Container";
 
 export const metadata: Metadata = {
-  title: "About — Psitta",
+  title: "About",
+  description:
+    "Psitta is built by Facti AI LLC — a writer-led project to make it easy to listen to your own drafts and hear what your readers will hear.",
 };
 
 export default function About() {

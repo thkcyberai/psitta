@@ -1,0 +1,15 @@
+import type { MetadataRoute } from "next";
+
+export const dynamic = "force-static";
+
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: {
+      userAgent: "*",
+      allow: "/",
+      disallow: ["/billing/", "/signup/"],
+    },
+    sitemap: "https://psitta.ai/sitemap.xml",
+    host: "https://psitta.ai",
+  };
+}

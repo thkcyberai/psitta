@@ -3,7 +3,8 @@ import Container from "@/components/ui/Container";
 import SignupForm from "@/components/signup/SignupForm";
 
 export const metadata: Metadata = {
-  title: "Sign up for updates — Psitta",
+  title: "Get notified",
+  robots: { index: false, follow: true },
 };
 
 export default function Signup() {

@@ -3,7 +3,8 @@ import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
 
 export const metadata: Metadata = {
-  title: "Subscription Confirmed — Psitta",
+  title: "Subscription Confirmed",
+  robots: { index: false, follow: false },
 };
 
 export default function BillingSuccess() {

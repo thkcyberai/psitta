@@ -4,7 +4,9 @@ import Button from "@/components/ui/Button";
 import CreativityWaitlistForm from "@/components/waitlist/CreativityWaitlistForm";
 
 export const metadata: Metadata = {
-  title: "Pricing — Psitta",
+  title: "Pricing",
+  description:
+    "Free tier with basic voices, or Reading Nook Pro for premium voices, word-level highlighting, and 50 documents a month — billed monthly or annually.",
 };
 
 type FeatureState = "active" | "excluded" | "coming";

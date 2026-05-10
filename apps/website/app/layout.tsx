@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
@@ -82,6 +82,18 @@ export const metadata: Metadata = {
       "msvalidate.01": "38B8699E77707FFF67F6B16342D50D8B",
     },
   },
+  appleWebApp: {
+    title: "Psitta",
+    capable: true,
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FAFAF7" },
+    { media: "(prefers-color-scheme: dark)", color: "#0F172A" },
+  ],
 };
 
 export default function RootLayout({

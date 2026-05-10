@@ -3,7 +3,8 @@ import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
 
 export const metadata: Metadata = {
-  title: "Checkout Cancelled — Psitta",
+  title: "Checkout Cancelled",
+  robots: { index: false, follow: false },
 };
 
 export default function BillingCancel() {

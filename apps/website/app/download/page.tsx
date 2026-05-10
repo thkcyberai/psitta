@@ -3,7 +3,9 @@ import Container from "@/components/ui/Container";
 import Button from "@/components/ui/Button";
 
 export const metadata: Metadata = {
-  title: "Download Psitta for Windows",
+  title: "Download for Windows",
+  description:
+    "Install Psitta for Windows 10 or 11. One-click MSIX installer, no admin rights required, and your account syncs after a quick sign-in.",
 };
 
 const requirements: Array<{ label: string; value: string }> = [
