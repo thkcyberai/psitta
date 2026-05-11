@@ -1,0 +1,9 @@
+# Regenerable artifacts
+samples/*.json
+samples/phase_b_raw/
+*.xlsx
+*.bak_*
+
+# Local caches
+__pycache__/
+*.pyc
