@@ -63,7 +63,8 @@ Each phase has a re-run guard. To re-run:
 - appType=2 was the in-app-ads bucket as of May 2026; AdLibrary support flagged migration to appType=3 for future-proofing. Edit APP_TYPE constant in phase_b_search.py after the migration completes.
 - heat, impression, estimated_spend scales are platform-specific (admob ≠ meta ≠ tiktok). Thresholds may need recalibration per platform mix.
 - ai tool keyword historically produces zero kept ads — generic-noun search-relevance noise. Consider replacing with a specific tool name.
+- media_url column links directly to the asset (video or image) via AdLibrary's /api/media endpoint. AdLibrary support (Murat, founder, email 2026-05-11) confirmed this IS the canonical download endpoint. URLs require an active AdLibrary session in the operator's browser to load (they fail in incognito). As of 2026-05-11, direct access plays ~1 second of video then the stream cuts due to a robots/bot-block configuration on AdLibrary's side; Murat confirmed the block is unintentional and committed to removing it for authenticated direct-file access. Once removed, click-to-play and click-to-download will work end-to-end with no code changes needed. AdLibrary's keyword search (q=) was attempted earlier as a workaround but returns extremely noisy results (64M+ hits) and is not viable for per-ad linking.
 
 ## Output column reference
 
-The XLSX has 20 columns per ad. Marketing agent consumes columns 17-20 (enrichment fields) for hook patterns, UGC scripts, and creative analysis. Filter on tier column for Gold-only when prioritizing high-confidence templates.
+The XLSX has 21 columns per ad. Marketing agent consumes columns 17-20 (enrichment fields) for hook patterns, UGC scripts, and creative analysis. Column 21 (media_url) is a direct hyperlink to the asset via AdLibrary's proxied media endpoint — `video_url` for video ads, `image_url` for image ads. Filter on tier column for Gold-only when prioritizing high-confidence templates.

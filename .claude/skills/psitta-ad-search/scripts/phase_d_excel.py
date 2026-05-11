@@ -2,7 +2,11 @@
 """Phase D Excel writer for the psitta-ad-search skill.
 
 Reads samples/phase_c_results.json (230 enriched ads), writes a polished
-20-column workbook to the skill root for the marketing agent to consume.
+21-column workbook to the skill root for the marketing agent to consume.
+The final column (media_url) is a direct hyperlink to the asset via
+AdLibrary's proxied media endpoint — video_url for video ads,
+image_url for image ads. URLs require an active AdLibrary session in
+the operator's browser to load (they fail in incognito).
 
   Input:  samples/phase_c_results.json
   Output: psitta_ad_research_<YYYYMMDD>.xlsx
@@ -55,6 +59,7 @@ COLUMNS = [
     ("enrichment_transcription",  60, "wrap"),
     ("enrichment_analysis",       60, "wrap"),
     ("enrichment_ugc_script",     60, "wrap"),
+    ("media_url",                 60, "url"),
 ]
 
 HEADER_FILL = PatternFill(fill_type="solid", fgColor="1F4E78")
@@ -68,6 +73,26 @@ WRAP_ALIGN = Alignment(wrap_text=True, vertical="top")
 URL_FONT = Font(color="0563C1", underline="single")
 
 NO_ENRICHMENT_MARKER = "[no enrichment]"
+
+
+def build_media_url(ad: dict) -> str:
+    """Return the direct AdLibrary-proxied asset URL for an ad.
+
+    For video ads (video_duration > 0): resource_urls[0].video_url
+    (with image_url fallback if video_url is absent).
+    For image ads: resource_urls[0].image_url (with video_url fallback).
+    Returns "" when resource_urls is empty.
+
+    URLs require an active AdLibrary session in the operator's browser to
+    load — they fail in incognito.
+    """
+    resources = ad.get("resource_urls") or []
+    if not resources:
+        return ""
+    first = resources[0]
+    if (ad.get("video_duration") or 0) > 0:
+        return first.get("video_url") or first.get("image_url") or ""
+    return first.get("image_url") or first.get("video_url") or ""
 
 
 def row_from_ad(ad: dict) -> list:
@@ -108,6 +133,7 @@ def row_from_ad(ad: dict) -> list:
         transcription,
         analysis,
         ugc,
+        build_media_url(ad),
     ]
 
 
