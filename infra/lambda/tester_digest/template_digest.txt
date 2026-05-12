@@ -1,0 +1,21 @@
+Psitta tester digest
+====================
+
+{{summary_line}}
+
+
+New installs (last 24 hours)
+----------------------------
+
+{{today_section}}
+
+
+7-day trend
+-----------
+
+{{trend_section}}
+
+
+--
+Generated at {{generated_at_utc}} - automated by psitta-tester-digest Lambda
+psitta.ai

@@ -1,0 +1,17 @@
+# Tester Digest Lambda — runtime dependencies.
+#
+# psycopg2-binary is the only non-stdlib dependency. boto3 and urllib are
+# bundled in the Lambda python3.12 runtime; json/datetime/html/pathlib are
+# all stdlib.
+#
+# Packaging strategy (handled in lambda_tester_digest.tf, NOT in this
+# Lambda's source zip):
+#   The archive_file in lambda_tester_digest.tf invokes a null_resource
+#   local-exec build step that pip-installs psycopg2-binary into a build
+#   subdirectory with --platform manylinux2014_x86_64 + --only-binary=:all:
+#   so the Linux wheel ships even when Terraform runs on Windows. The
+#   archive then zips the source dir + the vendored package together.
+#
+# Pinned version: 2.9.9 is the current stable line and ships manylinux2014
+# wheels for Python 3.12.
+psycopg2-binary==2.9.9

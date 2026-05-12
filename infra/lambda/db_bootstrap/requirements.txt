@@ -1,0 +1,7 @@
+# DB Bootstrap Lambda — runtime dependencies.
+#
+# Mirrors infra/lambda/tester_digest/requirements.txt exactly so the
+# manylinux2014 wheel shipping pattern stays consistent. Packaging is
+# handled in lambda_db_bootstrap.tf via a null_resource + build script,
+# not from this file at runtime.
+psycopg2-binary==2.9.9
