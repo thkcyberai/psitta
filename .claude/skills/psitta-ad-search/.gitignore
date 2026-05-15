@@ -3,6 +3,7 @@ samples/*.json
 samples/phase_b_raw/
 *.xlsx
 *.bak_*
+downloads/
 
 # Local caches
 __pycache__/
