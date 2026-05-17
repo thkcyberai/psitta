@@ -169,18 +169,40 @@ def _mtime_iso(path: Path) -> str:
 _NO_HEADING: List[Tuple[str, str]] = []
 
 # Heading matcher: tolerates a numbered prefix ("5. Key Learnings",
-# "5) Key Learnings") and any free-text or parenthetical suffix
-# ("Key Learnings from Today", "Key Learnings (Append to CLAUDE.md, ...)").
-# Style-gated downstream by _is_kl_heading, so a body sentence that
-# mentions "key learnings" in prose cannot match.
+# "5) Key Learnings"), the singular stem ("Key Learning Candidates"),
+# and any free-text or parenthetical suffix ("Key Learnings from Today",
+# "Key Learnings (Append to CLAUDE.md, ...)").  Style-gated downstream by
+# _is_kl_heading, so a body sentence that mentions "key learning(s)" in
+# prose cannot match.
 _KL_HEADING_RE = re.compile(
-    r"^\s*(?:\d+[.)]\s*)?Key\s+Learnings\b.*$", re.IGNORECASE
+    r"^\s*(?:\d+[.)]\s*)?Key\s+Learnings?\b.*$", re.IGNORECASE
 )
+
+# Validates that a table cell looks like an ISO date (optionally with a
+# trailing qualifier like " (PM)").  Used to tell a real date column
+# apart from a row-number "#" column in the modern devlog table shape.
+_ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
 
 # Modern devlogs (2026-04-25 onwards) store entries as ListBullet /
 # ListParagraph paragraphs whose text begins with the ISO date.
 # Captures (date, content); older table-format devlogs never reach it.
 _KL_BULLET_RE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2})\s*:\s*(.+?)\s*$")
+
+# Devlog filename convention: Psitta_DevLog_YYYYMMDD_*.docx -- used as the
+# fallback date for "topic + paragraph" devlogs (2026-05-07 onwards) whose
+# Key Learnings paragraphs do not carry an inline date prefix.
+_DEVLOG_DATE_RE = re.compile(r"_(\d{4})(\d{2})(\d{2})_")
+
+
+def _devlog_date_from_filename(filename: str) -> Optional[str]:
+    """Return YYYY-MM-DD parsed from a 'Psitta_DevLog_YYYYMMDD_*' filename,
+    or None if the filename does not contain an 8-digit date token between
+    underscores."""
+    m = _DEVLOG_DATE_RE.search(filename)
+    if not m:
+        return None
+    y, mo, d = m.groups()
+    return f"{y}-{mo}-{d}"
 
 
 def _para_text(p_element) -> str:
@@ -196,9 +218,22 @@ def _para_pstyle(p_element) -> str:
     return style_el.get(qn("w:val")) or ""
 
 
+def _heading_level(pstyle_val: str) -> Optional[int]:
+    """Return integer heading level for 'Heading1'..'Heading9', else None.
+
+    Used to distinguish the section-terminating heading (same level as the
+    KL section) from sub-headings inside the section (deeper level), which
+    are treated as topic labels in the new topic+paragraph format."""
+    s = pstyle_val.lower()
+    if not s.startswith("heading"):
+        return None
+    suffix = s[len("heading"):]
+    return int(suffix) if suffix.isdigit() else None
+
+
 def _is_heading_style(pstyle_val: str) -> bool:
     """True if the pStyle val identifies a Word heading (any level)."""
-    return pstyle_val.lower().startswith("heading")
+    return _heading_level(pstyle_val) is not None
 
 
 def _is_kl_heading(p_element) -> bool:
@@ -224,13 +259,19 @@ def extract_devlog_learnings(
 ) -> Optional[List[Tuple[str, str]]]:
     """Parse Key Learnings entries from a devlog .docx file.
 
-    Two body formats are supported (selected by which element type
-    appears between the heading and the next Heading-styled paragraph):
+    Three body formats are supported (selected per-paragraph; mixed
+    formats in one section are tolerated):
 
         - Legacy table: a <w:tbl> with [date, learning] columns
           immediately following the heading paragraph.
-        - Modern bullets: ListBullet / ListParagraph paragraphs whose
-          text begins with ``YYYY-MM-DD: ...``.
+        - Date-prefixed bullets: ListBullet / ListParagraph paragraphs
+          whose text begins with ``YYYY-MM-DD: ...``.
+        - Topic + paragraph (2026-05-07 onwards): sub-headings (any
+          level deeper than the KL section heading) act as topic labels
+          for following paragraphs; each non-heading paragraph becomes
+          one entry dated to the devlog's filename date, with text
+          formatted as "{topic} -- {paragraph text}" (or just the
+          paragraph text if no preceding sub-heading).
 
     Heading matching is style-gated and tolerates numbered prefixes and
     free-text/parenthetical suffixes (see _is_kl_heading).
@@ -264,23 +305,47 @@ def extract_devlog_learnings(
         # widened further).  Return sentinel, not None.
         return _NO_HEADING
 
+    # Capture the KL heading's own level so we can distinguish the
+    # next top-level section (terminator) from sub-headings inside the
+    # KL section (topic labels in the topic+paragraph format).
+    kl_level = (
+        _heading_level(_para_pstyle(body_children[heading_index])) or 1
+    )
+    fallback_date = _devlog_date_from_filename(filename)
+    current_topic = ""
+
     target_table = None
-    bullet_tuples: List[Tuple[str, str]] = []
+    date_prefixed_tuples: List[Tuple[str, str]] = []
+    fallback_tuples: List[Tuple[str, str]] = []
 
     for child in body_children[heading_index + 1:]:
         tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
 
         if tag == "p":
             pstyle = _para_pstyle(child)
-            if _is_heading_style(pstyle):
-                # Reached the next section -- stop scanning.
-                break
-            text = _para_text(child)
-            m = _KL_BULLET_RE.match(text.strip())
+            level = _heading_level(pstyle)
+            if level is not None:
+                if level <= kl_level:
+                    # Next section at the same or higher level -- stop.
+                    break
+                # Sub-heading inside the KL section: latch it as the
+                # topic label for subsequent paragraphs.
+                current_topic = _para_text(child).strip()
+                continue
+            text = _para_text(child).strip()
+            if not text:
+                continue
+            m = _KL_BULLET_RE.match(text)
             if m:
-                bullet_tuples.append((m.group(1), m.group(2)))
-            # Non-matching paragraphs (preamble, blank lines, free
-            # prose) are skipped silently.
+                date_prefixed_tuples.append((m.group(1), m.group(2)))
+            elif fallback_date is not None:
+                # Topic + paragraph format: combine the most recent
+                # sub-heading (if any) with the paragraph text, dated
+                # to the devlog's filename date.
+                entry = f"{current_topic} -- {text}" if current_topic else text
+                fallback_tuples.append((fallback_date, entry))
+            # If neither matches and we have no fallback date, drop
+            # silently -- preserves prior behavior for malformed names.
             continue
 
         if tag == "tbl":
@@ -293,14 +358,16 @@ def extract_devlog_learnings(
             break
 
     if target_table is None:
-        # Paragraph-mode result.  May be 0 entries for devlogs whose
-        # body uses ListParagraph without the date-prefix convention
-        # (e.g. Apr 24).  Logged as a no-op rather than a structural
-        # error so the hook does not abort the session.
+        # Paragraph-mode result.  Return date-prefixed entries first
+        # (canonical), then any topic+paragraph fallback entries.
+        # Per-paragraph detection means the two lists never share a
+        # source paragraph, so concatenation cannot double-count.
+        bullet_tuples = date_prefixed_tuples + fallback_tuples
         if not bullet_tuples:
             log(
                 f"Devlog {filename} has Key Learnings heading but no "
-                "table and no date-prefixed bullet entries. "
+                "table, no date-prefixed bullet entries, and no "
+                "topic+paragraph entries (filename date may be missing). "
                 "Returning 0 entries.",
                 log_path,
             )
@@ -314,12 +381,41 @@ def extract_devlog_learnings(
         )
         return None
 
+    # Resolve column roles from the header row (row 0). Two table
+    # shapes exist in the devlog corpus:
+    #   - Legacy:  [Date | Learning]              date col 0, text col 1
+    #   - Modern:  [# | Key Learning | Evidence]  no date col; text from
+    #              the "Key Learning" column, date from the filename.
+    header_cells = [
+        c.text.strip().lower() for c in target_table.rows[0].cells
+    ]
+    learning_col: Optional[int] = None
+    date_col: Optional[int] = None
+    for idx, h in enumerate(header_cells):
+        if learning_col is None and "learning" in h:
+            learning_col = idx
+        if date_col is None and h.startswith("date"):
+            date_col = idx
+    if learning_col is None:
+        # Header has no recognizable "learning" column -- fall back to
+        # the legacy positional contract (col0 = date, col1 = learning).
+        date_col, learning_col = 0, 1
+
     table_tuples: List[Tuple[str, str]] = []
     for i, row in enumerate(target_table.rows):
         if i == 0:
             continue  # skip header row
-        date_text = row.cells[0].text.strip()
-        learning_text = row.cells[1].text.strip()
+        cells = row.cells
+        if learning_col >= len(cells):
+            continue
+        learning_text = cells[learning_col].text.strip()
+        date_text = ""
+        if date_col is not None and date_col < len(cells):
+            date_text = cells[date_col].text.strip()
+        # A non-ISO date cell (e.g. the modern "#" row-number column)
+        # means the real date lives in the devlog filename.
+        if not _ISO_DATE_RE.match(date_text):
+            date_text = fallback_date or date_text
         if not date_text or not learning_text:
             log(
                 f"Skipped empty row in {filename} (row {i + 1})",
