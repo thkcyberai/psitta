@@ -188,6 +188,17 @@ _ISO_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
 # Captures (date, content); older table-format devlogs never reach it.
 _KL_BULLET_RE = re.compile(r"^\s*(\d{4}-\d{2}-\d{2})\s*:\s*(.+?)\s*$")
 
+# Section terminator for the topic+paragraph fallback. Without this, the
+# fallback walks to end-of-document and ingests closing prose ("End of
+# DevLog -- May 12, 2026", "File generated ...", trailing summary lines)
+# as fake learnings. Matches a literal "## " markdown heading or the
+# observed sign-off prefixes "End of devlog" / "File generated" (case
+# insensitive; "DevLog" / "Dev Log" / "devlog" all accepted).
+_TERMINATOR_RE = re.compile(
+    r"^(?:##\s|end\s+of\s+dev\s*log|file\s+generated)\b",
+    re.IGNORECASE,
+)
+
 # Devlog filename convention: Psitta_DevLog_YYYYMMDD_*.docx -- used as the
 # fallback date for "topic + paragraph" devlogs (2026-05-07 onwards) whose
 # Key Learnings paragraphs do not carry an inline date prefix.
@@ -316,7 +327,18 @@ def extract_devlog_learnings(
 
     target_table = None
     date_prefixed_tuples: List[Tuple[str, str]] = []
-    fallback_tuples: List[Tuple[str, str]] = []
+    # Two fallback buckets so we can apply format-aware suppression at
+    # the end of the section:
+    #   - topic_prefixed_fallback: emitted under a latched H3 topic
+    #     (topic+paragraph mode).  Always kept.
+    #   - no_topic_fallback: emitted without a latched topic.  Either a
+    #     paragraph-only entry (May 19 style) or non-KL prose
+    #     (preamble / sign-off line that escaped the terminator).
+    #     Dropped at end-of-section when date-prefixed bullets are
+    #     present, because the section's authoritative format is
+    #     bullets and any no-topic fallback there is non-KL prose.
+    topic_prefixed_fallback: List[Tuple[str, str]] = []
+    no_topic_fallback: List[Tuple[str, str]] = []
 
     for child in body_children[heading_index + 1:]:
         tag = child.tag.split("}")[-1] if "}" in child.tag else child.tag
@@ -329,23 +351,35 @@ def extract_devlog_learnings(
                     # Next section at the same or higher level -- stop.
                     break
                 # Sub-heading inside the KL section: latch it as the
-                # topic label for subsequent paragraphs.
+                # topic label for subsequent paragraphs.  On the first
+                # sub-heading we encounter, drop any no-topic fallback
+                # entries collected so far -- they were preamble in a
+                # confirmed topic+paragraph devlog.  Topic-prefixed
+                # fallbacks (none possible before any H3, but listed
+                # for symmetry) are kept.
+                if not current_topic:
+                    no_topic_fallback.clear()
                 current_topic = _para_text(child).strip()
                 continue
             text = _para_text(child).strip()
             if not text:
                 continue
+            if _TERMINATOR_RE.match(text):
+                # Sign-off / boilerplate marker -- treat as end of KL
+                # section so closing prose is never ingested.
+                break
             m = _KL_BULLET_RE.match(text)
             if m:
                 date_prefixed_tuples.append((m.group(1), m.group(2)))
             elif fallback_date is not None:
-                # Topic + paragraph format: combine the most recent
-                # sub-heading (if any) with the paragraph text, dated
-                # to the devlog's filename date.
-                entry = f"{current_topic} -- {text}" if current_topic else text
-                fallback_tuples.append((fallback_date, entry))
-            # If neither matches and we have no fallback date, drop
-            # silently -- preserves prior behavior for malformed names.
+                if current_topic:
+                    topic_prefixed_fallback.append(
+                        (fallback_date, f"{current_topic} -- {text}")
+                    )
+                else:
+                    no_topic_fallback.append((fallback_date, text))
+            # If fallback_date is None (malformed filename), drop
+            # silently -- preserves prior behavior.
             continue
 
         if tag == "tbl":
@@ -358,11 +392,20 @@ def extract_devlog_learnings(
             break
 
     if target_table is None:
-        # Paragraph-mode result.  Return date-prefixed entries first
-        # (canonical), then any topic+paragraph fallback entries.
-        # Per-paragraph detection means the two lists never share a
-        # source paragraph, so concatenation cannot double-count.
-        bullet_tuples = date_prefixed_tuples + fallback_tuples
+        # Paragraph-mode result.  Suppression rule: when the section
+        # has at least one date-prefixed bullet entry, the bullet
+        # format is the authoritative one, and any no-topic fallback
+        # entries are non-KL prose (preamble / sign-off lines that
+        # escaped the terminator).  Topic-prefixed fallback entries
+        # are always kept; paragraph-only sections (no bullets, no
+        # topics) keep their no-topic entries intact.
+        if date_prefixed_tuples:
+            no_topic_fallback = []
+        bullet_tuples = (
+            date_prefixed_tuples
+            + topic_prefixed_fallback
+            + no_topic_fallback
+        )
         if not bullet_tuples:
             log(
                 f"Devlog {filename} has Key Learnings heading but no "
