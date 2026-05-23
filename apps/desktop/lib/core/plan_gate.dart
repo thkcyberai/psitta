@@ -77,6 +77,18 @@ class PlanStatus {
   /// exists — Stripe Customer Portal must be hidden for this state.
   bool get isTesterAllowlist => source == 'tester_allowlist';
 
+  /// True only when entitlement was resolved via an active Stripe
+  /// subscription. Distinct from [isPro], which is true for ANY active
+  /// Pro source (stripe, dev_override, tester_allowlist). Use this for
+  /// surfaces that require a live Stripe customer record — Customer
+  /// Portal, payment-method updates, invoice history — because those
+  /// would 502 for non-Stripe sources (KL 2026-05-22b).
+  bool get isStripeSubscribed =>
+      !isUnavailable &&
+      plan != 'free' &&
+      status == 'active' &&
+      source == 'stripe';
+
   static const free = PlanStatus(plan: 'free', status: 'none');
   static const unavailable = PlanStatus(
     plan: 'unavailable',

@@ -576,11 +576,15 @@ class _ChangePlanTile extends StatelessWidget {
 
 /// Launches the Stripe Customer Portal in the user's default browser.
 ///
-/// Visible only to confirmed Pro users. The gate uses [isProUserProvider]
-/// (true ONLY when billing is loaded AND plan != free AND status ==
-/// active), so Free, loading, and unavailable states all hide the tile —
-/// preventing a paying user from being told "you have no subscription"
-/// during a transient billing fetch.
+/// Visible only to users with an active Stripe subscription. The gate
+/// uses [PlanStatus.isStripeSubscribed] (true ONLY when billing is
+/// loaded AND plan != free AND status == active AND source == stripe),
+/// so Free, loading, unavailable, dev_override, and tester_allowlist
+/// states all hide the tile — preventing a paying user from being
+/// told "you have no subscription" during a transient billing fetch,
+/// AND preventing comp/grandfathered/allowlist Pro users from tapping
+/// into a 502 (KL 2026-05-22b). Conversion path for non-Stripe Pro
+/// users stays open via _ChangePlanTile.
 ///
 /// On success the portal URL opens in the system browser via
 /// url_launcher and [billingStatusProvider] is invalidated so any plan
@@ -670,16 +674,14 @@ class _ManageSubscriptionTileState
 
   @override
   Widget build(BuildContext context) {
-    final isPro = ref.watch(isProUserProvider);
-    if (!isPro) return const SizedBox.shrink();
-
-    // T11.3b — allowlist-source Pro users have no Stripe customer
-    // record. The portal-session call would 502 with "no Stripe
-    // customer record" from the backend (api/v1/billing.py:359).
-    // Hide the tile rather than letting users tap into a confusing
-    // error state. Conversion path stays open via _ChangePlanTile.
+    // KL 2026-05-22b — only show Manage Subscription for users with
+    // an active Stripe subscription. dev_override / tester_allowlist /
+    // comp / grandfathered Pro users have no Stripe customer record
+    // and the portal-session call would 502 (api/v1/billing.py:359).
+    // Conversion path for non-Stripe Pro users stays open via
+    // _ChangePlanTile.
     final planStatus = ref.watch(planStatusProvider);
-    if (planStatus.isTesterAllowlist) return const SizedBox.shrink();
+    if (!planStatus.isStripeSubscribed) return const SizedBox.shrink();
 
     return ListTile(
       leading: const Icon(Icons.credit_card_outlined),
