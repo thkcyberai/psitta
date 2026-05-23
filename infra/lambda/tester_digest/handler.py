@@ -42,7 +42,13 @@ _SECRETS_CLIENT = boto3.client("secretsmanager")
 _RDS_CLIENT = boto3.client("rds")
 _RESEND_API_KEY: Optional[str] = None  # populated lazily, cached
 _RESEND_ENDPOINT = "https://api.resend.com/emails"
-_HTTP_TIMEOUT_SECONDS = 8
+# 20s read timeout for the Resend POST: this Lambda is a once-per-day cron
+# whose cold-start handler routinely runs 5-13s (p95 ~12.7s) due to ENI
+# attach + TLS handshake variance.  The previous 8s value tripped on
+# Resend's tail latency at least twice (May 18 + May 21 UTC, identical
+# stack); raising to 20s gives ~5x p95 headroom while staying well under
+# the 30s Lambda function timeout.
+_HTTP_TIMEOUT_SECONDS = 20
 
 _MODULE_DIR = Path(__file__).resolve().parent
 _TEMPLATE_HTML = (_MODULE_DIR / "template_digest.html").read_text(encoding="utf-8")
@@ -136,7 +142,13 @@ def _connect_rds():
         user=user,
         password=token,
         sslmode="require",
-        connect_timeout=10,
+        # 15s cold-start budget: ENI attach + IAM token generation + TLS
+        # handshake + Postgres connect.  Previous 10s tripped on 2026-05-22
+        # while the warm-retry succeeded in 1.5s -- classic cold-start tail
+        # latency, not DB distress (RDS CPU ~5%, ReadLatency ~1ms at the
+        # failure window).  15s preserves headroom under the 30s Lambda
+        # timeout.
+        connect_timeout=15,
     )
 
 
@@ -355,6 +367,16 @@ def lambda_handler(event: dict, context: object) -> dict:
         logger.error(
             "tester_digest.failed reason=resend_http status=%s body=%s",
             exc.code, err_body,
+        )
+        raise
+    except TimeoutError as exc:
+        # urllib.urlopen raises bare TimeoutError (a sibling of URLError
+        # under OSError) when the read timeout fires.  Without this clause
+        # the failure escaped to the default Lambda traceback handler;
+        # adding it keeps the resend_* structured-log family symmetric and
+        # makes future log-based metric filters trivial.
+        logger.error(
+            "tester_digest.failed reason=resend_timeout err=%s", exc,
         )
         raise
     except urllib.error.URLError as exc:
