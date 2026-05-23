@@ -599,13 +599,23 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-05-19: KL 2026-05-19a — Stripe webhook URL must carry the /api/v1 prefix. The live webhook was registered as /billing/webhook and 404’d every event; the real route is /api/v1/billing/webhook. Symptom was “paid but tier never changed.” Diagnosis path: Stripe Health → failed-delivery HTTP status. 404 = wrong path (not signature). Fix is a Dashboard config edit + Resend; no deploy. This same URL governs ALL billing events.
 - 2026-05-19: KL 2026-05-19b — Billing maps by psitta_user_id metadata, not email. Stripe customer metadata carries psitta_user_id (backend UUID). Webhook handler resolves the user by this UUID. Therefore synthetic auth0.local emails (U1/U2 tech debt) do NOT break billing. Confirmed during live E2E.
 - 2026-05-19: KL 2026-05-19c — Portal cancel defaults to cancel-at-period-end. Customer Portal cancellation sets cancel_at_period_end=true and fires customer.subscription.updated; the user keeps Pro until period end and the app correctly continues showing Pro. customer.subscription.deleted only fires at period end. To test the deletion/downgrade path immediately, cancel from the Dashboard with “Cancel now.” Real-time downgrade verified (no re-login needed).
+- 2026-05-22: Append-only, date-prefixed.
+- 2026-05-22: KL 2026-05-22a — Sandbox stripe_customers rows survive the live cutover and 502 on any live Stripe call. The May 19 sandbox→live cutover left pre-cutover cus_ IDs unresolvable by the live API (separate object stores). Symptom: “No such customer” on portal-session. Same class as the May 19 webhook URL bug — a live-cutover artifact. Live cutovers require auditing pre-cutover customer rows.
+- 2026-05-22: KL 2026-05-22b — Gate “Manage Subscription” on subscription SOURCE, not Pro status. The portal only works for users backed by a live Stripe customer. Comp/grandfathered and allowlist/grant users have Pro but no Stripe customer, so they 502. The app already hides the button for Free; extend that to hide it for non-Stripe-paid Pro.
+- 2026-05-22: KL 2026-05-22c — Client-side timeouts must account for Lambda cold-start tail latency. tester-digest had an 8s Resend HTTP timeout and 10s RDS connect timeout — both too tight on cold start. Raised to 20s/15s (Lambda budget is 30s). Set external-dependency timeouts with cold-start headroom.
+- 2026-05-22: KL 2026-05-22d — Diagnose → fix → THEN instrument. Never alarm a signal you don’t yet understand; alarming a known-noisy/known-broken signal trains you to ignore the alert. Applied to the digest (alarm deferred until baseline re-measured) and the portal (P3-11 portal metric deferred until the gating fix lands).
+- 2026-05-22: KL 2026-05-22e — “Passed verification” means little until probed. The hook parser revealed 4 hidden flaws and the May 19 webhook had silently 404’d — both had “passed.” Re-run full verification tables on parser/automation changes; build observability before stacking more unattended automation.
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260521_TesterOps_FirstAllowlistGrant_AutomationControl_v1_0.docx`
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260522_HookParserFix_AutomationObservability_StripeCutoverDiagnosis_v1_0.docx`
+- **Date**: May 22, 2026
 - **Title**: Psitta — Development Log
 - **Recent commits** (`git log --oneline -10`):
 
 ```
+46e0eea fix(tester-digest): raise cold-start timeouts + add resend_timeout log
+842fefb docs(claude-md): remove May 12 fake KLs + sync May 19 webhook learnings
+1f78cf7 fix(hooks): SessionStart terminator + bullet-mode preamble suppression
 24215d8 release(v1.0.7.0): signed MSIX deployed, publisher DN aligned, download page bumped
 f582dbd docs(claude-md): sync Key Learnings from 2026-05-12, -05-15, -05-16 devlogs
 625efc8 fix(hooks): tolerate singular KL heading + modern 3-col devlog table
@@ -613,11 +623,8 @@ f582dbd docs(claude-md): sync Key Learnings from 2026-05-12, -05-15, -05-16 devl
 16deb96 feat(infra): Item 9 — tester first-launch digest Lambda + DB bootstrap
 c6f6aa7 fix(skills): psitta-ad-search — direct media URL column replacing broken search-URL strategy
 1efc5ad docs(claude): append 2026-05-10 and 2026-05-11 Key Learnings
-2f33301 feat(skills): psitta-ad-search — competitive ad research pipeline
-44b91ae feat(infra): Item 13 — Cognito Post-Confirmation Lambda for welcome email
-1a936d1 chore(infra): correct pre-existing terraform fmt drift in rds.tf
 ```
-- _Auto-updated by Stop hook at 2026-05-22 16:14 UTC_
+- _Auto-updated by Stop hook at 2026-05-23 14:39 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
