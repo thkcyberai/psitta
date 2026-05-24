@@ -605,26 +605,29 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-05-22: KL 2026-05-22c — Client-side timeouts must account for Lambda cold-start tail latency. tester-digest had an 8s Resend HTTP timeout and 10s RDS connect timeout — both too tight on cold start. Raised to 20s/15s (Lambda budget is 30s). Set external-dependency timeouts with cold-start headroom.
 - 2026-05-22: KL 2026-05-22d — Diagnose → fix → THEN instrument. Never alarm a signal you don’t yet understand; alarming a known-noisy/known-broken signal trains you to ignore the alert. Applied to the digest (alarm deferred until baseline re-measured) and the portal (P3-11 portal metric deferred until the gating fix lands).
 - 2026-05-22: KL 2026-05-22e — “Passed verification” means little until probed. The hook parser revealed 4 hidden flaws and the May 19 webhook had silently 404’d — both had “passed.” Re-run full verification tables on parser/automation changes; build observability before stacking more unattended automation.
+- 2026-05-23: 2026-05-23a — Sandbox stripe_customers rows survive a live cutover and 502 on any live Stripe call (same class as the webhook-URL bug). Live cutovers require auditing pre-cutover customer rows.
+- 2026-05-23: 2026-05-23b — Gate “Manage Subscription” on subscription SOURCE (source=stripe), not Pro status — comp / allowlist / dev_override users have no Stripe customer.
+- 2026-05-23: 2026-05-23c — Prove the happy path, not just the fix: the button-hides case was easy with existing accounts; the button-shows-and-portal-opens case required a real live paid signup because all owned accounts were sandbox-era.
+- 2026-05-23: 2026-05-23d — SNS confirmation_timeout_in_minutes / endpoint_auto_confirms are creation-time-only schema attributes, left null in state after import. Explicit declaration causes a permanent diff; use lifecycle.ignore_changes. Import-not-recreate; success criterion = no-op plan.
+- 2026-05-23: 2026-05-23e — Run terraform plan BEFORE committing the codification, not on the expectation of a clean plan — the first plan caught a still-drifting SNS subscription and the separate tester-digest drift that would otherwise have ridden along.
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260522_HookParserFix_AutomationObservability_StripeCutoverDiagnosis_v1_0.docx`
-- **Date**: May 22, 2026
-- **Title**: Psitta — Development Log
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260523_PortalFix_LiveE2E_P3-9_Observability_v1_0.docx`
 - **Recent commits** (`git log --oneline -10`):
 
 ```
+c52163d feat(infra): codify CLI-bootstrapped observability (P3-9)
+14b03d6 feat(desktop): isStripeSubscribed gate for Manage Subscription tile
+630447d feat(scripts): cancel 4 pre-cutover sandbox subscriptions (cleanup)
+d486d07 feat(scripts): add read-only diagnose_subscription_details.py
+a7211fb feat(scripts): add read-only diagnose_subscription_sources.py
+805de15 docs(claude-md): sync May 22 hook output (5 KLs + Last Devlog pointer)
 46e0eea fix(tester-digest): raise cold-start timeouts + add resend_timeout log
 842fefb docs(claude-md): remove May 12 fake KLs + sync May 19 webhook learnings
 1f78cf7 fix(hooks): SessionStart terminator + bullet-mode preamble suppression
 24215d8 release(v1.0.7.0): signed MSIX deployed, publisher DN aligned, download page bumped
-f582dbd docs(claude-md): sync Key Learnings from 2026-05-12, -05-15, -05-16 devlogs
-625efc8 fix(hooks): tolerate singular KL heading + modern 3-col devlog table
-20f6dd1 feat(skills): psitta-ad-search Phase E media downloader + correct media-asset status
-16deb96 feat(infra): Item 9 — tester first-launch digest Lambda + DB bootstrap
-c6f6aa7 fix(skills): psitta-ad-search — direct media URL column replacing broken search-URL strategy
-1efc5ad docs(claude): append 2026-05-10 and 2026-05-11 Key Learnings
 ```
-- _Auto-updated by Stop hook at 2026-05-23 14:39 UTC_
+- _Auto-updated by Stop hook at 2026-05-24 13:19 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
