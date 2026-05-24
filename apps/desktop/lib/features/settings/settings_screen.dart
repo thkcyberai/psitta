@@ -232,7 +232,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           RadioListTile<String>(
             title: const Text('Read with S.W.H'),
             subtitle: const Text(
-              'Uses ElevenLabs TTS credits for word-level sync',
+              "Highlights each word as it's spoken",
               style: TextStyle(fontSize: 11),
             ),
             value: SwhMode.always,

@@ -383,7 +383,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         content: Text(
           'This will clear the cached audio for all chunks of '
           '${doc.title} and re-synthesize using the current voice '
-          'and ElevenLabs settings. This may take several minutes.',
+          'settings. This may take several minutes.',
         ),
         actions: [
           TextButton(
