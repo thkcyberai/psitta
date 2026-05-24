@@ -149,12 +149,12 @@ resource "aws_lambda_permission" "cognito_invoke_welcome_email" {
   source_arn    = aws_cognito_user_pool.main.arn
 }
 
-# ── DLQ depth alarm — paged when any message lands ──────────────────────────
-# TODO: Wire SNS topic when ops alert routing is set up. For now alarm is
-# visible only in the CloudWatch console; no paging.
+# ── DLQ depth alarm — paged via the operational alarms topic ────────────────
+# Wired to aws_sns_topic.alarms (P3-9, observability.tf) — pages on any DLQ
+# arrival within a 5-minute window.
 resource "aws_cloudwatch_metric_alarm" "welcome_email_dlq_depth" {
   alarm_name          = "${var.project}-welcome-email-dlq-depth"
-  alarm_description   = "Welcome Email DLQ has unread messages — investigate failed sends."
+  alarm_description   = "Welcome-email Lambda DLQ depth. Non-zero = a Cognito post-confirmation Resend delivery failed all retries and needs manual replay."
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateNumberOfMessagesVisible"
   statistic           = "Maximum"
@@ -168,7 +168,8 @@ resource "aws_cloudwatch_metric_alarm" "welcome_email_dlq_depth" {
     QueueName = aws_sqs_queue.welcome_email_dlq.name
   }
 
-  alarm_actions = []
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
 
   tags = {
     Project     = var.project

@@ -275,13 +275,12 @@ resource "aws_lambda_function" "tester_digest" {
   }
 }
 
-# -- DLQ depth alarm - paged when any message lands ---------------------------
-# TODO: Wire SNS topic when ops alert routing is set up. For now alarm is
-# visible only in the CloudWatch console; no paging. Same posture as
-# welcome_email's TODO (lambda_welcome_email.tf:153-154).
+# -- DLQ depth alarm - paged via the operational alarms topic -----------------
+# Wired to aws_sns_topic.alarms (P3-9, observability.tf) - pages on any DLQ
+# arrival within a 5-minute window.
 resource "aws_cloudwatch_metric_alarm" "tester_digest_dlq_depth" {
   alarm_name          = "${var.project}-tester-digest-dlq-depth"
-  alarm_description   = "Tester Digest DLQ has unread messages - investigate failed sends."
+  alarm_description   = "Tester-digest Lambda DLQ depth. Non-zero = the daily digest Lambda failed all retries; check /aws/lambda/psitta-tester-digest log group."
   namespace           = "AWS/SQS"
   metric_name         = "ApproximateNumberOfMessagesVisible"
   statistic           = "Maximum"
@@ -295,7 +294,8 @@ resource "aws_cloudwatch_metric_alarm" "tester_digest_dlq_depth" {
     QueueName = aws_sqs_queue.tester_digest_dlq.name
   }
 
-  alarm_actions = []
+  alarm_actions = [aws_sns_topic.alarms.arn]
+  ok_actions    = [aws_sns_topic.alarms.arn]
 
   tags = {
     Project     = var.project
