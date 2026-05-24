@@ -56,7 +56,7 @@ export default function Download() {
           </div>
 
           <p className="text-sm text-ink-muted">
-            Version 1.0.7.0 · Windows 10/11 · 64-bit
+            Version 1.0.8.0 · Windows 10/11 · 64-bit
           </p>
 
           <Button
