@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import "./globals.css";
@@ -107,6 +108,17 @@ export default function RootLayout({
         <Header />
         <main>{children}</main>
         <Footer />
+        <Script
+          src="https://plausible.io/js/pa-z0olIWS0ivczftSMe2upb.js"
+          strategy="afterInteractive"
+        />
+        <Script
+          id="plausible-init"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init()`,
+          }}
+        />
       </body>
     </html>
   );
