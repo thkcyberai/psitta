@@ -42,12 +42,19 @@ class _ResolvedPdfSentence {
     required this.chunkIndex,
     required this.sentenceIndex,
     required this.rects,
+    required this.pageCharStart,
+    required this.pageCharEnd,
   });
 
   final int pageNumber;
   final int chunkIndex;
   final int sentenceIndex;
   final List<PdfRect> rects;
+  // PDF page-text char range this sentence occupies (in pageText.fullText
+  // coordinates). Populated at cache-build time so per-tick word resolution
+  // can scope its search to ONE sentence instead of the whole page.
+  final int pageCharStart;
+  final int pageCharEnd;
 
   bool contains(Offset offset) {
     for (final rect in rects) {
@@ -804,6 +811,8 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
             chunkIndex: chunkIndex,
             sentenceIndex: sentenceIndex,
             rects: rects,
+            pageCharStart: expandedRange.start,
+            pageCharEnd: expandedRange.end,
           ),
         );
         exactCursor =
@@ -903,6 +912,8 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
       chunkIndex: primary.chunkIndex,
       sentenceIndex: primary.sentenceIndex,
       rects: combinedRects,
+      pageCharStart: primary.pageCharStart,
+      pageCharEnd: primary.pageCharEnd,
     );
     return null;
   }
@@ -1081,14 +1092,42 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     final chunkText = (chunk['text_content'] ?? '').toString();
     if (chunkText.isEmpty || charIdx >= chunkText.length) return;
 
-    // Expand to word boundaries
+    // Expand to word boundaries. An ASCII hyphen-minus '-' (U+002D) that
+    // sits BETWEEN two word chars is treated as part of the word, so
+    // hyphenated compounds like "self-awareness" expand as a single unit
+    // instead of one half per tick. Em-dash (U+2014) and en-dash (U+2013)
+    // are intentionally NOT included — those are sentence-level separators.
+    // The bounds checks (wStart >= 2, wEnd + 1 < length) prevent a range
+    // error when a hyphen sits at a sentence edge.
     var wStart = charIdx;
     var wEnd = charIdx;
-    while (wStart > 0 && _isWordChar(chunkText[wStart - 1])) {
-      wStart--;
+    while (wStart > 0) {
+      final prev = chunkText[wStart - 1];
+      if (_isWordChar(prev)) {
+        wStart--;
+        continue;
+      }
+      if (prev == '-' &&
+          wStart >= 2 &&
+          _isWordChar(chunkText[wStart - 2])) {
+        wStart -= 2;
+        continue;
+      }
+      break;
     }
-    while (wEnd < chunkText.length && _isWordChar(chunkText[wEnd])) {
-      wEnd++;
+    while (wEnd < chunkText.length) {
+      final cur = chunkText[wEnd];
+      if (_isWordChar(cur)) {
+        wEnd++;
+        continue;
+      }
+      if (cur == '-' &&
+          wEnd + 1 < chunkText.length &&
+          _isWordChar(chunkText[wEnd + 1])) {
+        wEnd += 2;
+        continue;
+      }
+      break;
     }
     if (wEnd <= wStart) return;
 
@@ -1097,133 +1136,125 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     final pageText = _pageTextCache[pageNumber];
     if (pageText == null) return;
 
-    // Locate word in PDF page text using the normalized text mapping
-    final normalizedPage = _normalizePdfText(
-      pageText.fullText,
-      pageNumber: pageNumber,
-    );
+    // Identify the active sentence by walking chunk sentence boundaries
+    // (cheap arithmetic — no string search). Captures sentenceIndex `si`
+    // and the sentence's start offset in chunk-text coordinates for use
+    // as a forward search hint inside the sentence's PDF text.
+    final sentenceBoundaries =
+        chunk['sentence_boundaries'] as List<dynamic>? ?? const [];
+    int? activeSi;
+    int? sentChunkStart;
+    for (var si = 0; si < sentenceBoundaries.length; si++) {
+      final boundary = sentenceBoundaries[si] as List<dynamic>;
+      final sStart = (boundary[0] as num).toInt();
+      final sEnd = (boundary[1] as num).toInt();
+      if (wStart >= sStart && wStart < sEnd) {
+        activeSi = si;
+        sentChunkStart = sStart;
+        break;
+      }
+    }
+    if (activeSi == null || sentChunkStart == null) return;
+
+    // Cache-miss guard. If the page sentence cache hasn't built yet (or
+    // doesn't carry this chunk/sentence), trigger a deduped build and
+    // leave _activeWordRects unchanged for this tick. Never paint a
+    // wrong rect from an incomplete cache.
+    final cachedSentences = _pageSentenceCache[pageNumber];
+    if (cachedSentences == null) {
+      unawaited(_loadPageSentences(pageNumber));
+      return;
+    }
+    _ResolvedPdfSentence? sent;
+    for (final s in cachedSentences) {
+      if (s.chunkIndex == chunkIndex && s.sentenceIndex == activeSi) {
+        sent = s;
+        break;
+      }
+    }
+    if (sent == null) return;
+
+    // Sentence-scoped resolution. The previous implementation re-normalized
+    // the whole page and walked all preceding sentences each tick, then
+    // indexOf'd the word into the WHOLE page — common words ("the", "and",
+    // "is") latched onto the first occurrence in a 2×wordLen lookback
+    // window, which drifted backward as accumulated cursor skew grew with
+    // distance from page top. Scoping the search to ONE sentence (~100-400
+    // chars) bounds duplicate ambiguity to within-sentence collisions and
+    // eliminates the per-tick page-wide walk + normalization.
+    final pageLen = pageText.fullText.length;
+    final sStart = sent.pageCharStart.clamp(0, pageLen);
+    final sEnd = sent.pageCharEnd.clamp(sStart, pageLen);
+    if (sStart >= sEnd) return;
+    final sentPdfText = pageText.fullText.substring(sStart, sEnd);
+    if (sentPdfText.isEmpty) return;
+
+    final normalizedSent = _normalizePdfText(sentPdfText);
     final normalizedWord = _normalizePdfText(wordText).text;
     if (normalizedWord.isEmpty) return;
 
-    // Use sentence highlight position as a search anchor —
-    // find where the sentence starts in normalized text, then search within it
-    int searchCursor = 0;
+    // wordOffsetInSentence is the chunk-text offset; we use it as a
+    // forward search hint inside the normalized sentence. Doesn't need
+    // to be exact — it just biases indexOf away from earlier duplicates.
+    final wordOffsetInSentence =
+        (wStart - sentChunkStart).clamp(0, normalizedSent.text.length);
 
-    // Narrow the search: walk sentences up to the one containing wStart
-    final sentenceBoundaries =
-        chunk['sentence_boundaries'] as List<dynamic>? ?? const [];
-    for (var si = 0; si < sentenceBoundaries.length; si++) {
-      final boundary = sentenceBoundaries[si] as List<dynamic>;
-      final sentStart = (boundary[0] as num).toInt();
-      final sentEnd = (boundary[1] as num).toInt();
-
-      if (wStart >= sentStart && wStart < sentEnd) {
-        // Found the sentence containing our word. Get a cursor
-        // by locating sentence text in normalized page text.
-        final trimmedRange = _trimmedSentenceRange(chunkText, boundary);
-        if (trimmedRange != null) {
-          final sentMatch = _findOrderedMatch(
-            normalizedPage,
-            trimmedRange.text,
-            searchCursor,
-            loose: false,
-          );
-          if (sentMatch != null) {
-            // Position cursor at the sentence start, offset by
-            // the word's position within the sentence.
-            final wordOffsetInSentence = wStart - trimmedRange.start;
-            final normalizedPrefix = _normalizePdfText(
-              trimmedRange.text.substring(
-                0,
-                wordOffsetInSentence.clamp(0, trimmedRange.text.length),
-              ),
-            ).text;
-            searchCursor = sentMatch.start + normalizedPrefix.length;
-          }
-        }
-        break;
-      }
-      // Advance searchCursor past this sentence
-      final trimmedRange = _trimmedSentenceRange(chunkText, boundary);
-      if (trimmedRange != null) {
-        final sentMatch = _findOrderedMatch(
-          normalizedPage,
-          trimmedRange.text,
-          searchCursor,
-          loose: false,
-        );
-        if (sentMatch != null) {
-          searchCursor = sentMatch.end;
-        }
-      }
+    var matchPos = normalizedSent.text.indexOf(
+      normalizedWord,
+      wordOffsetInSentence,
+    );
+    if (matchPos < 0) {
+      matchPos = normalizedSent.text.indexOf(normalizedWord);
     }
 
-    // Find the word starting near searchCursor
-    final safeCursor = searchCursor.clamp(0, normalizedPage.text.length);
-    // Search backwards a bit to handle small misalignments
-    final lookback = math.max(0, safeCursor - normalizedWord.length * 2);
-    var wordIdx = normalizedPage.text.indexOf(normalizedWord, lookback);
-    // Prefer the match closest to searchCursor
-    if (wordIdx >= 0 && wordIdx < lookback) {
-      final altIdx = normalizedPage.text.indexOf(normalizedWord, safeCursor);
-      if (altIdx >= 0 &&
-          (altIdx - safeCursor).abs() < (wordIdx - safeCursor).abs()) {
-        wordIdx = altIdx;
-      }
-    }
-    if (wordIdx < 0) {
-      // Try loose match as fallback
-      final loosePage = _normalizePdfText(
-        pageText.fullText,
-        pageNumber: pageNumber,
-        loose: true,
-      );
+    if (matchPos < 0) {
+      // Loose fallback, still scoped to this sentence — only kicks in
+      // when normalization differences between chunk text and PDF text
+      // prevent the primary match (e.g., aggressive ligature handling).
+      final looseSent = _normalizePdfText(sentPdfText, loose: true);
       final looseWord = _normalizePdfText(wordText, loose: true).text;
-      if (looseWord.isNotEmpty) {
-        final looseCursor = lookback.clamp(0, loosePage.text.length);
-        wordIdx = loosePage.text.indexOf(looseWord, looseCursor);
-        if (wordIdx >= 0) {
-          // Map back through loose page mapping
-          if (wordIdx + looseWord.length <= loosePage.normalizedToOriginal.length) {
-            final origStart = loosePage.normalizedToOriginal[wordIdx];
-            final origEnd =
-                loosePage.normalizedToOriginal[wordIdx + looseWord.length - 1] + 1;
-            final range = PdfTextRangeWithFragments.fromTextRange(
-              pageText, origStart, origEnd);
-            if (range != null) {
-              final rects = _rectsForTextRange(range);
-              if (rects.isNotEmpty) {
-                setState(() {
-                  _activeWordRects = rects;
-                  _activeWordPageNumber = pageNumber;
-                });
-                if (_viewerController.isReady) _viewerController.invalidate();
-              }
-            }
-          }
-          return;
-        }
+      if (looseWord.isEmpty) return;
+      final looseHint = wordOffsetInSentence.clamp(0, looseSent.text.length);
+      var loosePos = looseSent.text.indexOf(looseWord, looseHint);
+      if (loosePos < 0) loosePos = looseSent.text.indexOf(looseWord);
+      if (loosePos < 0) return;
+      if (loosePos + looseWord.length > looseSent.normalizedToOriginal.length) {
+        return;
       }
-      // No match found — clear
-      if (_activeWordRects.isNotEmpty) {
-        setState(() {
-          _activeWordRects = const [];
-          _activeWordPageNumber = null;
-        });
-        if (_viewerController.isReady) _viewerController.invalidate();
-      }
+      final origInSent = looseSent.normalizedToOriginal[loosePos];
+      final origEndInSent =
+          looseSent.normalizedToOriginal[loosePos + looseWord.length - 1] + 1;
+      final origStart = sStart + origInSent;
+      final origEnd = sStart + origEndInSent;
+      final range = PdfTextRangeWithFragments.fromTextRange(
+        pageText,
+        origStart,
+        origEnd,
+      );
+      if (range == null) return;
+      final rects = _rectsForTextRange(range);
+      if (rects.isEmpty) return;
+      setState(() {
+        _activeWordRects = rects;
+        _activeWordPageNumber = pageNumber;
+      });
+      if (_viewerController.isReady) _viewerController.invalidate();
       return;
     }
 
-    // Map normalized match back to original page text offsets
-    if (wordIdx + normalizedWord.length >
-        normalizedPage.normalizedToOriginal.length) {
+    // Primary path — map sentence-local normalized match back to PDF
+    // page-text offsets via the sentence's own normalizedToOriginal table,
+    // then add sent.pageCharStart to lift to page coordinates.
+    if (matchPos + normalizedWord.length >
+        normalizedSent.normalizedToOriginal.length) {
       return;
     }
-    final origStart = normalizedPage.normalizedToOriginal[wordIdx];
-    final origEnd =
-        normalizedPage.normalizedToOriginal[wordIdx + normalizedWord.length - 1] +
+    final origInSent = normalizedSent.normalizedToOriginal[matchPos];
+    final origEndInSent =
+        normalizedSent.normalizedToOriginal[matchPos + normalizedWord.length - 1] +
             1;
+    final origStart = sStart + origInSent;
+    final origEnd = sStart + origEndInSent;
 
     final range =
         PdfTextRangeWithFragments.fromTextRange(pageText, origStart, origEnd);
