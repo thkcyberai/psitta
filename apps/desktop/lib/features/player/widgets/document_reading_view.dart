@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme/colors.dart';
 import '../../../data/models/psitta_document.dart';
 import '../../../data/services/audio_service.dart';
 
@@ -306,7 +305,6 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
         false;
 
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final doc = widget.document;
 
     // ── Resolve active sentence ──
@@ -392,9 +390,9 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     }
 
     // ── Highlight styles ──
-    final sentenceBg = AppColors.primary.withOpacity(0.10);
-    final previewSentenceBg = AppColors.primary.withOpacity(0.16);
-    final wordHighlightBg = AppColors.primary.withOpacity(isDark ? 0.35 : 0.22);
+    final sentenceBg = theme.colorScheme.primary.withOpacity(0.10);
+    final previewSentenceBg = theme.colorScheme.primary.withOpacity(0.16);
+    final wordHighlightBg = theme.colorScheme.primary.withOpacity(0.45);
 
     final cmBuilder = widget.enableContextMenu ? _buildContextMenu : null;
 

@@ -586,7 +586,7 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
         }
 
         highlightStyle = baseStyle?.copyWith(
-          backgroundColor: AppColors.primary.withOpacity(isDark ? 0.35 : 0.22),
+          backgroundColor: theme.colorScheme.primary.withOpacity(0.45),
           color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimary,
         );
       }
