@@ -33,6 +33,18 @@ class AudioService {
 
   final AudioPlayer _player = AudioPlayer();
 
+  // Tuned position stream for SWH word-highlight sync. just_audio's default
+  // positionStream clamps emits to ~200ms for chunks longer than ~160s, which
+  // is the visible-lag floor on Psitta's typical 250s+ chunks. Pinning
+  // min==max==33ms gives ~30fps emits regardless of chunk length. Seek
+  // immediacy is preserved natively via createPositionStream's playbackEvent
+  // listener (just_audio 0.9.46 lib/just_audio.dart:674).
+  late final Stream<Duration> _positionStream = _player.createPositionStream(
+    steps: 10000,
+    minPeriod: const Duration(milliseconds: 33),
+    maxPeriod: const Duration(milliseconds: 33),
+  );
+
   /// Broadcast stream for synthesizing state (true = downloading/synthesizing).
   final StreamController<bool> _synthesizingController =
       StreamController<bool>.broadcast();
@@ -576,7 +588,7 @@ class AudioService {
     _synthesizingController.close();
   }
 
-  Stream<Duration> get positionStream => _player.positionStream;
+  Stream<Duration> get positionStream => _positionStream;
   Stream<Duration?> get durationStream => _player.durationStream;
   Stream<bool> get playingStream => _player.playingStream;
   Stream<PlayerState> get playerStateStream => _player.playerStateStream;
