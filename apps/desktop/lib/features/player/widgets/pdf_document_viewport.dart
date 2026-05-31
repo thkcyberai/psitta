@@ -337,7 +337,6 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     final normalizedToOriginal = <int>[];
     var pendingSpace = false;
     var pendingSpaceIndex = -1;
-    final normalized = source.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     var originalIndex = 0;
 
     void appendToken(String token, int sourceIndex) {
@@ -400,7 +399,7 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
       return lower;
     }
 
-    for (final line in normalized.split('\n')) {
+    for (final line in source.split('\n')) {
       final lineStartIndex = originalIndex;
       originalIndex += line.length + 1;
       if (_looksLikePdfPageNumberLine(line, pageNumber)) {
