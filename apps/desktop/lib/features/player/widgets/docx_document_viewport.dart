@@ -22,6 +22,7 @@ class DocxDocumentViewport extends StatelessWidget {
     this.onActiveSentenceChanged,
     this.onActiveWordChanged,
     this.onSentenceTap,
+    this.onLinePlayTap,
     this.audioService,
     this.editorChild,
     this.leadingBlocks,
@@ -40,6 +41,7 @@ class DocxDocumentViewport extends StatelessWidget {
   final void Function(GlobalKey blockKey)? onActiveSentenceChanged;
   final void Function(int wordIndex, int totalWords)? onActiveWordChanged;
   final void Function(int docOffset)? onSentenceTap;
+  final void Function(int docOffset)? onLinePlayTap;
   final AudioService? audioService;
   final Widget? editorChild;
   final List<DocBlock>? leadingBlocks;
@@ -111,6 +113,7 @@ class DocxDocumentViewport extends StatelessWidget {
                         onActiveSentenceChanged: onActiveSentenceChanged,
                         onActiveWordChanged: onActiveWordChanged,
                         onSentenceTap: onSentenceTap,
+                        onLinePlayTap: onLinePlayTap,
                         audioService: audioService,
                         blockKeys: blockKeys,
                         textScale: textScale,
@@ -158,6 +161,7 @@ class _DocxPageSheet extends StatelessWidget {
     this.onActiveSentenceChanged,
     this.onActiveWordChanged,
     this.onSentenceTap,
+    this.onLinePlayTap,
     this.audioService,
     this.blockKeys,
     this.textScale = 1.0,
@@ -171,6 +175,7 @@ class _DocxPageSheet extends StatelessWidget {
   final void Function(GlobalKey blockKey)? onActiveSentenceChanged;
   final void Function(int wordIndex, int totalWords)? onActiveWordChanged;
   final void Function(int docOffset)? onSentenceTap;
+  final void Function(int docOffset)? onLinePlayTap;
   final AudioService? audioService;
   final Map<String, GlobalKey>? blockKeys;
   final double textScale;
@@ -198,6 +203,7 @@ class _DocxPageSheet extends StatelessWidget {
                   onActiveSentenceChanged: onActiveSentenceChanged,
                   onActiveWordChanged: onActiveWordChanged,
                   onSentenceTap: onSentenceTap,
+                  onLinePlayTap: onLinePlayTap,
                   audioService: audioService,
                   enableContextMenu: true,
                   enablePointerSentenceSelection: true,

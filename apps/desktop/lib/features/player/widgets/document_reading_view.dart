@@ -59,6 +59,7 @@ class DocumentReadingView extends ConsumerStatefulWidget {
     this.onActiveSentenceChanged,
     this.onActiveWordChanged,
     this.onSentenceTap,
+    this.onLinePlayTap,
     this.audioService,
     this.enableContextMenu = true,
     this.enablePointerSentenceSelection = false,
@@ -79,6 +80,7 @@ class DocumentReadingView extends ConsumerStatefulWidget {
   final void Function(GlobalKey blockKey)? onActiveSentenceChanged;
   final void Function(int wordIndex, int totalWords)? onActiveWordChanged;
   final void Function(int docOffset)? onSentenceTap;
+  final void Function(int docOffset)? onLinePlayTap;
   final AudioService? audioService;
   final bool enableContextMenu;
   final bool enablePointerSentenceSelection;
@@ -96,9 +98,14 @@ class DocumentReadingView extends ConsumerStatefulWidget {
 }
 
 class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
+  static const double _kLinePlayGutter = 28.0;
+  static const double _kLinePlayIconSize = 24.0;
+  static const double _kLinePlayTapTarget = 40.0;
   final Map<String, GlobalKey> _localBlockKeys = {};
   int _lastActiveSentenceIdx = 0;
   int? _hoveredSentenceIdx;
+  String? _hoveredBlockId;
+  double? _hoveredLineY;
 
   GlobalKey _keyForBlock(String blockId) {
     final registry = widget.blockKeys ?? _localBlockKeys;
@@ -560,60 +567,128 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
         final displayPrefixLength = listPrefix?.length ?? 0;
         final baseBlockChild = blockChild;
         blockChild = LayoutBuilder(
-          builder: (context, constraints) => Stack(
-            children: [
-              IgnorePointer(
-                ignoring: true,
-                child: baseBlockChild,
-              ),
-              Positioned.fill(
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  onHover: (event) {
-                    final sentence = _sentenceForPointer(
-                      block,
-                      event.localPosition,
-                      constraints.maxWidth,
-                      textSpan,
-                      displayPrefixLength: displayPrefixLength,
-                    );
-                    final nextIndex = sentence?.index;
-                    if (nextIndex != _hoveredSentenceIdx && mounted) {
-                      setState(() {
-                        _hoveredSentenceIdx = nextIndex;
-                      });
-                    }
-                  },
-                  onExit: (_) {
-                    if (_hoveredSentenceIdx != null && mounted) {
-                      setState(() {
-                        _hoveredSentenceIdx = null;
-                      });
-                    }
-                  },
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.translucent,
-                    onTapUp: (details) {
-                      final sentence = _sentenceForPointer(
-                        block,
-                        details.localPosition,
-                        constraints.maxWidth,
-                        textSpan,
-                        displayPrefixLength: displayPrefixLength,
-                      );
-                      if (sentence == null) return;
-                      if (_hoveredSentenceIdx != sentence.index && mounted) {
-                        setState(() {
-                          _hoveredSentenceIdx = sentence.index;
-                        });
-                      }
-                      widget.onSentenceTap?.call(sentence.startOffset);
-                    },
+          builder: (context, constraints) {
+            final textWidth = constraints.maxWidth - _kLinePlayGutter;
+            final showIcon = _hoveredBlockId == block.blockId &&
+                _hoveredLineY != null;
+            return MouseRegion(
+              cursor: SystemMouseCursors.click,
+              onHover: (event) {
+                // Cursor over the gutter (where the play icon lives or empty
+                // gutter beside the text): preserve current hover state so the
+                // icon does NOT disappear when the user reaches for it. Real
+                // exit fires onExit when the cursor leaves the whole block.
+                if (event.localPosition.dx < _kLinePlayGutter) return;
+                final contentLocal = Offset(
+                  event.localPosition.dx - _kLinePlayGutter,
+                  event.localPosition.dy,
+                );
+                final sentence = _sentenceForPointer(
+                  block,
+                  contentLocal,
+                  textWidth,
+                  textSpan,
+                  displayPrefixLength: displayPrefixLength,
+                );
+                final nextIndex = sentence?.index;
+                if (nextIndex == _hoveredSentenceIdx &&
+                    _hoveredBlockId == block.blockId) {
+                  return;
+                }
+                if (!mounted) return;
+                if (sentence == null) {
+                  setState(() {
+                    _hoveredSentenceIdx = null;
+                    _hoveredBlockId = null;
+                    _hoveredLineY = null;
+                  });
+                } else {
+                  final y = _computeSentenceFirstLineY(
+                    textSpan: textSpan,
+                    maxWidth: textWidth,
+                    sentence: sentence,
+                    block: block,
+                    displayPrefixLength: displayPrefixLength,
+                  );
+                  setState(() {
+                    _hoveredSentenceIdx = nextIndex;
+                    _hoveredBlockId = block.blockId;
+                    _hoveredLineY = y;
+                  });
+                }
+              },
+              onExit: (_) {
+                if (!mounted) return;
+                if (_hoveredSentenceIdx != null ||
+                    _hoveredBlockId != null ||
+                    _hoveredLineY != null) {
+                  setState(() {
+                    _hoveredSentenceIdx = null;
+                    _hoveredBlockId = null;
+                    _hoveredLineY = null;
+                  });
+                }
+              },
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: _kLinePlayGutter),
+                    child: Stack(
+                      children: [
+                        IgnorePointer(
+                          ignoring: true,
+                          child: baseBlockChild,
+                        ),
+                        Positioned.fill(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.translucent,
+                            onTapUp: (details) {
+                              // GestureDetector lives INSIDE Padding(left:gutter),
+                              // so details.localPosition is already content-local —
+                              // do NOT subtract the gutter (the outer hover
+                              // MouseRegion does that because it spans the gutter).
+                              final sentence = _sentenceForPointer(
+                                block,
+                                details.localPosition,
+                                textWidth,
+                                textSpan,
+                                displayPrefixLength: displayPrefixLength,
+                              );
+                              if (sentence == null) return;
+                              widget.onSentenceTap?.call(sentence.startOffset);
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  if (showIcon)
+                    Positioned(
+                      left: 0,
+                      width: _kLinePlayTapTarget,
+                      height: _kLinePlayTapTarget,
+                      top: (_hoveredLineY! - _kLinePlayTapTarget / 2)
+                          .clamp(0.0, double.infinity),
+                      child: _LinePlayIcon(
+                        glyphSize: _kLinePlayIconSize,
+                        gutterWidth: _kLinePlayGutter,
+                        tapTarget: _kLinePlayTapTarget,
+                        onTap: () {
+                          final i = _hoveredSentenceIdx;
+                          if (i != null &&
+                              i < widget.document.sentences.length) {
+                            widget.onLinePlayTap?.call(
+                              widget.document.sentences[i].startOffset,
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         );
       }
 
@@ -744,5 +819,119 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     final isAlphaNum =
         (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
     return isAlphaNum || ch == "'";
+  }
+
+  /// Snap-to-line CENTER y for the hovered sentence's FIRST visual line in
+  /// block-local coordinates. Returns null when the sentence has no
+  /// visible boxes (e.g. degenerate range, layout not yet built). Recompute
+  /// only when the hovered sentence INDEX changes — not per pointer event.
+  ///
+  /// Returns the vertical CENTER of the first selection box ((top+bottom)/2)
+  /// so the caller can center a fixed-height affordance on the line without
+  /// worrying about the line's intrinsic height.
+  ///
+  /// Math mirrors the inverse of `_sentenceForPointer`:
+  ///   block-local = doc-offset − block.textOffset
+  ///   displayed   = block-local + displayPrefixLength
+  double? _computeSentenceFirstLineY({
+    required TextSpan textSpan,
+    required double maxWidth,
+    required DocSentence sentence,
+    required DocBlock block,
+    required int displayPrefixLength,
+  }) {
+    if (maxWidth <= 0) return null;
+    final blockStart = block.textOffset;
+    final blockEnd = block.textOffset + block.textLength;
+    final clampedStart =
+        sentence.startOffset < blockStart ? blockStart : sentence.startOffset;
+    final clampedEnd =
+        sentence.endOffset > blockEnd ? blockEnd : sentence.endOffset;
+    final localStart = clampedStart - blockStart;
+    final localEnd = clampedEnd - blockStart;
+    if (localStart >= localEnd) return null;
+    final maxDisplayed = block.textLength + displayPrefixLength;
+    final dispStart =
+        (localStart + displayPrefixLength).clamp(0, maxDisplayed).toInt();
+    final dispEnd =
+        (localEnd + displayPrefixLength).clamp(dispStart, maxDisplayed).toInt();
+    if (dispStart >= dispEnd) return null;
+    final painter = TextPainter(
+      text: textSpan,
+      textDirection: Directionality.of(context),
+    )..layout(maxWidth: maxWidth);
+    final boxes = painter.getBoxesForSelection(
+      TextSelection(baseOffset: dispStart, extentOffset: dispEnd),
+    );
+    if (boxes.isEmpty) return null;
+    final first = boxes.first;
+    return (first.top + first.bottom) / 2;
+  }
+}
+
+/// Small hover-revealed play affordance shown at the hovered sentence's first
+/// visual line. The TAP SURFACE is [tapTarget]×[tapTarget] (extending right
+/// past the gutter into the text column) so the icon is easy to grip; the
+/// VISIBLE glyph is centered inside the leading [gutterWidth] so the text
+/// margin is visually unchanged. Hosts its own MouseRegion (cursor stays
+/// "click" over the icon) and its own GestureDetector(opaque) so taps don't
+/// fall through to the SelectableText below.
+class _LinePlayIcon extends StatefulWidget {
+  const _LinePlayIcon({
+    required this.onTap,
+    required this.glyphSize,
+    required this.gutterWidth,
+    required this.tapTarget,
+  });
+
+  final VoidCallback onTap;
+  final double glyphSize;
+  final double gutterWidth;
+  final double tapTarget;
+
+  @override
+  State<_LinePlayIcon> createState() => _LinePlayIconState();
+}
+
+class _LinePlayIconState extends State<_LinePlayIcon> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = _hovered
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurface.withOpacity(0.6);
+    // Glyph horizontal center should sit at gutterWidth / 2 (center of the
+    // visible gutter). The tap-target box's horizontal center is tapTarget /
+    // 2. Align.x in [-1, 1] is measured from the box center; convert by
+    // ((glyphCenter - boxCenter) / (boxHalfWidth)).
+    final double alignX =
+        (widget.gutterWidth / 2 - widget.tapTarget / 2) / (widget.tapTarget / 2);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        if (mounted) setState(() => _hovered = true);
+      },
+      onExit: (_) {
+        if (mounted) setState(() => _hovered = false);
+      },
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: SizedBox(
+          width: widget.tapTarget,
+          height: widget.tapTarget,
+          child: Align(
+            alignment: Alignment(alignX, 0.0),
+            child: Icon(
+              Icons.play_arrow_rounded,
+              size: widget.glyphSize,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

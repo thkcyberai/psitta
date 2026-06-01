@@ -2756,6 +2756,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     required int docOffset,
     String? preferredBlockId,
     bool autoPlay = true,
+    bool forcePlay = false,
   }) async {
     final jumpRequestId = ++_docxJumpRequestSeq;
     final AudioService audioService =
@@ -2853,7 +2854,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     await audioService.seek(Duration(milliseconds: targetMs));
     if (jumpRequestId != _docxJumpRequestSeq) return;
 
-    if (autoPlay && wasPlaying) {
+    if (forcePlay || (autoPlay && wasPlaying)) {
       await audioService.play();
     }
   }
@@ -3312,7 +3313,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             onSentenceTap: (docOffset) => _jumpToDocumentOffset(
               document: psittaDoc,
               docOffset: docOffset,
-              autoPlay: false,
+              autoPlay: true,
+              forcePlay: true,
+            ),
+            onLinePlayTap: (docOffset) => _jumpToDocumentOffset(
+              document: psittaDoc,
+              docOffset: docOffset,
+              autoPlay: true,
+              forcePlay: true,
             ),
             audioService: _audioService,
             blockKeys: _docBlockKeys,
