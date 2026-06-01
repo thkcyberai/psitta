@@ -187,6 +187,8 @@ class _PdfThumbnailViewState extends State<_PdfThumbnailView> {
   bool _loggedThumbnailsReady = false;
   bool _loggedFirstThumbnail = false;
   late final ScrollController _scrollController;
+  final Map<int, GlobalKey> _thumbnailKeys = {};
+  int? _lastScrolledPage;
 
   @override
   void initState() {
@@ -241,6 +243,20 @@ class _PdfThumbnailViewState extends State<_PdfThumbnailView> {
           animation: widget.controller,
           builder: (context, _) {
             final currentPage = widget.controller.pageNumber ?? 1;
+            if (currentPage != _lastScrolledPage) {
+              _lastScrolledPage = currentPage;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                final ctx = _thumbnailKeys[currentPage]?.currentContext;
+                if (ctx != null) {
+                  Scrollable.ensureVisible(
+                    ctx,
+                    alignment: 0.3,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                  );
+                }
+              });
+            }
             return Scrollbar(
               controller: _scrollController,
               thumbVisibility: true,
@@ -260,6 +276,7 @@ class _PdfThumbnailViewState extends State<_PdfThumbnailView> {
                   }
 
                   return Padding(
+                    key: _thumbnailKeys.putIfAbsent(pageNumber, () => GlobalKey()),
                     padding: const EdgeInsets.only(bottom: 14),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(12),
