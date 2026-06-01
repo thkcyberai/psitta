@@ -934,6 +934,75 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     return null;
   }
 
+  /// Page-space rect of the "play from here" glyph for [sentence] — a square
+  /// sized to the first visual line's height, placed in the page's LEFT
+  /// margin just left of where that line's text begins, vertically centered
+  /// on it. Clamped to the page-left edge (x = 0) when the margin is too
+  /// narrow to hold it. Used by BOTH the hover paint and the tap hit-test so
+  /// the drawn glyph and its clickable region can never disagree.
+  PdfRect? _playGlyphRectForSentence(_ResolvedPdfSentence sentence) {
+    if (sentence.rects.isEmpty) {
+      return null;
+    }
+    // First visual line = the rect with the greatest PDF-space top (PDF y
+    // increases upward, so the largest top is highest on the page).
+    var firstLine = sentence.rects.first;
+    for (final r in sentence.rects) {
+      if (r.top > firstLine.top) {
+        firstLine = r;
+      }
+    }
+    final lineHeight = firstLine.top - firstLine.bottom;
+    if (lineHeight <= 0) {
+      return null;
+    }
+    final glyphSize = lineHeight * 0.8;
+    final gap = lineHeight * 0.3;
+    final centerY = (firstLine.top + firstLine.bottom) / 2;
+    var glyphLeft = firstLine.left - gap - glyphSize;
+    if (glyphLeft < 0) {
+      glyphLeft = 0; // Clamp to page-left edge (text starts near the margin).
+    }
+    return PdfRect(
+      glyphLeft,
+      centerY + glyphSize / 2,
+      glyphLeft + glyphSize,
+      centerY - glyphSize / 2,
+    );
+  }
+
+  /// Tap fallback: when the normal text hit-test misses, allow a tap on the
+  /// play glyph of the CURRENTLY HOVERED sentence to resolve to it. Strictly
+  /// scoped to [_hoveredSentence] so taps anywhere else are unaffected.
+  _ResolvedPdfSentence? _sentenceAtPlayGlyph(Offset viewerOffset) {
+    final hovered = _hoveredSentence;
+    if (hovered == null) {
+      return null;
+    }
+    final hitTest = _viewerController.getPdfPageHitTestResult(
+      viewerOffset,
+      useDocumentLayoutCoordinates: false,
+    );
+    if (hitTest == null || hitTest.page.pageNumber != hovered.pageNumber) {
+      return null;
+    }
+    final cached = _pageSentenceCache[hovered.pageNumber];
+    if (cached == null) {
+      return null;
+    }
+    for (final sentence in cached) {
+      if (!sentence.matchesTarget(hovered)) {
+        continue;
+      }
+      final glyph = _playGlyphRectForSentence(sentence);
+      if (glyph != null && glyph.containsOffset(hitTest.offset)) {
+        return sentence;
+      }
+      return null;
+    }
+    return null;
+  }
+
   void _setHoveredSentence(PdfSentenceTarget? target) {
     final current = _hoveredSentence;
     final isSame = current?.pageNumber == target?.pageNumber &&
@@ -1299,6 +1368,7 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     final hoverFillColor = theme.colorScheme.primary.withOpacity(0.10);
     final hoverStrokeColor = theme.colorScheme.primary.withOpacity(0.32);
     final highlightStrokeColor = theme.colorScheme.primary.withOpacity(0.22);
+    final playGlyphColor = theme.colorScheme.onSurface.withOpacity(0.6);
 
     return Container(
       decoration: BoxDecoration(
@@ -1407,6 +1477,52 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
                         }
                       }
 
+                      // Play-from-here glyph at the hovered sentence's first
+                      // line. Drawn AFTER the hover box, in the page's left
+                      // margin (outside the text rects), so it never overlaps
+                      // text or the SWH sentence/word highlights. Gated only on
+                      // a hovered sentence on this page — shown even when the
+                      // hovered line is the active one (replay-from-here).
+                      final hoveredForGlyph = _hoveredSentence;
+                      if (hoveredForGlyph != null &&
+                          hoveredForGlyph.pageNumber == page.pageNumber) {
+                        final glyphSentences =
+                            _pageSentenceCache[page.pageNumber] ??
+                                const <_ResolvedPdfSentence>[];
+                        for (final sentence in glyphSentences) {
+                          if (!sentence.matchesTarget(hoveredForGlyph)) {
+                            continue;
+                          }
+                          final glyphPdfRect =
+                              _playGlyphRectForSentence(sentence);
+                          if (glyphPdfRect == null) {
+                            break;
+                          }
+                          final box = glyphPdfRect
+                              .toRect(page: page, scaledPageSize: pageRect.size)
+                              .translate(pageRect.left, pageRect.top);
+                          if (box.width <= 0 || box.height <= 0) {
+                            break;
+                          }
+                          // Right-pointing play triangle, inset slightly inside
+                          // the square box so it reads as a glyph, not a wedge.
+                          final inset = box.height * 0.12;
+                          final triangle = Path()
+                            ..moveTo(box.left + inset, box.top + inset)
+                            ..lineTo(box.left + inset, box.bottom - inset)
+                            ..lineTo(box.right - inset, box.center.dy)
+                            ..close();
+                          canvas.drawPath(
+                            triangle,
+                            Paint()
+                              ..color = playGlyphColor
+                              ..style = PaintingStyle.fill
+                              ..isAntiAlias = true,
+                          );
+                          break;
+                        }
+                      }
+
                       final highlight = _resolvedHighlight;
                       if (highlight != null &&
                           highlight.pageNumber == page.pageNumber) {
@@ -1480,9 +1596,15 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
                       child: GestureDetector(
                         behavior: HitTestBehavior.translucent,
                         onTapUp: (details) async {
-                          final sentence =
+                          final hitSentence =
                               await _sentenceAtViewerOffset(details.localPosition);
                           if (!mounted) return;
+                          // Glyph fallback: only when the text hit-test missed,
+                          // a tap on the play glyph of the currently hovered
+                          // sentence (which lives in the margin, outside the
+                          // text rects) still activates it.
+                          final sentence = hitSentence ??
+                              _sentenceAtPlayGlyph(details.localPosition);
                           if (sentence != null) {
                             _setHoveredSentence(
                               PdfSentenceTarget(

@@ -2595,6 +2595,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     int? targetChunkIndex,
     int? targetSentenceIndex,
     bool autoPlay = true,
+    bool forcePlay = false,
   }) async {
     final jumpRequestId = ++_pdfJumpRequestSeq;
     final pageChunkIndices = _pdfChunkIndicesForPage(chunks, pageNumber);
@@ -2746,7 +2747,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
     await audioService.seek(Duration(milliseconds: targetMs));
     if (jumpRequestId != _pdfJumpRequestSeq) return;
-    if (wasPlaying && autoPlay) {
+    if (forcePlay || (autoPlay && wasPlaying)) {
       await audioService.play();
     }
   }
@@ -3250,7 +3251,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 pageNumber: target.pageNumber,
                 targetChunkIndex: target.chunkIndex,
                 targetSentenceIndex: target.sentenceIndex,
-                autoPlay: false,
+                autoPlay: true,
+                forcePlay: true,
               );
             },
             onPageTap: (hitTest) async {
