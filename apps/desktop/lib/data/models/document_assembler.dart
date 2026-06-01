@@ -102,7 +102,15 @@ class DocumentAssembler {
       // still advances in lockstep so it stays correct as a fallback on
       // any later chunk that may be missing from positionsById.
       final serverRange = positionsById?[chunkId];
-      final chunkTextOffset = serverRange?.startOffset ?? docCharCursor;
+      // Fix C-3: chunk's true start in plainTextBuf is the current buffer
+      // length plus the inter-chunk "\n\n" separator (2 chars) that will be
+      // written below when this isn't the first chunk. Forecasting it here
+      // BEFORE the offset decision lets the fallback path match the actual
+      // plainText position byte-for-byte (the value the probe logs as
+      // `actualStart`). docCharCursor is left intact for the separator gate.
+      final chunkPlainStart =
+          plainTextBuf.length + (plainTextBuf.length > 0 ? 2 : 0);
+      final chunkTextOffset = serverRange?.startOffset ?? chunkPlainStart;
 
       // ── Build blocks ──
       if (useFormatted) {
