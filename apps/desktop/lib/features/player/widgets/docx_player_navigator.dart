@@ -23,12 +23,14 @@ class DocxPlayerNavigator extends StatelessWidget {
     super.key,
     required this.pages,
     required this.contents,
+    required this.activePageNumber,
     this.onContentsSelected,
     this.onThumbnailSelected,
   });
 
   final List<DocxPageLayoutPage> pages;
   final List<DocxNavigatorEntry> contents;
+  final int activePageNumber;
   final void Function(DocxNavigatorEntry entry)? onContentsSelected;
   final void Function(int pageNumber)? onThumbnailSelected;
 
@@ -61,6 +63,7 @@ class DocxPlayerNavigator extends StatelessWidget {
                 ),
                 _DocxThumbnailView(
                   pages: pages,
+                  activePageNumber: activePageNumber,
                   onSelected: onThumbnailSelected,
                 ),
               ],
@@ -135,20 +138,60 @@ class _DocxContentsView extends StatelessWidget {
   }
 }
 
-class _DocxThumbnailView extends StatelessWidget {
+class _DocxThumbnailView extends StatefulWidget {
   const _DocxThumbnailView({
     required this.pages,
+    required this.activePageNumber,
     this.onSelected,
   });
 
   final List<DocxPageLayoutPage> pages;
+  final int activePageNumber;
   final void Function(int pageNumber)? onSelected;
+
+  @override
+  State<_DocxThumbnailView> createState() => _DocxThumbnailViewState();
+}
+
+class _DocxThumbnailViewState extends State<_DocxThumbnailView> {
+  late final ScrollController _scrollController;
+  final Map<int, GlobalKey> _thumbnailKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DocxThumbnailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.activePageNumber != oldWidget.activePageNumber) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final ctx = _thumbnailKeys[widget.activePageNumber]?.currentContext;
+        if (ctx == null) return;
+        Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.3,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+        );
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    if (pages.isEmpty) {
+    if (widget.pages.isEmpty) {
       return const _DocxNavigatorMessage(
         icon: Icons.grid_view_rounded,
         title: 'No pages yet',
@@ -158,25 +201,34 @@ class _DocxThumbnailView extends StatelessWidget {
 
     final docTheme = buildDocxDocumentTheme(theme);
     return Scrollbar(
+      controller: _scrollController,
       thumbVisibility: true,
       child: ListView.builder(
+        controller: _scrollController,
         padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
-        itemCount: pages.length,
+        itemCount: widget.pages.length,
         itemBuilder: (context, index) {
-          final page = pages[index];
+          final page = widget.pages[index];
+          final isActive = widget.activePageNumber == page.pageNumber;
 
           return Padding(
+            key: _thumbnailKeys.putIfAbsent(page.pageNumber, () => GlobalKey()),
             padding: const EdgeInsets.only(bottom: 14),
             child: InkWell(
               borderRadius: BorderRadius.circular(12),
-              onTap: () => onSelected?.call(page.pageNumber),
-              child: Container(
+              onTap: () => widget.onSelected?.call(page.pageNumber),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: theme.colorScheme.surface,
+                  color: isActive
+                      ? theme.colorScheme.primary.withOpacity(0.10)
+                      : theme.colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: theme.colorScheme.outlineVariant,
+                    color: isActive
+                        ? theme.colorScheme.primary.withOpacity(0.55)
+                        : theme.colorScheme.outlineVariant,
                   ),
                 ),
                 child: Column(

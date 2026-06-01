@@ -121,6 +121,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   final Map<int, GlobalKey> _docxPageKeys = {};
   final GlobalKey _docScrollViewportKey = GlobalKey();
   int _currentDocxPageNumber = 1;
+  int _activeReadingPageNumber = 1;
+  Map<GlobalKey, int> _blockKeyToPage = {};
   int _docxDragTargetPageNumber = 1;
   double _docxThumbProgress = 0.0;
   int? _focusedDocxSentenceIndex;
@@ -2095,6 +2097,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }
 
   void _scrollFromSentence(GlobalKey sentenceKey) {
+    // Rail follows the voice's page regardless of manual scroll / auto-scroll
+    // suppression, so this precedes the scroll-suppression early-return below.
+    if (mounted) {
+      final readingPage = _blockKeyToPage[sentenceKey];
+      if (readingPage != null && readingPage != _activeReadingPageNumber) {
+        setState(() => _activeReadingPageNumber = readingPage);
+      }
+    }
     if (_userScrolling || _isEditing) return;
     _scrollBlockIntoReadingBand(sentenceKey);
   }
@@ -3188,6 +3198,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           for (final page in docxPages)
             for (final block in page.blocks) block.blockId: page.pageNumber,
         };
+        // Reading-derived block→page map: composes the live blockId→page map with
+        // the live blockId→GlobalKey registry so the active-sentence callback key
+        // resolves to a page in O(1). Rebuilt per-frame to match docxBlockPageMap.
+        _blockKeyToPage = {
+          for (final entry in _docBlockKeys.entries)
+            if (docxBlockPageMap[entry.key] != null)
+              entry.value: docxBlockPageMap[entry.key]!,
+        };
         if (isDocxDocument && !_isEditing && docxPages.isNotEmpty) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             _updateCurrentDocxPage(docxPages);
@@ -3518,6 +3536,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                   ? DocxPlayerNavigator(
                                       pages: docxPages,
                                       contents: docxContentsEntries,
+                                      activePageNumber: _activeReadingPageNumber,
                                       onContentsSelected: (entry) async {
                                         DocBlock? block;
                                         for (final candidate
