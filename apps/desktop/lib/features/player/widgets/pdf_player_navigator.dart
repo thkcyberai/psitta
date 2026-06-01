@@ -23,14 +23,15 @@ class PdfPlayerNavigator extends StatelessWidget {
 
     return DefaultTabController(
       length: 2,
+      initialIndex: 0, // Thumbnails is the default selected tab.
       child: Column(
         children: [
           Container(
             color: theme.colorScheme.surfaceContainerLow,
             child: TabBar(
               tabs: const [
-                Tab(icon: Icon(Icons.menu_book_outlined), text: 'Contents'),
                 Tab(icon: Icon(Icons.grid_view_rounded), text: 'Thumbnails'),
+                Tab(icon: Icon(Icons.menu_book_outlined), text: 'Contents'),
               ],
               labelStyle: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w700,
@@ -40,16 +41,16 @@ class PdfPlayerNavigator extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
+                _PdfThumbnailView(
+                  documentRef: documentRef,
+                  controller: controller,
+                  onThumbnailSelected: onThumbnailSelected,
+                ),
                 _PdfOutlineView(
                   outline: outline,
                   controller: controller,
                   isLoading: documentRef == null || outline == null,
                   onOutlineSelected: onOutlineSelected,
-                ),
-                _PdfThumbnailView(
-                  documentRef: documentRef,
-                  controller: controller,
-                  onThumbnailSelected: onThumbnailSelected,
                 ),
               ],
             ),

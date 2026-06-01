@@ -40,14 +40,15 @@ class DocxPlayerNavigator extends StatelessWidget {
 
     return DefaultTabController(
       length: 2,
+      initialIndex: 0, // Thumbnails is the default selected tab.
       child: Column(
         children: [
           Container(
             color: theme.colorScheme.surfaceContainerLow,
             child: TabBar(
               tabs: const [
-                Tab(icon: Icon(Icons.menu_book_outlined), text: 'Contents'),
                 Tab(icon: Icon(Icons.grid_view_rounded), text: 'Thumbnails'),
+                Tab(icon: Icon(Icons.menu_book_outlined), text: 'Contents'),
               ],
               labelStyle: theme.textTheme.labelMedium?.copyWith(
                 fontWeight: FontWeight.w700,
@@ -57,14 +58,14 @@ class DocxPlayerNavigator extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _DocxContentsView(
-                  entries: contents,
-                  onSelected: onContentsSelected,
-                ),
                 _DocxThumbnailView(
                   pages: pages,
                   activePageNumber: activePageNumber,
                   onSelected: onThumbnailSelected,
+                ),
+                _DocxContentsView(
+                  entries: contents,
+                  onSelected: onContentsSelected,
                 ),
               ],
             ),
