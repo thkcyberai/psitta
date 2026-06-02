@@ -3789,6 +3789,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                                         );
                                       },
                                       onThumbnailSelected: (pageNumber) async {
+                                        // Set active page first so the
+                                        // navigator's existing highlight +
+                                        // rail-scroll (driven by
+                                        // activePageNumber) fire instantly,
+                                        // before the main-pane scroll.
+                                        if (mounted) {
+                                          setState(() => _activeReadingPageNumber =
+                                              pageNumber);
+                                        }
                                         await _scrollToDocxPage(
                                           pages: docxPages,
                                           pageNumber: pageNumber,
