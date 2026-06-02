@@ -174,6 +174,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   List<int> _editMatchOffsets = const [];
   int _editMatchIndex = -1;
   bool _findCaseSensitive = false;
+  // Replace (DOCX edit-unified only). The replace row is click-to-expand via
+  // _findExpanded; the chevron + row never show in PDF/reading-mode find.
+  final TextEditingController _replaceController = TextEditingController();
+  bool _findExpanded = false;
   // Key on the unified editor's EditorState — lets find scroll a match into
   // view via renderEditor.getLocalRectForCaret (public per flutter_quill).
   final GlobalKey<quill.EditorState> _unifiedEditorKey =
@@ -263,6 +267,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   void _closeFindBar() {
     if (!_showFindBar) return;
     _findController.clear();
+    _replaceController.clear();
+    _findExpanded = false;
     _pdfTextSearcher?.resetTextSearch();
     _pendingFindQuery = '';
     final readyListener = _pdfReadyListener;
@@ -621,6 +627,44 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     });
   }
 
+  /// Replace the current edit-mode match with the replace field's text, then
+  /// re-search and advance to the next occurrence past the replacement. DOCX
+  /// edit-unified only. The default-notify replaceText flags unsaved via the
+  /// existing controller-listener chain (no manual dirty bump needed).
+  void _replaceCurrent() {
+    final controller = _docxUnifiedController;
+    if (!_isEditing || controller == null) return;
+    if (_editMatchOffsets.isEmpty) return;
+    if (_editMatchIndex < 0 || _editMatchIndex >= _editMatchOffsets.length) {
+      return;
+    }
+    final query = _findController.text.trim();
+    if (query.isEmpty) return;
+
+    final off = _editMatchOffsets[_editMatchIndex];
+    final repl = _replaceController.text;
+    controller.replaceText(off, query.length, repl, null);
+
+    // The replacement shifts every later offset by (repl.length -
+    // query.length); re-search to refresh the offsets from the live document.
+    final fresh = controller.document.search(
+      query,
+      caseSensitive: _findCaseSensitive,
+    );
+    // Advance to the first match at/after the end of the inserted text so we
+    // don't re-hit the replacement (which may itself contain the query). If
+    // none remain ahead, wrap to the first match only when matches still exist.
+    final boundary = off + repl.length;
+    var newIndex = fresh.indexWhere((o) => o >= boundary);
+    if (newIndex < 0) newIndex = fresh.isEmpty ? -1 : 0;
+
+    setState(() {
+      _editMatchOffsets = fresh;
+      _editMatchIndex = newIndex;
+    });
+    if (newIndex >= 0) _moveToEditMatch(newIndex);
+  }
+
   Widget _buildFindBar({
     required ThemeData theme,
     required bool isPdfDocument,
@@ -662,77 +706,137 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.search,
-            size: 18,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _findController,
-              focusNode: _findFocusNode,
-              autofocus: true,
-              textInputAction: TextInputAction.search,
-              style: theme.textTheme.bodyMedium,
-              decoration: const InputDecoration(
-                hintText: 'Find in document',
-                isDense: true,
-                border: InputBorder.none,
+          Row(
+            children: [
+              Icon(
+                Icons.search,
+                size: 18,
+                color: theme.colorScheme.onSurfaceVariant,
               ),
-              onChanged: _onFindQueryChanged,
-              onSubmitted: (_) => _nextFindMatch(),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _findController,
+                  focusNode: _findFocusNode,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  style: theme.textTheme.bodyMedium,
+                  decoration: const InputDecoration(
+                    hintText: 'Find in document',
+                    isDense: true,
+                    border: InputBorder.none,
+                  ),
+                  onChanged: _onFindQueryChanged,
+                  onSubmitted: (_) => _nextFindMatch(),
+                ),
+              ),
+              if (hasQuery) ...[
+                Text(
+                  countLabel,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: totalMatches == 0
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.onSurfaceVariant,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+                const SizedBox(width: 4),
+              ],
+              // Expand/collapse the replace row — edit-unified only (Replace
+              // is a live-editor operation; never offered in PDF/reading find).
+              // "R" glyph styled to pair with the "Aa" toggle; selected state
+              // (subtle highlight) reflects _findExpanded just like Aa.
+              if (_isEditing && _docxUnifiedController != null)
+                IconButton(
+                  icon: const Text(
+                    'R',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  tooltip: 'Replace',
+                  visualDensity: VisualDensity.compact,
+                  isSelected: _findExpanded,
+                  onPressed: () =>
+                      setState(() => _findExpanded = !_findExpanded),
+                ),
+              // Case-sensitivity toggle — edit-mode only (reading-mode/PDF find
+              // is case-insensitive by design; _findCaseSensitive drives only
+              // the unified-editor search branch).
+              if (_isEditing && _docxUnifiedController != null)
+                IconButton(
+                  icon: const Text(
+                    'Aa',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+                  ),
+                  tooltip: 'Match case',
+                  visualDensity: VisualDensity.compact,
+                  isSelected: _findCaseSensitive,
+                  onPressed: () {
+                    setState(() => _findCaseSensitive = !_findCaseSensitive);
+                    _onFindQueryChanged(_findController.text);
+                  },
+                ),
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_up, size: 20),
+                tooltip: 'Previous match',
+                visualDensity: VisualDensity.compact,
+                onPressed: totalMatches == 0 ? null : _prevFindMatch,
+              ),
+              IconButton(
+                icon: const Icon(Icons.keyboard_arrow_down, size: 20),
+                tooltip: 'Next match',
+                visualDensity: VisualDensity.compact,
+                onPressed: totalMatches == 0 ? null : _nextFindMatch,
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18),
+                tooltip: 'Close (Esc)',
+                visualDensity: VisualDensity.compact,
+                onPressed: _closeFindBar,
+              ),
+            ],
           ),
-          if (hasQuery) ...[
-            Text(
-              countLabel,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: totalMatches == 0
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.onSurfaceVariant,
-                fontFeatures: const [FontFeature.tabularFigures()],
+          // Replace row — DOCX edit-unified only, revealed by the chevron.
+          if (_findExpanded && _isEditing && _docxUnifiedController != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.find_replace,
+                    size: 18,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _replaceController,
+                      style: theme.textTheme.bodyMedium,
+                      textInputAction: TextInputAction.done,
+                      decoration: const InputDecoration(
+                        hintText: 'Replace with…',
+                        isDense: true,
+                        border: InputBorder.none,
+                      ),
+                      onSubmitted: (_) => _replaceCurrent(),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      foregroundColor: theme.colorScheme.primary,
+                    ),
+                    onPressed: totalMatches == 0 ? null : _replaceCurrent,
+                    child: const Text('Replace'),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 4),
-          ],
-          // Case-sensitivity toggle — edit-mode only (reading-mode/PDF find
-          // is case-insensitive by design; _findCaseSensitive drives only the
-          // unified-editor search branch).
-          if (_isEditing && _docxUnifiedController != null)
-            IconButton(
-              icon: const Text(
-                'Aa',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-              ),
-              tooltip: 'Match case',
-              visualDensity: VisualDensity.compact,
-              isSelected: _findCaseSensitive,
-              onPressed: () {
-                setState(() => _findCaseSensitive = !_findCaseSensitive);
-                _onFindQueryChanged(_findController.text);
-              },
-            ),
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_up, size: 20),
-            tooltip: 'Previous match',
-            visualDensity: VisualDensity.compact,
-            onPressed: totalMatches == 0 ? null : _prevFindMatch,
-          ),
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_down, size: 20),
-            tooltip: 'Next match',
-            visualDensity: VisualDensity.compact,
-            onPressed: totalMatches == 0 ? null : _nextFindMatch,
-          ),
-          IconButton(
-            icon: const Icon(Icons.close, size: 18),
-            tooltip: 'Close (Esc)',
-            visualDensity: VisualDensity.compact,
-            onPressed: _closeFindBar,
-          ),
         ],
       ),
     );
@@ -966,6 +1070,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _editController.dispose();
     _editFocusNode.dispose();
     _findController.dispose();
+    _replaceController.dispose();
     _findFocusNode.dispose();
     _findShortcutFocusNode.dispose();
     _pdfTextSearcher?.removeListener(_onPdfSearcherChanged);
