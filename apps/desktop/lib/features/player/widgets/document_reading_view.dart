@@ -572,10 +572,18 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
       final spacing = block.type == DocBlockType.heading ? 16.0 : 8.0;
 
       final textSpan = TextSpan(children: inlineSpans);
-      Widget blockChild = SelectableText.rich(
-        textSpan,
-        contextMenuBuilder: cmBuilder,
-        textAlign: _textAlignFor(block.alignment),
+      // Full-width so block-level textAlign (center/right/justify) has room to
+      // act — SelectableText.rich otherwise shrink-wraps to its content width,
+      // leaving alignment visually inert. Wrapped at the blockChild value so
+      // BOTH render branches (direct + pointer/hover, which wraps
+      // baseBlockChild = blockChild) get the full-width child.
+      Widget blockChild = SizedBox(
+        width: double.infinity,
+        child: SelectableText.rich(
+          textSpan,
+          contextMenuBuilder: cmBuilder,
+          textAlign: _textAlignFor(block.alignment),
+        ),
       );
 
       if (widget.enablePointerSentenceSelection) {
