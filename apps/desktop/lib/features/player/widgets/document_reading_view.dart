@@ -65,6 +65,8 @@ class DocumentReadingView extends ConsumerStatefulWidget {
     this.enablePointerSentenceSelection = false,
     this.blockKeys,
     this.textScale = 1.0,
+    this.findMatchStart,
+    this.findMatchEnd,
   });
 
   final PsittaDocument document;
@@ -91,6 +93,13 @@ class DocumentReadingView extends ConsumerStatefulWidget {
 
   /// Text zoom factor driven by Ctrl+scroll. 1.0 = default size.
   final double textScale;
+
+  /// Document-level char range of the current find-in-document match to
+  /// highlight (distinct from playback highlighting). Null when no match /
+  /// not searching. Highest highlight precedence so a searched word stays
+  /// visible even under the active playback word/sentence.
+  final int? findMatchStart;
+  final int? findMatchEnd;
 
   @override
   ConsumerState<DocumentReadingView> createState() =>
@@ -400,6 +409,9 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     final sentenceBg = theme.colorScheme.primary.withOpacity(0.10);
     final previewSentenceBg = theme.colorScheme.primary.withOpacity(0.16);
     final wordHighlightBg = theme.colorScheme.primary.withOpacity(0.45);
+    // Find-match highlight — tertiary hue keeps it visually distinct from the
+    // primary-based playback (SWH) highlights when both are active.
+    final findMatchBg = theme.colorScheme.tertiary.withOpacity(0.55);
 
     final cmBuilder = widget.enableContextMenu ? _buildContextMenu : null;
 
@@ -531,6 +543,9 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
           previewSentenceEnd: previewSentEnd,
           activeWordStart: activeWordDocOffset,
           activeWordEnd: activeWordDocEnd,
+          findBg: findMatchBg,
+          findMatchStart: widget.findMatchStart,
+          findMatchEnd: widget.findMatchEnd,
         );
 
         runCursor = runEnd;
@@ -732,12 +747,15 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     required TextStyle wordHighlightStyle,
     required Color sentenceBg,
     required Color previewBg,
+    Color? findBg,
     int? activeSentenceStart,
     int? activeSentenceEnd,
     int? previewSentenceStart,
     int? previewSentenceEnd,
     int? activeWordStart,
     int? activeWordEnd,
+    int? findMatchStart,
+    int? findMatchEnd,
   }) {
     final runEnd = runStart + text.length;
 
@@ -754,10 +772,11 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     final aSent = clampToRun(activeSentenceStart, activeSentenceEnd);
     final pSent = clampToRun(previewSentenceStart, previewSentenceEnd);
     final aWord = clampToRun(activeWordStart, activeWordEnd);
+    final aFind = findBg == null ? null : clampToRun(findMatchStart, findMatchEnd);
 
     // Fast path: nothing overlaps → one TextSpan with the run's base
     // style. This is the common case for runs outside the active block.
-    if (aSent == null && pSent == null && aWord == null) {
+    if (aSent == null && pSent == null && aWord == null && aFind == null) {
       spans.add(TextSpan(text: text, style: runStyle));
       return;
     }
@@ -778,6 +797,10 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
       cuts.add(aWord.$1);
       cuts.add(aWord.$2);
     }
+    if (aFind != null) {
+      cuts.add(aFind.$1);
+      cuts.add(aFind.$2);
+    }
     final sortedCuts = cuts.toList()..sort();
 
     // Emit one TextSpan per non-empty segment. Membership is decided at
@@ -789,6 +812,7 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
       if (segStart >= segEnd) continue;
 
       final mid = segStart + (segEnd - segStart) ~/ 2;
+      final inFind = aFind != null && mid >= aFind.$1 && mid < aFind.$2;
       final inActiveWord =
           aWord != null && mid >= aWord.$1 && mid < aWord.$2;
       final inPreviewSent =
@@ -797,7 +821,11 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
           aSent != null && mid >= aSent.$1 && mid < aSent.$2;
 
       TextStyle segStyle;
-      if (inActiveWord) {
+      if (inFind && findBg != null) {
+        // Find match wins over playback highlights — it's a deliberate
+        // user search and must stay visible during playback.
+        segStyle = runStyle.copyWith(backgroundColor: findBg);
+      } else if (inActiveWord) {
         segStyle = wordHighlightStyle;
       } else if (inPreviewSent) {
         segStyle = runStyle.copyWith(backgroundColor: previewBg);

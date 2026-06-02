@@ -123,6 +123,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   int _currentDocxPageNumber = 1;
   int _activeReadingPageNumber = 1;
   Map<GlobalKey, int> _blockKeyToPage = {};
+  // blockId → page map (mode-independent, rebuilt per-frame from docxPages).
+  // Used by edit-mode find to resolve a match's page for thumbnail-follow
+  // without depending on the reading view's GlobalKey registry being mounted.
+  Map<String, int> _docxBlockPageMap = const {};
   int _docxDragTargetPageNumber = 1;
   double _docxThumbProgress = 0.0;
   int? _focusedDocxSentenceIndex;
@@ -160,6 +164,20 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   // DOCX match state: list of block IDs containing the query, current index.
   List<String> _docxFindBlockIds = const [];
   int _docxFindIndex = -1;
+  // Reading-mode current-match doc-offset range (first occurrence in the
+  // current match block) for DocumentReadingView word highlighting.
+  int? _docxFindMatchStart;
+  int? _docxFindMatchEnd;
+  // Edit-mode (unified DOCX) find state — character-offset matches in the
+  // live Quill document. Separate from the block-granular reading-mode
+  // state above; never reuse one for the other.
+  List<int> _editMatchOffsets = const [];
+  int _editMatchIndex = -1;
+  bool _findCaseSensitive = false;
+  // Key on the unified editor's EditorState — lets find scroll a match into
+  // view via renderEditor.getLocalRectForCaret (public per flutter_quill).
+  final GlobalKey<quill.EditorState> _unifiedEditorKey =
+      GlobalKey<quill.EditorState>();
   // Latest PsittaDocument rendered by the data builder — captured so the
   // find-bar shortcut callbacks can access it outside the builder scope.
   PsittaDocument? _currentPsittaDoc;
@@ -256,6 +274,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _showFindBar = false;
       _docxFindBlockIds = const [];
       _docxFindIndex = -1;
+      _docxFindMatchStart = null;
+      _docxFindMatchEnd = null;
     });
     _findShortcutFocusNode.requestFocus();
   }
@@ -271,7 +291,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _onPdfSearcherChanged() {
     if (!mounted) return;
-    setState(() {}); // refresh "X of Y" indicator
+    setState(() {}); // refresh "X of Y" indicator + find highlight
+  }
+
+  /// Current PDF find match (for highlight painting in the viewport). Scroll
+  /// and page-tracking are handled by the searcher's goToMatchOfIndex.
+  PdfTextRangeWithFragments? get _currentPdfFindMatch {
+    final s = _pdfTextSearcher;
+    final i = s?.currentIndex;
+    if (s == null || i == null || i < 0 || i >= s.matches.length) return null;
+    return s.matches[i];
   }
 
   void _onFindQueryChanged(String query) {
@@ -328,6 +357,31 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       );
       return;
     }
+    // Edit-mode (unified DOCX) path — search the live Quill document by
+    // character offset and navigate via native selection. Kept ahead of the
+    // reading-mode block scan below, which targets the static PsittaDocument
+    // and cannot select inside the live editor.
+    if (_isEditing && _docxUnifiedController != null) {
+      final q = query.trim();
+      if (q.isEmpty) {
+        setState(() {
+          _editMatchOffsets = const [];
+          _editMatchIndex = -1;
+        });
+        return;
+      }
+      final offs = _docxUnifiedController!.document.search(
+        q,
+        caseSensitive: _findCaseSensitive,
+      );
+      setState(() {
+        _editMatchOffsets = offs;
+        _editMatchIndex = offs.isEmpty ? -1 : 0;
+      });
+      if (offs.isNotEmpty) _moveToEditMatch(0);
+      return;
+    }
+
     // DOCX path
     final psittaDoc = _currentPsittaDoc;
     if (psittaDoc == null) return;
@@ -335,6 +389,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       setState(() {
         _docxFindBlockIds = const [];
         _docxFindIndex = -1;
+        _docxFindMatchStart = null;
+        _docxFindMatchEnd = null;
       });
       return;
     }
@@ -354,9 +410,103 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
   }
 
+  /// Move the live-editor selection to edit-match [i] and let the focused
+  /// editor scroll it into view (mirrors the built-in search_dialog
+  /// _moveToPosition). The native selection is the current-match highlight.
+  void _moveToEditMatch(int i) {
+    final controller = _docxUnifiedController;
+    if (controller == null) return;
+    if (i < 0 || i >= _editMatchOffsets.length) return;
+    final off = _editMatchOffsets[i];
+    final len = _findController.text.trim().length;
+    if (len <= 0) return;
+    controller.updateSelection(
+      TextSelection(baseOffset: off, extentOffset: off + len),
+      quill.ChangeSource.local,
+    );
+    _revealEditMatch(off);
+
+    // Thumbnail-follow: map the match offset → block → page so the navigator
+    // panel's active page tracks find in edit mode (the panel renders in both
+    // modes). Written ONLY on navigation so find doesn't fight playback's page
+    // tracking. (Coarse: the offset is in Quill-document space while blocks are
+    // in doc.plainText space, so near block boundaries the page may be off by
+    // one — acceptable for a page-level rail.)
+    final doc = _editingDocxDocument ?? _currentPsittaDoc;
+    final block = doc?.blockForOffset(off);
+    final page = block == null ? null : _docxBlockPageMap[block.blockId];
+    if (page != null && page != _activeReadingPageNumber) {
+      setState(() => _activeReadingPageNumber = page);
+    }
+  }
+
+  /// Scroll the current edit-mode match into view via the OUTER content
+  /// scroll controller (spike-confirmed owner of on-screen scroll in edit
+  /// mode). The match's caret rect comes from the editor's RenderEditor
+  /// (public via [_unifiedEditorKey].currentState.renderEditor); mapping it to
+  /// global coords lets us compare against the scroll viewport without manual
+  /// accounting for the sheet padding / leading static blocks above the
+  /// editor. Scrolls only when the match is outside the viewport. Touches no
+  /// focus (find field keeps it) and no document content (no unsaved flag).
+  void _revealEditMatch(int off) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final editorState = _unifiedEditorKey.currentState;
+      final scrollCtrl = _contentScrollController;
+      if (editorState == null || !scrollCtrl.hasClients) return;
+      final viewportObj =
+          _docScrollViewportKey.currentContext?.findRenderObject();
+      if (viewportObj is! RenderBox || !viewportObj.attached) return;
+
+      final renderEditor = editorState.renderEditor;
+      final caretRect =
+          renderEditor.getLocalRectForCaret(TextPosition(offset: off));
+      final caretTop = renderEditor.localToGlobal(caretRect.topLeft).dy;
+      final caretBottom = renderEditor.localToGlobal(caretRect.bottomLeft).dy;
+      final viewTop = viewportObj.localToGlobal(Offset.zero).dy;
+      final viewBottom = viewTop + viewportObj.size.height;
+
+      // Comfortable margins: top clears the sticky toolbar + find bar.
+      const topMargin = 96.0;
+      const bottomMargin = 48.0;
+      double? target;
+      if (caretTop < viewTop + topMargin) {
+        target = scrollCtrl.offset - ((viewTop + topMargin) - caretTop);
+      } else if (caretBottom > viewBottom - bottomMargin) {
+        target = scrollCtrl.offset + (caretBottom - (viewBottom - bottomMargin));
+      }
+      if (target == null) return; // already comfortably visible
+
+      final pos = scrollCtrl.position;
+      final clamped =
+          target.clamp(pos.minScrollExtent, pos.maxScrollExtent).toDouble();
+      if ((clamped - scrollCtrl.offset).abs() < 1.0) return;
+      scrollCtrl.animateTo(
+        clamped,
+        duration: const Duration(milliseconds: 240),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   void _nextFindMatch() {
     if (_pdfDocumentRef != null) {
-      _pdfTextSearcher?.goToNextMatch();
+      // pdfrx goToNextMatch advances currentIndex + scrolls but never
+      // notifyListeners(), so refresh the UI ourselves; otherwise (idle) the
+      // counter + highlight only update when the playback loop forces a build.
+      final s = _pdfTextSearcher;
+      if (s == null) return;
+      unawaited(s.goToNextMatch().then((_) {
+        if (mounted) setState(() {});
+      }));
+      return;
+    }
+    if (_isEditing && _docxUnifiedController != null) {
+      if (_editMatchOffsets.isEmpty) return;
+      setState(() {
+        _editMatchIndex = (_editMatchIndex + 1) % _editMatchOffsets.length;
+      });
+      _moveToEditMatch(_editMatchIndex);
       return;
     }
     if (_docxFindBlockIds.isEmpty) return;
@@ -368,7 +518,22 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   void _prevFindMatch() {
     if (_pdfDocumentRef != null) {
-      _pdfTextSearcher?.goToPrevMatch();
+      // See _nextFindMatch: refresh after nav since pdfrx doesn't notify.
+      final s = _pdfTextSearcher;
+      if (s == null) return;
+      unawaited(s.goToPrevMatch().then((_) {
+        if (mounted) setState(() {});
+      }));
+      return;
+    }
+    if (_isEditing && _docxUnifiedController != null) {
+      if (_editMatchOffsets.isEmpty) return;
+      setState(() {
+        _editMatchIndex =
+            (_editMatchIndex - 1 + _editMatchOffsets.length) %
+                _editMatchOffsets.length;
+      });
+      _moveToEditMatch(_editMatchIndex);
       return;
     }
     if (_docxFindBlockIds.isEmpty) return;
@@ -385,6 +550,38 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     final blockId = _docxFindBlockIds[_docxFindIndex];
     final key = _docBlockKeys[blockId];
+
+    // Reading-mode word highlight + thumbnail-follow: compute the current
+    // match's doc-offset range (first occurrence in the block) and the block's
+    // page, then update both in one setState. Writing _activeReadingPageNumber
+    // ONLY here (on navigation) keeps find from fighting playback's page track.
+    final doc = _currentPsittaDoc;
+    final needle = _findController.text.trim().toLowerCase();
+    int? matchStart;
+    int? matchEnd;
+    int? matchPage;
+    if (doc != null && needle.isNotEmpty) {
+      for (final b in doc.blocks) {
+        if (b.blockId != blockId) continue;
+        final idx = b.plainText.toLowerCase().indexOf(needle);
+        if (idx >= 0) {
+          matchStart = b.textOffset + idx;
+          matchEnd = matchStart + needle.length;
+        }
+        break;
+      }
+      if (key != null) matchPage = _blockKeyToPage[key];
+    }
+    if (matchStart != _docxFindMatchStart ||
+        matchEnd != _docxFindMatchEnd ||
+        (matchPage != null && matchPage != _activeReadingPageNumber)) {
+      setState(() {
+        _docxFindMatchStart = matchStart;
+        _docxFindMatchEnd = matchEnd;
+        if (matchPage != null) _activeReadingPageNumber = matchPage;
+      });
+    }
+
     final ctx = key?.currentContext;
     if (ctx != null) {
       Scrollable.ensureVisible(
@@ -430,7 +627,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   }) {
     final int totalMatches;
     final int currentMatch;
-    if (isPdfDocument) {
+    if (_isEditing && _docxUnifiedController != null) {
+      totalMatches = _editMatchOffsets.length;
+      currentMatch =
+          (_editMatchIndex < 0 || totalMatches == 0) ? 0 : _editMatchIndex + 1;
+    } else if (isPdfDocument) {
       final searcher = _pdfTextSearcher;
       totalMatches = searcher?.matches.length ?? 0;
       final idx = searcher?.currentIndex;
@@ -497,6 +698,23 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ),
             const SizedBox(width: 4),
           ],
+          // Case-sensitivity toggle — edit-mode only (reading-mode/PDF find
+          // is case-insensitive by design; _findCaseSensitive drives only the
+          // unified-editor search branch).
+          if (_isEditing && _docxUnifiedController != null)
+            IconButton(
+              icon: const Text(
+                'Aa',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+              ),
+              tooltip: 'Match case',
+              visualDensity: VisualDensity.compact,
+              isSelected: _findCaseSensitive,
+              onPressed: () {
+                setState(() => _findCaseSensitive = !_findCaseSensitive);
+                _onFindQueryChanged(_findController.text);
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.keyboard_arrow_up, size: 20),
             tooltip: 'Previous match',
@@ -3200,6 +3418,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
           for (final page in docxPages)
             for (final block in page.blocks) block.blockId: page.pageNumber,
         };
+        _docxBlockPageMap = docxBlockPageMap;
         // Reading-derived block→page map: composes the live blockId→page map with
         // the live blockId→GlobalKey registry so the active-sentence callback key
         // resolves to a page in O(1). Rebuilt per-frame to match docxBlockPageMap.
@@ -3223,6 +3442,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             controller: _pdfViewerController,
             highlight: pdfHighlight,
             alignmentPayload: alignmentPayload,
+            findMatch: _currentPdfFindMatch,
             onDocumentLoaded: (documentRef, outline) {
               if (!mounted) return;
               final activePdfPageNumber =
@@ -3278,6 +3498,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             focusedSentenceIndex:
                 _hasPendingDocxJump ? _focusedDocxSentenceIndex : null,
             isFetchingAlignment: isFetchingAlignment,
+            findMatchStart: _isEditing ? null : _docxFindMatchStart,
+            findMatchEnd: _isEditing ? null : _docxFindMatchEnd,
             editorChild: _isEditing && _editingDocxDocument != null
                 ? DocxDocumentEditor(
                     key: ValueKey(_docxUnifiedEditMode
@@ -3296,6 +3518,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     unifiedFocusNode: _docxUnifiedEditMode
                         ? _docxUnifiedFocusNode
                         : null,
+                    unifiedEditorKey:
+                        _docxUnifiedEditMode ? _unifiedEditorKey : null,
                     isSaving: editorState.isSaving,
                     error: editorState.error,
                     onActiveControllerChanged: (controller) {
@@ -3763,10 +3987,12 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                             _activeDocxController != null)
                           const Divider(height: 1),
                         // ── Find-in-document bar (Ctrl+F)
-                        // Hidden in DOCX edit mode — QuillEditor would
-                        // swallow keystrokes and insert them into the
-                        // active block instead of the search field.
-                        if (_showFindBar && !_isEditing)
+                        // Renders in reading mode AND in unified DOCX edit
+                        // mode (searches the live Quill document by offset and
+                        // navigates via native selection). Suppressed only in
+                        // the legacy per-paragraph edit path.
+                        if (_showFindBar &&
+                            (!_isEditing || _docxUnifiedController != null))
                           _buildFindBar(
                             theme: theme,
                             isPdfDocument: isPdfDocument,

@@ -12,6 +12,7 @@ class DocxDocumentEditor extends StatefulWidget {
     this.focusNodes = const {},
     this.unifiedController,
     this.unifiedFocusNode,
+    this.unifiedEditorKey,
     this.error,
     this.isSaving = false,
     this.onChanged,
@@ -37,6 +38,11 @@ class DocxDocumentEditor extends StatefulWidget {
 
   /// Long-lived focus node for the unified editor.
   final FocusNode? unifiedFocusNode;
+
+  /// Optional key on the unified editor's [EditorState] so external code
+  /// (find-in-document) can reach `renderEditor.getLocalRectForCaret` to
+  /// scroll a match into view. Unified mode only; null in per-paragraph mode.
+  final GlobalKey<EditorState>? unifiedEditorKey;
 
   final String? error;
   final bool isSaving;
@@ -218,6 +224,7 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
         controller: controller,
         focusNode: focusNode,
         configurations: QuillEditorConfigurations(
+          editorKey: widget.unifiedEditorKey,
           expands: false,
           padding: EdgeInsets.zero,
           scrollPhysics: const ClampingScrollPhysics(),

@@ -137,6 +137,7 @@ class PdfDocumentViewport extends ConsumerStatefulWidget {
     this.onPageTap,
     this.highlight,
     this.alignmentPayload,
+    this.findMatch,
   });
 
   final String documentId;
@@ -150,6 +151,10 @@ class PdfDocumentViewport extends ConsumerStatefulWidget {
   final void Function(PdfPageHitTestResult hitTest)? onPageTap;
   final PdfReadingHighlight? highlight;
   final Map<String, dynamic>? alignmentPayload;
+
+  /// Current find-in-document match to highlight (from PdfTextSearcher). Scroll
+  /// + page-tracking are handled by the searcher; this is highlight-only.
+  final PdfTextRangeWithFragments? findMatch;
 
   @override
   ConsumerState<PdfDocumentViewport> createState() =>
@@ -225,6 +230,12 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
         oldWidget.documentId != widget.documentId ||
         !identical(oldWidget.chunks, widget.chunks)) {
       _queueHighlightResolution(force: true);
+    }
+    // Repaint when the find match changes so the find highlight tracks
+    // navigation (scroll + page are driven by the searcher itself).
+    if (oldWidget.findMatch != widget.findMatch &&
+        _viewerController.isReady) {
+      _viewerController.invalidate();
     }
   }
 
@@ -1369,6 +1380,10 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     final hoverStrokeColor = theme.colorScheme.primary.withOpacity(0.32);
     final highlightStrokeColor = theme.colorScheme.primary.withOpacity(0.22);
     final playGlyphColor = theme.colorScheme.onSurface.withOpacity(0.6);
+    // Find-match highlight — tertiary hue, distinct from the primary-based
+    // SWH sentence/word highlights when both are visible.
+    final findMatchColor = theme.colorScheme.tertiary.withOpacity(0.5);
+    final findMatchStrokeColor = theme.colorScheme.tertiary.withOpacity(0.7);
 
     return Container(
       decoration: BoxDecoration(
@@ -1577,6 +1592,37 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
                               ..color = wordHighlightStrokeColor
                               ..style = PaintingStyle.stroke
                               ..strokeWidth = 0.8,
+                          );
+                        }
+                      }
+
+                      // Find-in-document current match — highlight only
+                      // (scroll + page handled by PdfTextSearcher). Painted
+                      // last so it sits on top; reuses _rectsForTextRange.
+                      final fm = widget.findMatch;
+                      if (fm != null && fm.pageNumber == page.pageNumber) {
+                        for (final pdfRect in _rectsForTextRange(fm)) {
+                          final rect = pdfRect
+                              .toRect(page: page, scaledPageSize: pageRect.size)
+                              .translate(pageRect.left, pageRect.top)
+                              .inflate(1.0);
+                          if (rect.width <= 0 || rect.height <= 0) {
+                            continue;
+                          }
+                          final rrect = RRect.fromRectAndRadius(
+                            rect,
+                            const Radius.circular(6),
+                          );
+                          canvas.drawRRect(
+                            rrect,
+                            Paint()..color = findMatchColor,
+                          );
+                          canvas.drawRRect(
+                            rrect,
+                            Paint()
+                              ..color = findMatchStrokeColor
+                              ..style = PaintingStyle.stroke
+                              ..strokeWidth = 1.0,
                           );
                         }
                       }

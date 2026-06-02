@@ -30,6 +30,8 @@ class DocxDocumentViewport extends StatelessWidget {
     this.blockKeys,
     this.pageKeys,
     this.textScale = 1.0,
+    this.findMatchStart,
+    this.findMatchEnd,
   });
 
   final PsittaDocument document;
@@ -49,6 +51,11 @@ class DocxDocumentViewport extends StatelessWidget {
   final Map<String, GlobalKey>? blockKeys;
   final Map<int, GlobalKey>? pageKeys;
   final double textScale;
+  // Current find-in-document match range (doc-level offsets) for reading-mode
+  // word highlighting; null when not searching. Edit mode highlights via the
+  // editor's native selection instead.
+  final int? findMatchStart;
+  final int? findMatchEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +124,8 @@ class DocxDocumentViewport extends StatelessWidget {
                         audioService: audioService,
                         blockKeys: blockKeys,
                         textScale: textScale,
+                        findMatchStart: findMatchStart,
+                        findMatchEnd: findMatchEnd,
                       ),
                       const SizedBox(height: 28),
                     ],
@@ -165,6 +174,8 @@ class _DocxPageSheet extends StatelessWidget {
     this.audioService,
     this.blockKeys,
     this.textScale = 1.0,
+    this.findMatchStart,
+    this.findMatchEnd,
   });
 
   final DocxPageLayoutPage page;
@@ -179,6 +190,8 @@ class _DocxPageSheet extends StatelessWidget {
   final AudioService? audioService;
   final Map<String, GlobalKey>? blockKeys;
   final double textScale;
+  final int? findMatchStart;
+  final int? findMatchEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -209,6 +222,8 @@ class _DocxPageSheet extends StatelessWidget {
                   enablePointerSentenceSelection: true,
                   blockKeys: blockKeys,
                   textScale: textScale,
+                  findMatchStart: findMatchStart,
+                  findMatchEnd: findMatchEnd,
                 ),
               ),
             ),
