@@ -30,6 +30,7 @@ import 'widgets/pdf_document_viewport.dart';
 import 'widgets/pdf_player_navigator.dart';
 import 'widgets/word_highlight_view.dart';
 import '../../data/models/document_assembler.dart';
+import 'spellcheck/spell_dictionary.dart';
 import '../../data/models/psitta_document.dart';
 import 'chunk_slicer.dart';
 
@@ -1297,6 +1298,78 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _docxUnifiedFocusNode!.requestFocus();
       }
     });
+
+    // SG3a: one-shot offline spellcheck pass once the dictionary has finished
+    // loading (whichever is later — edit-mode entry or dictionary ready). The
+    // `controller` capture guards against a later re-entry having replaced the
+    // unified controller out from under this async callback. No live/debounced
+    // re-check yet (SG3b).
+    SpellDictionary.instance.ready.then((_) {
+      if (!mounted) return;
+      if (!_isEditing || !_docxUnifiedEditMode) return;
+      if (_docxUnifiedController != controller) return;
+      _runSpellPass();
+    });
+  }
+
+  /// SG3a: paint red wavy squiggles under misspelled words in the unified
+  /// editor. Full-document for SG3a; the [start]/[end] range params are
+  /// reserved for SG3b's incremental (changed-paragraph) scope.
+  ///
+  /// Undo-safe and non-persistent:
+  ///   - mutations run with `document.history.ignoreChange = true` (restored
+  ///     in a finally) so squiggles never enter the undo/redo stack;
+  ///   - the 'squiggle' attribute is NOT in the save whitelist
+  ///     ([_quillDocumentToBlockDicts] flush()), so a squiggle-only pass
+  ///     serializes to identical block dicts → no false unsaved, and squiggles
+  ///     never persist through save.
+  ///
+  /// Issues exactly one notifying `formatText` (the last op) so the editor
+  /// repaints once for the whole pass.
+  void _runSpellPass({int? start, int? end}) {
+    final controller = _docxUnifiedController;
+    if (controller == null) return;
+
+    final plain = controller.document.toPlainText();
+    final rangeStart = (start ?? 0).clamp(0, plain.length);
+    final rangeEnd = (end ?? plain.length).clamp(rangeStart, plain.length);
+    final rangeLen = rangeEnd - rangeStart;
+    if (rangeLen <= 0) return;
+
+    // Collect misspelled token ranges first so the very last format op can be
+    // the single notifying one (one repaint for the whole pass).
+    final bad = <({int start, int len})>[];
+    for (final tok in tokenizeWords(plain.substring(rangeStart, rangeEnd))) {
+      if (SpellDictionary.instance.isMisspelled(tok.word)) {
+        bad.add((start: rangeStart + tok.start, len: tok.len));
+      }
+    }
+
+    final history = controller.document.history;
+    final priorIgnore = history.ignoreChange;
+    history.ignoreChange = true;
+    try {
+      // Clear any existing squiggles across the range. Notify here only when
+      // there is nothing to re-apply (so the pass still triggers one repaint).
+      controller.formatText(
+        rangeStart,
+        rangeLen,
+        const quill.Attribute('squiggle', quill.AttributeScope.inline, null),
+        shouldNotifyListeners: bad.isEmpty,
+      );
+      for (var i = 0; i < bad.length; i++) {
+        controller.formatText(
+          bad[i].start,
+          bad[i].len,
+          const quill.Attribute('squiggle', quill.AttributeScope.inline, true),
+          shouldNotifyListeners: i == bad.length - 1,
+        );
+      }
+    } finally {
+      history.ignoreChange = priorIgnore;
+    }
+    debugPrint('[SG3a] spell pass: ${bad.length} misspelled token(s) over '
+        '[$rangeStart,$rangeEnd) (dict=${SpellDictionary.instance.wordCount})');
   }
 
   void _disposeUnifiedEditorState() {

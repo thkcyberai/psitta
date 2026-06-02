@@ -236,6 +236,21 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
           // page_break embed loads without the UnimplementedError that
           // flutter_quill raises for unknown embed types.
           embedBuilders: [PageBreakEmbedBuilder()],
+          // SG3 spellcheck: the transient inline 'squiggle' attribute (applied
+          // by the player's spell pass) maps to a red wavy underline. Every
+          // other attribute returns an empty TextStyle so real run formatting
+          // (bold/italic/size/color/…) is untouched — customStyleBuilder is
+          // invoked per-attribute on each run and the results are merged.
+          customStyleBuilder: (attribute) {
+            if (attribute.key == 'squiggle') {
+              return const TextStyle(
+                decoration: TextDecoration.underline,
+                decorationStyle: TextDecorationStyle.wavy,
+                decorationColor: Colors.red,
+              );
+            }
+            return const TextStyle();
+          },
           customStyles: DefaultStyles(
             paragraph: DefaultTextBlockStyle(
               paragraphStyle,

@@ -69,6 +69,7 @@ dev_dependencies:
   mockito: ^5.4.0
   mocktail: ^1.0.0
   msix: ^3.16.7
+  golden_toolkit: ^0.15.0
 
 dependency_overrides:
   # quill_native_bridge_windows 0.0.2 uses removed top-level GMEM_MOVEABLE constant.
@@ -99,3 +100,4 @@ flutter:
     - assets/branding/psitta-horizontal-dark.png
     - assets/illustrations/
     - assets/branding/voice_avatars/
+    - assets/dictionaries/
