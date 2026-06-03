@@ -31,6 +31,7 @@ import 'widgets/pdf_player_navigator.dart';
 import 'widgets/word_highlight_view.dart';
 import '../../data/models/document_assembler.dart';
 import 'spellcheck/spell_dictionary.dart';
+import 'spellcheck/spell_suggester.dart';
 import '../../data/models/psitta_document.dart';
 import 'chunk_slicer.dart';
 
@@ -1454,6 +1455,77 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       _squiggleInFlight = false;
     }
     _lastSpellPlainText = plain;
+  }
+
+  /// SG4: show a Material menu of offline spelling suggestions for a
+  /// double-clicked squiggled word, anchored at the click point. Selecting a
+  /// suggestion replaces the word (a real edit) and re-spells that paragraph.
+  Future<void> _onSquiggleWordTap(
+    ({String word, int start, int len, Offset anchorGlobal}) info,
+  ) async {
+    final suggestions = suggest(info.word);
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    // CHANGE 2 (coordinate-space fix): info.anchorGlobal is a GLOBAL point, but
+    // the RelativeRect container below is the overlay's LOCAL space
+    // (Offset.zero & overlay.size). Convert the anchor into the overlay's space
+    // first; otherwise the menu is offset by the overlay's on-screen position.
+    // showMenu renders into Navigator.of(context, rootNavigator: false).overlay
+    // — the same nearest overlay Overlay.of(context) resolves — so we do NOT
+    // use rootOverlay: true (that would mismatch under a nested navigator, e.g.
+    // a go_router ShellRoute).
+    final localAnchor = overlay.globalToLocal(info.anchorGlobal);
+    final anchor = RelativeRect.fromRect(
+      localAnchor & const Size(1, 1),
+      Offset.zero & overlay.size,
+    );
+    final choice = await showMenu<String>(
+      context: context,
+      position: anchor,
+      items: suggestions.isEmpty
+          ? const [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text('No suggestions'),
+              ),
+            ]
+          : [
+              for (final s in suggestions)
+                PopupMenuItem<String>(value: s, child: Text(s)),
+            ],
+    );
+    if (choice == null || !mounted) return;
+
+    // CHANGE 3 (apply): replace the misspelled word with the chosen suggestion.
+    // wordStart/wordLen captured at menu-open are still valid — showMenu is
+    // modal, so no edits occur while it is open. The suggester already
+    // case-preserves, so the suggestion string is used as-is.
+    final controller = _docxUnifiedController;
+    if (controller == null) return;
+    // Real edit: default-notify sets the unsaved flag, serializes through the
+    // save whitelist, and goes on the undo stack (mirrors M13.6 _replaceCurrent).
+    controller.replaceText(info.start, info.len, choice, null);
+
+    // Re-spell just the edited paragraph so the now-correct word's squiggle
+    // clears at once. Run under the SG3b reentrancy guard so neither this pass
+    // nor the replaceText notify loops/double-schedules against the live
+    // debounce.
+    final doc = controller.document;
+    final node = doc.queryChild(info.start).node;
+    if (node is quill.Line) {
+      final lineStart = node.documentOffset;
+      final lineEnd = lineStart + node.length;
+      _squiggleInFlight = true;
+      try {
+        _runSpellPass(start: lineStart, end: lineEnd);
+      } finally {
+        _squiggleInFlight = false;
+      }
+      // Seed so the debounce tick scheduled by the replaceText notify early-outs
+      // (text is unchanged after the squiggle-only re-pass).
+      _lastSpellPlainText = doc.toPlainText();
+    }
   }
 
   void _disposeUnifiedEditorState() {
@@ -3808,6 +3880,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     onChanged: _docxUnifiedEditMode
                         ? _handleDocxUnifiedChanged
                         : _handleDocxPerParagraphChanged(psittaDoc),
+                    onSquiggleWordTap:
+                        _docxUnifiedEditMode ? _onSquiggleWordTap : null,
                   )
                 : null,
             onActiveSentenceChanged: _scrollFromSentence,

@@ -1,8 +1,19 @@
+import 'package:flutter/gestures.dart'
+    show kDoubleTapSlop, kDoubleTapTimeout, kPrimaryButton, kTouchSlop;
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 
 import '../../../data/models/psitta_document.dart';
+import '../spellcheck/spell_dictionary.dart';
 import 'page_break_embed.dart';
+
+/// Info surfaced when the user taps a squiggled (misspelled) word in the
+/// unified editor: the word, its [start] document offset and [len], and
+/// [anchorGlobal] — the global on-screen point just below the start of the
+/// word, used to anchor the suggestions menu beside the word. SG4.
+typedef SquiggleWordTap = void Function(
+  ({String word, int start, int len, Offset anchorGlobal}) info,
+);
 
 class DocxDocumentEditor extends StatefulWidget {
   const DocxDocumentEditor({
@@ -17,6 +28,7 @@ class DocxDocumentEditor extends StatefulWidget {
     this.isSaving = false,
     this.onChanged,
     this.onActiveControllerChanged,
+    this.onSquiggleWordTap,
   });
 
   final PsittaDocument document;
@@ -49,6 +61,12 @@ class DocxDocumentEditor extends StatefulWidget {
   final VoidCallback? onChanged;
   final ValueChanged<QuillController>? onActiveControllerChanged;
 
+  /// SG4a: invoked when the user taps a squiggled (misspelled) word in the
+  /// unified editor. Null in per-paragraph mode. The handler shows the
+  /// suggestions menu; the editor still places the caret (onTapUp returns
+  /// false).
+  final SquiggleWordTap? onSquiggleWordTap;
+
   @override
   State<DocxDocumentEditor> createState() => _DocxDocumentEditorState();
 }
@@ -56,6 +74,16 @@ class DocxDocumentEditor extends StatefulWidget {
 class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
   QuillController? _activeController;
   final Set<QuillController> _listening = {};
+
+  // SG4a (Option B): pointer-down tracking to distinguish a left-click from a
+  // selection-drag for the squiggle suggestions menu.
+  Offset? _squiggleDownPos;
+  bool _squiggleDownPrimary = false;
+  // SG4 double-click gate: the previous qualifying tap's global position and
+  // timestamp. The menu opens only on the SECOND tap of a double-click, so a
+  // single click just places the caret (e.g. to split two run-together words).
+  Offset? _lastTapPos;
+  Duration? _lastTapTime;
 
   bool get _isUnifiedMode => widget.unifiedController != null;
 
@@ -134,6 +162,98 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
     widget.onChanged?.call();
   }
 
+  // ── SG4a (Option B): squiggle tap detection ─────────────────────────
+  // flutter_quill 10.8.5 QuillEditor.basic strips the onTapUp config callback
+  // via copyWith(), so taps are detected with a passive Listener over the
+  // editor and hit-tested against the squiggle attribute here.
+  void _onEditorPointerDown(PointerDownEvent event) {
+    _squiggleDownPrimary = event.buttons == kPrimaryButton;
+    _squiggleDownPos = event.position;
+  }
+
+  void _onEditorPointerUp(PointerUpEvent event) {
+    final down = _squiggleDownPos;
+    final primary = _squiggleDownPrimary;
+    _squiggleDownPos = null;
+    _squiggleDownPrimary = false;
+    // Per-click qualification: a primary-button click that didn't move — a tap,
+    // not a text-selection drag (which would otherwise pop the menu).
+    if (!primary || down == null) return;
+    if ((event.position - down).distance > kTouchSlop) return;
+
+    // Double-click gate: only the SECOND qualifying tap (within the system
+    // double-tap window + slop of the first) opens the menu. A single click
+    // just places the caret. The editor's own double-tap word-selection still
+    // happens via this passive Listener — the word highlight alongside the
+    // menu is expected.
+    final lastPos = _lastTapPos;
+    final lastTime = _lastTapTime;
+    final isDoubleTap = lastPos != null &&
+        lastTime != null &&
+        (event.timeStamp - lastTime) <= kDoubleTapTimeout &&
+        (event.position - lastPos).distance <= kDoubleTapSlop;
+    if (isDoubleTap) {
+      _lastTapPos = null;
+      _lastTapTime = null;
+      _maybeHandleSquiggleTap(event.position);
+    } else {
+      _lastTapPos = event.position;
+      _lastTapTime = event.timeStamp;
+    }
+  }
+
+  /// Hit-test a tap at [globalPosition]; if it lands on a squiggled word,
+  /// surface (word, range, global position) to the player via
+  /// [DocxDocumentEditor.onSquiggleWordTap]. Reuses the SG4a gate + tokenizer.
+  /// The editor still places the caret (the Listener never consumes events).
+  void _maybeHandleSquiggleTap(Offset globalPosition) {
+    final cb = widget.onSquiggleWordTap;
+    final controller = widget.unifiedController;
+    if (cb == null || controller == null) return;
+    // RenderEditor.getPositionForOffset takes a GLOBAL offset and converts to
+    // local itself (flutter_quill editor.dart:1251) — matching the editor's own
+    // caret path. Do NOT pre-convert with globalToLocal (that double-converts).
+    final renderEditor = widget.unifiedEditorKey?.currentState?.renderEditor;
+    if (renderEditor == null) return; // editor not laid out yet
+    final doc = controller.document;
+    final plain = doc.toPlainText();
+    final off = renderEditor.getPositionForOffset(globalPosition).offset;
+    if (off < 0 || off >= plain.length) return;
+    // Gate on the squiggle attribute. collectStyle(off, 0) reflects the char to
+    // the LEFT of off, so a tap on a flagged word's first char can read clean —
+    // also check the char AT off (len 1).
+    final flagged =
+        doc.collectStyle(off, 0).attributes.containsKey('squiggle') ||
+            doc.collectStyle(off, 1).attributes.containsKey('squiggle');
+    if (!flagged) return;
+    // Expand to the exact word range via the tokenizer over the tapped line
+    // (matches the ranges the spell pass flagged).
+    final node = doc.queryChild(off).node;
+    if (node is! Line) return;
+    final lineStart = node.documentOffset;
+    final lineEnd = (lineStart + node.length).clamp(0, plain.length);
+    for (final tok in tokenizeWords(plain.substring(lineStart, lineEnd))) {
+      final tokStart = lineStart + tok.start;
+      if (off >= tokStart && off < tokStart + tok.len) {
+        // Anchor the menu to the WORD, not the raw click point. The caret rect
+        // for the word's start is in the render editor's local (scrolled)
+        // content space; localToGlobal maps it to the actual screen position,
+        // so a word lower in a scrolled document still anchors correctly (same
+        // pattern as _revealEditMatch). bottomLeft = just under the word start.
+        final caretRect =
+            renderEditor.getLocalRectForCaret(TextPosition(offset: tokStart));
+        final anchorGlobal = renderEditor.localToGlobal(caretRect.bottomLeft);
+        cb((
+          word: tok.word,
+          start: tokStart,
+          len: tok.len,
+          anchorGlobal: anchorGlobal,
+        ));
+        break;
+      }
+    }
+  }
+
   QuillController? get _firstController {
     if (widget.document.blocks.isEmpty) return null;
     for (final block in widget.document.blocks) {
@@ -176,9 +296,9 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
         const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, height: 1.6);
     final h3Style = theme.textTheme.titleLarge?.copyWith(height: 1.6) ??
         const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, height: 1.6);
-    final listStyle = theme.textTheme.bodyLarge
-            ?.copyWith(height: 1.6, fontSize: 16) ??
-        const TextStyle(fontSize: 16, height: 1.6);
+    final listStyle =
+        theme.textTheme.bodyLarge?.copyWith(height: 1.6, fontSize: 16) ??
+            const TextStyle(fontSize: 16, height: 1.6);
 
     final children = <Widget>[];
     if (widget.error != null) {
@@ -219,77 +339,86 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
       );
     }
 
-    children.add(
-      QuillEditor.basic(
-        controller: controller,
-        focusNode: focusNode,
-        configurations: QuillEditorConfigurations(
-          editorKey: widget.unifiedEditorKey,
-          expands: false,
-          padding: EdgeInsets.zero,
-          scrollPhysics: const ClampingScrollPhysics(),
-          placeholder: '',
-          enableInteractiveSelection: true,
-          // M13.5 scaffolding — embed builder registered ahead of the
-          // toolbar customButton (which lives on spike/page-break-embed-validation
-          // tag m13.5-pagebreak-spike) so any data containing a
-          // page_break embed loads without the UnimplementedError that
-          // flutter_quill raises for unknown embed types.
-          embedBuilders: [PageBreakEmbedBuilder()],
-          // SG3 spellcheck: the transient inline 'squiggle' attribute (applied
-          // by the player's spell pass) maps to a red wavy underline. Every
-          // other attribute returns an empty TextStyle so real run formatting
-          // (bold/italic/size/color/…) is untouched — customStyleBuilder is
-          // invoked per-attribute on each run and the results are merged.
-          customStyleBuilder: (attribute) {
-            if (attribute.key == 'squiggle') {
-              return const TextStyle(
-                decoration: TextDecoration.underline,
-                decorationStyle: TextDecorationStyle.wavy,
-                decorationColor: Colors.red,
-              );
-            }
-            return const TextStyle();
-          },
-          customStyles: DefaultStyles(
-            paragraph: DefaultTextBlockStyle(
-              paragraphStyle,
-              HorizontalSpacing.zero,
-              const VerticalSpacing(0, 8),
-              VerticalSpacing.zero,
-              null,
-            ),
-            h1: DefaultTextBlockStyle(
-              h1Style,
-              HorizontalSpacing.zero,
-              const VerticalSpacing(0, 16),
-              VerticalSpacing.zero,
-              null,
-            ),
-            h2: DefaultTextBlockStyle(
-              h2Style,
-              HorizontalSpacing.zero,
-              const VerticalSpacing(0, 12),
-              VerticalSpacing.zero,
-              null,
-            ),
-            h3: DefaultTextBlockStyle(
-              h3Style,
-              HorizontalSpacing.zero,
-              const VerticalSpacing(0, 12),
-              VerticalSpacing.zero,
-              null,
-            ),
-            lists: DefaultListBlockStyle(
-              listStyle,
-              HorizontalSpacing.zero,
-              const VerticalSpacing(0, 8),
-              VerticalSpacing.zero,
-              null,
-              null,
-            ),
+    final unifiedEditor = QuillEditor.basic(
+      controller: controller,
+      focusNode: focusNode,
+      configurations: QuillEditorConfigurations(
+        editorKey: widget.unifiedEditorKey,
+        expands: false,
+        padding: EdgeInsets.zero,
+        scrollPhysics: const ClampingScrollPhysics(),
+        placeholder: '',
+        enableInteractiveSelection: true,
+        // M13.5 scaffolding — embed builder registered ahead of the
+        // toolbar customButton (which lives on spike/page-break-embed-validation
+        // tag m13.5-pagebreak-spike) so any data containing a
+        // page_break embed loads without the UnimplementedError that
+        // flutter_quill raises for unknown embed types.
+        embedBuilders: [PageBreakEmbedBuilder()],
+        // SG3 spellcheck: the transient inline 'squiggle' attribute (applied
+        // by the player's spell pass) maps to a red wavy underline. Every
+        // other attribute returns an empty TextStyle so real run formatting
+        // (bold/italic/size/color/…) is untouched — customStyleBuilder is
+        // invoked per-attribute on each run and the results are merged.
+        customStyleBuilder: (attribute) {
+          if (attribute.key == 'squiggle') {
+            return const TextStyle(
+              decoration: TextDecoration.underline,
+              decorationStyle: TextDecorationStyle.wavy,
+              decorationColor: Colors.red,
+            );
+          }
+          return const TextStyle();
+        },
+        customStyles: DefaultStyles(
+          paragraph: DefaultTextBlockStyle(
+            paragraphStyle,
+            HorizontalSpacing.zero,
+            const VerticalSpacing(0, 8),
+            VerticalSpacing.zero,
+            null,
+          ),
+          h1: DefaultTextBlockStyle(
+            h1Style,
+            HorizontalSpacing.zero,
+            const VerticalSpacing(0, 16),
+            VerticalSpacing.zero,
+            null,
+          ),
+          h2: DefaultTextBlockStyle(
+            h2Style,
+            HorizontalSpacing.zero,
+            const VerticalSpacing(0, 12),
+            VerticalSpacing.zero,
+            null,
+          ),
+          h3: DefaultTextBlockStyle(
+            h3Style,
+            HorizontalSpacing.zero,
+            const VerticalSpacing(0, 12),
+            VerticalSpacing.zero,
+            null,
+          ),
+          lists: DefaultListBlockStyle(
+            listStyle,
+            HorizontalSpacing.zero,
+            const VerticalSpacing(0, 8),
+            VerticalSpacing.zero,
+            null,
+            null,
           ),
         ),
+      ),
+    );
+    children.add(
+      // SG4a (Option B): a passive Listener detects taps on squiggled words.
+      // flutter_quill 10.8.5 QuillEditor.basic strips the onTapUp config via
+      // copyWith(), so we hit-test here instead. Listener does NOT consume
+      // pointer events, so the editor still handles its own caret/selection.
+      Listener(
+        onPointerDown: _onEditorPointerDown,
+        onPointerUp: _onEditorPointerUp,
+        child: unifiedEditor,
       ),
     );
 

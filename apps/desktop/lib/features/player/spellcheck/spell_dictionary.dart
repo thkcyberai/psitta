@@ -68,6 +68,14 @@ class SpellDictionary {
     }
   }
 
+  /// Raw membership test against the loaded set (lowercased).
+  ///
+  /// Unlike [isMisspelled], this applies NO length/digit/all-caps guards — it
+  /// is the plain "is this exact word in the dictionary?" query the suggestion
+  /// generator needs to filter candidate edits. Reusing [isMisspelled] here
+  /// would wrongly reject short/cased candidates.
+  bool knows(String word) => _words.contains(word.toLowerCase());
+
   /// True when [word] should be flagged as misspelled.
   ///
   /// Returns false (not flagged) when the dictionary is empty (load failed),
