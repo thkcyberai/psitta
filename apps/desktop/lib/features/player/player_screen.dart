@@ -1077,7 +1077,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
-    _spellDebounce?.cancel(); // SG3b (fuller teardown in SG3b.2)
+    // SG3b.2: cancel the live-spell tick and reset its guards on teardown.
+    _spellDebounce?.cancel();
+    _squiggleInFlight = false;
+    _lastSpellPlainText = null;
     _editController.removeListener(_onEditTextChanged);
     _editController.dispose();
     _editFocusNode.dispose();
@@ -1434,6 +1437,18 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
     _squiggleInFlight = true;
     try {
+      // Paragraph-boundary case (Enter-split / paste): when the cursor sits at
+      // the very start of its line and a previous line exists, also re-scan the
+      // previous line so a word split or merged across the boundary updates.
+      if (offset == start && start > 0) {
+        final prev = controller.document.queryChild(start - 1).node;
+        if (prev is quill.Line) {
+          _runSpellPass(
+            start: prev.documentOffset,
+            end: prev.documentOffset + prev.length,
+          );
+        }
+      }
       _runSpellPass(start: start, end: end);
     } finally {
       _squiggleInFlight = false;
@@ -1448,6 +1463,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     _docxUnifiedFocusNode = null;
     _docxOriginalUnifiedBlockDicts = const [];
     _docxOriginalUnifiedPlainText = '';
+    // SG3b.2: stop any pending live-spell tick and reset its guards so a tick
+    // queued just before teardown no-ops, and the next edit-mode entry
+    // re-seeds cleanly. _exitEditMode reaches this via its
+    // _disposeUnifiedEditorState() call, so this single site covers both
+    // teardown paths.
+    _spellDebounce?.cancel();
+    _squiggleInFlight = false;
+    _lastSpellPlainText = null;
   }
 
   void _exitEditMode() {
@@ -2270,6 +2293,8 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   /// M13.1a "This edit changes the document structure" SnackBar is no
   /// longer emitted.
   Future<bool> _saveDocxEditUnified(PsittaDocument document) async {
+    // SG3b.2: cancel any pending live-spell tick so it can't fire mid-save.
+    _spellDebounce?.cancel();
     debugPrint(
         '[_saveDocxEditUnified] called — _hasUnsavedChanges=$_hasUnsavedChanges');
     final controller = _docxUnifiedController;
