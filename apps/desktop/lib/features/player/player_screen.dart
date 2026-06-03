@@ -883,6 +883,16 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   List<Map<String, dynamic>> _docxOriginalUnifiedBlockDicts = const [];
   String _docxOriginalUnifiedPlainText = '';
 
+  // ── SG3b live spellcheck ────────────────────────────────────────────
+  // Debounce timer for the live re-check; reentrancy guard so the spell
+  // pass's own notifying formatText can't schedule another tick (the
+  // change callback fires synchronously inside the pass); and the raw
+  // plain text at the last pass (raw toPlainText, NOT the sanitized
+  // _docxOriginalUnifiedPlainText) so an attribute-only notify early-outs.
+  Timer? _spellDebounce;
+  bool _squiggleInFlight = false;
+  String? _lastSpellPlainText;
+
   @override
   void initState() {
     super.initState();
@@ -1067,6 +1077,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handleHardwareKey);
+    _spellDebounce?.cancel(); // SG3b (fuller teardown in SG3b.2)
     _editController.removeListener(_onEditTextChanged);
     _editController.dispose();
     _editFocusNode.dispose();
@@ -1308,7 +1319,17 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
       if (!mounted) return;
       if (!_isEditing || !_docxUnifiedEditMode) return;
       if (_docxUnifiedController != controller) return;
-      _runSpellPass();
+      // Guard the one-shot pass the same way the live tick does so the pass's
+      // own notifying formatText doesn't schedule a redundant debounce tick,
+      // and seed _lastSpellPlainText so the next tick early-outs until a real
+      // text edit happens.
+      _squiggleInFlight = true;
+      try {
+        _runSpellPass();
+      } finally {
+        _squiggleInFlight = false;
+      }
+      _lastSpellPlainText = controller.document.toPlainText();
     });
   }
 
@@ -1370,6 +1391,54 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     }
     debugPrint('[SG3a] spell pass: ${bad.length} misspelled token(s) over '
         '[$rangeStart,$rangeEnd) (dict=${SpellDictionary.instance.wordCount})');
+  }
+
+  /// SG3b: (re)start the debounce so a live spell re-check fires ~350ms after
+  /// the user stops typing. Called from [_handleDocxUnifiedChanged].
+  void _scheduleSpellCheck() {
+    _spellDebounce?.cancel();
+    _spellDebounce =
+        Timer(const Duration(milliseconds: 350), _spellTick);
+  }
+
+  /// SG3b: debounced live spell re-check, scoped to the paragraph containing
+  /// the cursor (incremental — never a whole-doc re-pass). Two loop guards:
+  /// (a) [_squiggleInFlight] brackets the pass body so its synchronous notify
+  /// can't reschedule a tick; (b) the plaintext-unchanged early-out makes the
+  /// tick idempotent on any notify that didn't change the text (selection
+  /// moves, toolbar formatting, the squiggle pass itself).
+  void _spellTick() {
+    if (!mounted || !_isEditing || !_docxUnifiedEditMode) return;
+    final controller = _docxUnifiedController;
+    if (controller == null) return;
+
+    final plain = controller.document.toPlainText();
+    if (plain.isEmpty) {
+      _lastSpellPlainText = plain;
+      return;
+    }
+    // Attribute-only change (e.g. the squiggle pass, a bold toggle, a cursor
+    // move) leaves the text identical — nothing to re-spell.
+    if (plain == _lastSpellPlainText) return;
+
+    // Edited paragraph = the Quill line containing the cursor.
+    final offset = controller.selection.baseOffset.clamp(0, plain.length - 1);
+    final res = controller.document.queryChild(offset);
+    final node = res.node;
+    if (node is! quill.Line) {
+      _lastSpellPlainText = plain;
+      return;
+    }
+    final start = node.documentOffset;
+    final end = start + node.length;
+
+    _squiggleInFlight = true;
+    try {
+      _runSpellPass(start: start, end: end);
+    } finally {
+      _squiggleInFlight = false;
+    }
+    _lastSpellPlainText = plain;
   }
 
   void _disposeUnifiedEditorState() {
@@ -1983,6 +2052,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         _hasUnsavedChanges = changed;
       });
     }
+    // SG3b: schedule a live spell re-check unless this notify came from the
+    // squiggle pass itself (which fires this callback synchronously). The tick
+    // additionally early-outs when the plain text is unchanged.
+    if (!_squiggleInFlight) _scheduleSpellCheck();
   }
 
   /// onChanged handler factory for per-paragraph (legacy) mode. Needs
