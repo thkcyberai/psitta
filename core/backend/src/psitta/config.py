@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     )
 
     # ── Application ────────────────────────────────────────────────────
-    ENVIRONMENT: Literal["development", "staging", "production"] = "development"
+    ENVIRONMENT: Literal["development", "staging", "production", "testing"] = "development"
     APP_VERSION: str = "0.1.0"
     LOG_LEVEL: Literal["debug", "info", "warning", "error", "critical"] = "info"
     SECRET_KEY: SecretStr = SecretStr("CHANGE-ME-TO-RANDOM-64-CHAR-STRING")
