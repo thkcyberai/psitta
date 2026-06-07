@@ -12,6 +12,7 @@ from uuid import uuid4
 
 import pytest
 
+from psitta.config import Settings
 from psitta.models.domain import PlaybackSession
 from psitta.services.playback_service import PlaybackService
 from tests.factories import PlaybackSessionFactory
@@ -22,7 +23,12 @@ class TestPlaybackSessionCreate:
 
     @pytest.fixture
     def service(self, mock_storage):
-        return PlaybackService(storage=mock_storage)
+        return PlaybackService(
+            db_session=AsyncMock(),
+            storage_client=mock_storage,
+            redis_client=AsyncMock(),
+            settings=Settings(),
+        )
 
     @pytest.mark.asyncio
     async def test_create_session_sets_initial_position(self, service):
@@ -64,7 +70,12 @@ class TestPlaybackAudioUrl:
 
     @pytest.fixture
     def service(self, mock_storage):
-        return PlaybackService(storage=mock_storage)
+        return PlaybackService(
+            db_session=AsyncMock(),
+            storage_client=mock_storage,
+            redis_client=AsyncMock(),
+            settings=Settings(),
+        )
 
     @pytest.mark.asyncio
     async def test_audio_url_uses_presigned_url(self, service, mock_storage):
