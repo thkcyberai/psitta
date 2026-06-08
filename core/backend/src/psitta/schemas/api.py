@@ -487,3 +487,70 @@ class PartDocumentPlacement(StrictSchema):
     blueprint_id: UUID
     role: RoleEnum
     sort_order: float
+
+
+class ReadinessEnum(str, Enum):
+    """Leaf-aware subtree readiness, derived on read (2G).
+
+    A leaf part is ``ready`` iff it has content, else ``empty``. A container part
+    inherits from its children: ``ready`` iff every child is ready (regardless of
+    its own direct content); ``empty`` iff no part in the subtree has content;
+    ``in_progress`` otherwise.
+    """
+
+    EMPTY = "empty"
+    IN_PROGRESS = "in_progress"
+    READY = "ready"
+
+
+class ProgressInfo(StrictSchema):
+    """Leaf-based progress over a blueprint's parts (2G, derived on read).
+
+    Leaf parts are the content slots: ``leaves_with_content / total_leaves``.
+    ``ratio`` is ``None`` when the blueprint has no leaves (no divide-by-zero).
+    For a flat blueprint every part is a leaf, so this reduces to
+    parts-with-content / total-parts.
+    """
+
+    leaves_with_content: int
+    total_leaves: int
+    ratio: float | None = None
+
+
+class PartOverviewNode(StrictSchema):
+    """A part annotated with derived coherence values and its nested children.
+
+    Self-referential; ``model_rebuild()`` below resolves the forward reference
+    under Pydantic v2. Everything here is computed on read, never stored.
+    """
+
+    id: UUID
+    name: str
+    description: str | None = None
+    sort_order: float
+    document_count: int
+    has_content: bool
+    readiness: ReadinessEnum
+    children: list[PartOverviewNode] = []
+
+
+PartOverviewNode.model_rebuild()
+
+
+class BlueprintOverview(AdoptedBlueprint):
+    """An adopted blueprint with its derived progress and annotated parts tree."""
+
+    progress: ProgressInfo
+    parts: list[PartOverviewNode] = []
+
+
+class ProjectBlueprintOverview(StrictSchema):
+    """The derived coherence overview for a project (2G).
+
+    ``progress`` is the PRIMARY blueprint's progress, or ``None`` when the project
+    has no primary (including the no-adoptions case, where ``blueprints`` is empty
+    too). Each adopted blueprint carries its own ``progress``.
+    """
+
+    progress: ProgressInfo | None = None
+    blueprints: list[BlueprintOverview] = []

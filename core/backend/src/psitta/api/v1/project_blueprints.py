@@ -31,9 +31,10 @@ from psitta.models.blueprint import Blueprint
 from psitta.schemas.api import (
     AdoptedBlueprint,
     ProjectBlueprintAdopt,
+    ProjectBlueprintOverview,
     ProjectBlueprintSetPrimary,
 )
-from psitta.services import blueprint_service
+from psitta.services import blueprint_coherence, blueprint_service
 
 router = APIRouter(prefix="/projects", tags=["project-blueprints"])
 
@@ -162,3 +163,23 @@ async def unadopt_blueprint(
         raise HTTPException(
             status_code=404, detail="Blueprint not adopted by this project"
         ) from exc
+
+
+@router.get(
+    "/{project_id}/blueprint-overview/",
+    response_model=ProjectBlueprintOverview,
+)
+async def get_blueprint_overview(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Derived, read-only coherence overview for a project's adopted blueprints.
+
+    Each adopted blueprint's parts tree is annotated with document_count,
+    has_content, and leaf-aware readiness; progress is leaf-based (the project's
+    headline progress is its primary blueprint's). 404 if the project is absent
+    or not owned by the caller. No writes, no audit.
+    """
+    await _get_project_or_404(str(project_id), str(user_id), db)
+    return await blueprint_coherence.derive_overview(db, project_id)
