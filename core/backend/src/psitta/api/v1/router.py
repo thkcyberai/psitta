@@ -15,6 +15,7 @@ from fastapi import APIRouter
 
 from psitta.api.v1.auth import router as auth_router
 from psitta.api.v1.billing import router as billing_router
+from psitta.api.v1.blueprints import placement_router
 from psitta.api.v1.blueprints import router as blueprints_router
 from psitta.api.v1.contact import router as contact_router
 from psitta.api.v1.documents import router as documents_router
@@ -78,6 +79,11 @@ v1_router.include_router(
 # ── Project ↔ Blueprint adoption ──────────────────────────────────────
 v1_router.include_router(
     project_blueprints_router,
+)
+
+# ── Document placement (Blueprint feature, /documents/{id}/placement) ──
+v1_router.include_router(
+    placement_router,
 )
 
 # ── Subscriptions ─────────────────────────────────────────────────────

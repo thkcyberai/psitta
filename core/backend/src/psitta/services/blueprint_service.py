@@ -21,7 +21,12 @@ from uuid import UUID, uuid4
 from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.models.blueprint import Blueprint, BlueprintPart, ProjectBlueprint
+from psitta.models.blueprint import (
+    Blueprint,
+    BlueprintPart,
+    PartDocument,
+    ProjectBlueprint,
+)
 from psitta.schemas.api import (
     AdoptedBlueprint,
     BlueprintCreate,
@@ -683,23 +688,30 @@ async def list_project_blueprints(
     return [_adopted_blueprint(bp, primary, at) for bp, primary, at in rows]
 
 
-async def adopt_blueprint(  # noqa: PLR0913 -- distinct collaborators (db, user_id, project_id, blueprint) plus request_primary + optional ip_address; a params object would obscure the call site
+async def _ensure_adoption(  # noqa: PLR0913 -- distinct collaborators (db, user_id, project_id, blueprint_id) plus request_primary + optional ip_address; a params object would obscure the call site
     db: AsyncSession,
     user_id: UUID,
     project_id: UUID,
-    blueprint: Blueprint,
+    blueprint_id: UUID,
     request_primary: bool = False,
     ip_address: str | None = None,
-) -> AdoptedBlueprint:
-    """Adopt an already-vetted (owned, non-system) blueprint into a project.
+) -> tuple[ProjectBlueprint, bool]:
+    """Idempotently ensure a project adopts a blueprint; NO commit.
 
-    The FIRST blueprint adopted into a project becomes primary automatically;
-    otherwise ``request_primary`` controls it. A duplicate adoption raises
-    ``AlreadyAdoptedError`` (→ 409). Setting primary clears the existing one in
-    the same transaction.
+    The shared core of 2E adoption AND 2F auto-adopt. If the (project, blueprint)
+    adoption already exists it is returned unchanged with ``created=False`` (a
+    true no-op — no flag change, no audit). Otherwise a new adoption is created:
+    the FIRST blueprint adopted into a project becomes primary automatically,
+    else ``request_primary`` controls it; a new primary clears the old one in the
+    same flush so the partial-unique never sees two true rows. The new row is
+    audited (``project_blueprint.adopt``) and returned with ``created=True``.
+
+    The caller owns the commit, so this composes inside a larger transaction
+    (e.g. document placement) atomically.
     """
-    if await _get_adoption(db, project_id, blueprint.id) is not None:
-        raise AlreadyAdoptedError
+    existing = await _get_adoption(db, project_id, blueprint_id)
+    if existing is not None:
+        return existing, False
 
     existing_count = (
         await db.execute(
@@ -715,7 +727,7 @@ async def adopt_blueprint(  # noqa: PLR0913 -- distinct collaborators (db, user_
 
     adoption = ProjectBlueprint(
         project_id=project_id,
-        blueprint_id=blueprint.id,
+        blueprint_id=blueprint_id,
         is_primary=make_primary,
     )
     db.add(adoption)
@@ -727,11 +739,43 @@ async def adopt_blueprint(  # noqa: PLR0913 -- distinct collaborators (db, user_
         resource_type="project_blueprint",
         user_id=str(user_id),
         resource_id=str(project_id),
-        details={"blueprint_id": str(blueprint.id), "is_primary": make_primary},
+        details={"blueprint_id": str(blueprint_id), "is_primary": make_primary},
+        ip_address=ip_address,
+    )
+    return adoption, True
+
+
+async def adopt_blueprint(  # noqa: PLR0913 -- distinct collaborators (db, user_id, project_id, blueprint) plus request_primary + optional ip_address; a params object would obscure the call site
+    db: AsyncSession,
+    user_id: UUID,
+    project_id: UUID,
+    blueprint: Blueprint,
+    request_primary: bool = False,
+    ip_address: str | None = None,
+) -> AdoptedBlueprint:
+    """Adopt an already-vetted (owned, non-system) blueprint into a project.
+
+    The FIRST blueprint adopted into a project becomes primary automatically;
+    otherwise ``request_primary`` controls it. A duplicate adoption raises
+    ``AlreadyAdoptedError`` (→ 409). Setting primary clears the existing one in
+    the same transaction.
+
+    Thin wrapper over ``_ensure_adoption`` (the shared core): it enforces the
+    no-duplicate contract (409) up front, then commits once.
+    """
+    if await _get_adoption(db, project_id, blueprint.id) is not None:
+        raise AlreadyAdoptedError
+
+    adoption, _created = await _ensure_adoption(
+        db,
+        user_id,
+        project_id,
+        blueprint.id,
+        request_primary=request_primary,
         ip_address=ip_address,
     )
     await db.commit()
-    return _adopted_blueprint(blueprint, make_primary, adoption.created_at)
+    return _adopted_blueprint(blueprint, adoption.is_primary, adoption.created_at)
 
 
 async def set_primary_blueprint(  # noqa: PLR0913 -- distinct collaborators (db, user_id, project_id, blueprint_id) plus is_primary + optional ip_address; a params object would obscure the call site
@@ -803,3 +847,178 @@ async def unadopt_blueprint(
         ip_address=ip_address,
     )
     await db.commit()
+
+
+# ── Document placement (2F) ──────────────────────────────────────────────────
+# A document is placed into AT MOST ONE part (UNIQUE on part_documents.document_id),
+# so a PUT is an idempotent assign-or-move: an existing placement is repointed, not
+# duplicated. Placing a document into a part also auto-adopts that part's blueprint
+# into the document's project, in the SAME transaction, via the shared
+# ``_ensure_adoption`` core (first adoption becomes primary). Un-place removes only
+# the placement row — un-adopt stays explicit and is never triggered here.
+# ``sort_order`` is gapped-numeric within the part (append-to-end), like parts.
+
+
+async def load_part_global(
+    db: AsyncSession, part_id: UUID
+) -> BlueprintPart | None:
+    """Fetch one part by id with NO blueprint scoping.
+
+    Placement starts from a bare ``part_id``; this resolves the part so the route
+    can authorize its blueprint (system → 400, foreign/absent → 404). Existence
+    only — no visibility filter.
+    """
+    stmt = select(BlueprintPart).where(BlueprintPart.id == part_id)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def _next_placement_sort_order(
+    db: AsyncSession, part_id: UUID, exclude_document_id: UUID | None = None
+) -> Decimal:
+    """Append position within a part: ``max(sort_order) + _GAP`` (``_GAP`` if empty).
+
+    ``exclude_document_id`` drops the moving document's own row from the max so a
+    same-part re-place appends cleanly rather than chasing its own value.
+    """
+    stmt = select(func.max(PartDocument.sort_order)).where(
+        PartDocument.part_id == part_id
+    )
+    if exclude_document_id is not None:
+        stmt = stmt.where(PartDocument.document_id != exclude_document_id)
+    current_max = (await db.execute(stmt)).scalar_one()
+    if current_max is None:
+        return _GAP
+    return current_max + _GAP
+
+
+async def get_placement(
+    db: AsyncSession, document_id: UUID
+) -> tuple[PartDocument, UUID] | None:
+    """Return ``(placement, blueprint_id)`` for a document, or ``None`` if unplaced.
+
+    Joins ``blueprint_parts`` to surface the part's blueprint id for the response.
+    The document-state guard (owner / soft-delete) is the route's job; this only
+    answers "where is this document placed".
+    """
+    stmt = (
+        select(PartDocument, BlueprintPart.blueprint_id)
+        .join(BlueprintPart, BlueprintPart.id == PartDocument.part_id)
+        .where(PartDocument.document_id == document_id)
+    )
+    row = (await db.execute(stmt)).first()
+    if row is None:
+        return None
+    placement, blueprint_id = row
+    return placement, blueprint_id
+
+
+async def place_document(  # noqa: PLR0913 -- distinct collaborators (db, user_id, document_id, project_id, part, blueprint_id, role) plus optional ip_address; a params object would obscure the call site
+    db: AsyncSession,
+    user_id: UUID,
+    document_id: UUID,
+    project_id: UUID,
+    part: BlueprintPart,
+    blueprint_id: UUID,
+    role: str,
+    ip_address: str | None = None,
+) -> tuple[PartDocument, bool]:
+    """Assign-or-move a document into a part and auto-adopt the part's blueprint
+    into the document's project — all in ONE transaction.
+
+    A document is in at most one part, so an existing placement is repointed
+    (moved) rather than duplicated; ``created`` is False on a move (including a
+    same-part role/position refresh). The new ``sort_order`` appends to the end of
+    the target part. The part's blueprint is adopted by the project idempotently
+    (the first adoption becomes primary); a repeat placement into an already-
+    adopted blueprint is a true no-op on ``project_blueprints``.
+
+    Caller (the route) has already verified the document is owned, active, and has
+    a project, and that the part belongs to a caller-owned user blueprint.
+    """
+    existing = (
+        await db.execute(
+            select(PartDocument).where(PartDocument.document_id == document_id)
+        )
+    ).scalar_one_or_none()
+
+    sort_order = await _next_placement_sort_order(
+        db, part.id, exclude_document_id=document_id
+    )
+
+    if existing is None:
+        placement = PartDocument(
+            part_id=part.id,
+            document_id=document_id,
+            role=role,
+            sort_order=sort_order,
+        )
+        db.add(placement)
+        created = True
+    else:
+        existing.part_id = part.id
+        existing.role = role
+        existing.sort_order = sort_order
+        existing.updated_at = datetime.now(UTC)
+        placement = existing
+        created = False
+    await db.flush()  # populate placement.id / persist the move
+
+    # Atomic auto-adopt: ensure the part's blueprint is adopted by the project.
+    await _ensure_adoption(
+        db, user_id, project_id, blueprint_id, ip_address=ip_address
+    )
+
+    await audit_service.log_event(
+        db,
+        action="part_document.place",
+        resource_type="part_document",
+        user_id=str(user_id),
+        resource_id=str(placement.id),
+        details={
+            "document_id": str(document_id),
+            "part_id": str(part.id),
+            "blueprint_id": str(blueprint_id),
+            "project_id": str(project_id),
+            "role": role,
+            "moved": not created,
+        },
+        ip_address=ip_address,
+    )
+    await db.commit()
+    return placement, created
+
+
+async def unplace_document(
+    db: AsyncSession,
+    user_id: UUID,
+    document_id: UUID,
+    ip_address: str | None = None,
+) -> bool:
+    """Remove a document's placement (explicit un-place). Returns ``False`` if the
+    document had no placement.
+
+    Never touches ``project_blueprints`` — un-adopt stays explicit (moving a
+    document out of a blueprint or deleting its placement never auto-un-adopts).
+    """
+    placement = (
+        await db.execute(
+            select(PartDocument).where(PartDocument.document_id == document_id)
+        )
+    ).scalar_one_or_none()
+    if placement is None:
+        return False
+
+    pid = placement.id
+    part_id = placement.part_id
+    await db.delete(placement)
+    await audit_service.log_event(
+        db,
+        action="part_document.unplace",
+        resource_type="part_document",
+        user_id=str(user_id),
+        resource_id=str(pid),
+        details={"document_id": str(document_id), "part_id": str(part_id)},
+        ip_address=ip_address,
+    )
+    await db.commit()
+    return True

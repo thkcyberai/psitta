@@ -460,3 +460,30 @@ class AdoptedBlueprint(BlueprintSummary):
 
     is_primary: bool
     adopted_at: datetime
+
+
+class PartDocumentPlace(StrictSchema):
+    """Request to place a document into a blueprint part (2F).
+
+    A document is in AT MOST ONE part, so a PUT is an idempotent assign-or-move:
+    re-placing repoints the single placement to the new part. ``role`` defaults to
+    Main Content; a value outside ``RoleEnum`` is a 422.
+    """
+
+    part_id: UUID
+    role: RoleEnum = RoleEnum.MAIN_CONTENT
+
+
+class PartDocumentPlacement(StrictSchema):
+    """A document's placement in a part (2F response shape).
+
+    Carries ``blueprint_id`` so the client can locate the placement without
+    re-reading the part's blueprint.
+    """
+
+    id: UUID
+    document_id: UUID
+    part_id: UUID
+    blueprint_id: UUID
+    role: RoleEnum
+    sort_order: float
