@@ -20,13 +20,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
-from psitta.models.blueprint import Blueprint
+from psitta.models.blueprint import Blueprint, BlueprintPart
 from psitta.schemas.api import (
     BlueprintCloneRequest,
     BlueprintCreate,
     BlueprintDetail,
     BlueprintSummary,
     BlueprintUpdate,
+    PartCreate,
+    PartDetail,
+    PartUpdate,
 )
 from psitta.services import blueprint_service
 
@@ -57,6 +60,21 @@ async def _get_owned_blueprint_or_error(
     if blueprint.user_id != user_id:
         raise HTTPException(status_code=404, detail="Blueprint not found")
     return blueprint
+
+
+async def _get_owned_part_or_error(
+    db: AsyncSession, user_id: UUID, blueprint_id: UUID, part_id: UUID
+) -> tuple[Blueprint, BlueprintPart]:
+    """Authorize the blueprint (403 system / 404 foreign), then load the part.
+
+    A part id that is absent or belongs to a different blueprint is a 404 — same
+    no-existence-disclosure rule as the blueprint guard.
+    """
+    blueprint = await _get_owned_blueprint_or_error(db, user_id, blueprint_id)
+    part = await blueprint_service.load_part_by_id(db, blueprint_id, part_id)
+    if part is None:
+        raise HTTPException(status_code=404, detail="Part not found")
+    return blueprint, part
 
 
 @router.get("/", response_model=list[BlueprintSummary])
@@ -150,4 +168,75 @@ async def delete_blueprint(
     blueprint = await _get_owned_blueprint_or_error(db, user_id, blueprint_id)
     await blueprint_service.delete_blueprint(
         db, user_id, blueprint, ip_address=_client_ip(request)
+    )
+
+
+# ── Parts (2D) ─────────────────────────────────────────────────────────────
+# All part writes go through the blueprint guard first (403 system / 404 foreign
+# or absent). Service-level validation failures (cross-blueprint parent, a cycle,
+# or a bad after_part_id) surface as 400.
+
+
+@router.post(
+    "/{blueprint_id}/parts/", response_model=PartDetail, status_code=201
+)
+async def create_part(
+    blueprint_id: UUID,
+    data: PartCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Add a part to a user blueprint. 403 if system, 404 if not owned, 400 on
+    a cross-blueprint parent or a bad after_part_id."""
+    blueprint = await _get_owned_blueprint_or_error(db, user_id, blueprint_id)
+    try:
+        return await blueprint_service.create_part(
+            db, user_id, blueprint, data, ip_address=_client_ip(request)
+        )
+    except blueprint_service.PartValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.patch(
+    "/{blueprint_id}/parts/{part_id}", response_model=PartDetail
+)
+async def update_part(  # noqa: PLR0913 -- FastAPI route: two path params + body + request + two injected deps; none are removable
+    blueprint_id: UUID,
+    part_id: UUID,
+    data: PartUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Edit fields and/or reorder/nest a part. 403 if system, 404 if not owned,
+    400 on a cycle, cross-blueprint parent, or a bad after_part_id."""
+    blueprint, part = await _get_owned_part_or_error(
+        db, user_id, blueprint_id, part_id
+    )
+    try:
+        return await blueprint_service.update_part(
+            db, user_id, blueprint, part, data, ip_address=_client_ip(request)
+        )
+    except blueprint_service.PartValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.delete(
+    "/{blueprint_id}/parts/{part_id}", status_code=204
+)
+async def delete_part(
+    blueprint_id: UUID,
+    part_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Delete a part; its subtree cascades at the DB. 403 if system, 404 if not
+    owned or the part is not in this blueprint."""
+    blueprint, part = await _get_owned_part_or_error(
+        db, user_id, blueprint_id, part_id
+    )
+    await blueprint_service.delete_part(
+        db, user_id, blueprint, part, ip_address=_client_ip(request)
     )

@@ -19,7 +19,11 @@ from uuid import uuid4
 import pytest
 
 from psitta.services.blueprint_service import (
+    _GAP,
     _build_parts_tree,
+    _compute_sort_order,
+    _descendant_ids,
+    _GapExhaustedError,
     _remap_cloned_parts,
     get_blueprint,
 )
@@ -92,6 +96,60 @@ class TestGetBlueprintVisibility:
     async def test_unknown_or_foreign_row_maps_to_none(self):
         result = await get_blueprint(_FakeDB(), uuid4(), uuid4())
         assert result is None
+
+
+class TestComputeSortOrder:
+    """The gapped-numeric midpoint math (pure; siblings ascending, self excluded)."""
+
+    def test_empty_group_gets_gap(self):
+        assert _compute_sort_order([], None) == _GAP
+
+    def test_first_child_is_half_of_first(self):
+        sibs = [_part("A", 1000), _part("B", 2000)]
+        assert _compute_sort_order(sibs, None) == Decimal(500)
+
+    def test_between_two_siblings_is_midpoint(self):
+        a = _part("A", 1000)
+        b = _part("B", 2000)
+        assert _compute_sort_order([a, b], a.id) == Decimal(1500)
+
+    def test_after_last_is_last_plus_gap(self):
+        a = _part("A", 1000)
+        b = _part("B", 2000)
+        assert _compute_sort_order([a, b], b.id) == Decimal(2000) + _GAP
+
+    def test_collapsed_gap_raises_gap_exhausted(self):
+        # Two siblings closer than _MIN_GAP ⇒ no usable midpoint between them.
+        a = _part("A", "1.00000")
+        b = _part("B", "1.00001")
+        with pytest.raises(_GapExhaustedError):
+            _compute_sort_order([a, b], a.id)
+
+    def test_tiny_first_raises_gap_exhausted(self):
+        # First sibling already below _MIN_GAP ⇒ can't halve to a usable first slot.
+        only = _part("Only", "0.00001")
+        with pytest.raises(_GapExhaustedError):
+            _compute_sort_order([only], None)
+
+
+class TestDescendantIds:
+    def test_collects_full_subtree_exclusive_of_root(self):
+        root = _part("Root", 100)
+        child_a = _part("Child A", 100, parent_id=root.id)
+        child_b = _part("Child B", 200, parent_id=root.id)
+        grandchild = _part("Grandchild", 100, parent_id=child_b.id)
+        other = _part("Other root", 300)
+        parts = [root, child_a, child_b, grandchild, other]
+
+        desc = _descendant_ids(parts, root.id)
+
+        assert desc == {child_a.id, child_b.id, grandchild.id}
+        assert root.id not in desc
+        assert other.id not in desc
+
+    def test_leaf_has_no_descendants(self):
+        leaf = _part("Leaf", 100)
+        assert _descendant_ids([leaf], leaf.id) == set()
 
 
 class TestRemapClonedParts:

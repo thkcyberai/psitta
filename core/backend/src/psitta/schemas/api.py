@@ -382,3 +382,50 @@ class BlueprintCloneRequest(StrictSchema):
     """Optional clone body. An absent/empty body clones with the source name."""
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
+
+
+class PartCreate(StrictSchema):
+    """Request to add a part to a blueprint (2D).
+
+    ``parent_part_id`` null ⇒ a root part; otherwise the part nests under that
+    parent (which must belong to the SAME blueprint — validated in the service
+    and backstopped by the composite FK). ``after_part_id`` places the new part
+    immediately after that sibling; null ⇒ first under the resolved parent.
+    """
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    parent_part_id: UUID | None = None
+    after_part_id: UUID | None = None
+
+
+class PartUpdate(StrictSchema):
+    """Partial update of a part: field edits AND reorder/nest (2D).
+
+    Presence — not value — drives intent (``model_fields_set`` / exclude_unset):
+      - ``parent_part_id`` absent ⇒ parent unchanged; present-and-null ⇒ move to
+        root; present-and-uuid ⇒ reparent (cycle- and same-blueprint-checked).
+      - ``after_part_id`` present ⇒ reposition within the resolved parent;
+        absent-but-parent-changed ⇒ append to the end of the new parent.
+    """
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    parent_part_id: UUID | None = None
+    after_part_id: UUID | None = None
+
+
+class PartDetail(StrictSchema):
+    """A single part, flat (the write-path response shape).
+
+    Distinct from ``PartNode`` (the nested read-tree node): this carries
+    ``parent_part_id`` and ``blueprint_id`` so a client can place the affected
+    part without re-reading the whole tree.
+    """
+
+    id: UUID
+    blueprint_id: UUID
+    parent_part_id: UUID | None = None
+    name: str
+    description: str | None = None
+    sort_order: float
