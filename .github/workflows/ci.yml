@@ -112,11 +112,11 @@ jobs:
 
     env:
       ENVIRONMENT: testing
-      DATABASE_HOST: localhost
-      DATABASE_PORT: 5432
-      DATABASE_NAME: psitta_test
-      DATABASE_USER: psitta
-      DATABASE_PASSWORD: test_password
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: psitta_test
+      POSTGRES_USER: psitta
+      POSTGRES_PASSWORD: test_password
       REDIS_HOST: localhost
       REDIS_PORT: 6379
       S3_ENDPOINT_URL: http://localhost:9000
@@ -143,6 +143,10 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -e ".[dev]"
+
+      - name: Apply migrations (schema + system-blueprint seed)
+        working-directory: core/backend
+        run: alembic -c alembic.ini upgrade head
 
       - name: Run unit tests
         working-directory: core/backend
