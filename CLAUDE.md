@@ -211,6 +211,14 @@ Select Word Highlight (SWH) is currently **non-functional**.
 
 On the horizon: M3 Stripe integration (resume when EIN arrives), ElevenLabs quota auto-reset, SOC 2 prep after M7 completes.
 
+## Execution autonomy (added 2026-06-08)
+
+For LOW-RISK, ADDITIVE, well-specified work (feature code, tests, docs, refactors with no behavior change), execute the whole slice in ONE turn without intermediate stop gates: read any referenced files to confirm conventions, back up before editing, implement, self-verify (py_compile + ruff on touched files; run unit tests locally), stage ONLY the specific changed files (never git add .), commit with a clear conventional message, push to develop, poll CI, and report in a few lines plus the diff and run number.
+
+STOP and ask BEFORE proceeding (read-only diagnostic, then 2-3 options with pros/cons, then wait for approval) whenever the work touches ANY of: a database migration or schema change, auth or security, secrets, data deletion, a public or irreversible action, CI or infra config, or any decision the prompt does not cover, or anything ambiguous. Diagnostic-first discipline and checkpointed halves remain mandatory for those.
+
+Always: secrets only in terminal or GUI, never in chat; preserve everything outside the slice; approval phrases are plain ASCII.
+
 ## Key Learnings
 Immutable append-only log. Never rewrite past entries — only append new ones at the bottom.
 
@@ -610,24 +618,83 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-05-23: 2026-05-23c — Prove the happy path, not just the fix: the button-hides case was easy with existing accounts; the button-shows-and-portal-opens case required a real live paid signup because all owned accounts were sandbox-era.
 - 2026-05-23: 2026-05-23d — SNS confirmation_timeout_in_minutes / endpoint_auto_confirms are creation-time-only schema attributes, left null in state after import. Explicit declaration causes a permanent diff; use lifecycle.ignore_changes. Import-not-recreate; success criterion = no-op plan.
 - 2026-05-23: 2026-05-23e — Run terraform plan BEFORE committing the codification, not on the expectation of a clean plan — the first plan caught a still-drifting SNS subscription and the separate tester-digest drift that would otherwise have ridden along.
+- 2026-05-24: 2026-05-24a — certutil -store emits 'Could not verify certificate public key against private key' for eSigner cloud-KSP certs as EXPECTED/BENIGN behavior (private key is remote/non-exportable). NOT a binding regression. The authoritative health test is signtool sign itself, not certutil. Distinct from the May-18 signing failure.
+- 2026-05-24: 2026-05-24b — The production .appinstaller OnLaunch block carries UpdateBlocksActivation="false" + ShowPrompt="false" beyond the documented schema (silent auto-update). Always dump the LIVE manifest before authoring a new version; only 3 fields change per release (2 Version attrs + MainPackage Uri path).
+- 2026-05-24: 2026-05-24c — MSIX release ordering: upload the .msix to the versioned path BEFORE flipping the manifest, so the manifest never references a missing file. Set MIME at upload (application/msix, application/appinstaller) — wrong MIME silently breaks App Installer fetches. CloudFront invalidate the manifest path (60s TTL) to go live; verify with a live curl (X-Cache Miss = fresh).
+- 2026-05-24: 2026-05-24d — SWH does NOT drive premium quota — voice choice does. SWH-always burns identical quota to SWH-never. Subtitle copy must describe behavior, not warn about a cost SWH doesn't cause.
+- 2026-05-24: 2026-05-24e — Auto-update reaches installed testers on app LAUNCH (OnLaunch), not on login; may apply on the second relaunch. The flutter run dev build is NOT tied to the .appinstaller and never auto-updates.
+- 2026-05-24: Append to CLAUDE.md Key Learnings (append-only, date-prefixed):
+- 2026-05-25: Append to CLAUDE.md Key Learnings (append-only, date-prefixed):
+- 2026-05-25: 2026-05-25a — Console Switch-Role into psitta-prod fails from the Blowmymind mgmt account (luis-admin exists only there; switch-role-from-root unreliable). PERMANENT FIX: native IAM admin user luis-admin created directly inside psitta-prod (808765744063); login at https://808765744063.signin.aws.amazon.com/console. The two luis-admin users (one per account) are independent. TODO: enable MFA on the prod user.
+- 2026-05-25: 2026-05-25b — Ground 0 baseline: ~1 genuine external user (Timothy); rest are founder/family/test. 0 synthetic @auth0.local emails (v1.1 concern moot). Validates marketing pivot.
+- 2026-05-25: 2026-05-25c — Download/install logging is OFF (CloudFront + S3). No clean historical download count. The ~1,330/30d CloudFront Requests figure is mostly .appinstaller manifest polls, not downloads. PREREQ before marketing: enable CloudFront standard access logging to a new S3 bucket (~$0.001-0.05/mo), then query per-object/per-version via Athena. Installs (local MSIX action) may be unmeasurable regardless.
+- 2026-05-25: 2026-05-25d — Business-metrics dashboard does NOT exist (Psitta-Automation is infra-health only). Recommended build: a snapshot tool querying Postgres+Stripe+Cognito directly, NOT CloudWatch custom metrics (which would require instrumenting every business event and only capture data going forward). Queued as a milestone, not built.
+- 2026-05-26: 2026-05-26a — Plausible’s new per-site script (Oct 2025) encodes the domain in the pa-<id>.js filename — no data-domain attribute. Optional measurements (outbound links, file downloads, form submissions) are server-compiled dashboard toggles and activate without a redeploy.
+- 2026-05-26: 2026-05-26b — Plausible treats file links on a different subdomain (download.psitta.ai vs psitta.ai) or CDN as Outbound Link clicks, NOT File Downloads. For cross-subdomain download tracking, enable “Outbound links.” Note: .appinstaller / .msix are not in Plausible’s default file-download extension list anyway.
+- 2026-05-26: 2026-05-26c — Next.js static export cannot mint per-request CSP nonces, and hydration-chunk hashes vary per build — so script-src/style-src 'unsafe-inline' is mandatory. The CSP remains valuable: it still locks default-src, object-src, frame embedding, and the connect allowlist.
+- 2026-05-26: 2026-05-26d — Cloudflare Pages security headers ship via website/public/_headers (copied to out/_headers on build). next.config headers() is a no-op in static export — do not use it.
+- 2026-05-26: 2026-05-26e — Cloudflare SSL/TLS “Flexible” mode leaves the Cloudflare→origin leg unencrypted. A green padlock / https in the browser is NOT proof the mode is correct. For Cloudflare Pages, use Full (strict).
+- 2026-05-26: 2026-05-26f — HSTS preload is effectively irreversible and forces all subdomains to HTTPS — default to includeSubDomains WITHOUT preload until certain. Use Referrer-Policy strict-origin-when-cross-origin (not no-referrer) to preserve cross-property referral attribution in analytics.
+- 2026-05-26: 2026-05-26g — Cloudflare Pages deploy/propagation: a curl run immediately after push often shows stale or partial results — wait ~90 seconds before concluding anything is broken. Auto-deploy on push-to-main for the facti-ai-website Pages project is confirmed wired.
+- 2026-05-29: Append-only, date-prefixed. Candidates for the CLAUDE.md Key Learnings file.
+- 2026-05-29: 2026-05-29a — Terraform native S3 locking (use_lockfile = true) works on Terraform 1.14.6 — no DynamoDB lock table needed. The lock object (…/terraform.tfstate.tflock) is created on acquire and deleted on release; seeing it as a non-latest version with a delete marker on top confirms a clean acquire/release cycle, not a stuck lock.
+- 2026-05-29: 2026-05-29b — Norton HTTPS Scanning intercepts outbound 443 from Claude Code's Bash subprocess and injects a cert chain that AWS CLI / urllib reject (CERTIFICATE_VERIFY_FAILED) — but the operator's own Git Bash shell is unaffected. Run AWS/terraform from your own shell, OR toggle Norton HTTPS Scanning off for Claude Code execution and back on after. NEVER weaken SSL (no --no-verify-ssl, no AWS_CA_BUNDLE override).
+- 2026-05-29: 2026-05-29c — terraform init -migrate-state (local → S3) empties the local primary terraform.tfstate to 0 bytes and writes the full pre-migration state into terraform.tfstate.backup. The 0-byte primary file is expected, NOT data loss — the live state is in S3 and a full local backup is preserved.
+- 2026-05-29: 2026-05-29d — var.rds_dbi_resource_id was operator-supplied via -var at apply time and never persisted to terraform.tfvars, causing terraform plan to block on an interactive prompt. Fix: append the value (db-2SKPU3IOC2MLTPKVEEHS7NIQUQ, a non-secret AWS resource ID) to tfvars. Cleaner future fix: reference aws_db_instance.main.dbi_resource_id directly and drop the variable.
+- 2026-05-29: 2026-05-29e — KYCShield naming collision: C:\python\facti-ai\ is the LEGACY KYCShield monorepo, NOT the Facti AI website (which is C:\products\facti-ai\). Same leaf name, different products. Always confirm by contents, not folder name.
+- 2026-05-29: 2026-05-29f — Trusi's VerifAI → Trusi rebrand is incomplete: pyproject.toml (verifai-backend), Docker containers (verifai-postgres/redis), Makefile header, and — critically — mobile/src/config/constants.ts which still has APP_NAME='VerifAI' and a production URL of https://api.verifai.com (a domain that isn't owned). The constants.ts production URL is a real bug, not just cosmetic.
+- 2026-05-29: 2026-05-29g — Cloud providers (AWS, Route 53, Cloudflare) give DURABILITY (hardware-failure protection) but not RECOVERABILITY against operator error, account compromise, or region outage. Configuration backups (Terraform state, Route 53 / Cloudflare zone exports), beyond-default data retention, and account-recovery paths are the customer's responsibility — they belong in the backup plan.
+- 2026-05-29: 2026-05-29h — Plaintext-secrets sprawl on the laptop: terraform.tfvars holds 5 plaintext secrets; every terraform state file (live + the 5+ stray local .bak snapshots in the infra dir) holds plaintext secret material. Migrating state to encrypted S3 addresses the live copy; the tfvars + stray local backups remain a confidentiality gap for the Session 3 secrets cleanup.
+- 2026-06-01: 2026-06-01a —  Assembler −2·K offset bug (document_assembler.dart:238) is LIVE for docs WITHOUT server chunk_positions (positionsById == null). The fallback chunk textOffset used docCharCursor, which drops the inter-chunk “\n\n” +2 per chunk → highlight drifts −2·K, growing each chunk. Not all docs have server offsets — the meal-plan reproducer did not. Fix C-3 uses the separator-inclusive buffer position for the fallback.
+- 2026-06-01: 2026-06-01b —  Instrumented diagnosis: a temporary debugPrint probe (recorded vs actual buffer offset + delta) decisively separated “assembler fallback bug” from “server-convention bug” from “cause elsewhere.” Probe stays in until the fix is verified (delta=0), then stripped. Prevented shipping a fix to a possibly-dormant path.
+- 2026-06-01: 2026-06-01c —  Flutter TextSpan.backgroundColor paints from a glyph’s advance origin, not its visual ink extent. When the highlighted span is the FIRST child of a paragraph (headings/paragraphs, but not list items), a heavy bold cap’s leading bearing can sit outside the rect — looks like the first char is unhighlighted. (Theory; full-char magnitude + last-letter variant unexplained — verify visually before fixing.)
+- 2026-06-01: 2026-06-01d —  Visual verification for CC: golden tests (flutter test + matchesGoldenFile) render widgets to PNGs CC can open — same Skia pipeline, faithful for paint artifacts IF real fonts are loaded (FontLoader); else Ahem placeholder hides the artifact. integration_test+screenshot or PowerShell window capture are higher-fidelity fallbacks. Never flutter clean.
+- 2026-06-01: 2026-06-01e —  _jumpToDocumentOffset: autoPlay means “preserve current play/pause state across seek.” Added forcePlay (“play regardless”) for the line-play icon and line-text tap so a paused user gets playback. TOC/Contents jumps keep default forcePlay=false to preserve state.
+- 2026-06-01: 2026-06-01f —  DOCX renders one DocumentReadingView per page (visibleBlocks = page.blocks); onActiveSentenceChanged is gated on the active block being visible, so at a page boundary the leaving page suppresses the callback and the entering page fires it ~1 frame later via addPostFrameCallback → ~1-frame tracker lag (cosmetic, not the highlight cause).
+- 2026-06-01: 2026-06-01g —  Perf flag: the offset probe showed assemble() runs repeatedly (re-assembling the whole doc on many ticks/rebuilds). Not a correctness issue; investigate for performance later.
+- 2026-06-01: Dated entries; never overwrite — always append.
+- 2026-06-01: 2026-06-01 — Editor find was NOT green-field: a reading-mode find bar already existed (DOCX block-based + PDF PdfTextSearcher), and Ctrl+F in the player is captured by a global HardwareKeyboard handler, not the shell shortcut map. Lesson: read the surface before assuming its shape.
+- 2026-06-01: 2026-06-01 — flutter_quill updateSelection only triggers bring-into-view on a drag or a focused text-input change; a programmatic selection on an UNFOCUSED editor reveals nothing (raw_editor_state gating). Edit-mode find scroll must compute geometry and drive the scroll controller itself.
+- 2026-06-01: 2026-06-01 — The unified QuillEditor is scrollable:true with its own internal controller, but it’s embedded in the outer _contentScrollController which is what actually moves content on screen (confirmed by spike: hasClients=true, max>0, animateTo moves the page). Reveal a match via editorKey.currentState.renderEditor.getLocalRectForCaret → localToGlobal → drive the outer controller.
+- 2026-06-01: 2026-06-01 — A selection-only updateSelection produces identical block dicts, so _handleDocxUnifiedChanged computes changed=false → no false “unsaved” flag. (This also explains why the earlier doc-reload change-event flood was harmless to the unsaved state.)
+- 2026-06-01: 2026-06-01 — pdfrx PdfTextSearcher.goToNextMatch/goToPrevMatch update currentIndex and call invalidate() but do NOT notifyListeners(). The client must await + setState on nav, or the UI only refreshes when something else (e.g. the playback loop) rebuilds.
+- 2026-06-01: 2026-06-01 — DocxPlayerNavigator renders in edit mode (unconditional). _activeReadingPageNumber drives BOTH the thumbnail highlight (isActive comparison) and the rail auto-scroll (didUpdateWidget → ensureVisible) — feed that one signal and both behaviors fire.
+- 2026-06-01: 2026-06-01 — Icons.match_case does not exist in Flutter 3.24.5 (added later) — use a plain “Aa” glyph for the case-sensitivity toggle.
+- 2026-06-01: 2026-06-01 — Pre-existing wart (logged, not fixed): loading a DIFFERENT DOCX while in edit mode re-hydrates the Quill controller (hundreds of change events), which falsely flags unsaved and triggers an auto-save. Surfaced by a probe; content stays intact.
+- 2026-06-02: flutter_quill 10.8.5: QuillEditor.basic runs the config through copyWith, which forwards customStyleBuilder but drops onTapUp, onTapDown, and onSingleLongTap. Config-level tap hooks revert to null at runtime and analyze cannot catch it. Use a passive Listener plus renderEditor for tap detection.
+- 2026-06-02: RenderEditor.getPositionForOffset expects a global offset and does globalToLocal internally (the Flutter RenderEditable convention). Pass the global pointer position directly; pre-converting double-counts and misplaces the offset.
+- 2026-06-02: showMenu positioning: the RelativeRect anchor must be in the same coordinate space as its container. A global anchor with an Offset.zero by overlay.size container drifts by the overlay's offset. Convert the anchor to overlay-local first.
+- 2026-06-02: Reading-view alignment (and similar) can round-trip through data correctly yet render inert if the text widget does not fill its block width. Check the render width, not just the data, when display and data disagree.
+- 2026-06-02: KYCShield: Cloudflare Pages builds from source (public/index.html) and serves build/. With the Git integration disconnected, npx wrangler pages deploy build with the production branch is the reliable manual deploy.
+- 2026-06-03: 2026-06-03b. Migrations do NOT auto-run on ECS startup; the image boots straight into uvicorn. They apply only via an explicit ECS one-off task running alembic upgrade head. Always ground-truth the prod revision with a read-only alembic current one-off before applying, rather than trusting an older assumption.
+- 2026-06-03: 2026-06-03b. Blueprint is a pure additive overlay. Documents stay the single source of truth and are never duplicated or moved. The four new tables touch nothing on documents or projects and are fully reversible by dropping them. documents.project_id remains the only project-membership truth.
+- 2026-06-03: 2026-06-03b. For a new owned table, prefer a UUID FK to users(id) over copying the projects TEXT-without-FK pattern. It gives referential integrity and makes the security-critical assignment isolation check a direct UUID comparison with no join.
+- 2026-06-03: 2026-06-03b. A composite FK (parent_part_id, blueprint_id) referencing (id, blueprint_id) enforces a same-blueprint parent at the database level without a trigger.
+- 2026-06-03: 2026-06-03b. Use TEXT plus CHECK for evolving controlled lists (genre, status, role), not native ENUM, to avoid the ALTER TYPE ADD VALUE in-transaction limitation and keep the lists easy to change.
+- 2026-06-03: 2026-06-03b. Keep progress and readiness derived on read, never stored, so Blueprint owns structure only and adds no content-derived sync axis.
+- 2026-06-03: 2026-06-03b. There is no local Docker on this machine; the cloud CI is the test gate. CI and Release are independent workflows, so a red CI does not block the Release deploy. A chronically red CI is therefore noise and must be fixed (M11) before Phase 2 so it can catch regressions in the new backend code.
+- 2026-06-03: 2026-06-03b. NUMERIC gapped, midpoint ordering lets a drag-reorder write a single row, with no unique constraint forcing neighbor rewrites.
+- 2026-06-08: CI was never an enforced gate and its integration test database was unwired. The app and Alembic read POSTGRES_*, but CI set DATABASE_*; with Settings ignoring extras, those values were silently dropped and tests fell back to wrong defaults, so they never connected. The integration step also ran no migration, so the schema was empty. Fix: set POSTGRES_* in the test-backend job and add an alembic upgrade head step before the tests.
+- 2026-06-08: Alembic env.py applied the whole chain in one transaction. A fresh base-to-head apply fails on the enum migration because PostgreSQL forbids using a newly added enum value in the same transaction that added it. Fix: transaction_per_migration=True. Production was never affected because it applied migrations incrementally across separate ECS one-off runs, committing the enum value before any later use.
+- 2026-06-08: Data-backfill migrations that target specific production records (migration 030, Stage 3 email backfill and Auth0 orphan purge) abort on any database lacking those records, which breaks fresh applies in CI, new environments, and disaster recovery. Principle: data migrations must no-op gracefully when their target data is absent and perform the backfill only when it is present.
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260523_PortalFix_LiveE2E_P3-9_Observability_v1_0.docx`
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260608_CIIntegrationDBWiring_MigrationChainFix_v1_0.docx`
 - **Recent commits** (`git log --oneline -10`):
 
 ```
-c52163d feat(infra): codify CLI-bootstrapped observability (P3-9)
-14b03d6 feat(desktop): isStripeSubscribed gate for Manage Subscription tile
-630447d feat(scripts): cancel 4 pre-cutover sandbox subscriptions (cleanup)
-d486d07 feat(scripts): add read-only diagnose_subscription_details.py
-a7211fb feat(scripts): add read-only diagnose_subscription_sources.py
-805de15 docs(claude-md): sync May 22 hook output (5 KLs + Last Devlog pointer)
-46e0eea fix(tester-digest): raise cold-start timeouts + add resend_timeout log
-842fefb docs(claude-md): remove May 12 fake KLs + sync May 19 webhook learnings
-1f78cf7 fix(hooks): SessionStart terminator + bullet-mode preamble suppression
-24215d8 release(v1.0.7.0): signed MSIX deployed, publisher DN aligned, download page bumped
+f70fe63 fix(blueprints): drop ORM FKs to unmapped tables (users/projects/documents), DB constraints retained - fixes NoReferencedTableError on Blueprint flush
+02d948a feat(blueprints): 2C write API - create, clone, update, delete with system-write guards and tests
+863bc75 test(integration): bind get_db_session to a NullPool engine disposed in the test loop, fixing Event loop is closed
+3a91511 feat(blueprints): 2B read API - schemas, service, GET /blueprints endpoints, tests
+cf535b3 fix(migrations): no-op stage2 backfill on fresh/empty DB
+d3984f4 fix(migrations): apply each migration in its own transaction
+781d5bd ci(test-backend): wire integration DB via POSTGRES_* env + alembic upgrade head
+e19845b test(M11): commit voice redirect fix and audit_log quarantine; scope coverage floor to unit step
+8eb3f35 test(M11): fix integration auth and redirect handling (follow_redirects, opt-in auth override and JWKS stub)
+de65c97 ci(M11): set backend coverage floor to 30 percent (honest current baseline, ratchet up later)
 ```
-- _Auto-updated by Stop hook at 2026-05-24 13:19 UTC_
+- _Auto-updated by Stop hook at 2026-06-08 12:59 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram
