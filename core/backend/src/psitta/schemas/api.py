@@ -358,3 +358,27 @@ class BlueprintDetail(BlueprintSummary):
     """A blueprint plus its top-level parts as nested ``PartNode`` trees."""
 
     parts: list[PartNode] = []
+
+
+class BlueprintCreate(StrictSchema):
+    """Request to create a new, empty user-owned blueprint."""
+
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = None
+    genre: GenreEnum
+    status: BlueprintStatusEnum = BlueprintStatusEnum.DRAFT
+
+
+class BlueprintUpdate(StrictSchema):
+    """Partial update of a user blueprint (PATCH; every field optional)."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
+    genre: GenreEnum | None = None
+    status: BlueprintStatusEnum | None = None
+
+
+class BlueprintCloneRequest(StrictSchema):
+    """Optional clone body. An absent/empty body clones with the source name."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)

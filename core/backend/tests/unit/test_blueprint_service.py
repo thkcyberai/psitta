@@ -18,7 +18,11 @@ from uuid import uuid4
 
 import pytest
 
-from psitta.services.blueprint_service import _build_parts_tree, get_blueprint
+from psitta.services.blueprint_service import (
+    _build_parts_tree,
+    _remap_cloned_parts,
+    get_blueprint,
+)
 
 
 def _part(name, sort_order, parent_id=None):
@@ -88,3 +92,37 @@ class TestGetBlueprintVisibility:
     async def test_unknown_or_foreign_row_maps_to_none(self):
         result = await get_blueprint(_FakeDB(), uuid4(), uuid4())
         assert result is None
+
+
+class TestRemapClonedParts:
+    def test_deep_copy_remaps_parents_and_preserves_order(self):
+        # Synthetic 3-level source tree, ordered by sort_order.
+        root = _part("Root", 100)
+        child_a = _part("Child A", 100, parent_id=root.id)
+        child_b = _part("Child B", 200, parent_id=root.id)
+        grandchild = _part("Grandchild", 100, parent_id=child_b.id)
+        source = [root, child_a, child_b, grandchild]
+        new_blueprint_id = uuid4()
+
+        out = _remap_cloned_parts(source, new_blueprint_id)
+
+        assert len(out) == len(source)
+        src_ids = {s.id for s in source}
+        src_to_new = {s.id: o.id for s, o in zip(source, out, strict=True)}
+
+        # Every new id is fresh, unique, and belongs to the new blueprint.
+        assert len({o.id for o in out}) == len(out)
+        for o in out:
+            assert o.id not in src_ids
+            assert o.blueprint_id == new_blueprint_id
+
+        # Parents remap to the NEW parent id (never a source id), order + names
+        # preserved, roots stay None — i.e. the tree shape is unchanged.
+        for s, o in zip(source, out, strict=True):
+            assert o.sort_order == s.sort_order
+            assert o.name == s.name
+            if s.parent_part_id is None:
+                assert o.parent_part_id is None
+            else:
+                assert o.parent_part_id == src_to_new[s.parent_part_id]
+                assert o.parent_part_id not in src_ids

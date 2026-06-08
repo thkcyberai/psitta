@@ -16,14 +16,47 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
-from psitta.schemas.api import BlueprintDetail, BlueprintSummary
+from psitta.models.blueprint import Blueprint
+from psitta.schemas.api import (
+    BlueprintCloneRequest,
+    BlueprintCreate,
+    BlueprintDetail,
+    BlueprintSummary,
+    BlueprintUpdate,
+)
 from psitta.services import blueprint_service
 
 router = APIRouter(prefix="/blueprints", tags=["blueprints"])
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client else None
+
+
+async def _get_owned_blueprint_or_error(
+    db: AsyncSession, user_id: UUID, blueprint_id: UUID
+) -> Blueprint:
+    """Load a blueprint for write, enforcing the write-access rules.
+
+    Intentional divergence from the read 404-only rule: a **system template**
+    (read-only) returns **403**, while a **user blueprint owned by someone
+    else** returns **404** (no existence disclosure), and an absent id is 404.
+    The HTTP mapping lives here in the route, not in the service.
+    """
+    blueprint = await blueprint_service.load_blueprint_by_id(db, blueprint_id)
+    if blueprint is None:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    if blueprint.is_system or blueprint.user_id is None:
+        raise HTTPException(
+            status_code=403, detail="System templates are read-only"
+        )
+    if blueprint.user_id != user_id:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    return blueprint
 
 
 @router.get("/", response_model=list[BlueprintSummary])
@@ -48,3 +81,73 @@ async def get_blueprint(
     blueprint, parts_tree = result
     summary = BlueprintSummary.model_validate(blueprint)
     return BlueprintDetail(**summary.model_dump(), parts=parts_tree)
+
+
+@router.post("/", response_model=BlueprintSummary, status_code=201)
+async def create_blueprint(
+    data: BlueprintCreate,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Create a new, empty user-owned blueprint."""
+    return await blueprint_service.create_blueprint(
+        db, user_id, data, ip_address=_client_ip(request)
+    )
+
+
+@router.post(
+    "/{blueprint_id}/clone/", response_model=BlueprintDetail, status_code=201
+)
+async def clone_blueprint(
+    blueprint_id: UUID,
+    request: Request,
+    body: BlueprintCloneRequest | None = None,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Clone a visible blueprint (system or own) into a user-owned copy.
+
+    Cloning a foreign or absent blueprint is a 404; system templates clone.
+    """
+    result = await blueprint_service.clone_blueprint(
+        db,
+        user_id,
+        blueprint_id,
+        name=body.name if body else None,
+        ip_address=_client_ip(request),
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    blueprint, parts_tree = result
+    summary = BlueprintSummary.model_validate(blueprint)
+    return BlueprintDetail(**summary.model_dump(), parts=parts_tree)
+
+
+@router.patch("/{blueprint_id}", response_model=BlueprintSummary)
+async def update_blueprint(
+    blueprint_id: UUID,
+    data: BlueprintUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Update a user blueprint. 403 if system, 404 if not owned by the caller."""
+    blueprint = await _get_owned_blueprint_or_error(db, user_id, blueprint_id)
+    return await blueprint_service.update_blueprint(
+        db, user_id, blueprint, data, ip_address=_client_ip(request)
+    )
+
+
+@router.delete("/{blueprint_id}", status_code=204)
+async def delete_blueprint(
+    blueprint_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Delete a user blueprint (parts cascade). 403 if system, 404 if not owned."""
+    blueprint = await _get_owned_blueprint_or_error(db, user_id, blueprint_id)
+    await blueprint_service.delete_blueprint(
+        db, user_id, blueprint, ip_address=_client_ip(request)
+    )
