@@ -68,6 +68,25 @@ BACKFILL_MAP: list[tuple[str, str]] = [
 def upgrade() -> None:
     bind = op.get_bind()
 
+    # ── 0. Fresh / empty-DB guard ──────────────────────────────────────────
+    # This migration backfills/purges specific production records captured in
+    # the Stage 2 Phase 1 diagnostic (the Auth0-era orphan plus 5 synthetic
+    # @auth0.local emails). A database that contains none of that target data,
+    # such as fresh CI, a new environment, or a disaster-recovery rebuild, has
+    # nothing to migrate. No-op gracefully so `alembic upgrade head` can run
+    # from base. When ANY target data is present we fall through to the full
+    # pre-flight assertions below, which still abort on partial/shifted state.
+    targets_present = bind.execute(
+        text(
+            "SELECT COUNT(*) FROM users "
+            "WHERE auth0_user_id = :sub "
+            "   OR email LIKE '%@auth0.local'"
+        ),
+        {"sub": ORPHAN_AUTH0_SUB},
+    ).scalar()
+    if targets_present == 0:
+        return
+
     # ── 1. Pre-flight assertions ───────────────────────────────────────────
     # Confirm orphan row exists with the expected auth0_user_id.
     orphan_count = bind.execute(
