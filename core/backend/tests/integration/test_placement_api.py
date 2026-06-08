@@ -91,8 +91,8 @@ async def _seed_and_cleanup():
                     text(
                         "INSERT INTO documents "
                         "(id, user_id, project_id, title, source_type, status, "
-                        " storage_key) "
-                        "VALUES (:id, :uid, :pid, :title, 'docx', :status, '') "
+                        " storage_key, word_count) "
+                        "VALUES (:id, :uid, :pid, :title, 'docx', :status, '', 0) "
                         "ON CONFLICT (id) DO NOTHING"
                     ),
                     {
@@ -219,8 +219,9 @@ async def _seed_foreign_document() -> str:
             await conn.execute(
                 text(
                     "INSERT INTO documents "
-                    "(id, user_id, title, source_type, status, storage_key) "
-                    "VALUES (:id, :uid, 'Foreign Doc', 'docx', 'ready', '')"
+                    "(id, user_id, title, source_type, status, storage_key, "
+                    " word_count) "
+                    "VALUES (:id, :uid, 'Foreign Doc', 'docx', 'ready', '', 0)"
                 ),
                 {"id": doc_id, "uid": str(_OTHER_USER_ID)},
             )
