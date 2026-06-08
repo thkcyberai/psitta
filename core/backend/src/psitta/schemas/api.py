@@ -429,3 +429,34 @@ class PartDetail(StrictSchema):
     name: str
     description: str | None = None
     sort_order: float
+
+
+class ProjectBlueprintAdopt(StrictSchema):
+    """Request to adopt a blueprint into a project (2E).
+
+    ``is_primary`` is honoured when present; additionally the FIRST blueprint
+    adopted into a project becomes primary automatically (the service ORs the
+    two). Only owned, non-system blueprints are adoptable (system templates must
+    be cloned first).
+    """
+
+    blueprint_id: UUID
+    is_primary: bool = False
+
+
+class ProjectBlueprintSetPrimary(StrictSchema):
+    """Set or clear which adopted blueprint is the project's primary (2E).
+
+    ``true`` ⇒ make this the primary (the existing primary is cleared in the
+    same transaction). ``false`` ⇒ clear this row's primary flag, leaving the
+    project with no primary (no auto-promotion).
+    """
+
+    is_primary: bool
+
+
+class AdoptedBlueprint(BlueprintSummary):
+    """A blueprint as adopted by a project: its summary plus adoption state."""
+
+    is_primary: bool
+    adopted_at: datetime

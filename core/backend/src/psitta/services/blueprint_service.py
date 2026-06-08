@@ -18,13 +18,15 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.models.blueprint import Blueprint, BlueprintPart
+from psitta.models.blueprint import Blueprint, BlueprintPart, ProjectBlueprint
 from psitta.schemas.api import (
+    AdoptedBlueprint,
     BlueprintCreate,
     BlueprintStatusEnum,
+    BlueprintSummary,
     BlueprintUpdate,
     PartCreate,
     PartNode,
@@ -607,6 +609,197 @@ async def delete_part(
             "name": pname,
             "subtree_size": subtree_size,
         },
+        ip_address=ip_address,
+    )
+    await db.commit()
+
+
+# ── Project adoption (2E) ──────────────────────────────────────────────────
+# A project adopts user-owned blueprints via project_blueprints. At most one
+# adoption per (project, blueprint) (UNIQUE) and at most one primary per project
+# (partial-unique WHERE is_primary). System templates are NOT adoptable — clone
+# first (enforced in the route). Project ownership is enforced in the route via
+# projects._get_project_or_404 (the projects table is unmapped). Setting a new
+# primary is an atomic clear-then-set so the partial-unique never trips.
+
+
+class AlreadyAdoptedError(Exception):
+    """The blueprint is already adopted by this project (→ 409)."""
+
+
+class NotAdoptedError(Exception):
+    """The blueprint is not adopted by this project (→ 404)."""
+
+
+def _adopted_blueprint(
+    blueprint: Blueprint, is_primary: bool, adopted_at: datetime
+) -> AdoptedBlueprint:
+    """Compose the adoption response: blueprint summary + adoption state."""
+    return AdoptedBlueprint(
+        **BlueprintSummary.model_validate(blueprint).model_dump(),
+        is_primary=is_primary,
+        adopted_at=adopted_at,
+    )
+
+
+async def _get_adoption(
+    db: AsyncSession, project_id: UUID, blueprint_id: UUID
+) -> ProjectBlueprint | None:
+    """The (project, blueprint) adoption row, or None if not adopted."""
+    stmt = select(ProjectBlueprint).where(
+        ProjectBlueprint.project_id == project_id,
+        ProjectBlueprint.blueprint_id == blueprint_id,
+    )
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def _clear_primary(db: AsyncSession, project_id: UUID) -> None:
+    """Unset the project's current primary (if any). Caller flushes before the
+    new primary is set, so the partial-unique never sees two true rows."""
+    await db.execute(
+        update(ProjectBlueprint)
+        .where(
+            ProjectBlueprint.project_id == project_id,
+            ProjectBlueprint.is_primary.is_(True),
+        )
+        .values(is_primary=False)
+        .execution_options(synchronize_session=False)
+    )
+
+
+async def list_project_blueprints(
+    db: AsyncSession, project_id: UUID
+) -> list[AdoptedBlueprint]:
+    """Blueprints adopted by a project, primary-first then by adoption time."""
+    stmt = (
+        select(
+            Blueprint, ProjectBlueprint.is_primary, ProjectBlueprint.created_at
+        )
+        .join(ProjectBlueprint, ProjectBlueprint.blueprint_id == Blueprint.id)
+        .where(ProjectBlueprint.project_id == project_id)
+        .order_by(ProjectBlueprint.is_primary.desc(), ProjectBlueprint.created_at)
+    )
+    rows = (await db.execute(stmt)).all()
+    return [_adopted_blueprint(bp, primary, at) for bp, primary, at in rows]
+
+
+async def adopt_blueprint(  # noqa: PLR0913 -- distinct collaborators (db, user_id, project_id, blueprint) plus request_primary + optional ip_address; a params object would obscure the call site
+    db: AsyncSession,
+    user_id: UUID,
+    project_id: UUID,
+    blueprint: Blueprint,
+    request_primary: bool = False,
+    ip_address: str | None = None,
+) -> AdoptedBlueprint:
+    """Adopt an already-vetted (owned, non-system) blueprint into a project.
+
+    The FIRST blueprint adopted into a project becomes primary automatically;
+    otherwise ``request_primary`` controls it. A duplicate adoption raises
+    ``AlreadyAdoptedError`` (→ 409). Setting primary clears the existing one in
+    the same transaction.
+    """
+    if await _get_adoption(db, project_id, blueprint.id) is not None:
+        raise AlreadyAdoptedError
+
+    existing_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(ProjectBlueprint)
+            .where(ProjectBlueprint.project_id == project_id)
+        )
+    ).scalar_one()
+    make_primary = request_primary or existing_count == 0
+    if make_primary:
+        await _clear_primary(db, project_id)
+        await db.flush()
+
+    adoption = ProjectBlueprint(
+        project_id=project_id,
+        blueprint_id=blueprint.id,
+        is_primary=make_primary,
+    )
+    db.add(adoption)
+    await db.flush()
+    await db.refresh(adoption, attribute_names=["created_at"])
+    await audit_service.log_event(
+        db,
+        action="project_blueprint.adopt",
+        resource_type="project_blueprint",
+        user_id=str(user_id),
+        resource_id=str(project_id),
+        details={"blueprint_id": str(blueprint.id), "is_primary": make_primary},
+        ip_address=ip_address,
+    )
+    await db.commit()
+    return _adopted_blueprint(blueprint, make_primary, adoption.created_at)
+
+
+async def set_primary_blueprint(  # noqa: PLR0913 -- distinct collaborators (db, user_id, project_id, blueprint_id) plus is_primary + optional ip_address; a params object would obscure the call site
+    db: AsyncSession,
+    user_id: UUID,
+    project_id: UUID,
+    blueprint_id: UUID,
+    is_primary: bool,
+    ip_address: str | None = None,
+) -> AdoptedBlueprint:
+    """Set or clear the primary flag on an existing adoption.
+
+    ``is_primary`` true ⇒ atomic clear-then-set (this becomes the only primary);
+    false ⇒ clear this row's flag, leaving the project with no primary (no
+    auto-promotion). A non-adopted blueprint raises ``NotAdoptedError`` (→ 404).
+    """
+    adoption = await _get_adoption(db, project_id, blueprint_id)
+    if adoption is None:
+        raise NotAdoptedError
+
+    if is_primary:
+        await _clear_primary(db, project_id)
+        await db.flush()
+        adoption.is_primary = True
+    else:
+        adoption.is_primary = False
+    await db.flush()
+    await audit_service.log_event(
+        db,
+        action="project_blueprint.set_primary",
+        resource_type="project_blueprint",
+        user_id=str(user_id),
+        resource_id=str(project_id),
+        details={"blueprint_id": str(blueprint_id), "is_primary": is_primary},
+        ip_address=ip_address,
+    )
+    await db.commit()
+
+    blueprint = await load_blueprint_by_id(db, blueprint_id)
+    return _adopted_blueprint(blueprint, adoption.is_primary, adoption.created_at)
+
+
+async def unadopt_blueprint(
+    db: AsyncSession,
+    user_id: UUID,
+    project_id: UUID,
+    blueprint_id: UUID,
+    ip_address: str | None = None,
+) -> None:
+    """Remove a project↔blueprint adoption (plain link removal).
+
+    Placements (``part_documents``) reference parts/documents, not this link,
+    so un-adoption never touches them and never blocks. A non-adopted blueprint
+    raises ``NotAdoptedError`` (→ 404).
+    """
+    adoption = await _get_adoption(db, project_id, blueprint_id)
+    if adoption is None:
+        raise NotAdoptedError
+
+    was_primary = adoption.is_primary
+    await db.delete(adoption)
+    await audit_service.log_event(
+        db,
+        action="project_blueprint.unadopt",
+        resource_type="project_blueprint",
+        user_id=str(user_id),
+        resource_id=str(project_id),
+        details={"blueprint_id": str(blueprint_id), "was_primary": was_primary},
         ip_address=ip_address,
     )
     await db.commit()

@@ -19,6 +19,7 @@ from psitta.api.v1.blueprints import router as blueprints_router
 from psitta.api.v1.contact import router as contact_router
 from psitta.api.v1.documents import router as documents_router
 from psitta.api.v1.playback import router as playback_router
+from psitta.api.v1.project_blueprints import router as project_blueprints_router
 from psitta.api.v1.projects import router as projects_router
 from psitta.api.v1.signup import router as signup_router
 from psitta.api.v1.subscriptions import router as subscriptions_router
@@ -72,6 +73,11 @@ v1_router.include_router(
 # ── Blueprints ────────────────────────────────────────────────────────
 v1_router.include_router(
     blueprints_router,
+)
+
+# ── Project ↔ Blueprint adoption ──────────────────────────────────────
+v1_router.include_router(
+    project_blueprints_router,
 )
 
 # ── Subscriptions ─────────────────────────────────────────────────────
