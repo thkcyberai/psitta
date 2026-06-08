@@ -15,6 +15,7 @@ from fastapi import APIRouter
 
 from psitta.api.v1.auth import router as auth_router
 from psitta.api.v1.billing import router as billing_router
+from psitta.api.v1.blueprints import router as blueprints_router
 from psitta.api.v1.contact import router as contact_router
 from psitta.api.v1.documents import router as documents_router
 from psitta.api.v1.playback import router as playback_router
@@ -66,6 +67,11 @@ v1_router.include_router(
 # ── Projects ──────────────────────────────────────────────────────────
 v1_router.include_router(
     projects_router,
+)
+
+# ── Blueprints ────────────────────────────────────────────────────────
+v1_router.include_router(
+    blueprints_router,
 )
 
 # ── Subscriptions ─────────────────────────────────────────────────────

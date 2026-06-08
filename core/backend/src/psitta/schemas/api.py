@@ -15,6 +15,7 @@ Security:
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Optional
 from uuid import UUID
 
@@ -280,3 +281,80 @@ class ResynthesizeResponse(BaseModel):
     chunk_id: str
     audio_url: str
     message: str
+
+
+# ── Blueprints ─────────────────────────────────────────────────────────
+# Controlled-value enums mirror the TEXT + CHECK lists in migration 021 /
+# models.blueprint byte-for-byte. They are `str` enums so they serialize as
+# their plain string value and validate ORM rows (plain str columns) by value.
+
+
+class GenreEnum(str, Enum):
+    """The ten blueprint genres (matches ck_blueprints_genre exactly)."""
+
+    NOVEL = "Novel"
+    MEMOIR = "Memoir"
+    NON_FICTION = "Non-Fiction"
+    BIOGRAPHY = "Biography"
+    RESEARCH_PAPER = "Research Paper"
+    CHILDRENS_PICTURE_BOOK = "Children's Picture Book"
+    SCREENPLAY = "Screenplay"
+    WORKBOOK_HOW_TO = "Workbook/How-To"
+    BUSINESS_BOOK = "Business Book"
+    SHORT_STORY_COLLECTION = "Short Story Collection"
+
+
+class BlueprintStatusEnum(str, Enum):
+    """Blueprint lifecycle status (matches ck_blueprints_status exactly)."""
+
+    DRAFT = "Draft"
+    COMPLETED = "Completed"
+    ARCHIVED = "Archived"
+
+
+class RoleEnum(str, Enum):
+    """Part-document role (matches ck_part_documents_role exactly).
+
+    Defined for the 2C placement API; not used by the 2B read surface.
+    """
+
+    MAIN_CONTENT = "Main Content"
+    SUPPORTING_CONTENT = "Supporting Content"
+    RESEARCH = "Research"
+    NOTES = "Notes"
+    REFERENCE_MATERIAL = "Reference Material"
+
+
+class BlueprintSummary(StrictSchema):
+    """A blueprint without its parts — the list-view shape."""
+
+    id: UUID
+    name: str
+    description: str | None = None
+    genre: GenreEnum
+    status: BlueprintStatusEnum
+    is_system: bool
+    source_template_id: UUID | None = None
+
+
+class PartNode(StrictSchema):
+    """A blueprint part and its nested children (the parts tree).
+
+    Self-referential; ``model_rebuild()`` below resolves the forward
+    reference under Pydantic v2.
+    """
+
+    id: UUID
+    name: str
+    description: str | None = None
+    sort_order: float
+    children: list[PartNode] = []
+
+
+PartNode.model_rebuild()
+
+
+class BlueprintDetail(BlueprintSummary):
+    """A blueprint plus its top-level parts as nested ``PartNode`` trees."""
+
+    parts: list[PartNode] = []

@@ -1,0 +1,90 @@
+"""Unit tests for the Blueprint read service (no database).
+
+Covers the two pieces of logic that don't need Postgres:
+
+  - ``_build_parts_tree`` — flat, ``sort_order``-ordered rows → nested tree,
+    with sibling order preserved and a defensive orphan-parent fallback.
+  - ``get_blueprint`` — a query that returns no row (unknown id, or a
+    foreign-owned blueprint excluded by the visibility WHERE clause) maps to
+    ``None``. The WHERE clause itself is exercised against real data in the
+    integration suite.
+"""
+
+from __future__ import annotations
+
+from decimal import Decimal
+from types import SimpleNamespace
+from uuid import uuid4
+
+import pytest
+
+from psitta.services.blueprint_service import _build_parts_tree, get_blueprint
+
+
+def _part(name, sort_order, parent_id=None):
+    """A BlueprintPart-shaped stand-in (only the attrs the builder reads)."""
+    return SimpleNamespace(
+        id=uuid4(),
+        name=name,
+        description=None,
+        sort_order=Decimal(str(sort_order)),
+        parent_part_id=parent_id,
+    )
+
+
+class TestBuildPartsTree:
+    def test_nesting_and_sibling_order(self):
+        # Flat input, already ordered by sort_order (as the real query returns).
+        root1 = _part("Root 1", 100)
+        root2 = _part("Root 2", 200)
+        child_a = _part("Child A", 300, parent_id=root2.id)
+        child_b = _part("Child B", 400, parent_id=root2.id)
+        grandchild = _part("Grandchild", 500, parent_id=child_b.id)
+        flat = [root1, root2, child_a, child_b, grandchild]
+
+        tree = _build_parts_tree(flat)
+
+        # Two roots, in sort_order order.
+        assert [n.id for n in tree] == [root1.id, root2.id]
+        assert tree[0].children == []
+
+        # Root 2's two children, in ascending sort_order.
+        kids = tree[1].children
+        assert [k.id for k in kids] == [child_a.id, child_b.id]
+        assert kids[0].sort_order < kids[1].sort_order
+        assert kids[0].sort_order == 300.0
+
+        # Depth > 1 is preserved.
+        assert [g.id for g in kids[1].children] == [grandchild.id]
+
+    def test_sort_order_is_float(self):
+        tree = _build_parts_tree([_part("Only", 100)])
+        assert isinstance(tree[0].sort_order, float)
+
+    def test_orphan_parent_is_treated_as_root(self):
+        # parent_part_id points at an id not in the set → defensive root.
+        orphan = _part("Orphan", 100, parent_id=uuid4())
+        tree = _build_parts_tree([orphan])
+        assert [n.id for n in tree] == [orphan.id]
+
+    def test_empty_input(self):
+        assert _build_parts_tree([]) == []
+
+
+class _NoRowResult:
+    def scalar_one_or_none(self):
+        return None
+
+
+class _FakeDB:
+    """Minimal async session: every execute() yields a no-row result."""
+
+    async def execute(self, _stmt):
+        return _NoRowResult()
+
+
+class TestGetBlueprintVisibility:
+    @pytest.mark.asyncio
+    async def test_unknown_or_foreign_row_maps_to_none(self):
+        result = await get_blueprint(_FakeDB(), uuid4(), uuid4())
+        assert result is None
