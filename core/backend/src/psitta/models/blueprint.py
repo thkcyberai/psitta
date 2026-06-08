@@ -72,10 +72,11 @@ class Blueprint(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
-    # NULL ⇔ system template; NOT NULL ⇔ user blueprint (FK to users).
+    # NULL ⇔ system template; NOT NULL ⇔ user blueprint. Cross-boundary ref to
+    # the unmapped ``users`` table: plain UUID column here; the DB-level FK
+    # (ON DELETE CASCADE) is owned by migration 021.
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=True,
     )
     is_system: Mapped[bool] = mapped_column(
@@ -227,9 +228,10 @@ class ProjectBlueprint(Base):
         primary_key=True,
         server_default=text("gen_random_uuid()"),
     )
+    # Cross-boundary ref to the unmapped ``projects`` table: plain UUID column
+    # here; the DB-level FK (ON DELETE CASCADE) is owned by migration 021.
     project_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
     blueprint_id: Mapped[uuid.UUID] = mapped_column(
@@ -286,9 +288,10 @@ class PartDocument(Base):
         ForeignKey("blueprint_parts.id", ondelete="CASCADE"),
         nullable=False,
     )
+    # Cross-boundary ref to the unmapped ``documents`` table: plain UUID column
+    # here; the DB-level FK (ON DELETE CASCADE) is owned by migration 021.
     document_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("documents.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
     )
