@@ -29,7 +29,15 @@ from uuid import UUID
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import NullPool
 
+from psitta.config import get_settings
+from psitta.dependencies import get_db_session
 from psitta.main import create_app
 
 _FAKE_USER_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -78,3 +86,45 @@ async def stub_jwks(monkeypatch):
 
     monkeypatch.setattr(auth_module, "_get_jwks", _fake_get_jwks)
     yield
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def _db_session_on_test_loop(app):
+    """Route ``get_db_session`` through a NullPool engine created and disposed
+    inside the test's own event loop.
+
+    The app's module-level engine uses QueuePool, which retains asyncpg
+    connections after a function-scoped loop closes; finalizing them on the
+    dead loop raises ``RuntimeError: Event loop is closed`` at teardown.
+    NullPool opens and closes a connection per checkout within the live loop,
+    and the per-test ``engine.dispose()`` guarantees cleanup before the loop
+    ends. The real ``get_db_session`` contract (commit on success, rollback +
+    re-raise on exception, close) is preserved exactly — only the pool class
+    differs. Autouse so every integration request that reaches the DB is safe;
+    the audit-log test (which manages its own engine) is unaffected.
+    """
+    engine = create_async_engine(get_settings().database_url, poolclass=NullPool)
+    session_factory = async_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        autoflush=False,
+    )
+
+    async def _override_get_db_session():
+        async with session_factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+            finally:
+                await session.close()
+
+    app.dependency_overrides[get_db_session] = _override_get_db_session
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_db_session, None)
+        await engine.dispose()
