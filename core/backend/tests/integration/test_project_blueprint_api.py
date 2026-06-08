@@ -47,7 +47,7 @@ async def _fake_user_project_and_cleanup():
                     "VALUES (:id, :ext, :email) ON CONFLICT (id) DO NOTHING"
                 ),
                 {
-                    "id": _FAKE_USER_ID,
+                    "id": str(_FAKE_USER_ID),
                     "ext": "itest-proj-bp-user",
                     "email": "itest-proj-bp@test.local",
                 },
@@ -57,7 +57,11 @@ async def _fake_user_project_and_cleanup():
                     "INSERT INTO projects (id, user_id, name) "
                     "VALUES (:id, :uid, :name) ON CONFLICT (id) DO NOTHING"
                 ),
-                {"id": _PROJECT_ID, "uid": _FAKE_USER_ID, "name": "2E Project"},
+                {
+                    "id": _PROJECT_ID,
+                    "uid": str(_FAKE_USER_ID),
+                    "name": "2E Project",
+                },
             )
         yield
     finally:
@@ -108,7 +112,7 @@ async def _seed_foreign_blueprint() -> str:
                     "VALUES (:id, :ext, :email) ON CONFLICT (id) DO NOTHING"
                 ),
                 {
-                    "id": _OTHER_USER_ID,
+                    "id": str(_OTHER_USER_ID),
                     "ext": "itest-proj-bp-other",
                     "email": "itest-proj-bp-other@test.local",
                 },
@@ -119,7 +123,7 @@ async def _seed_foreign_blueprint() -> str:
                     "(id, user_id, is_system, name, genre, status) "
                     "VALUES (:id, :uid, false, 'Foreign', 'Novel', 'Draft')"
                 ),
-                {"id": bid, "uid": _OTHER_USER_ID},
+                {"id": bid, "uid": str(_OTHER_USER_ID)},
             )
     finally:
         await engine.dispose()
