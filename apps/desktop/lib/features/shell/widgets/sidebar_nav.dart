@@ -39,6 +39,10 @@ class SidebarNav extends StatelessWidget {
                     icon: Icons.folder_outlined,
                     route: '/projects'),
                 _NavItem(
+                    label: 'Blueprints',
+                    icon: Icons.account_tree_outlined,
+                    route: '/blueprints'),
+                _NavItem(
                     label: 'Voices',
                     icon: Icons.record_voice_over_outlined,
                     route: '/voices'),

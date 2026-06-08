@@ -11,6 +11,7 @@ import '../../features/player/player_screen.dart';
 import '../../features/player/player_landing_screen.dart';
 import '../../features/projects/projects_screen.dart';
 import '../../features/projects/project_detail_screen.dart';
+import '../../features/blueprints/blueprints_screen.dart';
 import '../../features/editor/document_editor_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/voices/voice_selector_screen.dart';
@@ -131,6 +132,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 },
               ),
             ],
+          ),
+          GoRoute(
+            path: '/blueprints',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: BlueprintsScreen(),
+            ),
           ),
           GoRoute(
             path: '/settings',
