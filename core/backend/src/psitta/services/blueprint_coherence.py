@@ -52,7 +52,7 @@ _OVERVIEW_CTE = text(
         SELECT id, blueprint_id, parent_part_id, name, description, sort_order,
                0 AS depth
         FROM blueprint_parts
-        WHERE blueprint_id = ANY(:bids::uuid[]) AND parent_part_id IS NULL
+        WHERE blueprint_id = ANY(:bids) AND parent_part_id IS NULL
         UNION ALL
         SELECT c.id, c.blueprint_id, c.parent_part_id, c.name, c.description,
                c.sort_order, t.depth + 1
@@ -171,7 +171,11 @@ async def derive_overview(
     if not adopted:
         return ProjectBlueprintOverview(progress=None, blueprints=[])
 
-    blueprint_ids = [str(a.id) for a in adopted]
+    # Pass UUID objects (not strings): asyncpg binds the list as a Postgres
+    # array and Postgres infers ``uuid[]`` from the ``blueprint_id = ANY(...)``
+    # comparison — no inline ``::uuid[]`` cast (which SQLAlchemy's text() bind
+    # regex would refuse to substitute, the ``::`` immediately following a param).
+    blueprint_ids = [a.id for a in adopted]
     rows = await db.execute(_OVERVIEW_CTE, {"bids": blueprint_ids})
     flat_by_blueprint: dict[str, list[dict]] = {}
     for row in rows.mappings():
