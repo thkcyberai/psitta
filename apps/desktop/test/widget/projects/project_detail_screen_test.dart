@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:psitta/core/theme/app_theme.dart';
+import 'package:psitta/data/models/blueprint.dart';
 import 'package:psitta/data/models/document.dart';
 import 'package:psitta/data/models/project_detail.dart';
+import 'package:psitta/data/providers/blueprint_providers.dart';
 import 'package:psitta/data/providers/project_providers.dart';
 import 'package:psitta/data/services/preferences_service.dart';
 import 'package:psitta/features/projects/project_detail_screen.dart';
@@ -35,10 +37,19 @@ Document _doc() => Document.fromJson(const <String, dynamic>{
       'created_at': '2026-06-01T00:00:00Z',
     });
 
+ProjectBlueprintOverview _emptyOverview() =>
+    ProjectBlueprintOverview.fromJson(
+        const <String, dynamic>{'progress': null, 'blueprints': <dynamic>[]});
+
 List<Override> _overrides({List<Document>? docs}) => [
       projectDetailProvider('p1').overrideWith((ref) async => _detail()),
       projectDocumentsProvider('p1')
           .overrideWith((ref) async => docs ?? [_doc()]),
+      // Overview is the default tab; stub its blueprint/placement reads too.
+      projectBlueprintOverviewProvider('p1')
+          .overrideWith((ref) async => _emptyOverview()),
+      projectPlacementsProvider('p1')
+          .overrideWith((ref) async => const <ProjectPlacement>[]),
     ];
 
 Future<void> _pump(
@@ -86,13 +97,11 @@ void main() {
   testWidgets('switching to Documents lists the project documents',
       (tester) async {
     await _pump(tester);
-    // Overview placeholder shown first; doc not yet visible.
-    expect(find.text('Chapter One'), findsNothing);
-
     await tester.tap(find.widgetWithText(Tab, 'Documents'));
     await tester.pumpAndSettle();
-
-    expect(find.text('Chapter One'), findsOneWidget);
+    // The Documents tab lists the project's documents as ListTiles (distinct
+    // from the Overview Recent Documents table's plain-text rows).
+    expect(find.widgetWithText(ListTile, 'Chapter One'), findsOneWidget);
   });
 
   testWidgets('Activity tab shows an honest coming-soon state', (tester) async {

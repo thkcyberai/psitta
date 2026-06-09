@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart';
 import 'widgets/project_documents_tab.dart';
+import 'widgets/project_overview_tab.dart';
 import 'widgets/project_right_rail.dart';
 
 /// Project screen — tabbed shell (Overview · Documents · Blueprints · Activity)
@@ -52,7 +53,7 @@ class ProjectDetailScreen extends ConsumerWidget {
                   Expanded(
                     child: TabBarView(
                       children: [
-                        const _TabPlaceholder(label: 'Overview'),
+                        ProjectOverviewTab(projectId: projectId),
                         ProjectDocumentsTab(
                           projectId: projectId,
                           projectName: projectName,
