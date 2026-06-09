@@ -1,8 +1,11 @@
-// Widget tests for WD-4: DocumentContextPane.
+// Widget tests for WD-4/WD-5/WD-6: DocumentContextPane.
 //
-// Verifies: null-project guard, unplaced document, placed document shows
-// PlacementContextCard with action buttons, ProgressCard shows when overview
-// has progress, remove action calls removePlacement, and 4-skin build.
+// WD-4: null-project guard, unplaced document, placed document shows
+//   PlacementContextCard with action buttons, ProgressCard, remove action,
+//   4-skin build.
+// WD-5: QuickActionsCard renders with all 4 buttons, duplicate disabled,
+//   delete action calls repo.deleteDocument after confirmation.
+// WD-6: SummarizeItPanel renders as a disabled stub with "Writing Nook" badge.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,13 +16,17 @@ import 'package:psitta/data/models/blueprint_enums.dart';
 import 'package:psitta/data/models/project_detail.dart';
 import 'package:psitta/data/providers/blueprint_providers.dart';
 import 'package:psitta/data/providers/project_providers.dart';
+import 'package:psitta/data/providers/providers.dart';
 import 'package:psitta/data/repositories/blueprint_repository.dart';
+import 'package:psitta/data/repositories/document_repository.dart';
 import 'package:psitta/data/services/preferences_service.dart';
 import 'package:psitta/features/writing_desk/document_context_pane.dart';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
 class MockBlueprintRepository extends Mock implements BlueprintRepository {}
+
+class MockDocumentRepository extends Mock implements DocumentRepository {}
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -88,6 +95,14 @@ Future<void> _pumpNoProject(WidgetTester tester, {ThemeData? theme}) async {
   await tester.pumpAndSettle();
 }
 
+// Base overrides used by most tests — no placement, no progress.
+List<Override> _baseOverrides() => [
+      projectPlacementsProvider('p-xyz')
+          .overrideWith((ref) async => <ProjectPlacement>[]),
+      projectBlueprintOverviewProvider('p-xyz')
+          .overrideWith((ref) async => _emptyOverview()),
+    ];
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 void main() {
@@ -96,7 +111,7 @@ void main() {
     registerFallbackValue('');
   });
 
-  // ── Null-project guard ───────────────────────────────────────────────────
+  // ── WD-4: Null-project guard ─────────────────────────────────────────────
   testWidgets('null-project guard shows correct message', (tester) async {
     await _pumpNoProject(tester);
     expect(
@@ -106,21 +121,16 @@ void main() {
     expect(find.text('Open from a project to see context'), findsOneWidget);
   });
 
-  // ── Unplaced document ────────────────────────────────────────────────────
+  // ── WD-4: Unplaced document ──────────────────────────────────────────────
   testWidgets('unplaced document shows unplaced hint', (tester) async {
-    await _pump(tester, overrides: [
-      projectPlacementsProvider('p-xyz')
-          .overrideWith((ref) async => <ProjectPlacement>[]),
-      projectBlueprintOverviewProvider('p-xyz')
-          .overrideWith((ref) async => _emptyOverview()),
-    ]);
+    await _pump(tester, overrides: _baseOverrides());
     expect(
       find.byKey(const ValueKey('desk-context-unplaced')),
       findsOneWidget,
     );
   });
 
-  // ── Placed document ──────────────────────────────────────────────────────
+  // ── WD-4: Placed document ────────────────────────────────────────────────
   testWidgets('placed document shows PlacementContextCard with action buttons',
       (tester) async {
     await _pump(tester, overrides: [
@@ -143,7 +153,7 @@ void main() {
         find.byKey(const ValueKey('desk-placement-remove')), findsOneWidget);
   });
 
-  // ── ProgressCard ─────────────────────────────────────────────────────────
+  // ── WD-4: ProgressCard ───────────────────────────────────────────────────
   testWidgets('ProgressCard shows when overview has progress', (tester) async {
     await _pump(tester, overrides: [
       projectPlacementsProvider('p-xyz')
@@ -155,7 +165,7 @@ void main() {
     expect(find.text('3 / 5 sections with content'), findsOneWidget);
   });
 
-  // ── Remove action ────────────────────────────────────────────────────────
+  // ── WD-4: Remove action ──────────────────────────────────────────────────
   testWidgets('remove action calls removePlacement after confirmation',
       (tester) async {
     final mockRepo = MockBlueprintRepository();
@@ -169,11 +179,9 @@ void main() {
       blueprintRepositoryProvider.overrideWithValue(mockRepo),
     ]);
 
-    // Tap Remove button.
     await tester.tap(find.byKey(const ValueKey('desk-placement-remove')));
     await tester.pumpAndSettle();
 
-    // Confirmation dialog: tap the confirm Remove button.
     expect(
         find.byKey(const ValueKey('desk-placement-remove-confirm')),
         findsOneWidget);
@@ -184,18 +192,81 @@ void main() {
     verify(() => mockRepo.removePlacement('doc-123')).called(1);
   });
 
+  // ── WD-5: QuickActionsCard renders ───────────────────────────────────────
+  testWidgets('QuickActionsCard renders all four action buttons',
+      (tester) async {
+    await _pump(tester, overrides: _baseOverrides());
+    expect(
+        find.byKey(const ValueKey('desk-quick-actions-card')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desk-quick-download')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desk-quick-delete')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desk-quick-move')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desk-quick-duplicate')), findsOneWidget);
+  });
+
+  // ── WD-5: Duplicate button is disabled ──────────────────────────────────
+  testWidgets('duplicate button is disabled (onPressed null)', (tester) async {
+    await _pump(tester, overrides: _baseOverrides());
+    final duplicateButton = tester.widget<TextButton>(
+      find.byKey(const ValueKey('desk-quick-duplicate')),
+    );
+    expect(duplicateButton.onPressed, isNull);
+  });
+
+  // ── WD-5: Delete action calls deleteDocument ─────────────────────────────
+  testWidgets('delete action calls deleteDocument after confirmation',
+      (tester) async {
+    final mockDocRepo = MockDocumentRepository();
+    when(() => mockDocRepo.deleteDocument(any()))
+        .thenAnswer((_) async {});
+
+    await _pump(tester, overrides: [
+      ..._baseOverrides(),
+      documentRepositoryProvider.overrideWithValue(mockDocRepo),
+      documentsProvider.overrideWith((ref) async => []),
+    ]);
+
+    await tester.tap(find.byKey(const ValueKey('desk-quick-delete')));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.byKey(const ValueKey('desk-quick-delete-confirm')), findsOneWidget);
+    await tester
+        .tap(find.byKey(const ValueKey('desk-quick-delete-confirm')));
+    await tester.pumpAndSettle();
+
+    verify(() => mockDocRepo.deleteDocument('doc-123')).called(1);
+  });
+
+  // ── WD-6: SummarizeItPanel renders as disabled stub ──────────────────────
+  testWidgets('SummarizeItPanel renders with disabled generate button and tier badge',
+      (tester) async {
+    await _pump(tester, overrides: _baseOverrides());
+    expect(
+        find.byKey(const ValueKey('desk-summarize-panel')), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desk-summarize-tier-badge')), findsOneWidget);
+    expect(find.text('Writing Nook'), findsOneWidget);
+    expect(
+        find.byKey(const ValueKey('desk-summarize-placeholder')), findsOneWidget);
+
+    final generateButton = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('desk-summarize-generate')),
+    );
+    expect(generateButton.onPressed, isNull);
+  });
+
   // ── 4-skin build ─────────────────────────────────────────────────────────
   for (final themeName in ThemeNames.all) {
     testWidgets('builds under the "$themeName" theme', (tester) async {
       await _pump(
         tester,
         theme: AppTheme.forName(themeName),
-        overrides: [
-          projectPlacementsProvider('p-xyz')
-              .overrideWith((ref) async => <ProjectPlacement>[]),
-          projectBlueprintOverviewProvider('p-xyz')
-              .overrideWith((ref) async => _emptyOverview()),
-        ],
+        overrides: _baseOverrides(),
       );
       expect(tester.takeException(), isNull);
       expect(find.byType(DocumentContextPane), findsOneWidget);
