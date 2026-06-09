@@ -584,6 +584,8 @@ class ProjectPlacement(StrictSchema):
 
     One row per non-deleted, placed document in the project, carrying the
     blueprint and part (section) names so the client need not re-read the tree.
+    ``role`` is the ``part_documents.role`` text value; ``sort_order`` is the
+    ``part_documents.sort_order`` Numeric value cast to float.
     """
 
     document_id: UUID
@@ -591,3 +593,5 @@ class ProjectPlacement(StrictSchema):
     part_id: UUID
     blueprint_name: str
     part_name: str
+    role: str
+    sort_order: float

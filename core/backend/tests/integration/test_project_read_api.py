@@ -230,6 +230,10 @@ class TestProjectPlacements:
         assert row["part_id"] == part
         assert row["blueprint_name"] == "Nested"
         assert row["part_name"] == "Act I"
+        # WD-B0: role defaults to "Main Content"; sort_order is the first-append
+        # position (blueprint_service._GAP = 1000), serialised as float.
+        assert row["role"] == "Main Content"
+        assert row["sort_order"] == 1000.0
 
     @pytest.mark.asyncio
     async def test_placements_empty_when_none(self, client, auth_override):

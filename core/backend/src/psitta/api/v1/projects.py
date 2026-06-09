@@ -298,7 +298,8 @@ async def list_project_placements(
     rows = await db.execute(
         text("""
             SELECT pd.document_id, bp.blueprint_id, pd.part_id,
-                   b.name AS blueprint_name, bp.name AS part_name
+                   b.name AS blueprint_name, bp.name AS part_name,
+                   pd.role, pd.sort_order
             FROM part_documents pd
             JOIN documents d ON d.id = pd.document_id
             JOIN blueprint_parts bp ON bp.id = pd.part_id
@@ -315,6 +316,8 @@ async def list_project_placements(
             part_id=row["part_id"],
             blueprint_name=row["blueprint_name"],
             part_name=row["part_name"],
+            role=row["role"],
+            sort_order=float(row["sort_order"]),
         )
         for row in rows.mappings()
     ]
