@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../data/models/document.dart';
+import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart';
-import '../../data/providers/providers.dart';
-import '../../data/repositories/project_repository.dart';
-import '../../widgets/document_cover.dart';
-import '../shell/widgets/player_bar.dart';
+import 'widgets/project_documents_tab.dart';
+import 'widgets/project_right_rail.dart';
 
+/// Project screen — tabbed shell (Overview · Documents · Blueprints · Activity)
+/// with a project-level right rail (About, Project Actions, Activity).
+///
+/// This slice (5b) builds the shell, header, right rail, and the Documents tab;
+/// Overview and Blueprints are placeholder panes filled in by 5c/5d.
 class ProjectDetailScreen extends ConsumerWidget {
   const ProjectDetailScreen({
     super.key,
@@ -21,40 +24,53 @@ class ProjectDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final docsAsync = ref.watch(projectDocumentsProvider(projectId));
+    final tokens = PsittaTokens.of(context);
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return DefaultTabController(
+      length: 4,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                TextButton.icon(
-                  icon: const Icon(Icons.arrow_back, size: 16),
-                  label: const Text('Projects'),
-                  onPressed: () => context.go('/projects'),
-                ),
-                const Text(' / ',
-                    style: TextStyle(color: Colors.grey)),
-                Text(
-                  projectName,
-                  style: const TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w600),
-                ),
+            _ProjectHeader(projectId: projectId, projectName: projectName),
+            const TabBar(
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: [
+                Tab(text: 'Overview'),
+                Tab(text: 'Documents'),
+                Tab(text: 'Blueprints'),
+                Tab(text: 'Activity'),
               ],
             ),
-            const SizedBox(height: 24),
+            Divider(height: 1, color: tokens.divider),
             Expanded(
-              child: docsAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Error: $e')),
-                data: (docs) => docs.isEmpty
-                    ? _buildEmptyState(context)
-                    : _buildDocList(context, ref, docs),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        const _TabPlaceholder(label: 'Overview'),
+                        ProjectDocumentsTab(
+                          projectId: projectId,
+                          projectName: projectName,
+                        ),
+                        const _TabPlaceholder(label: 'Blueprints'),
+                        const Center(child: ProjectActivityComingSoon()),
+                      ],
+                    ),
+                  ),
+                  VerticalDivider(width: 1, color: tokens.divider),
+                  SizedBox(
+                    width: 300,
+                    child: ProjectRightRail(
+                      projectId: projectId,
+                      projectName: projectName,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -62,330 +78,61 @@ class ProjectDetailScreen extends ConsumerWidget {
       ),
     );
   }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.folder_open_outlined,
-              size: 64,
-              color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 16),
-          const Text('No documents in this project'),
-          const SizedBox(height: 8),
-          Text(
-            'Use "Add to Project" from the Library to add documents here.',
-            style:
-                TextStyle(color: Theme.of(context).colorScheme.outline),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDocList(
-      BuildContext context, WidgetRef ref, List<Document> docs) {
-    return ListView.separated(
-      itemCount: docs.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (context, i) {
-        final doc = docs[i];
-        return ListTile(
-          leading: _docLeading(doc),
-          title: Text(doc.title),
-          subtitle: Text(doc.status),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _DocContextMenu(
-                doc: doc,
-                projectId: projectId,
-                projectName: projectName,
-              ),
-              IconButton(
-                icon: const Icon(Icons.play_circle_outline),
-                tooltip: 'Play',
-                onPressed: () {
-                  ref.read(activeDocumentIdProvider.notifier).state =
-                      doc.id;
-                  ref.read(currentDocTitleProvider.notifier).state =
-                      doc.title;
-                  context.go(
-                    '/player/${doc.id}'
-                    '?origin=project'
-                    '&projectId=$projectId'
-                    '&projectName=${Uri.encodeComponent(projectName)}',
-                  );
-                },
-              ),
-            ],
-          ),
-          onTap: () {
-            ref.read(activeDocumentIdProvider.notifier).state = doc.id;
-            ref.read(currentDocTitleProvider.notifier).state =
-                doc.title;
-            context.go(
-              '/player/${doc.id}'
-              '?origin=project'
-              '&projectId=$projectId'
-              '&projectName=${Uri.encodeComponent(projectName)}',
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _docLeading(Document doc) {
-    if (doc.coverType != null) {
-      return SizedBox(
-        width: 36,
-        height: 36,
-        child: DocumentCover(
-          coverType: doc.coverType,
-          coverValue: doc.coverValue,
-          documentId: doc.id,
-          size: DocumentCoverSize.mini,
-          sourceType: doc.sourceType,
-          borderRadius: BorderRadius.circular(6),
-        ),
-      );
-    }
-    final icon = switch (doc.sourceType) {
-      'pdf' => Icons.picture_as_pdf_outlined,
-      'docx' => Icons.article_outlined,
-      'txt' => Icons.text_snippet_outlined,
-      _ => Icons.insert_drive_file_outlined,
-    };
-    return Icon(icon);
-  }
 }
 
-// ── Document Context Menu ────────────────────────────────────────────────────
+/// Header: breadcrumb back to Projects + the project name (from
+/// projectDetailProvider, falling back to the routed name while loading).
+class _ProjectHeader extends ConsumerWidget {
+  const _ProjectHeader({required this.projectId, required this.projectName});
 
-class _DocContextMenu extends ConsumerWidget {
-  const _DocContextMenu({
-    required this.doc,
-    required this.projectId,
-    required this.projectName,
-  });
-
-  final Document doc;
   final String projectId;
   final String projectName;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return PopupMenuButton<String>(
-      icon: const Icon(Icons.more_vert, size: 18),
-      tooltip: 'More options',
-      onSelected: (value) async {
-        switch (value) {
-          case 'rename':
-            await _showRenameDialog(context, ref);
-            break;
-          case 'move':
-            await _showMoveDialog(context, ref);
-            break;
-          case 'remove':
-            await _confirmRemove(context, ref);
-            break;
-        }
-      },
-      itemBuilder: (_) => [
-        const PopupMenuItem(
-          value: 'rename',
-          child: Row(children: [
-            Icon(Icons.edit_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Rename'),
-          ]),
-        ),
-        const PopupMenuItem(
-          value: 'move',
-          child: Row(children: [
-            Icon(Icons.drive_file_move_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Move to Project'),
-          ]),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'remove',
-          child: Row(children: [
-            Icon(Icons.delete_outlined, size: 18, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Remove', style: TextStyle(color: Colors.red)),
-          ]),
-        ),
-      ],
+    final detailAsync = ref.watch(projectDetailProvider(projectId));
+    final name = detailAsync.maybeWhen(
+      data: (d) => d.name,
+      orElse: () => projectName,
     );
-  }
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
-  Future<void> _showRenameDialog(
-      BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController(text: doc.title);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Rename Document'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration:
-              const InputDecoration(border: OutlineInputBorder()),
-          onSubmitted: (_) => Navigator.of(ctx).pop(true),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+      child: Row(
+        children: [
+          TextButton.icon(
+            icon: const Icon(Icons.arrow_back, size: 16),
+            label: const Text('Projects'),
+            onPressed: () => context.go('/projects'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Rename'),
+          Text(' / ', style: TextStyle(color: muted)),
+          Expanded(
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
     );
-    if (confirmed == true && controller.text.trim().isNotEmpty) {
-      try {
-        final repo = ref.read(documentRepositoryProvider);
-        await repo.renameDocument(doc.id, controller.text.trim());
-        ref.invalidate(projectDocumentsProvider(projectId));
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to rename: $e')),
-          );
-        }
-      }
-    }
-    controller.dispose();
   }
+}
 
-  Future<void> _showMoveDialog(
-      BuildContext context, WidgetRef ref) async {
-    // Fetch all projects
-    List<Project> allProjects;
-    try {
-      final repo = ref.read(projectRepositoryProvider);
-      allProjects = await repo.listProjects();
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load projects: $e')),
-        );
-      }
-      return;
-    }
+/// Neutral placeholder for the Overview/Blueprints panes until 5c/5d fill them.
+class _TabPlaceholder extends StatelessWidget {
+  const _TabPlaceholder({required this.label});
+  final String label;
 
-    // Filter out the current project
-    final otherProjects =
-        allProjects.where((p) => p.id != projectId).toList();
-
-    if (otherProjects.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'No other projects available. Create another project first.'),
-          ),
-        );
-      }
-      return;
-    }
-
-    if (!context.mounted) return;
-
-    final targetProject = await showDialog<Project>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Move to Project'),
-        content: SizedBox(
-          width: 340,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: otherProjects.length,
-            itemBuilder: (_, i) {
-              final p = otherProjects[i];
-              return ListTile(
-                leading: const Icon(Icons.folder_outlined),
-                title: Text(p.name),
-                subtitle: Text(
-                  '${p.documentCount} document${p.documentCount == 1 ? '' : 's'}',
-                ),
-                onTap: () => Navigator.of(ctx).pop(p),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-        ],
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        label,
+        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     );
-
-    if (targetProject == null) return;
-
-    try {
-      // Move = unassign from current + assign to target
-      final repo = ref.read(projectRepositoryProvider);
-      await repo.assignToProject(doc.id, targetProject.id);
-      ref.invalidate(projectDocumentsProvider(projectId));
-      ref.invalidate(projectsProvider);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to move document: $e')),
-        );
-      }
-    }
-  }
-
-  Future<void> _confirmRemove(
-      BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Remove from Project'),
-        content: Text(
-          "Remove '${doc.title}' from '$projectName'? "
-          'The document will remain in your Library.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            style:
-                FilledButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Remove'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      try {
-        // Unassign document from project (set project_id to null)
-        final repo = ref.read(projectRepositoryProvider);
-        await repo.assignToProject(doc.id, null);
-        ref.invalidate(projectDocumentsProvider(projectId));
-        ref.invalidate(projectsProvider);
-      } catch (e) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to remove document: $e')),
-          );
-        }
-      }
-    }
   }
 }
