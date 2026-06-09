@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:psitta/data/api/api_client.dart';
+import 'package:psitta/data/models/blueprint_enums.dart';
 import 'package:psitta/data/models/project_detail.dart';
 import 'package:psitta/data/providers/project_providers.dart';
 import 'package:psitta/data/providers/providers.dart';
@@ -41,6 +42,8 @@ Map<String, dynamic> _placementJson() => {
       'part_id': 'pt1',
       'blueprint_name': 'Nested',
       'part_name': 'Act I',
+      'role': 'Main Content',
+      'sort_order': 1000.0,
     };
 
 Map<String, dynamic> _docJson() => {
@@ -100,6 +103,10 @@ void main() {
       expect(p.partId, 'pt1');
       expect(p.blueprintName, 'Nested');
       expect(p.partName, 'Act I');
+      // WD-P0: role defaults to "Main Content"; sort_order is the first-append
+      // position (blueprint_service._GAP = 1000), serialised as float.
+      expect(p.role, Role.mainContent);
+      expect(p.sortOrder, 1000.0);
     });
 
     test('getProjectPlacements returns an empty list', () async {
@@ -136,6 +143,8 @@ void main() {
 
       final list = await container.read(projectPlacementsProvider('p1').future);
       expect(list.single.partName, 'Act I');
+      expect(list.single.role, Role.mainContent);
+      expect(list.single.sortOrder, 1000.0);
       verify(() => repo.getProjectPlacements('p1')).called(1);
     });
 

@@ -6,6 +6,8 @@
 /// style (snake_case wire → camelCase Dart).
 library;
 
+import 'blueprint_enums.dart' show Role;
+
 /// Aggregated detail for one project (`GET /projects/{id}`). Counts/words cover
 /// non-deleted documents; `totalWords` is 0 when the project has none.
 class ProjectDetail {
@@ -59,6 +61,8 @@ class ProjectPlacement {
     required this.partId,
     required this.blueprintName,
     required this.partName,
+    required this.role,
+    required this.sortOrder,
   });
 
   factory ProjectPlacement.fromJson(Map<String, dynamic> json) =>
@@ -68,6 +72,8 @@ class ProjectPlacement {
         partId: json['part_id'] as String,
         blueprintName: json['blueprint_name'] as String,
         partName: json['part_name'] as String,
+        role: Role.fromWire(json['role'] as String),
+        sortOrder: (json['sort_order'] as num).toDouble(),
       );
 
   final String documentId;
@@ -75,4 +81,10 @@ class ProjectPlacement {
   final String partId;
   final String blueprintName;
   final String partName;
+
+  /// Part-document role — e.g. [Role.mainContent].
+  final Role role;
+
+  /// Ordering position within the part (gapped NUMERIC, first append = 1000.0).
+  final double sortOrder;
 }
