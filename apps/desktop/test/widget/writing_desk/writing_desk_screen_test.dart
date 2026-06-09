@@ -6,6 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:psitta/core/theme/app_theme.dart';
+import 'package:psitta/data/models/blueprint.dart';
+import 'package:psitta/data/models/document.dart';
+import 'package:psitta/data/models/project_detail.dart';
+import 'package:psitta/data/providers/blueprint_providers.dart';
+import 'package:psitta/data/providers/project_providers.dart';
 import 'package:psitta/data/services/preferences_service.dart';
 import 'package:psitta/features/writing_desk/writing_desk_screen.dart';
 
@@ -29,6 +34,25 @@ GoRouter _router({String? projectId}) {
   );
 }
 
+// Stub overrides for the navigator pane providers — return minimal empty data
+// so the navigator renders without network calls.
+List<Override> _stubNavigatorProviders(String? projectId) {
+  if (projectId == null) return const [];
+  final emptyOverview =
+      ProjectBlueprintOverview.fromJson(<String, dynamic>{
+    'progress': null,
+    'blueprints': <dynamic>[],
+  });
+  return [
+    projectBlueprintOverviewProvider(projectId)
+        .overrideWith((ref) async => emptyOverview),
+    projectDocumentsProvider(projectId)
+        .overrideWith((ref) async => <Document>[]),
+    projectPlacementsProvider(projectId)
+        .overrideWith((ref) async => <ProjectPlacement>[]),
+  ];
+}
+
 Future<void> _pump(
   WidgetTester tester, {
   ThemeData? theme,
@@ -36,6 +60,7 @@ Future<void> _pump(
 }) async {
   await tester.pumpWidget(
     ProviderScope(
+      overrides: _stubNavigatorProviders(projectId),
       child: MaterialApp.router(
         theme: theme ?? AppTheme.creatorStudioDark,
         routerConfig: _router(projectId: projectId),

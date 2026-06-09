@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
+import 'project_navigator_pane.dart';
 
 /// Three-column Writing Desk surface.
 ///
@@ -43,7 +44,10 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
           SizedBox(
             key: const ValueKey('desk-navigator-pane'),
             width: _navigatorWidth,
-            child: _NavigatorPlaceholder(projectId: widget.projectId),
+            child: ProjectNavigatorPane(
+              documentId: widget.documentId,
+              projectId: widget.projectId,
+            ),
           ),
           // ── Resize handle: navigator ↔ center ───────────────────────────
           _ResizeHandle(
@@ -112,28 +116,7 @@ class _ResizeHandle extends StatelessWidget {
   }
 }
 
-// ── Placeholder panes (replaced in WD-2 / WD-3 / WD-4) ──────────────────────
-
-class _NavigatorPlaceholder extends StatelessWidget {
-  const _NavigatorPlaceholder({this.projectId});
-  final String? projectId;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = PsittaTokens.of(context);
-    return Container(
-      color: tokens.surface2,
-      alignment: Alignment.center,
-      child: Text(
-        'Navigator',
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(color: Theme.of(context).colorScheme.outline),
-      ),
-    );
-  }
-}
+// ── Placeholder panes (replaced progressively in WD-3 / WD-4) ───────────────
 
 class _CenterPlaceholder extends StatelessWidget {
   const _CenterPlaceholder({super.key, required this.documentId});
