@@ -3,20 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../data/models/document.dart';
+import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart';
 import '../../data/repositories/project_repository.dart';
 import '../../widgets/document_cover.dart';
 import '../shell/widgets/player_bar.dart';
-
-final projectDocumentsProvider =
-    FutureProvider.autoDispose.family<List<Document>, String>(
-        (ref, projectId) async {
-  final api = ref.watch(apiClientProvider);
-  final response = await api.dio.get('/projects/$projectId/documents');
-  return (response.data as List)
-      .map((e) => Document.fromJson(e as Map<String, dynamic>))
-      .toList();
-});
 
 class ProjectDetailScreen extends ConsumerWidget {
   const ProjectDetailScreen({

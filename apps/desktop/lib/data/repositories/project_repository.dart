@@ -1,4 +1,5 @@
 import '../api/api_client.dart';
+import '../models/project_detail.dart';
 
 class Project {
   const Project({
@@ -44,6 +45,21 @@ class ProjectRepository {
   Future<Project> createProject(String name) async {
     final response = await _api.dio.post('/projects/', data: {'name': name});
     return Project.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Aggregated detail for one project (`GET /projects/{id}`).
+  Future<ProjectDetail> getProjectDetail(String id) async {
+    final response = await _api.dio.get('/projects/$id');
+    return ProjectDetail.fromJson(response.data as Map<String, dynamic>);
+  }
+
+  /// Document→blueprint/part placements for a project
+  /// (`GET /projects/{id}/placements`).
+  Future<List<ProjectPlacement>> getProjectPlacements(String id) async {
+    final response = await _api.dio.get('/projects/$id/placements');
+    return (response.data as List)
+        .map((e) => ProjectPlacement.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<void> renameProject(String id, String name) async {

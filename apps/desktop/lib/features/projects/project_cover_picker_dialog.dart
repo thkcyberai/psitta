@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
+import '../../data/providers/project_providers.dart';
 import '../../widgets/document_cover.dart';
-import '../projects/project_detail_screen.dart';
 
 /// Result from the project cover picker. Null documentId means remove cover.
 class ProjectCoverResult {
