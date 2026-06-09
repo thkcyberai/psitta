@@ -5,6 +5,7 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/blueprint.dart';
 import '../../data/providers/blueprint_providers.dart';
 import 'blueprint_screen_state.dart';
+import 'widgets/part_tree_pane.dart';
 
 /// Blueprints screen — three-pane layout (left: blueprint list, center: section
 /// tree, right: deferred). This batch builds the left list and the center tree;
@@ -26,9 +27,8 @@ class BlueprintsScreen extends ConsumerWidget {
         children: [
           const SizedBox(width: 320, child: _BlueprintListPane()),
           VerticalDivider(width: 1, color: tokens.divider),
-          // Center pane (section tree) is slotted in by slice 4b; until then a
-          // placeholder stands in.
-          const Expanded(child: _CenterPlaceholder()),
+          // Center pane: the selected blueprint's section tree.
+          const Expanded(child: PartTreePane()),
         ],
       ),
     );
@@ -268,26 +268,3 @@ class _GenreChip extends StatelessWidget {
   }
 }
 
-// ── Center pane placeholder (replaced by the section tree in slice 4b) ────────
-
-class _CenterPlaceholder extends StatelessWidget {
-  const _CenterPlaceholder();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.account_tree_outlined,
-              size: 64, color: Theme.of(context).colorScheme.outline),
-          const SizedBox(height: 16),
-          Text(
-            'Select a blueprint',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ],
-      ),
-    );
-  }
-}
