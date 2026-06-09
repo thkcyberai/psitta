@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
+import 'desk_center_pane.dart';
 import 'project_navigator_pane.dart';
 
 /// Three-column Writing Desk surface.
@@ -60,7 +61,7 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
           ),
           // ── Center pane (expanded) ───────────────────────────────────────
           Expanded(
-            child: _CenterPlaceholder(
+            child: DeskCenterPane(
               key: const ValueKey('desk-center-pane'),
               documentId: widget.documentId,
             ),
@@ -116,27 +117,7 @@ class _ResizeHandle extends StatelessWidget {
   }
 }
 
-// ── Placeholder panes (replaced progressively in WD-3 / WD-4) ───────────────
-
-class _CenterPlaceholder extends StatelessWidget {
-  const _CenterPlaceholder({super.key, required this.documentId});
-  final String documentId;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      alignment: Alignment.center,
-      child: Text(
-        'Document',
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(color: Theme.of(context).colorScheme.outline),
-      ),
-    );
-  }
-}
+// ── Placeholder panes (WD-4/5/6 will replace these) ─────────────────────────
 
 class _ContextPlaceholder extends StatelessWidget {
   const _ContextPlaceholder({

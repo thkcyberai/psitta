@@ -9,10 +9,37 @@ import 'package:psitta/core/theme/app_theme.dart';
 import 'package:psitta/data/models/blueprint.dart';
 import 'package:psitta/data/models/document.dart';
 import 'package:psitta/data/models/project_detail.dart';
+import 'package:psitta/data/models/psitta_document.dart';
 import 'package:psitta/data/providers/blueprint_providers.dart';
 import 'package:psitta/data/providers/project_providers.dart';
+import 'package:psitta/data/providers/providers.dart';
 import 'package:psitta/data/services/preferences_service.dart';
+import 'package:psitta/features/writing_desk/desk_providers.dart';
 import 'package:psitta/features/writing_desk/writing_desk_screen.dart';
+
+// ── fixtures ──────────────────────────────────────────────────────────────────
+
+PsittaDocument _emptyDoc() => const PsittaDocument(
+      id: 'doc-123',
+      title: 'Test Document',
+      blocks: [],
+      plainText: '',
+      sentences: [],
+      chunkMap: [],
+    );
+
+Document _stubDocument() => Document.fromJson(<String, dynamic>{
+      'id': 'doc-123',
+      'title': 'Test Document',
+      'status': 'ready',
+      'source_type': 'docx',
+      'page_count': 1,
+      'word_count': 0,
+      'project_id': null,
+      'cover_type': null,
+      'cover_value': null,
+      'created_at': '2026-06-01T00:00:00Z',
+    });
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -34,16 +61,32 @@ GoRouter _router({String? projectId}) {
   );
 }
 
-// Stub overrides for the navigator pane providers — return minimal empty data
-// so the navigator renders without network calls.
-List<Override> _stubNavigatorProviders(String? projectId) {
-  if (projectId == null) return const [];
+// Stub overrides that prevent any network calls.
+// Always includes center-pane stubs; adds navigator stubs when projectId != null.
+List<Override> _stubProviders(String? projectId) {
+  final centerStubs = [
+    deskDocumentProvider('doc-123')
+        .overrideWith((ref) async => _emptyDoc()),
+    documentsProvider.overrideWith((ref) async => [_stubDocument()]),
+    chunksProvider('doc-123').overrideWith(
+      (ref) async => <String, dynamic>{
+        'document_id': 'doc-123',
+        'total_chunks': 0,
+        'chunks': <dynamic>[],
+        'chunk_positions': null,
+      },
+    ),
+  ];
+
+  if (projectId == null) return centerStubs;
+
   final emptyOverview =
-      ProjectBlueprintOverview.fromJson(<String, dynamic>{
+      ProjectBlueprintOverview.fromJson(const <String, dynamic>{
     'progress': null,
     'blueprints': <dynamic>[],
   });
   return [
+    ...centerStubs,
     projectBlueprintOverviewProvider(projectId)
         .overrideWith((ref) async => emptyOverview),
     projectDocumentsProvider(projectId)
@@ -60,7 +103,7 @@ Future<void> _pump(
 }) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: _stubNavigatorProviders(projectId),
+      overrides: _stubProviders(projectId),
       child: MaterialApp.router(
         theme: theme ?? AppTheme.creatorStudioDark,
         routerConfig: _router(projectId: projectId),
