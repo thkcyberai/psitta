@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart';
+import 'widgets/project_blueprints_tab.dart';
 import 'widgets/project_documents_tab.dart';
 import 'widgets/project_overview_tab.dart';
 import 'widgets/project_right_rail.dart';
@@ -58,7 +59,7 @@ class ProjectDetailScreen extends ConsumerWidget {
                           projectId: projectId,
                           projectName: projectName,
                         ),
-                        const _TabPlaceholder(label: 'Blueprints'),
+                        ProjectBlueprintsTab(projectId: projectId),
                         const Center(child: ProjectActivityComingSoon()),
                       ],
                     ),
@@ -117,22 +118,6 @@ class _ProjectHeader extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/// Neutral placeholder for the Overview/Blueprints panes until 5c/5d fill them.
-class _TabPlaceholder extends StatelessWidget {
-  const _TabPlaceholder({required this.label});
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        label,
-        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     );
   }
