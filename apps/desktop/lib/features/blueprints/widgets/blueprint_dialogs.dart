@@ -296,7 +296,9 @@ Future<bool> confirmDeleteDialog(
           child: const Text('Cancel'),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: Colors.red),
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(ctx).colorScheme.error,
+          ),
           onPressed: () => Navigator.of(ctx).pop(true),
           child: Text(confirmLabel),
         ),

@@ -68,9 +68,12 @@ class _BlueprintListPane extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Reusable structures for your writing.',
-            style: TextStyle(fontSize: 13, color: Colors.grey),
+            style: TextStyle(
+              fontSize: 13,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 18),
           Expanded(

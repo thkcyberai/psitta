@@ -133,7 +133,8 @@ class PartTreePane extends ConsumerWidget {
       IconButton(
         key: const ValueKey('delete-blueprint-button'),
         tooltip: 'Delete blueprint',
-        icon: const Icon(Icons.delete_outline, color: Colors.red),
+        icon: Icon(Icons.delete_outline,
+            color: Theme.of(context).colorScheme.error),
         onPressed: () => _deleteBlueprint(context, ref, detail),
       ),
     ];
@@ -510,24 +511,27 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
             if (v == 'edit') _editSection();
             if (v == 'delete') _deleteSection();
           },
-          itemBuilder: (_) => const [
-            PopupMenuItem(
-              value: 'edit',
-              child: Row(children: [
-                Icon(Icons.edit_outlined, size: 18),
-                SizedBox(width: 8),
-                Text('Edit'),
-              ]),
-            ),
-            PopupMenuItem(
-              value: 'delete',
-              child: Row(children: [
-                Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                SizedBox(width: 8),
-                Text('Delete', style: TextStyle(color: Colors.red)),
-              ]),
-            ),
-          ],
+          itemBuilder: (context) {
+            final error = Theme.of(context).colorScheme.error;
+            return [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(children: [
+                  Icon(Icons.edit_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('Edit'),
+                ]),
+              ),
+              PopupMenuItem(
+                value: 'delete',
+                child: Row(children: [
+                  Icon(Icons.delete_outline, size: 18, color: error),
+                  const SizedBox(width: 8),
+                  Text('Delete', style: TextStyle(color: error)),
+                ]),
+              ),
+            ];
+          },
         ),
       ],
     );
