@@ -8,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
+from psitta.schemas.api import ProjectDetail, ProjectPlacement
 from psitta.services import audit_service
 
 logger = structlog.get_logger(__name__)
@@ -110,6 +111,50 @@ async def list_projects(
     return result
 
 
+@router.get("/{project_id}", response_model=ProjectDetail)
+async def get_project(
+    project_id: str,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Aggregated detail for one owned project (Phase 5, read-only).
+
+    Owner-guarded via ``_get_project_or_404`` (absent / not-owned → 404), then a
+    single aggregate over existing columns: non-deleted document count, adopted
+    blueprint count, and the sum of word_count over non-deleted documents (0 when
+    none). No schema change.
+    """
+    await _get_project_or_404(project_id, str(user_id), db)
+    row = await db.execute(
+        text("""
+            SELECT
+                p.id, p.name, p.user_id, p.created_at, p.updated_at,
+                (SELECT COUNT(*) FROM documents d
+                   WHERE d.project_id = p.id AND d.status != 'deleted')
+                    AS document_count,
+                (SELECT COUNT(*) FROM project_blueprints pb
+                   WHERE pb.project_id = p.id) AS blueprint_count,
+                COALESCE((SELECT SUM(d2.word_count) FROM documents d2
+                   WHERE d2.project_id = p.id AND d2.status != 'deleted'), 0)
+                    AS total_words
+            FROM projects p
+            WHERE p.id = :id
+        """),
+        {"id": project_id},
+    )
+    r = row.mappings().first()
+    return ProjectDetail(
+        id=r["id"],
+        name=r["name"],
+        user_id=r["user_id"],
+        created_at=r["created_at"],
+        updated_at=r["updated_at"],
+        document_count=r["document_count"],
+        blueprint_count=r["blueprint_count"],
+        total_words=r["total_words"],
+    )
+
+
 @router.patch("/{project_id}")
 async def update_project(
     project_id: str,
@@ -208,7 +253,7 @@ async def list_project_documents(
     await _get_project_or_404(project_id, str(user_id), db)
     rows = await db.execute(
         text("""
-            SELECT id, title, source_type, status, page_count,
+            SELECT id, title, source_type, status, page_count, word_count,
                    file_size_bytes, created_at, project_id,
                    cover_type, cover_value
             FROM documents
@@ -226,6 +271,7 @@ async def list_project_documents(
             "source_type": row["source_type"],
             "status": row["status"],
             "page_count": row["page_count"],
+            "word_count": row["word_count"],
             "file_size_bytes": row["file_size_bytes"],
             "created_at": row["created_at"].isoformat(),
             "project_id": str(row["project_id"]) if row["project_id"] else None,
@@ -233,3 +279,42 @@ async def list_project_documents(
             "cover_value": row["cover_value"],
         })
     return result
+
+
+@router.get("/{project_id}/placements", response_model=list[ProjectPlacement])
+async def list_project_placements(
+    project_id: str,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Document→blueprint/part placements for an owned project (Phase 5, read).
+
+    Owner-guarded (absent / not-owned → 404). Joins part_documents →
+    blueprint_parts → blueprints, scoped to the project's non-deleted documents
+    (mirrors the raw-table conventions in ``blueprint_coherence``). Returns an
+    empty list (200) when nothing is placed.
+    """
+    await _get_project_or_404(project_id, str(user_id), db)
+    rows = await db.execute(
+        text("""
+            SELECT pd.document_id, bp.blueprint_id, pd.part_id,
+                   b.name AS blueprint_name, bp.name AS part_name
+            FROM part_documents pd
+            JOIN documents d ON d.id = pd.document_id
+            JOIN blueprint_parts bp ON bp.id = pd.part_id
+            JOIN blueprints b ON b.id = bp.blueprint_id
+            WHERE d.project_id = :pid AND d.status != 'deleted'
+            ORDER BY pd.document_id
+        """),
+        {"pid": project_id},
+    )
+    return [
+        ProjectPlacement(
+            document_id=row["document_id"],
+            blueprint_id=row["blueprint_id"],
+            part_id=row["part_id"],
+            blueprint_name=row["blueprint_name"],
+            part_name=row["part_name"],
+        )
+        for row in rows.mappings()
+    ]

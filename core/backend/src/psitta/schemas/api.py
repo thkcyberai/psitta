@@ -554,3 +554,40 @@ class ProjectBlueprintOverview(StrictSchema):
 
     progress: ProgressInfo | None = None
     blueprints: list[BlueprintOverview] = []
+
+
+# ── Projects (Phase 5 read surface) ──────────────────────────────────────────
+# Additive, read-only aggregates over existing columns for the Project screen.
+# No schema change: counts/sums are derived on read.
+
+
+class ProjectDetail(StrictSchema):
+    """Aggregated detail for one project (Phase 5, read-only).
+
+    ``document_count`` / ``total_words`` cover non-deleted documents only;
+    ``blueprint_count`` is the number of adopted blueprints. ``total_words`` is
+    0 when the project has no (non-deleted) documents.
+    """
+
+    id: UUID
+    name: str
+    user_id: UUID = Field(description="Owner user id")
+    created_at: datetime
+    updated_at: datetime
+    document_count: int = Field(ge=0)
+    blueprint_count: int = Field(ge=0)
+    total_words: int = Field(ge=0)
+
+
+class ProjectPlacement(StrictSchema):
+    """A document's placement within an adopted blueprint's part (Phase 5, read).
+
+    One row per non-deleted, placed document in the project, carrying the
+    blueprint and part (section) names so the client need not re-read the tree.
+    """
+
+    document_id: UUID
+    blueprint_id: UUID
+    part_id: UUID
+    blueprint_name: str
+    part_name: str
