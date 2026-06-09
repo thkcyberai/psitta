@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import 'desk_center_pane.dart';
+import 'document_context_pane.dart';
 import 'project_navigator_pane.dart';
 
 /// Three-column Writing Desk surface.
@@ -79,7 +80,7 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
           SizedBox(
             key: const ValueKey('desk-context-pane'),
             width: _contextWidth,
-            child: _ContextPlaceholder(
+            child: DocumentContextPane(
               documentId: widget.documentId,
               projectId: widget.projectId,
             ),
@@ -117,29 +118,5 @@ class _ResizeHandle extends StatelessWidget {
   }
 }
 
-// ── Placeholder panes (WD-4/5/6 will replace these) ─────────────────────────
+// ── Placeholder panes (WD-5/6 will replace the next placeholder) ─────────────
 
-class _ContextPlaceholder extends StatelessWidget {
-  const _ContextPlaceholder({
-    required this.documentId,
-    this.projectId,
-  });
-  final String documentId;
-  final String? projectId;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = PsittaTokens.of(context);
-    return Container(
-      color: tokens.surface2,
-      alignment: Alignment.center,
-      child: Text(
-        'Context',
-        style: Theme.of(context)
-            .textTheme
-            .bodySmall
-            ?.copyWith(color: Theme.of(context).colorScheme.outline),
-      ),
-    );
-  }
-}
