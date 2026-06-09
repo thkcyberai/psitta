@@ -5,6 +5,7 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/blueprint.dart';
 import '../../data/providers/blueprint_providers.dart';
 import 'blueprint_screen_state.dart';
+import 'widgets/blueprint_dialogs.dart';
 import 'widgets/part_tree_pane.dart';
 
 /// Blueprints screen — three-pane layout (left: blueprint list, center: section
@@ -50,9 +51,21 @@ class _BlueprintListPane extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Blueprints',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Blueprints',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                ),
+              ),
+              FilledButton.icon(
+                key: const ValueKey('new-blueprint-button'),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('New'),
+                onPressed: () => _createBlueprint(context, ref),
+              ),
+            ],
           ),
           const SizedBox(height: 6),
           const Text(
@@ -72,6 +85,28 @@ class _BlueprintListPane extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _createBlueprint(BuildContext context, WidgetRef ref) async {
+    final result = await showBlueprintFormDialog(
+      context,
+      title: 'New Blueprint',
+      submitLabel: 'Create',
+    );
+    if (result == null) return;
+    if (!context.mounted) return;
+    final created = await runBlueprintMutation(
+      context,
+      () => ref.read(blueprintActionsProvider).createBlueprint(
+            name: result.name,
+            genre: result.genre,
+            status: result.status,
+          ),
+    );
+    if (created != null) {
+      ref.read(selectedBlueprintIdProvider.notifier).state = created.id;
+      ref.read(selectedPartIdProvider.notifier).state = null;
+    }
   }
 
   Widget _buildEmptyState(BuildContext context) {
