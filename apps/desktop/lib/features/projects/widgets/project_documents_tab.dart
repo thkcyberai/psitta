@@ -141,6 +141,9 @@ class _DocContextMenu extends ConsumerWidget {
       tooltip: 'More options',
       onSelected: (value) async {
         switch (value) {
+          case 'open_desk':
+            _openInWritingDesk(context);
+            break;
           case 'rename':
             await _showRenameDialog(context, ref);
             break;
@@ -153,6 +156,15 @@ class _DocContextMenu extends ConsumerWidget {
         }
       },
       itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'open_desk',
+          child: Row(children: [
+            Icon(Icons.edit_note_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('Open in Writing Desk'),
+          ]),
+        ),
+        const PopupMenuDivider(),
         const PopupMenuItem(
           value: 'rename',
           child: Row(children: [
@@ -180,6 +192,10 @@ class _DocContextMenu extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  void _openInWritingDesk(BuildContext context) {
+    context.go('/writing-desk/${doc.id}?projectId=$projectId');
   }
 
   Future<void> _showRenameDialog(BuildContext context, WidgetRef ref) async {

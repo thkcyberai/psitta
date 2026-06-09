@@ -15,6 +15,7 @@ import '../../features/blueprints/blueprints_screen.dart';
 import '../../features/editor/document_editor_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/voices/voice_selector_screen.dart';
+import '../../features/writing_desk/writing_desk_screen.dart';
 
 /// A [ChangeNotifier] that bridges Riverpod [AuthState] to GoRouter.
 ///
@@ -164,6 +165,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 ),
               );
             },
+          ),
+          GoRoute(
+            path: '/writing-desk/:documentId',
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: WritingDeskScreen(
+                documentId: state.pathParameters['documentId']!,
+                projectId: state.uri.queryParameters['projectId'],
+              ),
+            ),
           ),
         ],
       ),
