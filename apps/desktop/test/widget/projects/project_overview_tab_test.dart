@@ -99,6 +99,8 @@ ProjectPlacement _placement() => ProjectPlacement.fromJson(const <String, dynami
       'part_id': 'pt1',
       'blueprint_name': 'Nested',
       'part_name': 'Act I',
+      'role': 'Main Content',
+      'sort_order': 1000.0,
     });
 
 List<Override> _base({List<Override> extra = const []}) => [
