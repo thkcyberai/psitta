@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     VISION_PROVIDER: Literal["anthropic", "stub"] = "stub"
     ANTHROPIC_API_KEY: SecretStr = SecretStr("")
 
+    # ── LLM Provider (Summarize-it WD-B1) ─────────────────────────────
+    OPENAI_API_KEY: SecretStr = SecretStr("")
+    OPENAI_SUMMARIZE_MODEL: str = "gpt-4.1-mini"
+
     # ── Amazon Cognito ─────────────────────────────────────────────────
     COGNITO_USER_POOL_ID: str = ""
     COGNITO_CLIENT_ID: str = ""
@@ -123,6 +127,8 @@ class Settings(BaseSettings):
     RATE_LIMIT_TTS_WINDOW_SECONDS: int = 60
     RATE_LIMIT_READ_REQUESTS: int = 120           # GET /documents/...
     RATE_LIMIT_READ_WINDOW_SECONDS: int = 60
+    RATE_LIMIT_LLM_REQUESTS: int = 5             # POST /documents/{id}/summarize
+    RATE_LIMIT_LLM_WINDOW_SECONDS: int = 60
 
     # ── Document Processing ────────────────────────────────────────────
     MAX_DOCUMENT_SIZE_MB: int = 50

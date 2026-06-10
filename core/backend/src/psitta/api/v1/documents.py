@@ -2207,6 +2207,28 @@ async def _background_invalidate_and_resynthesize(
         )
 
 
+# ── POST /{document_id}/summarize ─────────────────────────────────────────────
+
+
+@router.post("/{document_id}/summarize")
+async def summarize_document(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> dict:
+    """Summarize a document using LLM (Writing Nook Pro / Creative Nook Pro).
+
+    Performs a quota pre-check against llm_usage_counters, calls the
+    OpenAI provider, increments the counter, and returns the summary
+    with token accounting for the current billing period.
+
+    Raises 402 if the plan has no LLM access or the period quota is exhausted.
+    """
+    from psitta.services.llm_service import summarize_with_quota
+
+    return await summarize_with_quota(db, user_id, document_id)
+
+
 class DocumentUpdateRequest(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=200)
     cover_type: str | None = None

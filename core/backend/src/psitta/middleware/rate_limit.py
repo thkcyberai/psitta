@@ -24,6 +24,7 @@ Tiers
   upload   — POST /api/v1/documents/ and POST /api/v1/documents/blank/
   tts      — POST /api/v1/documents/{id}/resynthesize and
              POST /api/v1/documents/{id}/chunks/{cid}/resynthesize
+  llm      — POST /api/v1/documents/{id}/summarize
   read     — GET /api/v1/documents/...
   default  — everything else (global fallback)
 
@@ -151,6 +152,12 @@ def _build_matchers() -> list[RouteMatcher]:
             pattern=re.compile(r"^/api/v1/documents/[^/]+/resynthesize/?$"),
             tier_name="tts",
         ),
+        # LLM tier (5/min) — Summarize-it endpoint
+        RouteMatcher(
+            method="POST",
+            pattern=re.compile(r"^/api/v1/documents/[^/]+/summarize/?$"),
+            tier_name="llm",
+        ),
         # Read tier (120/min) — any GET under /api/v1/documents
         RouteMatcher(
             method="GET",
@@ -188,6 +195,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 name="tts",
                 max_requests=settings.RATE_LIMIT_TTS_REQUESTS,
                 window_seconds=settings.RATE_LIMIT_TTS_WINDOW_SECONDS,
+            ),
+            "llm": Tier(
+                name="llm",
+                max_requests=settings.RATE_LIMIT_LLM_REQUESTS,
+                window_seconds=settings.RATE_LIMIT_LLM_WINDOW_SECONDS,
             ),
             "read": Tier(
                 name="read",
