@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
+import 'summarize_it_panel.dart';
 import '../../data/models/blueprint.dart';
 import '../../data/models/blueprint_enums.dart';
 import '../../data/models/project_detail.dart';
@@ -134,7 +135,7 @@ class _ContextPaneBody extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           // ── Summarize It panel stub (WD-6) ───────────────────────────────
-          const _SummarizeItPanel(),
+          SummarizeItPanel(documentId: documentId),
         ],
       ),
     );
@@ -738,87 +739,6 @@ class _QuickActionsCardState extends ConsumerState<_QuickActionsCard> {
       out.add(n);
       _flattenPartsQ(n.children, out);
     }
-  }
-}
-
-// ── Summarize It panel stub (WD-6) ────────────────────────────────────────────
-
-class _SummarizeItPanel extends StatelessWidget {
-  const _SummarizeItPanel();
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = PsittaTokens.of(context);
-    final scheme = Theme.of(context).colorScheme;
-
-    return _RailCard(
-      key: const ValueKey('desk-summarize-panel'),
-      tokens: tokens,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header + tier badge
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'SUMMARIZE IT',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: scheme.outline,
-                        letterSpacing: 0.8,
-                      ),
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: scheme.primary.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  'Writing Nook',
-                  key: const ValueKey('desk-summarize-tier-badge'),
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: scheme.primary,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Placeholder summary area
-          Container(
-            height: 60,
-            decoration: BoxDecoration(
-              color: scheme.surface.withOpacity(0.5),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                  color: scheme.outline.withOpacity(0.2)),
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              'Summary will appear here',
-              key: const ValueKey('desk-summarize-placeholder'),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.outline,
-                    fontStyle: FontStyle.italic,
-                  ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // Disabled generate button
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              key: const ValueKey('desk-summarize-generate'),
-              onPressed: null,
-              child: const Text('Generate Summary'),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

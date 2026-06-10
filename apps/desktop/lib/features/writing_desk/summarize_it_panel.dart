@@ -1,0 +1,427 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/theme/psitta_tokens.dart';
+import '../../data/providers/providers.dart';
+
+/// Average LLM tokens consumed per Summarize-it call.
+/// Used to convert the remaining token budget to a human-readable count.
+const _kAvgTokensPerSummary = 6500;
+
+const _kMonthAbbr = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+enum _SummarizeState { idle, loading, result, quotaExhausted, notInPlan, error }
+
+/// Live Summarize-it panel in the Writing Desk context rail (WD-6).
+///
+/// States: idle (length chips + Summarize button), loading, result (summary
+/// text + quota footer + Re-summarize), 402 quota exhausted, 403 locked /
+/// upgrade, error / retry.
+///
+/// Entitlement: uses [billingStatusProvider] — writing_nook_pro and
+/// creative_nook_pro are entitled; free users see the locked state. If the
+/// provider is loading the panel shows idle and falls back to the 403 the
+/// backend enforces.
+class SummarizeItPanel extends ConsumerStatefulWidget {
+  const SummarizeItPanel({
+    super.key,
+    required this.documentId,
+  });
+
+  final String documentId;
+
+  @override
+  ConsumerState<SummarizeItPanel> createState() => _SummarizeItPanelState();
+}
+
+class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
+  _SummarizeState _state = _SummarizeState.idle;
+  String _selectedLength = 'medium';
+
+  // result state
+  String? _summary;
+  int _tokensUsedPeriod = 0;
+  int _tokensLimitPeriod = 0;
+
+  // 402 state — ISO date string from quota.period_end
+  String? _resetDate;
+
+  // error state
+  String? _errorMessage;
+
+  // ── API call ───────────────────────────────────────────────────────────────
+
+  Future<void> _submit() async {
+    setState(() {
+      _state = _SummarizeState.loading;
+      _summary = null;
+      _errorMessage = null;
+    });
+
+    try {
+      final dio = ref.read(apiClientProvider).dio;
+      final response = await dio.post(
+        '/documents/${widget.documentId}/summarize',
+        data: {'length': _selectedLength},
+      );
+      final data = response.data as Map<String, dynamic>;
+      setState(() {
+        _summary = (data['summary'] as String?) ?? '';
+        _tokensUsedPeriod =
+            (data['tokens_used_period'] as num?)?.toInt() ?? 0;
+        _tokensLimitPeriod =
+            (data['tokens_limit_period'] as num?)?.toInt() ?? 0;
+        _state = _SummarizeState.result;
+      });
+    } on DioException catch (e) {
+      final status = e.response?.statusCode;
+      final raw = e.response?.data;
+      final detail = raw is Map ? raw['detail'] : null;
+
+      if (status == 402) {
+        final quota = detail is Map ? (detail['quota'] as Map?) : null;
+        setState(() {
+          _resetDate = quota?['period_end'] as String?;
+          _state = _SummarizeState.quotaExhausted;
+        });
+      } else if (status == 403) {
+        setState(() => _state = _SummarizeState.notInPlan);
+      } else {
+        setState(() {
+          _errorMessage = "Couldn't generate a summary. Please try again.";
+          _state = _SummarizeState.error;
+        });
+      }
+    } catch (_) {
+      setState(() {
+        _errorMessage = "Couldn't generate a summary. Please try again.";
+        _state = _SummarizeState.error;
+      });
+    }
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+
+    // Entitlement: gate to writing_nook_pro / creative_nook_pro.
+    // If billing is still loading we show idle and let the backend enforce.
+    final billingAsync = ref.watch(billingStatusProvider);
+    final plan = billingAsync.valueOrNull?['plan'] as String?;
+    final planConfirmedFree = billingAsync.hasValue &&
+        plan != 'reading_nook_pro' &&
+        plan != 'creative_nook_pro';
+
+    if ((planConfirmedFree && _state == _SummarizeState.idle) ||
+        _state == _SummarizeState.notInPlan) {
+      return _PanelCard(
+        tokens: tokens,
+        child: _buildLockedContent(context, scheme),
+      );
+    }
+
+    // Has-text gate: trust document status from the cached docs list.
+    final docsAsync = ref.watch(documentsProvider);
+    final doc = docsAsync.valueOrNull
+        ?.where((d) => d.id == widget.documentId)
+        .firstOrNull;
+    final String? notReadyHint = (doc != null && doc.status != 'ready')
+        ? 'Document is still processing'
+        : null;
+
+    return _PanelCard(
+      tokens: tokens,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildHeader(context, scheme),
+          const SizedBox(height: 8),
+          _buildStateContent(context, scheme, notReadyHint),
+        ],
+      ),
+    );
+  }
+
+  // ── Header ─────────────────────────────────────────────────────────────────
+
+  Widget _buildHeader(BuildContext context, ColorScheme scheme) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            'SUMMARIZE IT',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: scheme.outline,
+                  letterSpacing: 0.8,
+                ),
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: scheme.primary.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            'Writing Nook',
+            key: const ValueKey('desk-summarize-tier-badge'),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: scheme.primary,
+                ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── State dispatcher ───────────────────────────────────────────────────────
+
+  Widget _buildStateContent(
+    BuildContext context,
+    ColorScheme scheme,
+    String? notReadyHint,
+  ) {
+    if (_state == _SummarizeState.loading) {
+      return _buildLoading(context, scheme);
+    }
+    if (_state == _SummarizeState.result) {
+      return _buildResult(context, scheme);
+    }
+    if (_state == _SummarizeState.quotaExhausted) {
+      return _buildQuotaExhausted(context, scheme);
+    }
+    if (_state == _SummarizeState.error) {
+      return _buildError(context, scheme);
+    }
+    // idle (notInPlan is handled before _buildStateContent is reached)
+    return _buildIdle(context, scheme, notReadyHint);
+  }
+
+  // ── Idle ───────────────────────────────────────────────────────────────────
+
+  Widget _buildIdle(
+    BuildContext context,
+    ColorScheme scheme,
+    String? notReadyHint,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          spacing: 4,
+          children: [
+            for (final length in ['short', 'medium', 'long'])
+              ChoiceChip(
+                key: ValueKey('desk-summarize-length-$length'),
+                label: Text(
+                  length,
+                  style: Theme.of(context).textTheme.labelSmall,
+                ),
+                selected: _selectedLength == length,
+                onSelected: (_) =>
+                    setState(() => _selectedLength = length),
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Tooltip(
+          message: notReadyHint ?? '',
+          child: SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              key: const ValueKey('desk-summarize-generate'),
+              onPressed: notReadyHint == null ? _submit : null,
+              child: const Text('Summarize'),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────────────
+
+  Widget _buildLoading(BuildContext context, ColorScheme scheme) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: scheme.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Summarizing…',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.outline,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Result ─────────────────────────────────────────────────────────────────
+
+  Widget _buildResult(BuildContext context, ColorScheme scheme) {
+    final remaining = _tokensLimitPeriod > 0
+        ? ((_tokensLimitPeriod - _tokensUsedPeriod) / _kAvgTokensPerSummary)
+            .round()
+            .clamp(0, 9999)
+        : null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SelectableText(
+          _summary ?? '',
+          key: const ValueKey('desk-summarize-result-text'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: scheme.onSurface,
+                height: 1.5,
+              ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            key: const ValueKey('desk-summarize-redo'),
+            onPressed: () => setState(() => _state = _SummarizeState.idle),
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('Re-summarize'),
+          ),
+        ),
+        if (remaining != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            'About $remaining ${remaining == 1 ? 'summary' : 'summaries'} left this month',
+            key: const ValueKey('desk-summarize-quota-footer'),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: scheme.outline,
+                ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ── Quota exhausted ────────────────────────────────────────────────────────
+
+  Widget _buildQuotaExhausted(BuildContext context, ColorScheme scheme) {
+    var resetLabel = 'your next billing anniversary';
+    if (_resetDate != null) {
+      final dt = DateTime.tryParse(_resetDate!);
+      if (dt != null) {
+        resetLabel = '${_kMonthAbbr[dt.month - 1]} ${dt.day}';
+      }
+    }
+    return Text(
+      'Monthly summaries used up.\nResets on $resetLabel.',
+      key: const ValueKey('desk-summarize-quota-exhausted'),
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: scheme.onSurface,
+          ),
+    );
+  }
+
+  // ── Locked / not in plan ───────────────────────────────────────────────────
+
+  Widget _buildLockedContent(BuildContext context, ColorScheme scheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildHeader(context, scheme),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Icon(Icons.lock_outline, size: 14, color: scheme.outline),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Upgrade to Writing Nook',
+                key: const ValueKey('desk-summarize-locked-label'),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.outline,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ── Error ──────────────────────────────────────────────────────────────────
+
+  Widget _buildError(BuildContext context, ColorScheme scheme) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          _errorMessage ?? "Couldn't generate a summary. Please try again.",
+          key: const ValueKey('desk-summarize-error-text'),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: scheme.error,
+              ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton(
+            key: const ValueKey('desk-summarize-retry'),
+            onPressed: _submit,
+            style: OutlinedButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('Try again'),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Card shell (mirrors _RailCard from document_context_pane.dart) ─────────────
+
+class _PanelCard extends StatelessWidget {
+  const _PanelCard({
+    required this.tokens,
+    required this.child,
+  });
+
+  final PsittaTokens tokens;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: tokens.surface.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(tokens.radius),
+        border: Border.all(
+          color: tokens.border.withOpacity(0.5),
+          width: 1,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
