@@ -400,6 +400,7 @@ async def run_add(args: argparse.Namespace) -> int:
                         email=email,
                         granted_by=args.granted_by,
                         days=args.days,
+                        plan_id=args.plan_id,
                         notes=notes,
                     )
                 except Exception as exc:
@@ -554,6 +555,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_add.add_argument(
         "--notes",
         help="Optional notes column (single-add only; CSV uses its own).",
+    )
+    p_add.add_argument(
+        "--plan-id",
+        default=DEFAULT_PLAN_ID,
+        help=(
+            f"Plan tier to grant (default: {DEFAULT_PLAN_ID}). "
+            "Valid canonical values: reading_nook_pro, writing_nook_pro, creative_nook_pro."
+        ),
     )
     p_add.add_argument(
         "--dry-run",
