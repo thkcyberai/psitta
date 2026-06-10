@@ -34,7 +34,12 @@ async def list_plans():
         "pro_annual":  {"name": "Pro Annual",   "price_usd": 99.00, "interval": "annual"},
     }
     for plan_id, limits in PLAN_LIMITS.items():
-        d = display[plan_id]
+        # Skip any plan that has no display metadata yet. The authoritative
+        # /billing/plans endpoint (billing.py) uses plan_limits_to_dict()
+        # from plan_limits.py and is the correct surface for new tiers.
+        d = display.get(plan_id)
+        if d is None:
+            continue
         plans.append({
             "id": plan_id,
             "display_name": d["name"],

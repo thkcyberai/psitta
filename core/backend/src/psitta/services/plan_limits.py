@@ -55,6 +55,11 @@ class PlanLimits:
     # access (router degrades to Edge). Populated by C.1, enforced by
     # C.2 (router pre-call check) against the el_usage_counters table.
     el_chars_per_period: int = 0
+    # LLM token allowance per billing period. 0 = no LLM feature access
+    # (hard stop with notice). Enforced against the llm_usage_counters
+    # table (migration 023). Backs Summarize-it (WD-B1) and any future
+    # Writing/Creative tier LLM features.
+    llm_tokens_per_period: int = 0
 
 
 PLAN_LIMITS: dict[str, PlanLimits] = {
@@ -85,6 +90,20 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         can_edit_docx=True,
         monthly_upload_limit=50,
         el_chars_per_period=150_000,
+        llm_tokens_per_period=0,
+    ),
+    "writing_nook_pro": PlanLimits(
+        documents_per_month=50,
+        tts_minutes_per_month=600,
+        audio_cache_days=90,
+        voices="all",
+        max_playback_speed=4.0,
+        word_highlight=True,
+        download_docx=True,
+        can_edit_docx=True,
+        monthly_upload_limit=50,
+        el_chars_per_period=250_000,
+        llm_tokens_per_period=1_000_000,
     ),
     "creative_nook_pro": PlanLimits(
         documents_per_month=50,
@@ -98,6 +117,7 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         monthly_upload_limit=50,
         creative_nooks_limit=0,  # Beta — no Creative Nook features built yet
         el_chars_per_period=400_000,
+        llm_tokens_per_period=2_000_000,
     ),
 }
 

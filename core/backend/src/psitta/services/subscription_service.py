@@ -56,6 +56,17 @@ PLAN_LIMITS: dict[str, dict] = {
         "can_archive": True,
         "el_chars_per_period": 150_000,
     },
+    # Authoritative limits live in services/plan_limits.py.
+    # This entry satisfies set_plan_override's membership check only.
+    # Pending M9 dual-table collapse (Apr 23 / Apr 27 Key Learnings).
+    "writing_nook_pro": {
+        "docs_per_month": 50,
+        "max_doc_size_mb": 50,
+        "voices_tier": "all",
+        "audio_cache_days": 90,
+        "can_archive": True,
+        "el_chars_per_period": 250_000,
+    },
 }
 
 # Edge TTS voice IDs (available on free tier)
@@ -443,6 +454,78 @@ async def increment_el_chars(
             """
         ),
         {"uid": str(user_id), "ps": period_start, "chars": char_count},
+    )
+    await db.commit()
+
+
+# ── LLM token quota (migration 023) ──────────────────────────────────────────
+
+async def check_llm_quota(
+    db: AsyncSession, user_id: UUID
+) -> tuple[int, int, datetime]:
+    """Return (tokens_used, tokens_limit, period_start) for this user.
+
+    Pure read — does not raise, does not mutate. Caller decides whether
+    to hard-stop the LLM feature based on the returned values.
+
+    Free and Reading Nook users get limit=0 (no LLM access). Writing
+    Nook gets 1,000,000; Creative Nook gets 2,000,000.
+
+    period_start defaults to NOW() when no active subscription row
+    exists; in that case limit is also 0 so the value is never used to
+    key a counter row. Mirrors check_el_quota() exactly — same period
+    source (billing anniversary via get_effective_plan), same plan
+    resolution path.
+    """
+    plan = await get_effective_plan(db, user_id)
+    limits = get_plan_limits(plan.plan_id)
+    tokens_limit = limits.llm_tokens_per_period
+
+    if plan.current_period_start is None:
+        return (0, tokens_limit, datetime.now(UTC))
+
+    row = await db.execute(
+        text(
+            """
+            SELECT tokens_consumed FROM llm_usage_counters
+            WHERE user_id = :uid AND period_start = :ps
+            """
+        ),
+        {"uid": str(user_id), "ps": plan.current_period_start},
+    )
+    result = row.fetchone()
+    tokens_used = result[0] if result else 0
+    return (tokens_used, tokens_limit, plan.current_period_start)
+
+
+async def increment_llm_tokens(
+    db: AsyncSession,
+    user_id: UUID,
+    period_start: datetime,
+    delta: int,
+) -> None:
+    """Atomically increment LLM tokens consumed for (user_id, period_start).
+
+    Insert-or-update on the unique (user_id, period_start) constraint
+    from migration 023. Race-safe: PostgreSQL serialises the UPDATE
+    under the unique constraint so concurrent calls from multiple
+    requests accumulate correctly without lost updates. Commits on
+    success. Mirrors increment_el_chars() exactly.
+    """
+    if delta <= 0:
+        return
+    await db.execute(
+        text(
+            """
+            INSERT INTO llm_usage_counters
+                (user_id, period_start, tokens_consumed, created_at, updated_at)
+            VALUES (:uid, :ps, :delta, NOW(), NOW())
+            ON CONFLICT (user_id, period_start) DO UPDATE
+            SET tokens_consumed = llm_usage_counters.tokens_consumed + EXCLUDED.tokens_consumed,
+                updated_at = NOW()
+            """
+        ),
+        {"uid": str(user_id), "ps": period_start, "delta": delta},
     )
     await db.commit()
 
