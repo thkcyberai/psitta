@@ -42,7 +42,8 @@ async def summarize_with_quota(
     Raises:
         HTTPException 404 if document not found or not owned by user.
         HTTPException 422 if document has no text content.
-        HTTPException 402 if plan has no LLM access or quota is exhausted.
+        HTTPException 403 (llm_not_in_plan) if plan has no LLM access.
+        HTTPException 402 (llm_quota_exceeded) if entitled but quota exhausted.
         HTTPException 503 if the LLM provider call fails.
     """
     # ── 1. Fetch document ────────────────────────────────────────────────────
@@ -69,33 +70,36 @@ async def summarize_with_quota(
         )
 
     # ── 2. Quota pre-check ───────────────────────────────────────────────────
-    tokens_used, tokens_limit, period_start = await check_llm_quota(db, user_id)
+    tokens_used, tokens_limit, period_start, period_end = await check_llm_quota(db, user_id)
 
     if tokens_limit == 0:
         raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            status_code=status.HTTP_403_FORBIDDEN,
             detail={
+                "error": "llm_not_in_plan",
                 "message": (
                     "Summarize-it is not available on your current plan. "
                     "Upgrade to Writing Nook Pro or Creative Nook Pro to unlock."
                 ),
-                "tokens_used": 0,
-                "tokens_limit": 0,
                 "upgrade_url": "/billing/checkout-session",
             },
         )
 
     if tokens_used >= tokens_limit:
+        reset_str = (
+            period_end.strftime("%Y-%m-%d") if period_end else "your next billing anniversary"
+        )
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
-                "message": (
-                    "Monthly LLM token quota exhausted. "
-                    "Your quota resets at the next billing anniversary."
-                ),
-                "tokens_used": tokens_used,
-                "tokens_limit": tokens_limit,
-                "period_start": period_start.isoformat(),
+                "error": "llm_quota_exceeded",
+                "message": f"Monthly LLM token quota exhausted. Resets on {reset_str}.",
+                "quota": {
+                    "tokens_used": tokens_used,
+                    "tokens_limit": tokens_limit,
+                    "period_start": period_start.isoformat(),
+                    "period_end": period_end.isoformat() if period_end else None,
+                },
                 "upgrade_url": "/billing/checkout-session",
             },
         )

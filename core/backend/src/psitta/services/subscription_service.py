@@ -462,8 +462,8 @@ async def increment_el_chars(
 
 async def check_llm_quota(
     db: AsyncSession, user_id: UUID
-) -> tuple[int, int, datetime]:
-    """Return (tokens_used, tokens_limit, period_start) for this user.
+) -> tuple[int, int, datetime, datetime | None]:
+    """Return (tokens_used, tokens_limit, period_start, period_end) for this user.
 
     Pure read — does not raise, does not mutate. Caller decides whether
     to hard-stop the LLM feature based on the returned values.
@@ -471,8 +471,8 @@ async def check_llm_quota(
     Free and Reading Nook users get limit=0 (no LLM access). Writing
     Nook gets 1,000,000; Creative Nook gets 2,000,000.
 
-    period_start defaults to NOW() when no active subscription row
-    exists; in that case limit is also 0 so the value is never used to
+    period_start/period_end default to NOW()/None when no active subscription
+    row exists; in that case limit is also 0 so the values are never used to
     key a counter row. Mirrors check_el_quota() exactly — same period
     source (billing anniversary via get_effective_plan), same plan
     resolution path.
@@ -482,7 +482,7 @@ async def check_llm_quota(
     tokens_limit = limits.llm_tokens_per_period
 
     if plan.current_period_start is None:
-        return (0, tokens_limit, datetime.now(UTC))
+        return (0, tokens_limit, datetime.now(UTC), None)
 
     row = await db.execute(
         text(
@@ -495,7 +495,7 @@ async def check_llm_quota(
     )
     result = row.fetchone()
     tokens_used = result[0] if result else 0
-    return (tokens_used, tokens_limit, plan.current_period_start)
+    return (tokens_used, tokens_limit, plan.current_period_start, plan.current_period_end)
 
 
 async def increment_llm_tokens(

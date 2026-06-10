@@ -3,6 +3,13 @@
 Tests orchestration logic — document fetch, quota pre-check, provider call,
 token increment, and audit log — using mocks and a minimal fake DB.
 No live DB or OpenAI calls are made.
+
+Status codes under test:
+  403 llm_not_in_plan  — plan has no LLM access (limit == 0)
+  402 llm_quota_exceeded — entitled user at/over the period cap
+  404                  — document not found or not owned
+  422                  — document has no text content
+  503                  — LLM provider failure
 """
 
 from __future__ import annotations
@@ -54,6 +61,13 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _period(days_used: int = 5, period_days: int = 30) -> tuple[datetime, datetime]:
+    """Return (period_start, period_end) anchored from now."""
+    ps = _now() - timedelta(days=days_used)
+    pe = ps + timedelta(days=period_days)
+    return ps, pe
+
+
 # ── Test: successful summarization ───────────────────────────────────────────
 
 
@@ -62,7 +76,7 @@ async def test_summarize_success_returns_summary():
     """Happy path: provider returns summary, result dict is correct."""
     user_id = uuid4()
     document_id = uuid4()
-    period_start = _now() - timedelta(days=5)
+    ps, pe = _period()
 
     mock_provider = AsyncMock()
     mock_provider.summarize.return_value = ("A great summary.", 300, 100)
@@ -71,7 +85,7 @@ async def test_summarize_success_returns_summary():
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 1_000_000, period_start),
+            return_value=(0, 1_000_000, ps, pe),
         ),
         patch("psitta.services.llm_service.increment_llm_tokens", new_callable=AsyncMock),
         patch("psitta.services.audit_service.log_event", new_callable=AsyncMock),
@@ -95,7 +109,7 @@ async def test_summarize_accounts_for_existing_usage_in_period_total():
     """tokens_used_period should be prior usage + this request's tokens."""
     user_id = uuid4()
     document_id = uuid4()
-    period_start = _now() - timedelta(days=10)
+    ps, pe = _period(days_used=10)
 
     mock_provider = AsyncMock()
     mock_provider.summarize.return_value = ("Summary.", 500, 200)
@@ -104,7 +118,7 @@ async def test_summarize_accounts_for_existing_usage_in_period_total():
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(100_000, 1_000_000, period_start),  # 100k already used
+            return_value=(100_000, 1_000_000, ps, pe),  # 100k already used
         ),
         patch("psitta.services.llm_service.increment_llm_tokens", new_callable=AsyncMock),
         patch("psitta.services.audit_service.log_event", new_callable=AsyncMock),
@@ -127,7 +141,7 @@ async def test_summarize_increments_quota_with_total_tokens():
     """increment_llm_tokens must be called with prompt+completion total."""
     user_id = uuid4()
     document_id = uuid4()
-    period_start = _now() - timedelta(days=3)
+    ps, pe = _period(days_used=3)
     db = _fake_db()
 
     mock_provider = AsyncMock()
@@ -137,7 +151,7 @@ async def test_summarize_increments_quota_with_total_tokens():
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 1_000_000, period_start),
+            return_value=(0, 1_000_000, ps, pe),
         ),
         patch(
             "psitta.services.llm_service.increment_llm_tokens",
@@ -152,7 +166,7 @@ async def test_summarize_increments_quota_with_total_tokens():
             provider=mock_provider,
         )
 
-    mock_increment.assert_awaited_once_with(db, user_id, period_start, 700)
+    mock_increment.assert_awaited_once_with(db, user_id, ps, 700)
 
 
 @pytest.mark.asyncio
@@ -160,7 +174,7 @@ async def test_summarize_skips_increment_when_total_tokens_is_zero():
     """If provider returns zero tokens, increment is skipped (mirrors EL guard)."""
     user_id = uuid4()
     document_id = uuid4()
-    period_start = _now() - timedelta(days=1)
+    ps, pe = _period()
 
     mock_provider = AsyncMock()
     mock_provider.summarize.return_value = ("Summary.", 0, 0)
@@ -169,7 +183,7 @@ async def test_summarize_skips_increment_when_total_tokens_is_zero():
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 1_000_000, period_start),
+            return_value=(0, 1_000_000, ps, pe),
         ),
         patch(
             "psitta.services.llm_service.increment_llm_tokens",
@@ -194,7 +208,7 @@ async def test_summarize_skips_increment_when_total_tokens_is_zero():
 async def test_summarize_calls_audit_log_with_correct_fields():
     user_id = uuid4()
     document_id = uuid4()
-    period_start = _now() - timedelta(days=1)
+    ps, pe = _period()
 
     mock_provider = AsyncMock()
     mock_provider.summarize.return_value = ("Summary.", 200, 50)
@@ -203,7 +217,7 @@ async def test_summarize_calls_audit_log_with_correct_fields():
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 2_000_000, period_start),
+            return_value=(0, 2_000_000, ps, pe),
         ),
         patch("psitta.services.llm_service.increment_llm_tokens", new_callable=AsyncMock),
         patch(
@@ -269,17 +283,17 @@ async def test_summarize_raises_422_when_doc_text_is_whitespace_only():
     assert exc_info.value.status_code == 422
 
 
-# ── Test: 402 — plan has no LLM access ───────────────────────────────────────
+# ── Test: 403 — plan has no LLM access ───────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_summarize_raises_402_for_free_plan():
-    """Free plan: tokens_limit=0 → upgrade message."""
+async def test_summarize_raises_403_for_free_plan():
+    """Free plan: tokens_limit=0 → 403 llm_not_in_plan."""
     with (
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 0, _now()),
+            return_value=(0, 0, _now(), None),  # limit=0, no period_end
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
@@ -289,20 +303,21 @@ async def test_summarize_raises_402_for_free_plan():
                 document_id=uuid4(),
             )
 
-    assert exc_info.value.status_code == 402
+    assert exc_info.value.status_code == 403
     detail = exc_info.value.detail
-    assert detail["tokens_limit"] == 0
+    assert detail["error"] == "llm_not_in_plan"
     assert "upgrade" in detail["message"].lower()
+    assert "upgrade_url" in detail
 
 
 @pytest.mark.asyncio
-async def test_summarize_raises_402_for_reading_nook_plan():
-    """Reading Nook Pro: EL access but no LLM (limit=0)."""
+async def test_summarize_raises_403_for_reading_nook_plan():
+    """Reading Nook Pro: EL access but no LLM (limit=0) → 403 llm_not_in_plan."""
     with (
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 0, _now()),
+            return_value=(0, 0, _now(), None),
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
@@ -312,7 +327,8 @@ async def test_summarize_raises_402_for_reading_nook_plan():
                 document_id=uuid4(),
             )
 
-    assert exc_info.value.status_code == 402
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail["error"] == "llm_not_in_plan"
 
 
 # ── Test: 402 — quota exhausted ───────────────────────────────────────────────
@@ -320,12 +336,13 @@ async def test_summarize_raises_402_for_reading_nook_plan():
 
 @pytest.mark.asyncio
 async def test_summarize_raises_402_when_quota_at_limit():
-    period_start = _now() - timedelta(days=10)
+    """Entitled user at exact limit → 402 llm_quota_exceeded."""
+    ps, pe = _period(days_used=10)
     with (
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(1_000_000, 1_000_000, period_start),
+            return_value=(1_000_000, 1_000_000, ps, pe),
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
@@ -337,19 +354,22 @@ async def test_summarize_raises_402_when_quota_at_limit():
 
     assert exc_info.value.status_code == 402
     detail = exc_info.value.detail
-    assert detail["tokens_used"] == 1_000_000
-    assert detail["tokens_limit"] == 1_000_000
+    assert detail["error"] == "llm_quota_exceeded"
     assert "exhausted" in detail["message"].lower()
+    assert detail["quota"]["tokens_used"] == 1_000_000
+    assert detail["quota"]["tokens_limit"] == 1_000_000
+    assert detail["quota"]["period_end"] == pe.isoformat()
 
 
 @pytest.mark.asyncio
 async def test_summarize_raises_402_when_quota_over_limit():
-    """Over-limit (used > limit) is also blocked."""
+    """Overage (used > limit) is also blocked with 402 llm_quota_exceeded."""
+    ps, pe = _period()
     with (
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(1_050_000, 1_000_000, _now()),
+            return_value=(1_050_000, 1_000_000, ps, pe),
         ),
     ):
         with pytest.raises(HTTPException) as exc_info:
@@ -360,6 +380,55 @@ async def test_summarize_raises_402_when_quota_over_limit():
             )
 
     assert exc_info.value.status_code == 402
+    assert exc_info.value.detail["error"] == "llm_quota_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_summarize_402_message_includes_reset_date_from_period_end():
+    """The 402 message must contain the period_end date string."""
+    ps = _now() - timedelta(days=5)
+    pe = ps + timedelta(days=25)
+    expected_date = pe.strftime("%Y-%m-%d")
+
+    with (
+        patch(
+            "psitta.services.llm_service.check_llm_quota",
+            new_callable=AsyncMock,
+            return_value=(1_000_000, 1_000_000, ps, pe),
+        ),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await summarize_with_quota(
+                db=_fake_db(),
+                user_id=uuid4(),
+                document_id=uuid4(),
+            )
+
+    assert expected_date in exc_info.value.detail["message"]
+
+
+@pytest.mark.asyncio
+async def test_summarize_402_message_fallback_when_period_end_is_none():
+    """When period_end is None (edge case), message uses generic fallback text."""
+    ps = _now() - timedelta(days=5)
+    with (
+        patch(
+            "psitta.services.llm_service.check_llm_quota",
+            new_callable=AsyncMock,
+            return_value=(1_000_000, 1_000_000, ps, None),
+        ),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            await summarize_with_quota(
+                db=_fake_db(),
+                user_id=uuid4(),
+                document_id=uuid4(),
+            )
+
+    detail = exc_info.value.detail
+    assert detail["error"] == "llm_quota_exceeded"
+    assert detail["quota"]["period_end"] is None
+    assert "anniversary" in detail["message"].lower()
 
 
 # ── Test: 503 — provider failure ─────────────────────────────────────────────
@@ -369,7 +438,7 @@ async def test_summarize_raises_402_when_quota_over_limit():
 async def test_summarize_raises_503_on_provider_error():
     from psitta.providers.llm_openai import LlmProviderError
 
-    period_start = _now() - timedelta(days=2)
+    ps, pe = _period()
     mock_provider = AsyncMock()
     mock_provider.summarize.side_effect = LlmProviderError("Connection timeout")
 
@@ -377,7 +446,7 @@ async def test_summarize_raises_503_on_provider_error():
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 1_000_000, period_start),
+            return_value=(0, 1_000_000, ps, pe),
         ),
         patch(
             "psitta.services.llm_service.increment_llm_tokens",
@@ -404,7 +473,7 @@ async def test_summarize_raises_503_on_provider_error():
 @pytest.mark.asyncio
 async def test_summarize_truncates_long_text_to_50k_chars():
     """Documents longer than _MAX_SUMMARIZE_CHARS are truncated before the prompt."""
-    period_start = _now() - timedelta(days=1)
+    ps, pe = _period()
     long_text = "x" * 60_000
     mock_provider = AsyncMock()
     mock_provider.summarize.return_value = ("Summary.", 100, 50)
@@ -413,7 +482,7 @@ async def test_summarize_truncates_long_text_to_50k_chars():
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 1_000_000, period_start),
+            return_value=(0, 1_000_000, ps, pe),
         ),
         patch("psitta.services.llm_service.increment_llm_tokens", new_callable=AsyncMock),
         patch(
@@ -440,7 +509,7 @@ async def test_summarize_truncates_long_text_to_50k_chars():
 @pytest.mark.asyncio
 async def test_summarize_not_truncated_within_limit():
     """Documents within _MAX_SUMMARIZE_CHARS are sent as-is; truncated=False."""
-    period_start = _now() - timedelta(days=1)
+    ps, pe = _period()
     short_text = "y" * 1_000
     mock_provider = AsyncMock()
     mock_provider.summarize.return_value = ("Summary.", 50, 20)
@@ -449,7 +518,7 @@ async def test_summarize_not_truncated_within_limit():
         patch(
             "psitta.services.llm_service.check_llm_quota",
             new_callable=AsyncMock,
-            return_value=(0, 1_000_000, period_start),
+            return_value=(0, 1_000_000, ps, pe),
         ),
         patch("psitta.services.llm_service.increment_llm_tokens", new_callable=AsyncMock),
         patch(

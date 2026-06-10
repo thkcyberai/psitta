@@ -150,7 +150,7 @@ async def test_check_llm_quota_no_row_returns_zero_used():
         SQL_LLM_READ: _FakeResult(row=None),
     })
 
-    used, limit, ps = await check_llm_quota(db, user_id)
+    used, limit, ps, _pe = await check_llm_quota(db, user_id)
 
     assert used == 0
     assert limit == 1_000_000
@@ -174,7 +174,7 @@ async def test_check_llm_quota_existing_counter_row_returns_used():
         SQL_LLM_READ: _FakeResult(row=(350_000,)),
     })
 
-    used, limit, ps = await check_llm_quota(db, user_id)
+    used, limit, ps, _pe = await check_llm_quota(db, user_id)
 
     assert used == 350_000
     assert limit == 1_000_000
@@ -190,7 +190,7 @@ async def test_check_llm_quota_free_plan_limit_is_zero():
     user_id = uuid4()
     db = RecordingSession()  # all queries return empty → resolves to free
 
-    used, limit, ps = await check_llm_quota(db, user_id)
+    used, limit, ps, _pe = await check_llm_quota(db, user_id)
 
     assert limit == 0
     assert used == 0
@@ -214,7 +214,7 @@ async def test_check_llm_quota_reading_nook_limit_is_zero():
         ),
     })
 
-    used, limit, _ = await check_llm_quota(db, user_id)
+    used, limit, _, _pe = await check_llm_quota(db, user_id)
 
     assert limit == 0
     assert used == 0
@@ -237,7 +237,7 @@ async def test_check_llm_quota_creative_nook_limit_is_two_million():
         SQL_LLM_READ: _FakeResult(row=None),
     })
 
-    used, limit, _ = await check_llm_quota(db, user_id)
+    used, limit, _, _pe = await check_llm_quota(db, user_id)
 
     assert limit == 2_000_000
 
@@ -266,7 +266,7 @@ async def test_check_llm_quota_at_limit_reports_cap():
         SQL_LLM_READ: _FakeResult(row=(1_000_000,)),
     })
 
-    used, limit, _ = await check_llm_quota(db, user_id)
+    used, limit, _, _pe = await check_llm_quota(db, user_id)
 
     assert used == 1_000_000
     assert limit == 1_000_000
@@ -290,7 +290,7 @@ async def test_check_llm_quota_over_limit_reports_true_consumed():
         SQL_LLM_READ: _FakeResult(row=(1_050_000,)),
     })
 
-    used, limit, _ = await check_llm_quota(db, user_id)
+    used, limit, _, _pe = await check_llm_quota(db, user_id)
 
     assert used == 1_050_000
     assert limit == 1_000_000
@@ -317,7 +317,7 @@ async def test_check_llm_quota_passes_billing_anniversary_period_start_to_query(
         SQL_LLM_READ: _FakeResult(row=None),
     })
 
-    _, _, returned_ps = await check_llm_quota(db, user_id)
+    _, _, returned_ps, _pe = await check_llm_quota(db, user_id)
 
     assert returned_ps == period_start
     # Confirm the llm_usage_counters SELECT was bound with this exact date.
