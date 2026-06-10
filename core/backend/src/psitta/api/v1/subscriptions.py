@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
+from psitta.middleware.auth import require_role
 from psitta.services import audit_service
 from psitta.services.subscription_service import (
     PLAN_LIMITS,
@@ -67,15 +68,18 @@ async def get_my_subscription(
 async def override_plan(
     body: dict,
     request: Request,
+    _claims=Depends(require_role("admin")),
     user_id=Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db_session),
 ):
     """
-    Dev/admin override — set plan without Stripe payment.
-    Body: { "plan_id": "free" | "pro_monthly" | "pro_annual" }
+    Admin-only override — set plan without Stripe payment.
 
-    This endpoint is gated: in production it requires admin tier.
-    In dev (bypass token), it is open to any authenticated user.
+    Requires the caller to carry the 'admin' Cognito group role; all other
+    authenticated users receive 403.  The dev-bypass token already carries
+    roles=['admin'] (auth.py), so this gate is transparent in local dev.
+
+    Body: { "plan_id": "free" | "pro_monthly" | "pro_annual" | "writing_nook_pro" }
     """
     plan_id = body.get("plan_id")
     if not plan_id:
