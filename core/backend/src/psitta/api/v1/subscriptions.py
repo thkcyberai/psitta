@@ -8,14 +8,16 @@ Endpoints:
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
 from psitta.middleware.auth import require_role
 from psitta.services import audit_service
+from psitta.services.plan_limits import get_plan_limits
 from psitta.services.subscription_service import (
-    PLAN_LIMITS,
     get_subscription_summary,
     set_plan_override,
 )
@@ -27,27 +29,29 @@ router = APIRouter(tags=["subscriptions"])
 
 @router.get("/subscriptions/plans")
 async def list_plans():
-    """Return all available subscription plans with their limits."""
-    plans = []
+    """Return the three legacy plan tiers with their limits.
+
+    Legacy endpoint — retained for backward compatibility. The authoritative
+    surface for new tiers (writing_nook_pro, creative_nook_pro) is
+    GET /billing/plans which uses plan_limits_to_dict() from plan_limits.py.
+    """
     display = {
         "free":        {"name": "Free",        "price_usd": 0,     "interval": None},
         "pro_monthly": {"name": "Pro Monthly",  "price_usd": 12.00, "interval": "monthly"},
         "pro_annual":  {"name": "Pro Annual",   "price_usd": 99.00, "interval": "annual"},
     }
-    for plan_id, limits in PLAN_LIMITS.items():
-        # Skip any plan that has no display metadata yet. The authoritative
-        # /billing/plans endpoint (billing.py) uses plan_limits_to_dict()
-        # from plan_limits.py and is the correct surface for new tiers.
-        d = display.get(plan_id)
-        if d is None:
-            continue
-        plans.append({
+    plans = [
+        {
             "id": plan_id,
             "display_name": d["name"],
             "price_usd": d["price_usd"],
             "billing_interval": d["interval"],
-            "limits": limits,
-        })
+            # get_plan_limits normalises pro_monthly/pro_annual →
+            # reading_nook_pro internally; limits are from the canonical dict.
+            "limits": asdict(get_plan_limits(plan_id)),
+        }
+        for plan_id, d in display.items()
+    ]
     return {"plans": plans}
 
 

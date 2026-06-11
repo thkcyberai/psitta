@@ -27,47 +27,17 @@ from psitta.services.tester_allowlist import check_allowlist_entitlement
 logger = logging.getLogger(__name__)
 
 # ── Plan limit constants ─────────────────────────────────────────────────────
-# Superseded by services/plan_limits.py for new code paths (C.2 onward).
-# Retained here only for legacy callers (set_plan_override membership check,
-# get_user_plan public shape) until the dual-table subscriptions tech debt
-# is collapsed (Apr 23 / Apr 27 Key Learnings; tracked in M9 backlog).
-PLAN_LIMITS: dict[str, dict] = {
-    "free": {
-        "docs_per_month": 10,
-        "max_doc_size_mb": 10,
-        "voices_tier": "edge_only",
-        "audio_cache_days": 7,
-        "can_archive": False,
-        "el_chars_per_period": 0,
-    },
-    "pro_monthly": {
-        "docs_per_month": 50,
-        "max_doc_size_mb": 50,
-        "voices_tier": "all",
-        "audio_cache_days": 90,
-        "can_archive": True,
-        "el_chars_per_period": 150_000,
-    },
-    "pro_annual": {
-        "docs_per_month": 50,
-        "max_doc_size_mb": 50,
-        "voices_tier": "all",
-        "audio_cache_days": 90,
-        "can_archive": True,
-        "el_chars_per_period": 150_000,
-    },
-    # Authoritative limits live in services/plan_limits.py.
-    # This entry satisfies set_plan_override's membership check only.
-    # Pending M9 dual-table collapse (Apr 23 / Apr 27 Key Learnings).
-    "writing_nook_pro": {
-        "docs_per_month": 50,
-        "max_doc_size_mb": 50,
-        "voices_tier": "all",
-        "audio_cache_days": 90,
-        "can_archive": True,
-        "el_chars_per_period": 250_000,
-    },
-}
+# Storable values for user_subscriptions.plan_id (PostgreSQL ENUM, migration
+# 024). This set is intentionally distinct from plan_limits.py's canonical
+# keys — the ENUM does NOT contain reading_nook_pro (pro_monthly / pro_annual
+# are the stored forms, normalised at read time by _normalize_plan_id).
+_STORABLE_PLAN_IDS: frozenset[str] = frozenset({
+    "free",
+    "pro_monthly",
+    "pro_annual",
+    "writing_nook_pro",
+    "creative_nook_pro",
+})
 
 # Edge TTS voice IDs (available on free tier)
 EDGE_TTS_VOICES = {
@@ -277,10 +247,28 @@ async def _get_active_plan_id(db: AsyncSession, user_id: UUID) -> str:
 
 
 async def get_user_plan(db: AsyncSession, user_id: UUID) -> dict:
-    """Return the user's plan id and its limit dict."""
+    """Return the user's plan id and its limit dict.
+
+    Routes through plan_limits.py (single source of truth) instead of the
+    legacy PLAN_LIMITS dict so all four canonical tiers — including
+    writing_nook_pro and creative_nook_pro — resolve correctly.
+    Returns a backward-compatible dict shape so existing callers
+    (check_voice_access, get_subscription_summary) need no changes.
+    """
     plan_id = await _get_active_plan_id(db, user_id)
-    limits = PLAN_LIMITS.get(plan_id, PLAN_LIMITS["free"])
-    return {"plan_id": plan_id, "limits": limits}
+    limits = get_plan_limits(_normalize_plan_id(plan_id))
+    is_all_voices = limits.voices == "all"
+    return {
+        "plan_id": plan_id,
+        "limits": {
+            "docs_per_month": limits.documents_per_month,
+            "max_doc_size_mb": 50 if is_all_voices else 10,
+            "voices_tier": "all" if is_all_voices else "edge_only",
+            "audio_cache_days": limits.audio_cache_days,
+            "can_archive": is_all_voices,
+            "el_chars_per_period": limits.el_chars_per_period,
+        },
+    }
 
 
 # ── Quota enforcement ────────────────────────────────────────────────────────
@@ -561,10 +549,10 @@ async def set_plan_override(
     Dev / admin override: manually set a user's plan without Stripe.
     Cancels any existing active subscription and creates a new one.
     """
-    if plan_id not in PLAN_LIMITS:
+    if plan_id not in _STORABLE_PLAN_IDS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unknown plan_id '{plan_id}'. Valid: {list(PLAN_LIMITS.keys())}",
+            detail=f"Unknown plan_id '{plan_id}'. Valid: {sorted(_STORABLE_PLAN_IDS)}",
         )
 
     # Cancel existing active subscriptions

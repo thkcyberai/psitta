@@ -46,17 +46,29 @@ class TestLookupKeyMapping:
     def test_reading_nook_pro_annual_maps_to_pro_annual(self):
         assert _lookup_key_to_plan_id("reading_nook_pro_annual") == "pro_annual"
 
-    def test_creativity_nook_pro_monthly_maps_to_pro_monthly(self):
-        # Stripe-side prefix is the legacy "creativity"; the quota tier
-        # collapses to the same pro_monthly because PLAN_LIMITS treats
-        # both products identically.
+    def test_creativity_nook_pro_monthly_maps_to_creative_nook_pro(self):
+        # Stripe-side prefix is the legacy "creativity"; the internal
+        # identifier is "creative_nook_pro" (migration 024 added the ENUM
+        # value so we now write the canonical string rather than collapsing
+        # onto pro_monthly).
         assert (
-            _lookup_key_to_plan_id("creativity_nook_pro_monthly") == "pro_monthly"
+            _lookup_key_to_plan_id("creativity_nook_pro_monthly") == "creative_nook_pro"
         )
 
-    def test_creativity_nook_pro_annual_maps_to_pro_annual(self):
+    def test_creativity_nook_pro_annual_maps_to_creative_nook_pro(self):
         assert (
-            _lookup_key_to_plan_id("creativity_nook_pro_annual") == "pro_annual"
+            _lookup_key_to_plan_id("creativity_nook_pro_annual") == "creative_nook_pro"
+        )
+
+    def test_writing_nook_pro_monthly_maps_to_writing_nook_pro(self):
+        # Pre-registered for the Writing Nook Pro Stripe product launch.
+        assert (
+            _lookup_key_to_plan_id("writing_nook_pro_monthly") == "writing_nook_pro"
+        )
+
+    def test_writing_nook_pro_annual_maps_to_writing_nook_pro(self):
+        assert (
+            _lookup_key_to_plan_id("writing_nook_pro_annual") == "writing_nook_pro"
         )
 
     def test_unknown_lookup_key_returns_none(self):

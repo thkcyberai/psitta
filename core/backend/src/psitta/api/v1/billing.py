@@ -40,7 +40,7 @@ from psitta.services.billing_handlers import (
     store_webhook_event,
     stripe_obj_to_dict,
 )
-from psitta.services.plan_limits import plan_limits_to_dict
+from psitta.services.plan_limits import get_plan_limits, plan_limits_to_dict
 from psitta.services.subscription_service import get_effective_plan
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -111,6 +111,11 @@ class BillingStatusResponse(BaseModel):
     (PATCH /users/me/plan), ``tester_allowlist`` (Item 11 alpha cohort),
     or ``free``. Desktop UI uses this to render the alpha-tester badge
     and hide the Stripe Customer Portal button for non-Stripe sources.
+
+    ``el_chars_per_period`` and ``llm_tokens_per_period`` mirror the
+    plan_limits.py canonical values for the resolved plan. Clients use
+    these to size quota progress bars without a second endpoint call.
+    0 means no access for that resource type on this plan.
     """
 
     plan: str
@@ -119,6 +124,8 @@ class BillingStatusResponse(BaseModel):
     current_period_end: str | None
     cancel_at_period_end: bool
     source: str
+    el_chars_per_period: int
+    llm_tokens_per_period: int
 
 
 # ── POST /billing/checkout-session ───────────────────────────────────────
@@ -458,6 +465,10 @@ async def get_billing_status(
         else None
     )
 
+    # Plan limits — fetched once here so the response carries the quota
+    # ceilings alongside the plan name; clients avoid a second call.
+    plan_limits = get_plan_limits(plan_name)
+
     # Audit — emitted on every code path including Free, with the
     # resolver source exposed in details for forensic filtering.
     await audit_service.log_event(
@@ -503,6 +514,8 @@ async def get_billing_status(
         current_period_end=period_end_str,
         cancel_at_period_end=plan_state.cancel_at_period_end,
         source=plan_state.source,
+        el_chars_per_period=plan_limits.el_chars_per_period,
+        llm_tokens_per_period=plan_limits.llm_tokens_per_period,
     )
 
 

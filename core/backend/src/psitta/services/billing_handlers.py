@@ -47,10 +47,24 @@ logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 # that's what the Stripe Dashboard ships; see _PLAN_NAME_ALIASES in
 # api/v1/billing.py for the corresponding read-side mapping.
 _LOOKUP_KEY_TO_PLAN_ID: dict[str, str] = {
+    # Reading Nook Pro — legacy ENUM values; ENUM widening (migration 024)
+    # intentionally does NOT add reading_nook_pro because the alias
+    # pro_monthly / pro_annual → reading_nook_pro in plan_limits.py is
+    # sufficient for all resolution paths (read side) and the Stripe
+    # subscription_events table preserves the original lookup_key.
     "reading_nook_pro_monthly": "pro_monthly",
     "reading_nook_pro_annual": "pro_annual",
-    "creativity_nook_pro_monthly": "pro_monthly",
-    "creativity_nook_pro_annual": "pro_annual",
+    # Creative Nook Pro — Stripe-side "creativity_" prefix is intentional
+    # (matches the Stripe Dashboard price lookup_keys, see VALID_LOOKUP_KEYS
+    # and _PLAN_NAME_ALIASES). Now writes the canonical ENUM value added by
+    # migration 024 instead of the legacy pro_monthly / pro_annual fallback.
+    "creativity_nook_pro_monthly": "creative_nook_pro",
+    "creativity_nook_pro_annual": "creative_nook_pro",
+    # Writing Nook Pro — future Stripe product; entries pre-registered so
+    # the webhook handler writes the correct ENUM value when the product
+    # launches on the Stripe Dashboard.
+    "writing_nook_pro_monthly": "writing_nook_pro",
+    "writing_nook_pro_annual": "writing_nook_pro",
 }
 
 
