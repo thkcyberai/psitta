@@ -32,6 +32,8 @@ class PlanStatus {
     this.isUnavailable = false,
     this.source,
     this.currentPeriodEnd,
+    this.elCharsPerPeriod = 0,
+    this.llmTokensPerPeriod = 0,
   });
 
   /// Parse a `/billing/status` response body. Preserves whatever the
@@ -50,6 +52,10 @@ class PlanStatus {
       status: (m['status'] as String?) ?? 'none',
       source: m['source'] as String?,
       currentPeriodEnd: periodEnd,
+      elCharsPerPeriod:
+          (m['el_chars_per_period'] as num?)?.toInt() ?? 0,
+      llmTokensPerPeriod:
+          (m['llm_tokens_per_period'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -66,6 +72,17 @@ class PlanStatus {
   /// next billing-anniversary; for tester_allowlist it's the row's
   /// expires_at. Null for Free.
   final DateTime? currentPeriodEnd;
+
+  /// ElevenLabs character allowance per billing period for this plan.
+  /// 0 means no EL access (Free and plans without premium TTS).
+  /// Mirrors plan_limits.py `el_chars_per_period`.
+  final int elCharsPerPeriod;
+
+  /// LLM token allowance per billing period for this plan.
+  /// 0 means no LLM feature access (Free and Reading Nook Pro).
+  /// > 0 entitles Writing Nook Pro and Creative Nook Pro to Summarize-it.
+  /// Mirrors plan_limits.py `llm_tokens_per_period`.
+  final int llmTokensPerPeriod;
 
   bool get isPro =>
       !isUnavailable && plan != 'free' && status == 'active';

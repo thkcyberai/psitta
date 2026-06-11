@@ -111,15 +111,17 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
 
-    // Entitlement: gate to writing_nook_pro / creative_nook_pro.
-    // If billing is still loading we show idle and let the backend enforce.
+    // Entitlement: gate on llm_tokens_per_period > 0 from billing limits.
+    // Writing Nook Pro and Creative Nook Pro have llm > 0; Free and Reading
+    // Nook Pro have llm == 0. If billing is still loading we show idle and
+    // let the backend enforce via 403.
     final billingAsync = ref.watch(billingStatusProvider);
-    final plan = billingAsync.valueOrNull?['plan'] as String?;
-    final planConfirmedFree = billingAsync.hasValue &&
-        plan != 'reading_nook_pro' &&
-        plan != 'creative_nook_pro';
+    final llmTokens =
+        (billingAsync.valueOrNull?['llm_tokens_per_period'] as num?)?.toInt() ??
+            0;
+    final planConfirmedLocked = billingAsync.hasValue && llmTokens == 0;
 
-    if ((planConfirmedFree && _state == _SummarizeState.idle) ||
+    if ((planConfirmedLocked && _state == _SummarizeState.idle) ||
         _state == _SummarizeState.notInPlan) {
       return _PanelCard(
         tokens: tokens,

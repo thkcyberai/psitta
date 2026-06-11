@@ -24,6 +24,7 @@ String _cacheSizeLabel(int mb) => mb >= 1024 ? '${mb ~/ 1024} GB' : '$mb MB';
 const Map<String, String> _kPlanDisplayNames = {
   'free': 'Free',
   'reading_nook_pro': 'Reading Nook Pro',
+  'writing_nook_pro': 'Writing Nook Pro',
   'creative_nook_pro': 'Creative Nook Pro',
 };
 

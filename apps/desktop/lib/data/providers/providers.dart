@@ -60,8 +60,10 @@ final projectRepositoryProvider = Provider<ProjectRepository>((ref) {
 ///
 /// Calls `GET /billing/status` (the M3 Stripe-backed endpoint that
 /// reads from the `subscriptions` table the webhook writes). Returns
-/// `{plan, billing_period, status, current_period_end, cancel_at_period_end}`
-/// where `plan` is `"free"`, `"reading_nook_pro"`, or `"creative_nook_pro"`.
+/// `{plan, billing_period, status, current_period_end, cancel_at_period_end,
+/// el_chars_per_period, llm_tokens_per_period}`
+/// where `plan` is `"free"`, `"reading_nook_pro"`, `"writing_nook_pro"`,
+/// or `"creative_nook_pro"`.
 ///
 /// Free users get `plan == "free"` with `status == "none"`.
 final billingStatusProvider =

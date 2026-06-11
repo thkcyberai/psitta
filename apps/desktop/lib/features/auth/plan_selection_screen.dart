@@ -184,7 +184,8 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         final data = response.data as Map<String, dynamic>;
         final plan = data['plan'] as String?;
         final status = data['status'] as String?;
-        if (plan == 'reading_nook_pro' && status == 'active') {
+        if ((plan == 'reading_nook_pro' || plan == 'writing_nook_pro') &&
+            status == 'active') {
           timer.cancel();
           ref.invalidate(billingStatusProvider);
           _showSnack('Welcome to Reading Nook Pro!');
@@ -243,7 +244,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         currentPlan == 'free';
     final isPro = !statusHasError &&
         !statusIsLoading &&
-        currentPlan == 'reading_nook_pro';
+        currentPlan != 'free';
 
     return Scaffold(
       body: Center(
