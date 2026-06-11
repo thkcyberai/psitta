@@ -45,6 +45,7 @@ import uuid
 from sqlalchemy import text
 
 from psitta.db.session import async_session_factory
+from psitta.services import audit_service
 from psitta.services.subscription_service import get_effective_plan
 
 logging.basicConfig(
@@ -136,16 +137,19 @@ async def main() -> None:
             )
 
         # ── Step 5: audit log ───────────────────────────────────────────────
-        await db.execute(
-            text(
-                "INSERT INTO audit_log (user_id, action, resource_type, resource_id, details_json) "
-                "VALUES (:uid, 'admin.revoke_dev_override', 'user_subscription', :uid, "
-                "'{\"reason\":\"cancel dev_override so tester_allowlist creative_nook_pro wins\","
-                "\"script\":\"revoke_dev_override_luisaao.py\","
-                "\"from_plan\":\"pro_monthly\",\"to_effective_plan\":\"creative_nook_pro\","
-                "\"source\":\"tester_allowlist\"}'::jsonb)"
-            ),
-            {"uid": user_id},
+        await audit_service.log_event(
+            db,
+            action="admin.revoke_dev_override",
+            resource_type="user_subscription",
+            user_id=str(user_id),
+            resource_id=str(user_id),
+            details={
+                "reason": "cancel dev_override so tester_allowlist creative_nook_pro wins",
+                "script": "revoke_dev_override_luisaao.py",
+                "from_plan": "pro_monthly",
+                "to_effective_plan": "creative_nook_pro",
+                "source": "tester_allowlist",
+            },
         )
 
         await db.commit()
