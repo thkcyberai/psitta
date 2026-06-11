@@ -1040,6 +1040,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       onChangeCover: selected == null
           ? null
           : () => _changeCover(selected!),
+      // TODO(temp): remove once Project CTAs wire the real entry point
+      onOpenInDesk: (selected == null || selected!.status != 'ready')
+          ? null
+          : () => context.go('/writing-desk/${selected!.id}'),
     );
 
     if (isInDesktopShell) {
@@ -1113,6 +1117,7 @@ class _LibraryRightPanel extends StatelessWidget {
     this.onAssignProject,
     this.onChangeCover,
     this.projectName,
+    this.onOpenInDesk,
   });
 
   final Document? selected;
@@ -1125,6 +1130,8 @@ class _LibraryRightPanel extends StatelessWidget {
   final VoidCallback? onAssignProject;
   final VoidCallback? onChangeCover;
   final String? projectName;
+  // TODO(temp): remove once Project CTAs wire the real entry point
+  final VoidCallback? onOpenInDesk;
 
   String _fmtDate(DateTime dt) {
     final y = dt.year.toString().padLeft(4, '0');
@@ -1434,6 +1441,13 @@ class _LibraryRightPanel extends StatelessWidget {
             icon: Icons.edit_note_outlined,
             label: 'Edit Text',
             onTap: onEditText,
+          ),
+          const SizedBox(height: 6),
+          // TODO(temp): remove once Project CTAs wire the real entry point
+          _QuickAction(
+            icon: Icons.table_rows_outlined,
+            label: 'Writing Desk',
+            onTap: onOpenInDesk,
           ),
           const SizedBox(height: 6),
           _QuickAction(
