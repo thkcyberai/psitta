@@ -8,7 +8,6 @@ import '../../data/models/document_assembler.dart';
 import '../../data/models/psitta_document.dart';
 import '../../data/providers/providers.dart';
 import '../../features/editor/chunk_editor_provider.dart';
-import '../../features/shell/widgets/player_bar.dart';
 import '../player/widgets/document_reading_view.dart';
 import 'desk_providers.dart';
 
@@ -16,7 +15,6 @@ import 'desk_providers.dart';
 ///
 /// Read mode: scrollable [DocumentReadingView] of the assembled document.
 /// Edit mode: unified [quill.QuillEditor] backed by [deskDocumentProvider].
-/// Bottom: [_DeskPlayerBar] (thin wrapper around [PlayerBar]).
 ///
 /// Toggle button in the header switches between modes. Switching from edit
 /// back to read serialises the Quill Delta via [qcodec] and calls
@@ -197,17 +195,17 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                       controller: _unifiedController!,
                       focusNode: _focusNode!,
                     )
-                  : DocumentReadingView(
-                      key: const ValueKey('desk-reading-body'),
-                      document: doc,
-                      activeChunkIndex: 0,
-                      alignmentPayload: const {},
-                      enableContextMenu: false,
+                  : SingleChildScrollView(
+                      child: DocumentReadingView(
+                        key: const ValueKey('desk-reading-body'),
+                        document: doc,
+                        activeChunkIndex: 0,
+                        alignmentPayload: const {},
+                        enableContextMenu: false,
+                      ),
                     ),
             ),
           ),
-          const Divider(height: 1),
-          const _DeskPlayerBar(key: ValueKey('desk-player-bar')),
         ],
       ),
     );
@@ -305,42 +303,6 @@ class _DeskEditorBody extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-// ── Player bar strip ──────────────────────────────────────────────────────────
-
-class _DeskPlayerBar extends StatelessWidget {
-  const _DeskPlayerBar({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    // PlayerBar needs ≥360px for its fixed left/right sections + slider.
-    // LayoutBuilder reads the actual available width; OverflowBox expands it to
-    // at least 600px (bounded, so Row+Expanded inside PlayerBar stays valid);
-    // ClipRect clips the paint to the container boundary so production layouts
-    // are unaffected and narrow test viewports produce no overflow exception.
-    // Material(transparency) satisfies Slider's Material ancestor requirement.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxW =
-            constraints.maxWidth < 600.0 ? 600.0 : constraints.maxWidth;
-        return SizedBox(
-          height: 72,
-          child: ClipRect(
-            child: OverflowBox(
-              minWidth: 0,
-              maxWidth: maxW,
-              alignment: Alignment.centerLeft,
-              child: const Material(
-                type: MaterialType.transparency,
-                child: PlayerBar(),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 }
