@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import '../../core/constants.dart';
 import '../../data/services/pdf_text_extractor.dart';
 import '../../core/keyboard/shortcuts.dart';
+import '../../core/plan_gate.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
@@ -35,6 +36,8 @@ class DesktopShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isCollapsed = ref.watch(sidebarCollapsedProvider);
     final isEditing = ref.watch(isInlineEditingProvider);
+    final isWritingShell =
+        ref.watch(planStatusProvider).plan == 'writing_nook_pro';
 
     // When editing, remove playback shortcuts so keys (Space, arrows)
     // propagate naturally to the focused TextField.
@@ -226,6 +229,7 @@ class DesktopShell extends ConsumerWidget {
           child: AppShell(
             content: child,
             isSidebarCollapsed: isCollapsed,
+            isWritingShell: isWritingShell,
           ),
         ),
       ),

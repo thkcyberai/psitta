@@ -11,6 +11,7 @@ import '../../widgets/user_avatar.dart';
 import 'widgets/player_bar.dart';
 import 'widgets/shortcuts_panel.dart';
 import 'widgets/sidebar_nav.dart';
+import 'widgets/writing_nav.dart';
 
 /// AppShell — persistent desktop layout with header, sidebar, optional right panel, and pinned player bar.
 class AppShell extends ConsumerWidget {
@@ -19,11 +20,13 @@ class AppShell extends ConsumerWidget {
     required this.content,
     required this.isSidebarCollapsed,
     this.rightPanel,
+    this.isWritingShell = false,
   });
 
   final Widget content;
   final Widget? rightPanel;
   final bool isSidebarCollapsed;
+  final bool isWritingShell;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -52,13 +55,15 @@ class AppShell extends ConsumerWidget {
                     duration: const Duration(milliseconds: 200),
                     curve: Curves.easeInOut,
                     width: sidebarWidth,
-                    child: SidebarNav(isCollapsed: isSidebarCollapsed),
+                    child: isWritingShell
+                        ? WritingNav(isCollapsed: isSidebarCollapsed)
+                        : SidebarNav(isCollapsed: isSidebarCollapsed),
                   ),
                   VerticalDivider(width: 1, color: tokens.divider),
                   Expanded(
                     child: Column(
                       children: [
-                        _ContextHeader(tokens: tokens),
+                        _ContextHeader(tokens: tokens, isWritingShell: isWritingShell),
                         Divider(height: 1, color: tokens.divider),
                         Expanded(child: content),
                       ],
@@ -87,9 +92,10 @@ class AppShell extends ConsumerWidget {
 }
 
 class _ContextHeader extends ConsumerWidget {
-  const _ContextHeader({required this.tokens});
+  const _ContextHeader({required this.tokens, this.isWritingShell = false});
 
   final PsittaTokens tokens;
+  final bool isWritingShell;
 
   String _breadcrumbFromLocation(Uri uri) {
     final seg = uri.pathSegments;
@@ -157,19 +163,21 @@ class _ContextHeader extends ConsumerWidget {
             ),
           ),
 
-          const SizedBox(width: 14),
-          Builder(
-            builder: (context) {
-              final activeDocId = ref.watch(activeDocumentIdProvider);
-              return OutlinedButton.icon(
-                onPressed: activeDocId == null
-                    ? null
-                    : () => context.go('/player/$activeDocId'),
-                icon: const Icon(Icons.play_arrow, size: 18),
-                label: const Text('Resume'),
-              );
-            },
-          ),
+          if (!isWritingShell) ...[
+            const SizedBox(width: 14),
+            Builder(
+              builder: (context) {
+                final activeDocId = ref.watch(activeDocumentIdProvider);
+                return OutlinedButton.icon(
+                  onPressed: activeDocId == null
+                      ? null
+                      : () => context.go('/player/$activeDocId'),
+                  icon: const Icon(Icons.play_arrow, size: 18),
+                  label: const Text('Resume'),
+                );
+              },
+            ),
+          ],
           const SizedBox(width: 10),
           IconButton(
             tooltip: 'Keyboard Shortcuts (Ctrl+/)',
