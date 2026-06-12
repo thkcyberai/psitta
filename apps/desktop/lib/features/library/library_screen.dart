@@ -221,8 +221,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final swhEnabled = swhMode == SwhMode.always;
     await _primePlaybackSession(doc);
     if (!mounted) return;
-    final swhParam = swhEnabled ? '1' : '0';
-    context.go('/player/${doc.id}?autoplay=0&swh=$swhParam');
+    final isWritingShell =
+        ref.read(planStatusProvider).plan == 'writing_nook_pro';
+    if (isWritingShell) {
+      context.go('/writing-desk/${doc.id}');
+    } else {
+      final swhParam = swhEnabled ? '1' : '0';
+      context.go('/player/${doc.id}?autoplay=0&swh=$swhParam');
+    }
   }
 
   void _handleDrop(DropDoneDetails details) {
@@ -979,8 +985,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       },
                                       onRead: () {
                                         _primePlaybackSession(doc);
-                                        context
-                                            .go('/player/${doc.id}?autoplay=0');
+                                        final isWritingShell = ref
+                                                .read(planStatusProvider)
+                                                .plan ==
+                                            'writing_nook_pro';
+                                        if (isWritingShell) {
+                                          context.go(
+                                              '/writing-desk/${doc.id}');
+                                        } else {
+                                          context.go(
+                                              '/player/${doc.id}?autoplay=0');
+                                        }
                                       },
                                       onEdit: () => _rename(doc),
                                       onDelete: () => _confirmAndDelete(doc),

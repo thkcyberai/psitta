@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/plan_gate.dart';
 import '../../../data/models/document.dart';
 import '../../../data/providers/project_providers.dart';
 import '../../../data/providers/providers.dart';
@@ -87,12 +88,18 @@ class ProjectDocumentsTab extends ConsumerWidget {
   void _openInPlayer(BuildContext context, WidgetRef ref, Document doc) {
     ref.read(activeDocumentIdProvider.notifier).state = doc.id;
     ref.read(currentDocTitleProvider.notifier).state = doc.title;
-    context.go(
-      '/player/${doc.id}'
-      '?origin=project'
-      '&projectId=$projectId'
-      '&projectName=${Uri.encodeComponent(projectName)}',
-    );
+    final isWritingShell =
+        ref.read(planStatusProvider).plan == 'writing_nook_pro';
+    if (isWritingShell) {
+      context.go('/writing-desk/${doc.id}?projectId=$projectId');
+    } else {
+      context.go(
+        '/player/${doc.id}'
+        '?origin=project'
+        '&projectId=$projectId'
+        '&projectName=${Uri.encodeComponent(projectName)}',
+      );
+    }
   }
 
   Widget _docLeading(Document doc) {
