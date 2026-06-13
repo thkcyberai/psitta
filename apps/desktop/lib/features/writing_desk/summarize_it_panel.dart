@@ -9,6 +9,12 @@ import '../../data/providers/providers.dart';
 /// Used to convert the remaining token budget to a human-readable count.
 const _kAvgTokensPerSummary = 6500;
 
+/// Statuses where the document has no synthesised text yet — Summarize is
+/// disabled until these pass. 'ready', 'error', and any future post-content
+/// status allow the button so a failed-but-chunked doc can still be
+/// summarised from available chunks.
+const _kPreContentStatuses = {'uploaded', 'parsing', 'chunking'};
+
 const _kMonthAbbr = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -134,7 +140,8 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
     final doc = docsAsync.valueOrNull
         ?.where((d) => d.id == widget.documentId)
         .firstOrNull;
-    final String? notReadyHint = (doc != null && doc.status != 'ready')
+    final String? notReadyHint = (doc != null &&
+            _kPreContentStatuses.contains(doc.status))
         ? 'Document is still processing'
         : null;
 
