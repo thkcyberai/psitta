@@ -71,9 +71,13 @@ class _NullProjectGuard extends StatelessWidget {
   }
 }
 
-// ── Project navigator body ─────────────────────────────────────────────────────
+// ── Tile kind enum ────────────────────────────────────────────────────────────
 
-class _ProjectNavigatorBody extends ConsumerWidget {
+enum _TileKind { blueprint, unassigned }
+
+// ── Project navigator body ────────────────────────────────────────────────────
+
+class _ProjectNavigatorBody extends ConsumerStatefulWidget {
   const _ProjectNavigatorBody({
     required this.projectId,
     required this.documentId,
@@ -87,44 +91,66 @@ class _ProjectNavigatorBody extends ConsumerWidget {
   final void Function(String?) onBlueprintSelected;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final overviewAsync =
-        ref.watch(projectBlueprintOverviewProvider(projectId));
-    final docsAsync = ref.watch(projectDocumentsProvider(projectId));
-    final placementsAsync = ref.watch(projectPlacementsProvider(projectId));
+  ConsumerState<_ProjectNavigatorBody> createState() =>
+      _ProjectNavigatorBodyState();
+}
 
-    // Merge the three async values: only render the content when all are data.
-    return overviewAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
-      data: (overview) => docsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (docs) => placementsAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
-          data: (placements) =>
-              _buildContent(context, ref, overview, docs, placements),
-        ),
-      ),
-    );
+class _ProjectNavigatorBodyState
+    extends ConsumerState<_ProjectNavigatorBody> {
+  // Flyover state
+  _TileKind? _openTile;
+  OverlayEntry? _overlayEntry;
+  final LayerLink _blueprintLink = LayerLink();
+  final LayerLink _unassignedLink = LayerLink();
+
+  // Latest provider data — captured on each build pass for use in the overlay
+  ProjectBlueprintOverview? _latestOverview;
+  List<Document>? _latestDocs;
+  List<ProjectPlacement>? _latestPlacements;
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    super.dispose();
   }
 
-  Widget _buildContent(
-    BuildContext context,
-    WidgetRef ref,
-    ProjectBlueprintOverview overview,
-    List<Document> docs,
-    List<ProjectPlacement> placements,
-  ) {
-    final tokens = PsittaTokens.of(context);
-    final blueprints = overview.blueprints;
+  // ── Flyover helpers ─────────────────────────────────────────────────────────
 
-    // Resolve the active blueprint — default to primary, fallback to first.
+  void _toggleFlyover(_TileKind kind) {
+    if (_openTile == kind) {
+      _removeFlyover();
+      return;
+    }
+    // Close any previous flyover without an extra setState, then open new one.
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _openFlyover(kind);
+  }
+
+  void _removeFlyover() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    if (mounted) setState(() => _openTile = null);
+  }
+
+  void _openFlyover(_TileKind kind) {
+    final overview = _latestOverview;
+    final docs = _latestDocs;
+    final placements = _latestPlacements;
+    if (overview == null || docs == null || placements == null) return;
+
+    setState(() => _openTile = kind);
+
+    final link =
+        kind == _TileKind.blueprint ? _blueprintLink : _unassignedLink;
+
+    // Resolve active blueprint at open time.
+    final blueprints = overview.blueprints;
     BlueprintOverview? selected;
     if (blueprints.isNotEmpty) {
       selected = blueprints.firstWhere(
-        (b) => b.id == selectedBlueprintId,
+        (b) => b.id == widget.selectedBlueprintId,
         orElse: () => blueprints.firstWhere(
           (b) => b.isPrimary,
           orElse: () => blueprints.first,
@@ -136,31 +162,341 @@ class _ProjectNavigatorBody extends ConsumerWidget {
     final unplacedDocs =
         docs.where((d) => !placedDocIds.contains(d.id)).toList();
 
+    _overlayEntry = OverlayEntry(
+      builder: (ctx) {
+        final tokens = PsittaTokens.of(ctx);
+        final scheme = Theme.of(ctx).colorScheme;
+        final screenH = MediaQuery.of(ctx).size.height;
+
+        // ── Flyover card content ──────────────────────────────────────────
+        Widget flyContent;
+        if (kind == _TileKind.blueprint) {
+          // Blueprint: (optional selector) + scrollable part tree.
+          flyContent = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (blueprints.length > 1)
+                _BlueprintSelector(
+                  blueprints: blueprints,
+                  selectedId: selected?.id,
+                  onChanged: (id) {
+                    widget.onBlueprintSelected(id);
+                    _removeFlyover();
+                  },
+                ),
+              Expanded(
+                child: selected == null
+                    ? _NoBlueprintsHint()
+                    : _PartTree(
+                        parts: selected.parts,
+                        placements: placements,
+                        docs: docs,
+                        // Suppress unassigned section — shown in its own tile.
+                        unplacedDocs: const [],
+                        projectId: widget.projectId,
+                      ),
+              ),
+            ],
+          );
+        } else {
+          // Unassigned: compact list with Assign actions, or empty hint.
+          flyContent = unplacedDocs.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'No unassigned documents',
+                    style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
+                          color: scheme.outline,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  children: [
+                    for (final doc in unplacedDocs)
+                      _UnplacedDocTile(
+                        key: ValueKey('desk-flyover-unplaced-${doc.id}'),
+                        doc: doc,
+                        parts: selected?.parts ?? [],
+                        projectId: widget.projectId,
+                      ),
+                  ],
+                );
+        }
+
+        return Stack(
+          children: [
+            // Full-area transparent barrier — tap to dismiss.
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _removeFlyover,
+                behavior: HitTestBehavior.translucent,
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+            ),
+            // Flyover card anchored below the tapped tile.
+            CompositedTransformFollower(
+              link: link,
+              targetAnchor: Alignment.bottomLeft,
+              followerAnchor: Alignment.topLeft,
+              offset: const Offset(0, 6),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: screenH * 0.60,
+                  minWidth: 220,
+                  maxWidth: 260,
+                ),
+                child: Material(
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: tokens.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: scheme.outlineVariant.withOpacity(0.3),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: flyContent,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  // ── Build ───────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    final overviewAsync =
+        ref.watch(projectBlueprintOverviewProvider(widget.projectId));
+    final docsAsync = ref.watch(projectDocumentsProvider(widget.projectId));
+    final placementsAsync =
+        ref.watch(projectPlacementsProvider(widget.projectId));
+    final projectAsync = ref.watch(projectDetailProvider(widget.projectId));
+
+    // Merge the three async values: only render content when all are data.
+    return overviewAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: $e')),
+      data: (overview) => docsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Error: $e')),
+        data: (docs) => placementsAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Error: $e')),
+          data: (placements) => _buildContent(
+            context,
+            overview,
+            docs,
+            placements,
+            projectAsync.valueOrNull,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    ProjectBlueprintOverview overview,
+    List<Document> docs,
+    List<ProjectPlacement> placements,
+    ProjectDetail? projectDetail,
+  ) {
+    // Cache latest data so _openFlyover can use a consistent snapshot.
+    _latestOverview = overview;
+    _latestDocs = docs;
+    _latestPlacements = placements;
+
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+
+    final placedDocIds = placements.map((p) => p.documentId).toSet();
+    final unplacedDocs =
+        docs.where((d) => !placedDocIds.contains(d.id)).toList();
+    final projectName = projectDetail?.name ?? 'Project';
+
     return ColoredBox(
       color: tokens.surface2,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Blueprint selector (only when 2+ blueprints) ────────────────
-          if (blueprints.length > 1)
-            _BlueprintSelector(
-              blueprints: blueprints,
-              selectedId: selected?.id,
-              onChanged: onBlueprintSelected,
-            ),
-          // ── Part tree or empty hint ────────────────────────────────────
-          Expanded(
-            child: selected == null
-                ? _NoBlueprintsHint()
-                : _PartTree(
-                    parts: selected.parts,
-                    placements: placements,
-                    docs: docs,
-                    unplacedDocs: unplacedDocs,
-                    projectId: projectId,
+          // ── Tiles row ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: Row(
+              children: [
+                // Blueprint tile
+                Expanded(
+                  child: _NavTile(
+                    key: const ValueKey('desk-nav-tile-blueprint'),
+                    isOpen: _openTile == _TileKind.blueprint,
+                    layerLink: _blueprintLink,
+                    onTap: () => _toggleFlyover(_TileKind.blueprint),
+                    leadingIcon: Icon(
+                      Icons.menu_book_outlined,
+                      size: 18,
+                      color: scheme.primary,
+                    ),
+                    label: projectName,
+                    trailing: Icon(
+                      Icons.chevron_right,
+                      size: 16,
+                      color: scheme.outline,
+                    ),
+                    tokens: tokens,
+                    scheme: scheme,
                   ),
+                ),
+                const SizedBox(width: 10),
+                // Unassigned tile
+                Expanded(
+                  child: _NavTile(
+                    key: const ValueKey('desk-nav-tile-unassigned'),
+                    isOpen: _openTile == _TileKind.unassigned,
+                    layerLink: _unassignedLink,
+                    onTap: () => _toggleFlyover(_TileKind.unassigned),
+                    leadingIcon: Icon(
+                      Icons.layers_outlined,
+                      size: 18,
+                      color: scheme.secondary,
+                    ),
+                    label: 'Unassigned',
+                    badgeCount: unplacedDocs.length,
+                    tokens: tokens,
+                    scheme: scheme,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // ── Page thumbnails placeholder (R5b-2) ───────────────────────
+          Expanded(
+            child: Column(
+              key: const ValueKey('desk-nav-thumbs-placeholder'),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.photo_library_outlined,
+                  size: 32,
+                  color: scheme.outline.withOpacity(0.4),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Page thumbnails & contents',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.outline.withOpacity(0.55),
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Nav tile ──────────────────────────────────────────────────────────────────
+
+class _NavTile extends StatelessWidget {
+  const _NavTile({
+    super.key,
+    required this.isOpen,
+    required this.layerLink,
+    required this.onTap,
+    required this.leadingIcon,
+    required this.label,
+    required this.tokens,
+    required this.scheme,
+    this.trailing,
+    this.badgeCount,
+  });
+
+  final bool isOpen;
+  final LayerLink layerLink;
+  final VoidCallback onTap;
+  final Widget leadingIcon;
+  final String label;
+  final Widget? trailing;
+  final int? badgeCount;
+  final PsittaTokens tokens;
+  final ColorScheme scheme;
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: layerLink,
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: tokens.surface2,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isOpen
+                  ? scheme.secondary.withOpacity(0.6)
+                  : scheme.outline.withOpacity(0.18),
+              width: isOpen ? 1.5 : 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              leadingIcon,
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w600,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (badgeCount != null && badgeCount! > 0) ...[
+                const SizedBox(width: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: scheme.secondary.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '$badgeCount',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: scheme.secondary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 10,
+                        ),
+                  ),
+                ),
+              ],
+              if (trailing != null) ...[
+                const SizedBox(width: 2),
+                trailing!,
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
