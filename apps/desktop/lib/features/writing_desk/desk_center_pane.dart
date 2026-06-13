@@ -8,6 +8,7 @@ import '../../data/models/document_assembler.dart';
 import '../../data/models/psitta_document.dart';
 import '../../data/providers/providers.dart';
 import '../../features/editor/chunk_editor_provider.dart';
+import '../player/widgets/docx_document_editor.dart' show buildDocxEditToolbar;
 import '../player/widgets/document_reading_view.dart';
 import 'desk_providers.dart';
 
@@ -41,6 +42,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   quill.QuillController? _unifiedController;
   FocusNode? _focusNode;
   bool _isSaving = false;
+  bool _sheetExpanded = false;
 
   @override
   void dispose() {
@@ -157,6 +159,104 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     }
   }
 
+  Widget _buildEditPaper(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final pageWidth = constraints.maxWidth < _kPaperMaxWidth
+            ? (constraints.maxWidth - 32).clamp(0.0, _kPaperMaxWidth)
+            : _kPaperMaxWidth;
+        final pageHeight = constraints.maxHeight - 56;
+        return Center(
+          child: SizedBox(
+            width: pageWidth,
+            height: pageHeight > 0 ? pageHeight : constraints.maxHeight,
+            child: Container(
+              decoration: _paperDecoration(),
+              clipBehavior: Clip.antiAlias,
+              child: Theme(
+                data: _paperThemeOf(context),
+                child: _DeskEditorBody(
+                  key: const ValueKey('desk-editor-body'),
+                  controller: _unifiedController!,
+                  focusNode: _focusNode!,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCenterBody(BuildContext context, PsittaTokens tokens,
+      AsyncValue<dynamic> docAsync) {
+    final sheet = docAsync.when(
+      loading: () => const Center(
+        key: ValueKey('desk-center-loading'),
+        child: CircularProgressIndicator(),
+      ),
+      error: (e, _) => Center(
+        child: Text(
+          'Failed to load document',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+        ),
+      ),
+      data: (doc) => _isEditing && _unifiedController != null
+          ? _buildEditPaper(context)
+          : SingleChildScrollView(
+              child: _PaperSurface(
+                child: DocumentReadingView(
+                  key: const ValueKey('desk-reading-body'),
+                  document: doc,
+                  activeChunkIndex: 0,
+                  alignmentPayload: const {},
+                  enableContextMenu: false,
+                ),
+              ),
+            ),
+    );
+    const cardsHeight = 168.0;
+    return Stack(
+      children: [
+        const Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: cardsHeight,
+          child: _ThreeWaysPanel(),
+        ),
+        AnimatedPositioned(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeInOut,
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: _sheetExpanded ? 0 : cardsHeight,
+          child: ColoredBox(color: tokens.surface, child: sheet),
+        ),
+        Positioned(
+          top: 6,
+          right: 14,
+          child: IconButton(
+            key: const ValueKey('desk-sheet-expand'),
+            iconSize: 18,
+            visualDensity: VisualDensity.compact,
+            tooltip:
+                _sheetExpanded ? 'Show add-content panel' : 'Expand sheet',
+            icon: Icon(
+              _sheetExpanded ? Icons.fullscreen_exit : Icons.fullscreen,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            onPressed: () =>
+                setState(() => _sheetExpanded = !_sheetExpanded),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
@@ -180,39 +280,14 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             },
           ),
           const Divider(height: 1),
-          Expanded(
-            child: docAsync.when(
-              loading: () => const Center(
-                key: ValueKey('desk-center-loading'),
-                child: CircularProgressIndicator(),
-              ),
-              error: (e, _) => Center(
-                child: Text(
-                  'Failed to load document',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                ),
-              ),
-              data: (doc) => _isEditing && _unifiedController != null
-                  ? _DeskEditorBody(
-                      key: const ValueKey('desk-editor-body'),
-                      controller: _unifiedController!,
-                      focusNode: _focusNode!,
-                    )
-                  : SingleChildScrollView(
-                      child: _PaperSurface(
-                        child: DocumentReadingView(
-                          key: const ValueKey('desk-reading-body'),
-                          document: doc,
-                          activeChunkIndex: 0,
-                          alignmentPayload: const {},
-                          enableContextMenu: false,
-                        ),
-                      ),
-                    ),
+          if (_isEditing && _unifiedController != null) ...[
+            buildDocxEditToolbar(
+              controller: _unifiedController!,
+              theme: Theme.of(context),
             ),
-          ),
+            const Divider(height: 1),
+          ],
+          Expanded(child: _buildCenterBody(context, tokens, docAsync)),
         ],
       ),
     );
@@ -293,8 +368,8 @@ class _DeskEditorBody extends StatelessWidget {
       controller: controller,
       focusNode: focusNode,
       configurations: quill.QuillEditorConfigurations(
-        expands: false,
-        padding: const EdgeInsets.all(24),
+        expands: true,
+        padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
         scrollPhysics: const ClampingScrollPhysics(),
         placeholder: 'Start writing…',
         customStyles: quill.DefaultStyles(
@@ -314,6 +389,35 @@ class _DeskEditorBody extends StatelessWidget {
   }
 }
 
+// ── Paper helpers ─────────────────────────────────────────────────────────────
+
+ThemeData _paperThemeOf(BuildContext context) {
+  final base = Theme.of(context);
+  return base.copyWith(
+    colorScheme: base.colorScheme.copyWith(
+      surface: _kPaperColor,
+      onSurface: _kPaperInk,
+      onSurfaceVariant: _kPaperInkMuted,
+    ),
+    textTheme: base.textTheme.apply(
+      bodyColor: _kPaperInk,
+      displayColor: _kPaperInk,
+    ),
+  );
+}
+
+BoxDecoration _paperDecoration() => BoxDecoration(
+      color: _kPaperColor,
+      borderRadius: BorderRadius.circular(6),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFF000000).withOpacity(0.10),
+          blurRadius: 18,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    );
+
 // ── Paper surface ─────────────────────────────────────────────────────────────
 
 class _PaperSurface extends StatelessWidget {
@@ -321,43 +425,211 @@ class _PaperSurface extends StatelessWidget {
   final Widget child;
   @override
   Widget build(BuildContext context) {
-    final base = Theme.of(context);
-    final paperTheme = base.copyWith(
-      colorScheme: base.colorScheme.copyWith(
-        surface: _kPaperColor,
-        onSurface: _kPaperInk,
-        onSurfaceVariant: _kPaperInkMuted,
-      ),
-      textTheme: base.textTheme.apply(
-        bodyColor: _kPaperInk,
-        displayColor: _kPaperInk,
-      ),
-    );
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: _kPaperMaxWidth),
         child: Container(
           margin: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
           padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 64),
-          decoration: BoxDecoration(
-            color: _kPaperColor,
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF000000).withOpacity(0.10),
-                blurRadius: 18,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
+          decoration: _paperDecoration(),
           child: Theme(
-            data: paperTheme,
+            data: _paperThemeOf(context),
             child: DefaultTextStyle.merge(
               style: const TextStyle(color: _kPaperInk),
               child: child,
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Three Ways Panel ──────────────────────────────────────────────────────────
+
+class _ThreeWaysPanel extends StatelessWidget {
+  const _ThreeWaysPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return ColoredBox(
+      color: tokens.surface2,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Three ways to add content to your project',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.4,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            const Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: _AddCard(
+                      index: '1',
+                      accent: _AddCardAccent.primary,
+                      title: 'Start New Document',
+                      body:
+                          'Create a new document and choose where it lives.',
+                      cta: 'New Document',
+                      buttonKey: 'desk-add-new-doc',
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: _AddCard(
+                      index: '2',
+                      accent: _AddCardAccent.secondary,
+                      title: 'Add from Library',
+                      body:
+                          'Choose an existing document from your library.',
+                      cta: 'Browse Library',
+                      buttonKey: 'desk-add-from-library',
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: _AddCard(
+                      index: '3',
+                      accent: _AddCardAccent.tertiary,
+                      title: 'Create Project First',
+                      body:
+                          'Set up your project and blueprint structure first.',
+                      cta: 'Create New Project',
+                      buttonKey: 'desk-add-create-project',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Add Card ──────────────────────────────────────────────────────────────────
+
+enum _AddCardAccent { primary, secondary, tertiary }
+
+class _AddCard extends StatelessWidget {
+  const _AddCard({
+    required this.index,
+    required this.accent,
+    required this.title,
+    required this.body,
+    required this.cta,
+    required this.buttonKey,
+  });
+
+  final String index;
+  final _AddCardAccent accent;
+  final String title;
+  final String body;
+  final String cta;
+  final String buttonKey;
+
+  Color _accentColor(ColorScheme scheme) => switch (accent) {
+        _AddCardAccent.primary => scheme.primary,
+        _AddCardAccent.secondary => scheme.secondary,
+        _AddCardAccent.tertiary => scheme.tertiary,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final accentColor = _accentColor(scheme);
+    return Container(
+      decoration: BoxDecoration(
+        color: accentColor.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: accentColor.withOpacity(0.30), width: 1),
+      ),
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: accentColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  index,
+                  style: TextStyle(
+                    color: scheme.onPrimary,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w700,
+                      ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: Text(
+              body,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 28,
+            child: FilledButton(
+              key: ValueKey(buttonKey),
+              style: FilledButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: scheme.onPrimary,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
+                textStyle: const TextStyle(
+                    fontSize: 11, fontWeight: FontWeight.w600),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              onPressed: () {
+                // TODO: wire in Project/Blueprint slice
+              },
+              child: Text(cta),
+            ),
+          ),
+        ],
       ),
     );
   }
