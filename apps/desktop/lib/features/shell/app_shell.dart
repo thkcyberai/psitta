@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,8 +8,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
+import '../../data/providers/providers.dart'
+    show documentRepositoryProvider, documentsProvider;
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
+import '../../features/writing_desk/desk_providers.dart'
+    show DeskSaveState, deskDocumentProvider, deskSaveStateProvider;
 import '../../widgets/user_avatar.dart';
 import 'widgets/player_bar.dart';
 import 'widgets/shortcuts_panel.dart';
@@ -118,8 +125,200 @@ class _ContextHeader extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final uri = GoRouterState.of(context).uri;
 
+    // ── Writing Desk header ───────────────────────────────────────────────────
+    if (isWritingShell) {
+      final segs = uri.pathSegments;
+      final documentId = segs.length >= 2 && segs.first == 'writing-desk'
+          ? segs[1]
+          : null;
+
+      final saveState = ref.watch(deskSaveStateProvider);
+      final IconData saveIcon;
+      final String saveLabel;
+      final Color saveColor;
+      switch (saveState) {
+        case DeskSaveState.saving:
+          saveIcon = Icons.sync;
+          saveLabel = 'Saving…';
+          saveColor = scheme.secondary;
+        case DeskSaveState.editing:
+          saveIcon = Icons.edit_outlined;
+          saveLabel = 'Editing';
+          saveColor = scheme.onSurfaceVariant;
+        case DeskSaveState.saved:
+          saveIcon = Icons.check_circle_outline;
+          saveLabel = 'Saved';
+          saveColor = scheme.primary;
+      }
+
+      int? wordCount;
+      if (documentId != null) {
+        final docAsync = ref.watch(deskDocumentProvider(documentId));
+        wordCount = docAsync.valueOrNull?.blocks
+            .map((b) => b.plainText)
+            .join(' ')
+            .split(RegExp(r'\s+'))
+            .where((t) => t.isNotEmpty)
+            .length;
+      }
+
+      return Container(
+        height: 64,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        decoration: BoxDecoration(
+          color: tokens.headerSurface,
+          border: Border(bottom: BorderSide(color: tokens.divider, width: 1)),
+        ),
+        child: Row(
+          children: [
+            // LEFT — title + subtitle
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Writing Desk',
+                  style: theme.textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  'Write, edit, listen and perfect your story',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+            const Spacer(),
+            // Doc-specific right cluster — only on /writing-desk/:id
+            if (documentId != null) ...[
+              // a) Saved indicator
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(saveIcon, size: 16, color: saveColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    saveLabel,
+                    style:
+                        theme.textTheme.labelSmall?.copyWith(color: saveColor),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 16),
+              // b) Word count
+              Text(
+                wordCount != null
+                    ? 'Word count $wordCount'
+                    : 'Word count —',
+                style: theme.textTheme.labelSmall
+                    ?.copyWith(color: scheme.onSurfaceVariant),
+              ),
+              const SizedBox(width: 12),
+              // c) Export
+              OutlinedButton.icon(
+                key: const ValueKey('desk-export-btn'),
+                onPressed: () async {
+                  final docs = await ref.read(documentsProvider.future);
+                  final doc =
+                      docs.where((d) => d.id == documentId).firstOrNull;
+                  if (doc == null) return;
+                  if (!context.mounted) return;
+                  final savePath = await FilePicker.platform.saveFile(
+                    dialogTitle: 'Save Document',
+                    fileName: '${doc.title}.docx',
+                    type: FileType.custom,
+                    allowedExtensions: ['docx'],
+                  );
+                  if (savePath == null) return;
+                  if (!context.mounted) return;
+                  try {
+                    final bytes = await ref
+                        .read(documentRepositoryProvider)
+                        .exportDocument(documentId);
+                    final finalPath = savePath.endsWith('.docx')
+                        ? savePath
+                        : '$savePath.docx';
+                    await File(finalPath).writeAsBytes(bytes);
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content:
+                            Text('Saved to ${File(finalPath).parent.path}'),
+                      ),
+                    );
+                  } catch (e) {
+                    if (!context.mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Export failed: $e')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.download, size: 16),
+                label: const Text('Export'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 0),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // d) Share — placeholder SnackBar
+              OutlinedButton.icon(
+                key: const ValueKey('desk-share-btn'),
+                onPressed: () =>
+                    ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('Sharing is coming soon.')),
+                ),
+                icon: const Icon(Icons.share_outlined, size: 16),
+                label: const Text('Share'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 0),
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            // Always present: help, settings, avatar
+            IconButton(
+              tooltip: 'Keyboard Shortcuts (Ctrl+/)',
+              onPressed: () => showDialog(
+                context: context,
+                builder: (_) => const ShortcutsPanel(),
+              ),
+              icon: Icon(
+                Icons.help_outline,
+                size: 20,
+                color: theme.iconTheme.color?.withOpacity(0.70),
+              ),
+            ),
+            const SizedBox(width: 2),
+            IconButton(
+              tooltip: 'Settings',
+              onPressed: () => context.go('/settings'),
+              icon: Icon(
+                Icons.settings_outlined,
+                color: theme.iconTheme.color?.withOpacity(0.90),
+              ),
+            ),
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: () => context.go('/settings'),
+              child: const MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: UserAvatarWidget(size: 32),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── Standard header (unchanged) ───────────────────────────────────────────
     final crumb = _breadcrumbFromLocation(uri);
 
     return Container(

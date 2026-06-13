@@ -68,6 +68,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
       _focusNode = focusNode;
       _isEditing = true;
     });
+    ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.editing;
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) focusNode.requestFocus();
@@ -82,6 +83,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     }
 
     setState(() => _isSaving = true);
+    ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.saving;
 
     try {
       final flatBlocks = qcodec.quillDocumentToBlockDicts(
@@ -156,6 +158,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
           _isSaving = false;
         });
       }
+      ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.saved;
     }
   }
 

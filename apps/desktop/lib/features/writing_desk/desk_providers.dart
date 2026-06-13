@@ -22,3 +22,11 @@ final deskDocumentProvider = FutureProvider.autoDispose
     sourceType: doc.sourceType,
   );
 });
+
+/// Write-state of the Writing Desk center pane.
+/// Consumed by the Writing Desk top-bar saved indicator.
+enum DeskSaveState { saved, saving, editing }
+
+/// Published by [DeskCenterPane] as the user enters, edits, or saves.
+final deskSaveStateProvider =
+    StateProvider<DeskSaveState>((ref) => DeskSaveState.saved);
