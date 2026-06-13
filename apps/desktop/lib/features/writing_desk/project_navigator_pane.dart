@@ -8,6 +8,9 @@ import '../../data/models/document.dart';
 import '../../data/models/project_detail.dart';
 import '../../data/providers/blueprint_providers.dart';
 import '../../data/providers/project_providers.dart';
+import '../../data/providers/providers.dart'
+    show documentsProvider, projectRepositoryProvider;
+import '../../data/repositories/project_repository.dart' show Project;
 
 /// Left-rail navigator for the Writing Desk.
 ///
@@ -36,7 +39,7 @@ class _ProjectNavigatorPaneState extends ConsumerState<ProjectNavigatorPane> {
   @override
   Widget build(BuildContext context) {
     if (widget.projectId == null) {
-      return const _NullProjectGuard();
+      return _NoProjectNavigator(documentId: widget.documentId);
     }
     return _ProjectNavigatorBody(
       projectId: widget.projectId!,
@@ -47,25 +50,270 @@ class _ProjectNavigatorPaneState extends ConsumerState<ProjectNavigatorPane> {
   }
 }
 
-// ── Null-project guard ────────────────────────────────────────────────────────
+// ── No-project navigator ──────────────────────────────────────────────────────
+//
+// Shown when a document has no project yet. Renders the same two-tile + placeholder
+// frame as the project case. The left "Project" tile opens a flyover with a
+// "Add to a project" action; the "Unassigned" tile is disabled until a project
+// is assigned.
 
-class _NullProjectGuard extends StatelessWidget {
-  const _NullProjectGuard();
+class _NoProjectNavigator extends ConsumerStatefulWidget {
+  const _NoProjectNavigator({required this.documentId});
+
+  final String documentId;
+
+  @override
+  ConsumerState<_NoProjectNavigator> createState() =>
+      _NoProjectNavigatorState();
+}
+
+class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
+  bool _flyoverOpen = false;
+  OverlayEntry? _overlayEntry;
+  final LayerLink _projectLink = LayerLink();
+  final LayerLink _disabledLink = LayerLink();
+
+  @override
+  void dispose() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    super.dispose();
+  }
+
+  // ── Flyover helpers ─────────────────────────────────────────────────────────
+
+  void _toggleFlyover() {
+    if (_flyoverOpen) {
+      _removeFlyover();
+    } else {
+      _openFlyover();
+    }
+  }
+
+  void _removeFlyover() {
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    if (mounted) setState(() => _flyoverOpen = false);
+  }
+
+  void _openFlyover() {
+    setState(() => _flyoverOpen = true);
+
+    _overlayEntry = OverlayEntry(
+      builder: (ctx) {
+        final tokens = PsittaTokens.of(ctx);
+        final scheme = Theme.of(ctx).colorScheme;
+        final screenH = MediaQuery.of(ctx).size.height;
+
+        return Stack(
+          children: [
+            // Full-area barrier — tap outside to dismiss.
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _removeFlyover,
+                behavior: HitTestBehavior.translucent,
+                child: const ColoredBox(color: Colors.transparent),
+              ),
+            ),
+            // Card anchored below the Project tile.
+            CompositedTransformFollower(
+              link: _projectLink,
+              targetAnchor: Alignment.bottomLeft,
+              followerAnchor: Alignment.topLeft,
+              offset: const Offset(0, 6),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: screenH * 0.60,
+                  minWidth: 220,
+                  maxWidth: 260,
+                ),
+                child: Material(
+                  elevation: 8,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: tokens.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: scheme.outlineVariant.withOpacity(0.3),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'This document isn\'t in a project yet.',
+                              style: Theme.of(ctx).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurface),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'No blueprint.',
+                              style: Theme.of(ctx).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.outline),
+                            ),
+                            const SizedBox(height: 14),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                key: const ValueKey('desk-add-to-project'),
+                                onPressed: () =>
+                                    _showAddToProjectDialog(),
+                                child: const Text('Add to a project'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  Future<void> _showAddToProjectDialog() async {
+    final repo = ref.read(projectRepositoryProvider);
+    List<Project> projects;
+    try {
+      projects = await repo.listProjects();
+    } catch (_) {
+      projects = [];
+    }
+    if (!mounted) return;
+
+    final chosen = await showDialog<Project>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add to a project'),
+        content: projects.isEmpty
+            ? const Text('Create a project in the Projects tab first.')
+            : SizedBox(
+                width: 320,
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final project in projects)
+                      ListTile(
+                        key: ValueKey('desk-project-pick-${project.id}'),
+                        title: Text(project.name),
+                        onTap: () => Navigator.of(ctx).pop(project),
+                      ),
+                  ],
+                ),
+              ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (chosen == null) return;
+    if (!mounted) return;
+
+    await repo.assignToProject(widget.documentId, chosen.id);
+    ref.invalidate(documentsProvider);
+    _removeFlyover();
+  }
+
+  // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
-    return Container(
+    final scheme = Theme.of(context).colorScheme;
+
+    return ColoredBox(
       color: tokens.surface2,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(24),
-      child: Text(
-        'Open from a project to see the structure',
-        key: const ValueKey('desk-navigator-null-guard'),
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // ── Tiles row ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: Row(
+              children: [
+                // Project tile — opens "add to project" flyover.
+                Expanded(
+                  child: _NavTile(
+                    key: const ValueKey('desk-nav-tile-noproject'),
+                    isOpen: _flyoverOpen,
+                    layerLink: _projectLink,
+                    onTap: _toggleFlyover,
+                    leadingIcon: Icon(
+                      Icons.menu_book_outlined,
+                      size: 18,
+                      color: scheme.primary,
+                    ),
+                    label: 'Project',
+                    tokens: tokens,
+                    scheme: scheme,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Unassigned tile — disabled until a project is assigned.
+                Expanded(
+                  child: Tooltip(
+                    message: 'Add this document to a project first',
+                    child: Opacity(
+                      opacity: 0.45,
+                      child: _NavTile(
+                        key: const ValueKey(
+                            'desk-nav-tile-noproject-unassigned'),
+                        isOpen: false,
+                        layerLink: _disabledLink,
+                        onTap: () {},
+                        leadingIcon: Icon(
+                          Icons.layers_outlined,
+                          size: 18,
+                          color: scheme.secondary,
+                        ),
+                        label: 'Unassigned',
+                        tokens: tokens,
+                        scheme: scheme,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-        textAlign: TextAlign.center,
+          ),
+          // ── Page thumbnails placeholder ───────────────────────────────
+          Expanded(
+            child: Column(
+              key: const ValueKey('desk-nav-thumbs-placeholder-empty'),
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.photo_library_outlined,
+                  size: 32,
+                  color: scheme.outline.withOpacity(0.4),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Page thumbnails & contents',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.outline.withOpacity(0.55),
+                      ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
