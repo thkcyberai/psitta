@@ -34,12 +34,39 @@ class DocumentContextPane extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (projectId == null) {
-      return const _NullProjectGuard();
-    }
-    return _ContextPaneBody(
-      documentId: documentId,
-      projectId: projectId!,
+    final tokens = PsittaTokens.of(context);
+    return ColoredBox(
+      color: tokens.surface2,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: projectId == null
+                    ? const _NullProjectGuard()
+                    : _ContextPaneBody(
+                        documentId: documentId,
+                        projectId: projectId!,
+                      ),
+              ),
+              const Divider(height: 1),
+              // Bottom Summarize-It panel is height-bounded to at most half the
+              // rail and scrolls internally, so a long summary can never push
+              // past the viewport (fixes the 324px bottom overflow).
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: constraints.maxHeight * 0.5,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(12),
+                  child: SummarizeItPanel(documentId: documentId),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -133,9 +160,6 @@ class _ContextPaneBody extends ConsumerWidget {
             projectId: projectId,
             overviewAsync: overviewAsync,
           ),
-          const SizedBox(height: 12),
-          // ── Summarize It panel stub (WD-6) ───────────────────────────────
-          SummarizeItPanel(documentId: documentId),
         ],
       ),
     );
