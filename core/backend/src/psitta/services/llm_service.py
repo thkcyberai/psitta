@@ -46,10 +46,10 @@ async def summarize_with_quota(
         HTTPException 402 (llm_quota_exceeded) if entitled but quota exhausted.
         HTTPException 503 if the LLM provider call fails.
     """
-    # ── 1. Fetch document ────────────────────────────────────────────────────
+    # ── 1. Fetch document (ownership + existence guard) ──────────────────────
     result = await db.execute(
         text(
-            "SELECT title, text_content FROM documents "
+            "SELECT title FROM documents "
             "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
         ),
         {"did": str(document_id), "uid": str(user_id)},
@@ -61,7 +61,20 @@ async def summarize_with_quota(
             detail="Document not found",
         )
     doc_title: str = row[0] or "Untitled"
-    doc_text: str = row[1] or ""
+
+    # ── 1b. Assemble text from ordered chunks ────────────────────────────────
+    # text_content lives on document_chunks, not documents. Ownership is already
+    # enforced by the guarded documents SELECT above, so scoping the chunk read
+    # by document_id alone is safe. Mirrors the canonical chunk-assembly pattern
+    # used across api/v1/documents.py (ORDER BY sequence_index).
+    chunk_result = await db.execute(
+        text(
+            "SELECT text_content FROM document_chunks "
+            "WHERE document_id = :did ORDER BY sequence_index"
+        ),
+        {"did": str(document_id)},
+    )
+    doc_text: str = "\n\n".join((r[0] or "") for r in chunk_result.fetchall())
 
     if not doc_text.strip():
         raise HTTPException(
