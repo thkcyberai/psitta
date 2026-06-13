@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
+import '../../data/providers/providers.dart';
 import 'desk_center_pane.dart';
 import 'document_context_pane.dart';
 import 'project_navigator_pane.dart';
@@ -38,6 +39,13 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
+    final docProjectId = ref
+        .watch(documentsProvider)
+        .valueOrNull
+        ?.where((d) => d.id == widget.documentId)
+        .firstOrNull
+        ?.projectId;
+    final effectiveProjectId = widget.projectId ?? docProjectId;
     return ColoredBox(
       color: tokens.surface,
       child: Row(
@@ -48,7 +56,7 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
             width: _navigatorWidth,
             child: ProjectNavigatorPane(
               documentId: widget.documentId,
-              projectId: widget.projectId,
+              projectId: effectiveProjectId,
             ),
           ),
           // ── Resize handle: navigator ↔ center ───────────────────────────
@@ -82,7 +90,7 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
             width: _contextWidth,
             child: DocumentContextPane(
               documentId: widget.documentId,
-              projectId: widget.projectId,
+              projectId: effectiveProjectId,
             ),
           ),
         ],
