@@ -11,6 +11,11 @@ import '../../features/editor/chunk_editor_provider.dart';
 import '../player/widgets/document_reading_view.dart';
 import 'desk_providers.dart';
 
+const _kPaperColor = Color(0xFFFFFFFF);
+const _kPaperInk = Color(0xFF1F2430);
+const _kPaperInkMuted = Color(0xFF5B6470);
+const _kPaperMaxWidth = 800.0;
+
 /// Center pane for the Writing Desk.
 ///
 /// Read mode: scrollable [DocumentReadingView] of the assembled document.
@@ -196,12 +201,14 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                       focusNode: _focusNode!,
                     )
                   : SingleChildScrollView(
-                      child: DocumentReadingView(
-                        key: const ValueKey('desk-reading-body'),
-                        document: doc,
-                        activeChunkIndex: 0,
-                        alignmentPayload: const {},
-                        enableContextMenu: false,
+                      child: _PaperSurface(
+                        child: DocumentReadingView(
+                          key: const ValueKey('desk-reading-body'),
+                          document: doc,
+                          activeChunkIndex: 0,
+                          alignmentPayload: const {},
+                          enableContextMenu: false,
+                        ),
                       ),
                     ),
             ),
@@ -300,6 +307,55 @@ class _DeskEditorBody extends StatelessWidget {
             const quill.VerticalSpacing(0, 8),
             quill.VerticalSpacing.zero,
             null,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Paper surface ─────────────────────────────────────────────────────────────
+
+class _PaperSurface extends StatelessWidget {
+  const _PaperSurface({required this.child});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context);
+    final paperTheme = base.copyWith(
+      colorScheme: base.colorScheme.copyWith(
+        surface: _kPaperColor,
+        onSurface: _kPaperInk,
+        onSurfaceVariant: _kPaperInkMuted,
+      ),
+      textTheme: base.textTheme.apply(
+        bodyColor: _kPaperInk,
+        displayColor: _kPaperInk,
+      ),
+    );
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _kPaperMaxWidth),
+        child: Container(
+          margin: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
+          padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 64),
+          decoration: BoxDecoration(
+            color: _kPaperColor,
+            borderRadius: BorderRadius.circular(6),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF000000).withOpacity(0.10),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Theme(
+            data: paperTheme,
+            child: DefaultTextStyle.merge(
+              style: const TextStyle(color: _kPaperInk),
+              child: child,
+            ),
           ),
         ),
       ),
