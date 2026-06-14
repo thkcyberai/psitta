@@ -16,7 +16,6 @@ import '../player/widgets/docx_page_layout.dart'
     show paginateDocxDocument, DocxPageLayoutPage;
 import '../player/widgets/docx_player_navigator.dart'
     show DocxPlayerNavigator, DocxNavigatorEntry;
-import '../projects/widgets/adopt_blueprint_dialog.dart';
 import 'desk_providers.dart' show deskDocumentProvider;
 
 /// Left-rail navigator for the Writing Desk.
@@ -343,6 +342,21 @@ class _ProjectNavigatorBodyState
   // the files waiting to be placed into a section.
   _RailPanel _panel = _RailPanel.bookContent;
 
+  // When true the panel body is hidden (only the toggle bar shows). Clicking
+  // the already-active toggle collapses; clicking either toggle re-opens.
+  bool _collapsed = false;
+
+  void _onToggle(_RailPanel panel) {
+    setState(() {
+      if (_panel == panel) {
+        _collapsed = !_collapsed; // second click on the active tab → pull up
+      } else {
+        _panel = panel;
+        _collapsed = false;
+      }
+    });
+  }
+
   // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
@@ -409,9 +423,9 @@ class _ProjectNavigatorBodyState
                 Expanded(
                   child: _NavTile(
                     key: const ValueKey('desk-nav-tile-blueprint'),
-                    isOpen: _panel == _RailPanel.bookContent,
-                    onTap: () =>
-                        setState(() => _panel = _RailPanel.bookContent),
+                    isOpen:
+                        !_collapsed && _panel == _RailPanel.bookContent,
+                    onTap: () => _onToggle(_RailPanel.bookContent),
                     leadingIcon: Icon(
                       Icons.menu_book_outlined,
                       size: 18,
@@ -427,9 +441,8 @@ class _ProjectNavigatorBodyState
                 Expanded(
                   child: _NavTile(
                     key: const ValueKey('desk-nav-tile-unassigned'),
-                    isOpen: _panel == _RailPanel.addFile,
-                    onTap: () =>
-                        setState(() => _panel = _RailPanel.addFile),
+                    isOpen: !_collapsed && _panel == _RailPanel.addFile,
+                    onTap: () => _onToggle(_RailPanel.addFile),
                     leadingIcon: Icon(
                       Icons.layers_outlined,
                       size: 18,
@@ -445,23 +458,37 @@ class _ProjectNavigatorBodyState
               ],
             ),
           ),
-          // ── Selected panel — fills the rail ───────────────────────────
+          // ── Collapsible menu: SECTIONS for Book, FILES for Files ───────
+          if (!_collapsed)
+            Expanded(
+              flex: 1,
+              child: _panel == _RailPanel.bookContent
+                  ? _BookContentPanel(
+                      selected: selected,
+                      blueprints: blueprints,
+                      placements: placements,
+                      docs: docs,
+                      projectId: widget.projectId,
+                      onBlueprintSelected: widget.onBlueprintSelected,
+                    )
+                  : _AddFilePanel(
+                      unplacedDocs: unplacedDocs,
+                      parts: selected?.parts ?? const [],
+                      projectId: widget.projectId,
+                    ),
+            ),
+          // ── Page thumbnails & contents — always visible (not collapsed
+          //    by the toggle), sits below the menu. ───────────────────────
+          Divider(height: 1, color: scheme.outline.withOpacity(0.15)),
+          const _SectionHeader(
+            key: ValueKey('desk-book-pages-header'),
+            label: 'PAGES & CONTENTS',
+          ),
           Expanded(
-            child: _panel == _RailPanel.bookContent
-                ? _BookContentPanel(
-                    documentId: widget.documentId,
-                    selected: selected,
-                    blueprints: blueprints,
-                    placements: placements,
-                    docs: docs,
-                    projectId: widget.projectId,
-                    onBlueprintSelected: widget.onBlueprintSelected,
-                  )
-                : _AddFilePanel(
-                    unplacedDocs: unplacedDocs,
-                    parts: selected?.parts ?? const [],
-                    projectId: widget.projectId,
-                  ),
+            flex: 1,
+            child: _DocumentThumbnailsContents(
+              documentId: widget.documentId,
+            ),
           ),
         ],
       ),
@@ -469,14 +496,14 @@ class _ProjectNavigatorBodyState
   }
 }
 
-// ── Book Content panel ────────────────────────────────────────────────────────
+// ── Book Content panel (SECTIONS menu) ────────────────────────────────────────
 //
-// Fills the rail with the blueprint section tree (top) and the document's
-// page thumbnails/contents navigator (bottom).
+// The collapsible "Book" menu: the project's blueprint section tree. The page
+// thumbnails/contents live separately in the body and stay visible regardless
+// of which toggle is active or whether the menu is collapsed.
 
-class _BookContentPanel extends ConsumerWidget {
+class _BookContentPanel extends StatelessWidget {
   const _BookContentPanel({
-    required this.documentId,
     required this.selected,
     required this.blueprints,
     required this.placements,
@@ -485,7 +512,6 @@ class _BookContentPanel extends ConsumerWidget {
     required this.onBlueprintSelected,
   });
 
-  final String documentId;
   final BlueprintOverview? selected;
   final List<BlueprintOverview> blueprints;
   final List<ProjectPlacement> placements;
@@ -494,18 +520,7 @@ class _BookContentPanel extends ConsumerWidget {
   final void Function(String?) onBlueprintSelected;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final scheme = Theme.of(context).colorScheme;
-    final placedIds = placements.map((p) => p.documentId).toSet();
-    final unplaced = docs.where((d) => !placedIds.contains(d.id)).toList();
-
-    void addBlueprint() => adoptBlueprintFlow(
-          context,
-          ref,
-          projectId: projectId,
-          adoptedIds: blueprints.map((b) => b.id).toSet(),
-        );
-
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -515,72 +530,20 @@ class _BookContentPanel extends ConsumerWidget {
             selectedId: selected?.id,
             onChanged: onBlueprintSelected,
           ),
-        // SECTIONS header with an inline "Add blueprint" action.
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
-          child: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'SECTIONS',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        letterSpacing: 0.8,
-                      ),
-                ),
-              ),
-              Tooltip(
-                message: 'Add a blueprint to this project',
-                child: InkWell(
-                  key: const ValueKey('desk-add-blueprint'),
-                  onTap: addBlueprint,
-                  borderRadius: BorderRadius.circular(6),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 6, vertical: 2),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add, size: 14, color: scheme.primary),
-                        const SizedBox(width: 2),
-                        Text(
-                          'Blueprint',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelSmall
-                              ?.copyWith(
-                                color: scheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
+        const _SectionHeader(
+          key: ValueKey('desk-book-sections-header'),
+          label: 'SECTIONS',
         ),
         Expanded(
-          flex: 2,
           child: selected == null
-              ? _NoBlueprintAdopt(onAdd: addBlueprint)
+              ? _NoBlueprintsHint()
               : _PartTree(
                   parts: selected!.parts,
                   placements: placements,
                   docs: docs,
-                  unplacedDocs: unplaced,
+                  unplacedDocs: const [],
                   projectId: projectId,
                 ),
-        ),
-        Divider(height: 1, color: scheme.outline.withOpacity(0.15)),
-        const _SectionHeader(
-          key: ValueKey('desk-book-pages-header'),
-          label: 'PAGES & CONTENTS',
-        ),
-        Expanded(
-          flex: 3,
-          child: _DocumentThumbnailsContents(documentId: documentId),
         ),
       ],
     );
@@ -731,7 +694,6 @@ class _NavTile extends StatelessWidget {
     required this.tokens,
     required this.scheme,
     this.layerLink,
-    this.trailing,
     this.badgeCount,
     this.tooltip,
   });
@@ -741,7 +703,6 @@ class _NavTile extends StatelessWidget {
   final VoidCallback onTap;
   final Widget leadingIcon;
   final String label;
-  final Widget? trailing;
   final int? badgeCount;
   final PsittaTokens tokens;
   final ColorScheme scheme;
@@ -801,10 +762,6 @@ class _NavTile extends StatelessWidget {
                       ),
                 ),
               ),
-            ],
-            if (trailing != null) ...[
-              const SizedBox(width: 2),
-              trailing!,
             ],
           ],
         ),
@@ -876,49 +833,6 @@ class _NoBlueprintsHint extends StatelessWidget {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
           textAlign: TextAlign.center,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Drag payload + feedback ───────────────────────────────────────────────────
-
-/// Carried while dragging a file onto a blueprint part. Keeps the file's
-/// current role so a move between parts preserves it.
-class _DocDrag {
-  const _DocDrag(this.documentId, this.role);
-  final String documentId;
-  final Role role;
-}
-
-/// The little chip that follows the cursor during a drag. Wrapped in Material
-/// so its text renders correctly in the overlay.
-class _DragChip extends StatelessWidget {
-  const _DragChip({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: scheme.primary,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.article_outlined, size: 14, color: scheme.onPrimary),
-            const SizedBox(width: 6),
-            Text(
-              title,
-              style: TextStyle(color: scheme.onPrimary, fontSize: 12),
-            ),
-          ],
         ),
       ),
     );
