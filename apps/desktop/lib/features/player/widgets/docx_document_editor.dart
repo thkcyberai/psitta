@@ -610,21 +610,21 @@ Widget buildDocxEditToolbar({
       color: theme.colorScheme.surface,
       buttonOptions: QuillSimpleToolbarButtonOptions(
         base: QuillToolbarBaseButtonOptions(
-          iconSize: 18,
+          iconSize: 15,
           iconTheme: QuillIconTheme(
             iconButtonSelectedData: IconButtonData(
               style: IconButton.styleFrom(
                 backgroundColor: theme.colorScheme.primaryContainer,
                 foregroundColor: theme.colorScheme.onPrimaryContainer,
-                padding: const EdgeInsets.all(4),
-                minimumSize: const Size(32, 32),
+                padding: const EdgeInsets.all(2),
+                minimumSize: const Size(26, 26),
               ),
             ),
             iconButtonUnselectedData: IconButtonData(
               style: IconButton.styleFrom(
                 foregroundColor: theme.colorScheme.onSurfaceVariant,
-                padding: const EdgeInsets.all(4),
-                minimumSize: const Size(32, 32),
+                padding: const EdgeInsets.all(2),
+                minimumSize: const Size(26, 26),
               ),
             ),
           ),
