@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/concept_style.dart';
 import '../../core/theme/psitta_tokens.dart';
 import 'summarize_it_panel.dart';
 import '../../data/models/blueprint.dart';
@@ -264,6 +265,8 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final placement = widget.placement;
+    final projectName =
+        ref.watch(projectDetailProvider(widget.projectId)).valueOrNull?.name;
 
     return _RailCard(
       key: const ValueKey('desk-placement-card'),
@@ -279,49 +282,27 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
                   letterSpacing: 0.8,
                 ),
           ),
-          const SizedBox(height: 8),
-          // Blueprint name (parent context)
-          Row(
-            children: [
-              Icon(Icons.folder_outlined, size: 14, color: scheme.outline),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  placement.blueprintName,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: scheme.outline,
-                      ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+          const SizedBox(height: 12),
+          _PlacedRow(
+            concept: DeskConcept.project,
+            value: projectName ?? '—',
           ),
-          const SizedBox(height: 2),
-          // Section (part) name
-          Padding(
-            padding: const EdgeInsets.only(left: 20),
-            child: Text(
-              placement.partName,
-              key: const ValueKey('desk-placement-section-name'),
-              style: Theme.of(context).textTheme.bodyMedium,
-              overflow: TextOverflow.ellipsis,
-            ),
+          const SizedBox(height: 10),
+          _PlacedRow(
+            concept: DeskConcept.blueprint,
+            value: placement.blueprintName,
           ),
-          const SizedBox(height: 8),
-          // Role badge
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: scheme.primary.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              placement.role.wire,
-              key: const ValueKey('desk-placement-role'),
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: scheme.primary,
-                  ),
-            ),
+          const SizedBox(height: 10),
+          _PlacedRow(
+            concept: DeskConcept.part,
+            value: placement.partName,
+            valueKey: const ValueKey('desk-placement-section-name'),
+          ),
+          const SizedBox(height: 10),
+          _PlacedRow(
+            concept: DeskConcept.role,
+            value: placement.role.wire,
+            valueKey: const ValueKey('desk-placement-role'),
           ),
           const SizedBox(height: 12),
           // ── Actions ────────────────────────────────────────────────────
@@ -763,6 +744,57 @@ class _QuickActionsCardState extends ConsumerState<_QuickActionsCard> {
       out.add(n);
       _flattenPartsQ(n.children, out);
     }
+  }
+}
+
+// ── Placed-in labeled row (icon · label · value) ──────────────────────────────
+
+class _PlacedRow extends StatelessWidget {
+  const _PlacedRow({
+    required this.concept,
+    required this.value,
+    this.valueKey,
+  });
+
+  final DeskConcept concept;
+  final String value;
+  final Key? valueKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(concept.icon, size: 16, color: concept.color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                concept.label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.outline,
+                      letterSpacing: 0.4,
+                    ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                value,
+                key: valueKey,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
