@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/constants.dart';
 import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
+import '../../data/providers/blueprint_providers.dart'
+    show projectBlueprintOverviewProvider;
+import '../../data/providers/project_providers.dart'
+    show projectDetailProvider, projectPlacementsProvider;
 import '../../data/providers/providers.dart'
     show documentRepositoryProvider, documentsProvider;
 import '../../data/services/audio_service.dart';
@@ -165,6 +170,51 @@ class _ContextHeader extends ConsumerWidget {
             .length;
       }
 
+      // Breadcrumb segments: Project › Blueprint › Section › FileName. Project
+      // and Blueprint segments carry a route so they become clickable links;
+      // section and file are plain. Empty list -> static subtitle.
+      final crumbs = <_Crumb>[];
+      if (documentId != null) {
+        final docs = ref.watch(documentsProvider).valueOrNull;
+        final doc = docs?.where((d) => d.id == documentId).firstOrNull;
+        final pid = doc?.projectId;
+        if (pid != null) {
+          final projectName =
+              ref.watch(projectDetailProvider(pid)).valueOrNull?.name;
+          if (projectName != null) {
+            crumbs.add(_Crumb(
+              projectName,
+              '/projects/$pid?projectName=${Uri.encodeComponent(projectName)}',
+            ));
+          }
+          final placements =
+              ref.watch(projectPlacementsProvider(pid)).valueOrNull;
+          final pl = placements
+              ?.where((p) => p.documentId == documentId)
+              .firstOrNull;
+          if (pl != null) {
+            // Placed: file's blueprint (links to Blueprints) + section.
+            crumbs.add(_Crumb(pl.blueprintName, '/blueprints'));
+            crumbs.add(_Crumb(pl.partName));
+          } else {
+            // Unplaced: project's adopted blueprint, for consistency with the
+            // PLACED IN card and Book panel (no section yet).
+            final overview =
+                ref.watch(projectBlueprintOverviewProvider(pid)).valueOrNull;
+            final names =
+                overview?.blueprints.map((b) => b.name).toList() ??
+                    const <String>[];
+            if (names.isNotEmpty) {
+              crumbs.add(_Crumb(names.join(', '), '/blueprints'));
+            }
+          }
+        }
+        final fileName = doc?.title;
+        if (fileName != null && fileName.isNotEmpty) {
+          crumbs.add(_Crumb(fileName));
+        }
+      }
+
       return Container(
         height: 64,
         padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -174,23 +224,31 @@ class _ContextHeader extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // LEFT — title + subtitle
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Writing Desk',
-                  style: theme.textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w500),
-                ),
-                Text(
-                  'Write, edit, listen and perfect your story',
-                  style: theme.textTheme.bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ],
+            // LEFT — title + breadcrumb (or subtitle)
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Writing Desk',
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (crumbs.isNotEmpty)
+                    _DeskBreadcrumb(crumbs: crumbs)
+                  else
+                    Text(
+                      'Write, edit, listen and perfect your story',
+                      style: theme.textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                ],
+              ),
             ),
+            const SizedBox(width: 16),
             const Spacer(),
             // Doc-specific right cluster — only on /writing-desk/:id
             if (documentId != null) ...[
@@ -409,6 +467,83 @@ class _ContextHeader extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+// ── Writing Desk breadcrumb ───────────────────────────────────────────────────
+
+/// One breadcrumb segment. A non-null [route] makes the segment a navigational
+/// link; null renders it as plain text.
+class _Crumb {
+  const _Crumb(this.label, [this.route]);
+  final String label;
+  final String? route;
+}
+
+/// Renders the Writing Desk breadcrumb on one line. The visual design is
+/// unchanged (same text, size, and color); segments with a route become
+/// clickable (pointer cursor on hover) and navigate via go_router. Tap
+/// recognizers are owned and disposed here to avoid leaks.
+class _DeskBreadcrumb extends StatefulWidget {
+  const _DeskBreadcrumb({required this.crumbs});
+  final List<_Crumb> crumbs;
+
+  @override
+  State<_DeskBreadcrumb> createState() => _DeskBreadcrumbState();
+}
+
+class _DeskBreadcrumbState extends State<_DeskBreadcrumb> {
+  final List<TapGestureRecognizer> _recognizers = [];
+
+  void _disposeRecognizers() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _disposeRecognizers();
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final base =
+        theme.textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant);
+
+    final spans = <InlineSpan>[];
+    for (var i = 0; i < widget.crumbs.length; i++) {
+      if (i > 0) {
+        spans.add(TextSpan(text: '  ›  ', style: base));
+      }
+      final crumb = widget.crumbs[i];
+      final route = crumb.route;
+      if (route != null) {
+        final recognizer = TapGestureRecognizer()
+          ..onTap = () => context.go(route);
+        _recognizers.add(recognizer);
+        spans.add(TextSpan(
+          text: crumb.label,
+          style: base,
+          recognizer: recognizer,
+          mouseCursor: SystemMouseCursors.click,
+        ));
+      } else {
+        spans.add(TextSpan(text: crumb.label, style: base));
+      }
+    }
+
+    return Text.rich(
+      TextSpan(children: spans),
+      key: const ValueKey('desk-breadcrumb'),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     );
   }
 }
