@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'player_bar.dart';
 
+import '../../../core/keyboard/shortcuts.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../shared/widgets/psitta_logo.dart';
 
@@ -29,48 +30,56 @@ class WritingNav extends StatelessWidget {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              children: const [
+              children: [
                 _WritingNavItem(
                   label: 'Library',
                   icon: Icons.article_outlined,
                   route: '/library',
+                  isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
                   label: 'Writing Desk',
                   icon: Icons.edit_note_outlined,
                   route: '/writing-desk',
+                  isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
                   label: 'Projects',
                   icon: Icons.folder_outlined,
                   route: '/projects',
+                  isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
                   label: 'Blueprints',
                   icon: Icons.account_tree_outlined,
                   route: '/blueprints',
+                  isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
                   label: 'Creative Nook',
                   icon: Icons.auto_awesome_outlined,
                   route: '/plan',
                   badge: 'Upgrade',
+                  isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
                   label: 'Voices',
                   icon: Icons.record_voice_over_outlined,
                   route: '/voices',
+                  isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
                   label: 'Analytics',
                   icon: Icons.bar_chart_outlined,
                   route: '/analytics',
                   enabled: false,
+                  isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
                   label: 'Settings',
                   icon: Icons.tune_outlined,
                   route: '/settings',
+                  isCollapsed: isCollapsed,
                 ),
               ],
             ),
@@ -95,6 +104,22 @@ class _WritingBrandHeader extends StatelessWidget {
     final tokens = PsittaTokens.of(context);
     final theme = Theme.of(context);
 
+    if (isCollapsed) {
+      return SizedBox(
+        height: 64,
+        child: Center(
+          child: IconButton(
+            key: const ValueKey('writing-nav-toggle'),
+            iconSize: 20,
+            tooltip: 'Expand sidebar',
+            icon: Icon(Icons.menu,
+                color: theme.colorScheme.onSurface.withOpacity(0.7)),
+            onPressed: () =>
+                Actions.maybeInvoke(context, const ToggleSidebarIntent()),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       height: 64,
       child: Row(
@@ -107,9 +132,9 @@ class _WritingBrandHeader extends StatelessWidget {
             a: theme.colorScheme.primary,
             b: tokens.glow,
           ),
-          if (!isCollapsed) ...[
-            const SizedBox(width: 12),
-            Text(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
               'The Writing Nook',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
@@ -117,7 +142,17 @@ class _WritingBrandHeader extends StatelessWidget {
                 letterSpacing: 0.2,
               ),
             ),
-          ],
+          ),
+          IconButton(
+            key: const ValueKey('writing-nav-toggle'),
+            iconSize: 20,
+            tooltip: 'Collapse sidebar',
+            icon: Icon(Icons.menu_open,
+                color: theme.colorScheme.onSurface.withOpacity(0.7)),
+            onPressed: () =>
+                Actions.maybeInvoke(context, const ToggleSidebarIntent()),
+          ),
+          const SizedBox(width: 6),
         ],
       ),
     );
@@ -172,6 +207,7 @@ class _WritingNavItem extends ConsumerWidget {
     required this.label,
     required this.icon,
     required this.route,
+    required this.isCollapsed,
     this.enabled = true,
     this.badge,
   });
@@ -179,6 +215,7 @@ class _WritingNavItem extends ConsumerWidget {
   final String label;
   final IconData icon;
   final String route;
+  final bool isCollapsed;
 
   /// When false the item renders greyed and non-tappable with a
   /// 'Coming soon' tooltip (e.g. Analytics).
@@ -215,7 +252,8 @@ class _WritingNavItem extends ConsumerWidget {
             : theme.colorScheme.onSurfaceVariant.withOpacity(0.85);
 
     final item = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: EdgeInsets.symmetric(
+          horizontal: isCollapsed ? 4 : 10, vertical: 6),
       child: InkWell(
         borderRadius: BorderRadius.circular(tokens.radius),
         onTap: !effectiveEnabled
@@ -232,7 +270,8 @@ class _WritingNavItem extends ConsumerWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          padding: EdgeInsets.symmetric(
+              horizontal: isCollapsed ? 8 : 12, vertical: 11),
           decoration: BoxDecoration(
             color: isActive
                 ? tokens.inputFill.withOpacity(0.45)
@@ -242,7 +281,21 @@ class _WritingNavItem extends ConsumerWidget {
                 ? Border.all(color: tokens.border.withOpacity(0.65), width: 1)
                 : null,
           ),
-          child: Row(
+          child: isCollapsed
+              ? Center(
+                  child: _GradientIcon(
+                    icon: icon,
+                    size: 22,
+                    isMuted: !isActive || !effectiveEnabled,
+                    a: effectiveEnabled
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.outline,
+                    b: effectiveEnabled
+                        ? tokens.glow
+                        : theme.colorScheme.outline,
+                  ),
+                )
+              : Row(
             children: [
               _GradientIcon(
                 icon: icon,
@@ -292,6 +345,7 @@ class _WritingNavItem extends ConsumerWidget {
     // Static disabled items (enabled == false) get a 'Coming soon' tooltip.
     // Dynamically disabled items (Writing Desk without an open doc) do not.
     if (!enabled) return Tooltip(message: 'Coming soon', child: item);
+    if (isCollapsed) return Tooltip(message: label, child: item);
     return item;
   }
 }

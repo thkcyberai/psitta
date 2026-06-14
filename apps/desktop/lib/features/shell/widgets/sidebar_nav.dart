@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'player_bar.dart';
 
+import '../../../core/keyboard/shortcuts.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../shared/widgets/psitta_logo.dart';
 
@@ -25,31 +26,37 @@ class SidebarNav extends StatelessWidget {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              children: const [
+              children: [
                 _NavItem(
                     label: 'Library',
                     icon: Icons.article_outlined,
-                    route: '/library'),
+                    route: '/library',
+                    isCollapsed: isCollapsed),
                 _NavItem(
                     label: 'Player',
                     icon: Icons.play_circle_outline,
-                    route: '/player'),
+                    route: '/player',
+                    isCollapsed: isCollapsed),
                 _NavItem(
                     label: 'Projects',
                     icon: Icons.folder_outlined,
-                    route: '/projects'),
+                    route: '/projects',
+                    isCollapsed: isCollapsed),
                 _NavItem(
                     label: 'Blueprints',
                     icon: Icons.account_tree_outlined,
-                    route: '/blueprints'),
+                    route: '/blueprints',
+                    isCollapsed: isCollapsed),
                 _NavItem(
                     label: 'Voices',
                     icon: Icons.record_voice_over_outlined,
-                    route: '/voices'),
+                    route: '/voices',
+                    isCollapsed: isCollapsed),
                 _NavItem(
                     label: 'Settings',
                     icon: Icons.tune_outlined,
-                    route: '/settings'),
+                    route: '/settings',
+                    isCollapsed: isCollapsed),
               ],
             ),
           ),
@@ -71,6 +78,22 @@ class _BrandHeader extends StatelessWidget {
     final tokens = PsittaTokens.of(context);
     final theme = Theme.of(context);
 
+    if (isCollapsed) {
+      return SizedBox(
+        height: 64,
+        child: Center(
+          child: IconButton(
+            key: const ValueKey('reading-nav-toggle'),
+            iconSize: 20,
+            tooltip: 'Expand sidebar',
+            icon: Icon(Icons.menu,
+                color: theme.colorScheme.onSurface.withOpacity(0.7)),
+            onPressed: () =>
+                Actions.maybeInvoke(context, const ToggleSidebarIntent()),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       height: 64,
       child: Row(
@@ -83,9 +106,9 @@ class _BrandHeader extends StatelessWidget {
             a: theme.colorScheme.primary,
             b: tokens.glow,
           ),
-          if (!isCollapsed) ...[
-            const SizedBox(width: 12),
-            Text(
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
               'The Reading Nook',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
@@ -93,7 +116,17 @@ class _BrandHeader extends StatelessWidget {
                 letterSpacing: 0.2,
               ),
             ),
-          ],
+          ),
+          IconButton(
+            key: const ValueKey('reading-nav-toggle'),
+            iconSize: 20,
+            tooltip: 'Collapse sidebar',
+            icon: Icon(Icons.menu_open,
+                color: theme.colorScheme.onSurface.withOpacity(0.7)),
+            onPressed: () =>
+                Actions.maybeInvoke(context, const ToggleSidebarIntent()),
+          ),
+          const SizedBox(width: 6),
         ],
       ),
     );
@@ -146,11 +179,13 @@ class _NavItem extends ConsumerWidget {
     required this.label,
     required this.icon,
     required this.route,
+    required this.isCollapsed,
   });
 
   final String label;
   final IconData icon;
   final String route;
+  final bool isCollapsed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -163,8 +198,9 @@ class _NavItem extends ConsumerWidget {
         ? Colors.white
         : theme.colorScheme.onSurfaceVariant.withOpacity(0.85);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    final item = Padding(
+      padding: EdgeInsets.symmetric(
+          horizontal: isCollapsed ? 4 : 10, vertical: 6),
       child: InkWell(
         borderRadius: BorderRadius.circular(tokens.radius),
         onTap: () {
@@ -180,7 +216,8 @@ class _NavItem extends ConsumerWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          padding: EdgeInsets.symmetric(
+              horizontal: isCollapsed ? 8 : 12, vertical: 11),
           decoration: BoxDecoration(
             color: isActive
                 ? tokens.inputFill.withOpacity(0.45)
@@ -190,7 +227,17 @@ class _NavItem extends ConsumerWidget {
                 ? Border.all(color: tokens.border.withOpacity(0.65), width: 1)
                 : null,
           ),
-          child: Row(
+          child: isCollapsed
+              ? Center(
+                  child: _GradientIcon(
+                    icon: icon,
+                    size: 22,
+                    isMuted: !isActive,
+                    a: theme.colorScheme.primary,
+                    b: tokens.glow,
+                  ),
+                )
+              : Row(
             children: [
               _GradientIcon(
                 icon: icon,
@@ -214,6 +261,9 @@ class _NavItem extends ConsumerWidget {
         ),
       ),
     );
+
+    if (isCollapsed) return Tooltip(message: label, child: item);
+    return item;
   }
 }
 
