@@ -74,6 +74,7 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
             child: DeskCenterPane(
               key: const ValueKey('desk-center-pane'),
               documentId: widget.documentId,
+              projectId: effectiveProjectId,
             ),
           ),
           // ── Resize handle: center ↔ context (drag) ──────────────────────
@@ -175,7 +176,7 @@ class _ContextToggleRail extends StatelessWidget {
                   tooltip: collapsed ? 'Show panel' : 'Hide panel',
                   icon: Icon(
                     collapsed ? Icons.chevron_left : Icons.chevron_right,
-                    color: scheme.outline,
+                    color: scheme.onSurfaceVariant,
                   ),
                   onPressed: onToggle,
                 ),

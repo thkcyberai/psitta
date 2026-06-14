@@ -43,7 +43,13 @@ class DocumentContextPane extends ConsumerWidget {
         children: [
           // Top context (progress + placement) is sized to its own content.
           if (projectId == null)
-            const _NullProjectGuard()
+            ColoredBox(
+              color: tokens.surface2,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: _UnplacedContextCard(documentId: documentId),
+              ),
+            )
           else
             _ContextPaneBody(
               documentId: documentId,
@@ -67,30 +73,6 @@ class DocumentContextPane extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Null-project guard ────────────────────────────────────────────────────────
-
-class _NullProjectGuard extends StatelessWidget {
-  const _NullProjectGuard();
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = PsittaTokens.of(context);
-    return Container(
-      key: const ValueKey('desk-context-null-guard'),
-      color: tokens.surface2,
-      alignment: Alignment.center,
-      padding: const EdgeInsets.all(24),
-      child: Text(
-        'Open from a project to see context',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
-            ),
-        textAlign: TextAlign.center,
       ),
     );
   }
@@ -147,19 +129,10 @@ class _ContextPaneBody extends ConsumerWidget {
                   .where((p) => p.documentId == documentId)
                   .firstOrNull;
               if (placement == null) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _UnplacedHint(),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: _DocActionsMenu(
-                        documentId: documentId,
-                        projectId: projectId,
-                        overviewAsync: overviewAsync,
-                      ),
-                    ),
-                  ],
+                return _UnplacedContextCard(
+                  documentId: documentId,
+                  projectId: projectId,
+                  overviewAsync: overviewAsync,
                 );
               }
               return _PlacementContextCard(
@@ -219,28 +192,6 @@ class _ProgressCard extends StatelessWidget {
                 ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── Unplaced hint ─────────────────────────────────────────────────────────────
-
-class _UnplacedHint extends StatelessWidget {
-  const _UnplacedHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      key: const ValueKey('desk-context-unplaced'),
-      padding: const EdgeInsets.all(12),
-      child: Text(
-        'Not placed in a section.\n'
-        'Use the navigator to assign it.',
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.outline,
-            ),
-        textAlign: TextAlign.center,
       ),
     );
   }
@@ -328,6 +279,94 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
     );
   }
 
+}
+
+// ── Unplaced / no-project context card ────────────────────────────────────────
+//
+// Mirrors the placed card's 4-row layout (Project / Blueprint / Part / Role) so
+// the rail looks consistent even before a document is placed — unknown rows read
+// "Not assigned". The actions menu shows only when the document is in a project.
+
+class _UnplacedContextCard extends ConsumerWidget {
+  const _UnplacedContextCard({
+    required this.documentId,
+    this.projectId,
+    this.overviewAsync,
+  });
+
+  final String documentId;
+  final String? projectId;
+  final AsyncValue<ProjectBlueprintOverview>? overviewAsync;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final pid = projectId;
+    final inProject = pid != null;
+    final projectName = inProject
+        ? ref.watch(projectDetailProvider(pid)).valueOrNull?.name
+        : null;
+    final hint = inProject
+        ? 'Not placed in a section. Use the navigator to assign it.'
+        : 'Not in a project yet. Add this file to a project to organize it.';
+
+    return _RailCard(
+      key: const ValueKey('desk-unplaced-card'),
+      tokens: tokens,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'PLACED IN',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        letterSpacing: 0.8,
+                      ),
+                ),
+              ),
+              if (inProject && overviewAsync != null)
+                _DocActionsMenu(
+                  documentId: documentId,
+                  projectId: pid,
+                  overviewAsync: overviewAsync!,
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          _PlacedRow(
+            concept: DeskConcept.project,
+            value: projectName ?? (inProject ? '—' : 'Not in a project'),
+          ),
+          const SizedBox(height: 10),
+          _PlacedRow(
+            concept: DeskConcept.blueprint,
+            value: 'Not assigned',
+          ),
+          const SizedBox(height: 10),
+          _PlacedRow(
+            concept: DeskConcept.part,
+            value: 'Not assigned',
+          ),
+          const SizedBox(height: 10),
+          _PlacedRow(
+            concept: DeskConcept.role,
+            value: 'Not assigned',
+          ),
+          const SizedBox(height: 12),
+          Text(
+            hint,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Document actions overflow menu ────────────────────────────────────────────
@@ -727,7 +766,7 @@ class _PlacedRow extends StatelessWidget {
               Text(
                 concept.label,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: scheme.outline,
+                      color: scheme.onSurfaceVariant,
                       letterSpacing: 0.4,
                     ),
               ),

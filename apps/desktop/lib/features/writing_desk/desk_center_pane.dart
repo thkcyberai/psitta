@@ -286,7 +286,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                 _sheetExpanded ? 'Show add-content panel' : 'Expand sheet',
             icon: Icon(
               _sheetExpanded ? Icons.fullscreen_exit : Icons.fullscreen,
-              color: Theme.of(context).colorScheme.outline,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
             onPressed: () =>
                 setState(() => _sheetExpanded = !_sheetExpanded),

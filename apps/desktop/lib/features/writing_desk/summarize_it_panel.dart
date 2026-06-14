@@ -277,7 +277,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
           Text(
             'Summarizing…',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.outline,
+                  color: scheme.onSurfaceVariant,
                 ),
           ),
         ],
@@ -323,7 +323,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
             'About $remaining ${remaining == 1 ? 'summary' : 'summaries'} left this month',
             key: const ValueKey('desk-summarize-quota-footer'),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.outline,
+                  color: scheme.onSurfaceVariant,
                 ),
           ),
         ],
@@ -360,14 +360,14 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Icon(Icons.lock_outline, size: 14, color: scheme.outline),
+            Icon(Icons.lock_outline, size: 14, color: scheme.onSurfaceVariant),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 'Upgrade to Writing Nook',
                 key: const ValueKey('desk-summarize-locked-label'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.outline,
+                      color: scheme.onSurfaceVariant,
                     ),
               ),
             ),

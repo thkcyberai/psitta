@@ -16,6 +16,7 @@ import '../player/widgets/docx_page_layout.dart'
     show paginateDocxDocument, DocxPageLayoutPage;
 import '../player/widgets/docx_player_navigator.dart'
     show DocxPlayerNavigator, DocxNavigatorEntry;
+import '../projects/widgets/adopt_blueprint_dialog.dart';
 import 'desk_providers.dart' show deskDocumentProvider;
 
 /// Left-rail navigator for the Writing Desk.
@@ -161,7 +162,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                             Text(
                               'No blueprint.',
                               style: Theme.of(ctx).textTheme.bodySmall
-                                  ?.copyWith(color: scheme.outline),
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
                             ),
                             const SizedBox(height: 14),
                             SizedBox(
@@ -264,7 +265,8 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                       size: 18,
                       color: scheme.primary,
                     ),
-                    label: 'Book Content',
+                    label: 'Book',
+                    tooltip: 'Book content — sections & pages',
                     tokens: tokens,
                     scheme: scheme,
                   ),
@@ -287,7 +289,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                           size: 18,
                           color: scheme.secondary,
                         ),
-                        label: 'Add a File',
+                        label: 'Files',
                         tokens: tokens,
                         scheme: scheme,
                       ),
@@ -415,7 +417,8 @@ class _ProjectNavigatorBodyState
                       size: 18,
                       color: scheme.primary,
                     ),
-                    label: 'Book Content',
+                    label: 'Book',
+                    tooltip: 'Book content — sections & pages',
                     tokens: tokens,
                     scheme: scheme,
                   ),
@@ -432,7 +435,8 @@ class _ProjectNavigatorBodyState
                       size: 18,
                       color: scheme.secondary,
                     ),
-                    label: 'Add a File',
+                    label: 'Files',
+                    tooltip: 'Files to place into a section',
                     badgeCount: unplacedDocs.length,
                     tokens: tokens,
                     scheme: scheme,
@@ -470,7 +474,7 @@ class _ProjectNavigatorBodyState
 // Fills the rail with the blueprint section tree (top) and the document's
 // page thumbnails/contents navigator (bottom).
 
-class _BookContentPanel extends StatelessWidget {
+class _BookContentPanel extends ConsumerWidget {
   const _BookContentPanel({
     required this.documentId,
     required this.selected,
@@ -490,8 +494,18 @@ class _BookContentPanel extends StatelessWidget {
   final void Function(String?) onBlueprintSelected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final placedIds = placements.map((p) => p.documentId).toSet();
+    final unplaced = docs.where((d) => !placedIds.contains(d.id)).toList();
+
+    void addBlueprint() => adoptBlueprintFlow(
+          context,
+          ref,
+          projectId: projectId,
+          adoptedIds: blueprints.map((b) => b.id).toSet(),
+        );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -501,19 +515,61 @@ class _BookContentPanel extends StatelessWidget {
             selectedId: selected?.id,
             onChanged: onBlueprintSelected,
           ),
-        const _SectionHeader(
-          key: ValueKey('desk-book-sections-header'),
-          label: 'SECTIONS',
+        // SECTIONS header with an inline "Add blueprint" action.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'SECTIONS',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        letterSpacing: 0.8,
+                      ),
+                ),
+              ),
+              Tooltip(
+                message: 'Add a blueprint to this project',
+                child: InkWell(
+                  key: const ValueKey('desk-add-blueprint'),
+                  onTap: addBlueprint,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add, size: 14, color: scheme.primary),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Blueprint',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         Expanded(
           flex: 2,
           child: selected == null
-              ? _NoBlueprintsHint()
+              ? _NoBlueprintAdopt(onAdd: addBlueprint)
               : _PartTree(
                   parts: selected!.parts,
                   placements: placements,
                   docs: docs,
-                  unplacedDocs: const [],
+                  unplacedDocs: unplaced,
                   projectId: projectId,
                 ),
         ),
@@ -677,6 +733,7 @@ class _NavTile extends StatelessWidget {
     this.layerLink,
     this.trailing,
     this.badgeCount,
+    this.tooltip,
   });
 
   final bool isOpen;
@@ -688,6 +745,7 @@ class _NavTile extends StatelessWidget {
   final int? badgeCount;
   final PsittaTokens tokens;
   final ColorScheme scheme;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -752,9 +810,16 @@ class _NavTile extends StatelessWidget {
         ),
       ),
     );
+    Widget result = tile;
     final link = layerLink;
-    if (link == null) return tile;
-    return CompositedTransformTarget(link: link, child: tile);
+    if (link != null) {
+      result = CompositedTransformTarget(link: link, child: result);
+    }
+    final tip = tooltip;
+    if (tip != null && tip.isNotEmpty) {
+      result = Tooltip(message: tip, child: result);
+    }
+    return result;
   }
 }
 
@@ -808,9 +873,52 @@ class _NoBlueprintsHint extends StatelessWidget {
         child: Text(
           'No blueprints adopted.\nAdd one in the Blueprints tab.',
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.outline,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
           textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Drag payload + feedback ───────────────────────────────────────────────────
+
+/// Carried while dragging a file onto a blueprint part. Keeps the file's
+/// current role so a move between parts preserves it.
+class _DocDrag {
+  const _DocDrag(this.documentId, this.role);
+  final String documentId;
+  final Role role;
+}
+
+/// The little chip that follows the cursor during a drag. Wrapped in Material
+/// so its text renders correctly in the overlay.
+class _DragChip extends StatelessWidget {
+  const _DragChip({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: scheme.primary,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.article_outlined, size: 14, color: scheme.onPrimary),
+            const SizedBox(width: 6),
+            Text(
+              title,
+              style: TextStyle(color: scheme.onPrimary, fontSize: 12),
+            ),
+          ],
         ),
       ),
     );
@@ -950,7 +1058,7 @@ class _SectionTile extends StatelessWidget {
                 Text(
                   '${part.documentCount}',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.outline,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                 ),
             ],
@@ -1016,7 +1124,7 @@ class _PlacedDocTile extends StatelessWidget {
         children: [
           Icon(Icons.article_outlined,
               size: 14,
-              color: Theme.of(context).colorScheme.outline),
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -1029,7 +1137,7 @@ class _PlacedDocTile extends StatelessWidget {
           Text(
             placement.role.wire,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.outline,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
           ),
         ],
@@ -1060,7 +1168,7 @@ class _UnplacedDocTile extends ConsumerWidget {
         children: [
           Icon(Icons.article_outlined,
               size: 14,
-              color: Theme.of(context).colorScheme.outline),
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -1070,16 +1178,17 @@ class _UnplacedDocTile extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          TextButton(
-            key: ValueKey('desk-assign-${doc.id}'),
-            onPressed: () =>
-                _showAssignDialog(context, ref),
-            style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8),
+          Tooltip(
+            message: 'Assign to a section of the book',
+            child: TextButton(
+              key: ValueKey('desk-assign-${doc.id}'),
+              onPressed: () => _showAssignDialog(context, ref),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+              child: const Text('Assign'),
             ),
-            child: const Text('Assign'),
           ),
         ],
       ),
