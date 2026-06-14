@@ -146,6 +146,11 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
               chunkTexts: chunkTexts,
               chunkFormatted: chunkFormatted,
             );
+        // Force a fresh chunk read so the reassembled document reflects the
+        // just-saved formatting. deskDocumentProvider rebuilds from
+        // chunksProvider; invalidating only deskDocumentProvider would re-read
+        // the stale cached chunks and revert the edit.
+        ref.invalidate(chunksProvider(widget.documentId));
         ref.invalidate(deskDocumentProvider(widget.documentId));
       }
     } finally {
