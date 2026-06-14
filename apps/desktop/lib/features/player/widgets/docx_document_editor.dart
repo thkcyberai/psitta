@@ -508,6 +508,7 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
 Widget buildDocxEditToolbar({
   required QuillController controller,
   required ThemeData theme,
+  bool multiRowsDisplay = false,
 }) {
   return QuillSimpleToolbar(
     controller: controller,
@@ -605,7 +606,7 @@ Widget buildDocxEditToolbar({
       showClipboardPaste: false,
       toolbarIconAlignment: WrapAlignment.start,
       toolbarSectionSpacing: 2,
-      multiRowsDisplay: false,
+      multiRowsDisplay: multiRowsDisplay,
       color: theme.colorScheme.surface,
       buttonOptions: QuillSimpleToolbarButtonOptions(
         base: QuillToolbarBaseButtonOptions(

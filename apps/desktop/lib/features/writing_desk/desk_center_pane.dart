@@ -293,6 +293,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             buildDocxEditToolbar(
               controller: _unifiedController!,
               theme: Theme.of(context),
+              multiRowsDisplay: true,
             ),
             const Divider(height: 1),
           ],
