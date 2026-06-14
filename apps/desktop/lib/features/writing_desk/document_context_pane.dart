@@ -145,7 +145,22 @@ class _ContextPaneBody extends ConsumerWidget {
               final placement = placements
                   .where((p) => p.documentId == documentId)
                   .firstOrNull;
-              if (placement == null) return const _UnplacedHint();
+              if (placement == null) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const _UnplacedHint(),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: _DocActionsMenu(
+                        documentId: documentId,
+                        projectId: projectId,
+                        overviewAsync: overviewAsync,
+                      ),
+                    ),
+                  ],
+                );
+              }
               return _PlacementContextCard(
                 placement: placement,
                 overviewAsync: overviewAsync,
@@ -153,13 +168,6 @@ class _ContextPaneBody extends ConsumerWidget {
                 documentId: documentId,
               );
             },
-          ),
-          const SizedBox(height: 12),
-          // ── Quick actions card (WD-5) ────────────────────────────────────
-          _QuickActionsCard(
-            documentId: documentId,
-            projectId: projectId,
-            overviewAsync: overviewAsync,
           ),
         ],
       ),
@@ -258,8 +266,6 @@ class _PlacementContextCard extends ConsumerStatefulWidget {
 }
 
 class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
-  bool _busy = false;
-
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
@@ -275,12 +281,24 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Header ─────────────────────────────────────────────────────
-          Text(
-            'PLACED IN',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.outline,
-                  letterSpacing: 0.8,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'PLACED IN',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.outline,
+                        letterSpacing: 0.8,
+                      ),
                 ),
+              ),
+              _DocActionsMenu(
+                documentId: widget.documentId,
+                projectId: widget.projectId,
+                overviewAsync: widget.overviewAsync,
+                placement: widget.placement,
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           _PlacedRow(
@@ -304,62 +322,103 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
             value: placement.role.wire,
             valueKey: const ValueKey('desk-placement-role'),
           ),
-          const SizedBox(height: 12),
-          // ── Actions ────────────────────────────────────────────────────
-          if (_busy)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(8),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                TextButton(
-                  key: const ValueKey('desk-placement-move'),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  onPressed: () => _moveSection(context),
-                  child: const Text('Move section'),
-                ),
-                TextButton(
-                  key: const ValueKey('desk-placement-change-role'),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  onPressed: () => _changeRole(context),
-                  child: const Text('Change role'),
-                ),
-                TextButton(
-                  key: const ValueKey('desk-placement-remove'),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    foregroundColor: scheme.error,
-                  ),
-                  onPressed: () => _removePlacement(context),
-                  child: const Text('Remove'),
-                ),
-              ],
-            ),
         ],
       ),
     );
   }
 
+}
+
+// ── Document actions overflow menu ────────────────────────────────────────────
+
+class _DocActionsMenu extends ConsumerStatefulWidget {
+  const _DocActionsMenu({
+    required this.documentId,
+    required this.projectId,
+    required this.overviewAsync,
+    this.placement,
+  });
+
+  final String documentId;
+  final String projectId;
+  final AsyncValue<ProjectBlueprintOverview> overviewAsync;
+  final ProjectPlacement? placement;
+
+  @override
+  ConsumerState<_DocActionsMenu> createState() => _DocActionsMenuState();
+}
+
+class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    if (_busy) {
+      return const SizedBox(
+        width: 36,
+        height: 36,
+        child: Padding(
+          padding: EdgeInsets.all(8),
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      key: const ValueKey('desk-doc-actions-menu'),
+      tooltip: 'Actions',
+      icon: Icon(Icons.more_vert, size: 18, color: scheme.outline),
+      onSelected: (value) {
+        switch (value) {
+          case 'move':
+            _moveSection(context);
+          case 'role':
+            _changeRole(context);
+          case 'remove':
+            _removePlacement(context);
+          case 'movetosection':
+            _moveToSection(context);
+          case 'download':
+            _download(context);
+          case 'delete':
+            _delete(context);
+        }
+      },
+      itemBuilder: (context) => [
+        if (widget.placement != null) ...[
+          const PopupMenuItem(value: 'move', child: Text('Move section')),
+          const PopupMenuItem(value: 'role', child: Text('Change role')),
+          PopupMenuItem(
+            value: 'remove',
+            child: Text('Remove', style: TextStyle(color: scheme.error)),
+          ),
+          const PopupMenuDivider(),
+        ] else ...[
+          const PopupMenuItem(
+            value: 'movetosection',
+            child: Text('Move to section'),
+          ),
+          const PopupMenuDivider(),
+        ],
+        const PopupMenuItem(value: 'download', child: Text('Download')),
+        PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete', style: TextStyle(color: scheme.error)),
+        ),
+      ],
+    );
+  }
+
   Future<void> _moveSection(BuildContext context) async {
     final overview = widget.overviewAsync.valueOrNull;
-    if (overview == null) return;
+    final placement = widget.placement;
+    if (overview == null || placement == null) return;
 
     final flat = <PartOverviewNode>[];
     for (final bp in overview.blueprints) {
-      _flattenParts(bp.parts, flat);
+      _flattenPartsQ(bp.parts, flat);
     }
     if (flat.isEmpty) return;
 
@@ -397,7 +456,7 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
       await ref.read(blueprintActionsProvider).setPlacement(
             widget.documentId,
             chosen.id,
-            widget.placement.role,
+            placement.role,
             projectId: widget.projectId,
           );
     } finally {
@@ -406,6 +465,8 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
   }
 
   Future<void> _changeRole(BuildContext context) async {
+    final placement = widget.placement;
+    if (placement == null) return;
     final roles = Role.values.where((r) => r != Role.unknown).toList();
 
     final chosen = await showDialog<Role>(
@@ -421,7 +482,7 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
                 ListTile(
                   key: ValueKey('desk-role-${role.wire}'),
                   title: Text(role.wire),
-                  selected: role == widget.placement.role,
+                  selected: role == placement.role,
                   onTap: () => Navigator.of(ctx).pop(role),
                 ),
             ],
@@ -442,7 +503,7 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
     try {
       await ref.read(blueprintActionsProvider).setPlacement(
             widget.documentId,
-            widget.placement.partId,
+            placement.partId,
             chosen,
             projectId: widget.projectId,
           );
@@ -452,6 +513,7 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
   }
 
   Future<void> _removePlacement(BuildContext context) async {
+    if (widget.placement == null) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -487,117 +549,6 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  void _flattenParts(
-      List<PartOverviewNode> nodes, List<PartOverviewNode> out) {
-    for (final n in nodes) {
-      out.add(n);
-      _flattenParts(n.children, out);
-    }
-  }
-}
-
-// ── Quick actions card (WD-5) ─────────────────────────────────────────────────
-
-class _QuickActionsCard extends ConsumerStatefulWidget {
-  const _QuickActionsCard({
-    required this.documentId,
-    required this.projectId,
-    required this.overviewAsync,
-  });
-
-  final String documentId;
-  final String projectId;
-  final AsyncValue<ProjectBlueprintOverview> overviewAsync;
-
-  @override
-  ConsumerState<_QuickActionsCard> createState() => _QuickActionsCardState();
-}
-
-class _QuickActionsCardState extends ConsumerState<_QuickActionsCard> {
-  bool _busy = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = PsittaTokens.of(context);
-    final scheme = Theme.of(context).colorScheme;
-
-    return _RailCard(
-      key: const ValueKey('desk-quick-actions-card'),
-      tokens: tokens,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'QUICK ACTIONS',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.outline,
-                  letterSpacing: 0.8,
-                ),
-          ),
-          const SizedBox(height: 8),
-          if (_busy)
-            const Center(
-              child: Padding(
-                padding: EdgeInsets.all(8),
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            )
-          else
-            Wrap(
-              spacing: 4,
-              runSpacing: 4,
-              children: [
-                TextButton.icon(
-                  key: const ValueKey('desk-quick-download'),
-                  icon: const Icon(Icons.download_outlined, size: 16),
-                  label: const Text('Download'),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  onPressed: () => _download(context),
-                ),
-                TextButton.icon(
-                  key: const ValueKey('desk-quick-delete'),
-                  icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text('Delete'),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    foregroundColor: scheme.error,
-                  ),
-                  onPressed: () => _delete(context),
-                ),
-                TextButton.icon(
-                  key: const ValueKey('desk-quick-move'),
-                  icon: const Icon(Icons.drive_file_move_outline, size: 16),
-                  label: const Text('Move to section'),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                  onPressed: () => _moveToSection(context),
-                ),
-                Tooltip(
-                  message: 'Coming soon',
-                  child: TextButton.icon(
-                    key: const ValueKey('desk-quick-duplicate'),
-                    icon: const Icon(Icons.content_copy_outlined, size: 16),
-                    label: const Text('Duplicate'),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    onPressed: null,
-                  ),
-                ),
-              ],
-            ),
-        ],
-      ),
-    );
   }
 
   Future<void> _download(BuildContext context) async {
