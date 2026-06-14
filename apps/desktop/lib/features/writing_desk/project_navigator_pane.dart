@@ -16,6 +16,7 @@ import '../player/widgets/docx_page_layout.dart'
     show paginateDocxDocument, DocxPageLayoutPage;
 import '../player/widgets/docx_player_navigator.dart'
     show DocxPlayerNavigator, DocxNavigatorEntry;
+import '../projects/widgets/adopt_blueprint_dialog.dart';
 import 'desk_providers.dart' show deskDocumentProvider;
 
 /// Left-rail navigator for the Writing Desk.
@@ -502,7 +503,7 @@ class _ProjectNavigatorBodyState
 // thumbnails/contents live separately in the body and stay visible regardless
 // of which toggle is active or whether the menu is collapsed.
 
-class _BookContentPanel extends StatelessWidget {
+class _BookContentPanel extends ConsumerWidget {
   const _BookContentPanel({
     required this.selected,
     required this.blueprints,
@@ -520,7 +521,16 @@ class _BookContentPanel extends StatelessWidget {
   final void Function(String?) onBlueprintSelected;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+
+    void chooseBlueprint() => adoptBlueprintFlow(
+          context,
+          ref,
+          projectId: projectId,
+          adoptedIds: blueprints.map((b) => b.id).toSet(),
+        );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -530,13 +540,55 @@ class _BookContentPanel extends StatelessWidget {
             selectedId: selected?.id,
             onChanged: onBlueprintSelected,
           ),
-        const _SectionHeader(
-          key: ValueKey('desk-book-sections-header'),
-          label: 'SECTIONS',
+        // SECTIONS header with an inline "Choose a Blueprint" action.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'SECTIONS',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                        letterSpacing: 0.8,
+                      ),
+                ),
+              ),
+              Tooltip(
+                message: 'Choose a blueprint for this project',
+                child: InkWell(
+                  key: const ValueKey('desk-add-blueprint'),
+                  onTap: chooseBlueprint,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 6, vertical: 2),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add, size: 14, color: scheme.primary),
+                        const SizedBox(width: 2),
+                        Text(
+                          'Blueprint',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelSmall
+                              ?.copyWith(
+                                color: scheme.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         Expanded(
           child: selected == null
-              ? _NoBlueprintsHint()
+              ? _NoBlueprintAdopt(onAdd: chooseBlueprint)
               : _PartTree(
                   parts: selected!.parts,
                   placements: placements,
@@ -819,20 +871,36 @@ class _BlueprintSelector extends StatelessWidget {
   }
 }
 
-// ── No-blueprints hint ────────────────────────────────────────────────────────
+// ── No-blueprint adopt prompt ─────────────────────────────────────────────────
 
-class _NoBlueprintsHint extends StatelessWidget {
+class _NoBlueprintAdopt extends StatelessWidget {
+  const _NoBlueprintAdopt({required this.onAdd});
+  final VoidCallback onAdd;
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Text(
-          'No blueprints adopted.\nAdd one in the Blueprints tab.',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-          textAlign: TextAlign.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'No blueprint yet.\nChoose one to structure your book.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              key: const ValueKey('desk-choose-blueprint-empty'),
+              onPressed: onAdd,
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Choose a Blueprint'),
+            ),
+          ],
         ),
       ),
     );
