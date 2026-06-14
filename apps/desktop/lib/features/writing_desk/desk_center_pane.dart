@@ -9,6 +9,7 @@ import '../../data/models/psitta_document.dart';
 import '../../data/providers/providers.dart';
 import '../../features/editor/chunk_editor_provider.dart';
 import '../player/widgets/docx_document_editor.dart' show buildDocxEditToolbar;
+import '../player/widgets/docx_page_layout.dart' show buildDocxDocumentTheme;
 import '../player/widgets/document_reading_view.dart';
 import 'desk_providers.dart';
 
@@ -177,7 +178,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
               decoration: _paperDecoration(),
               clipBehavior: Clip.antiAlias,
               child: Theme(
-                data: _paperThemeOf(context),
+                data: buildDocxDocumentTheme(Theme.of(context)),
                 child: _DeskEditorBody(
                   key: const ValueKey('desk-editor-body'),
                   controller: _unifiedController!,
@@ -375,6 +376,7 @@ class _DeskEditorBody extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
         scrollPhysics: const ClampingScrollPhysics(),
         placeholder: 'Start writing…',
+        enableInteractiveSelection: true,
         customStyles: quill.DefaultStyles(
           paragraph: quill.DefaultTextBlockStyle(
             Theme.of(context).textTheme.bodyMedium!.copyWith(
