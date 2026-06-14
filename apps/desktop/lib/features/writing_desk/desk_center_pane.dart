@@ -348,7 +348,7 @@ class _DeskCenterHeader extends StatelessWidget {
                 tooltip: isEditing ? 'Save & read' : 'Edit document',
                 icon: Icon(
                   isEditing ? Icons.check_rounded : Icons.edit_outlined,
-                  color: isEditing ? scheme.primary : scheme.outline,
+                  color: isEditing ? scheme.primary : scheme.onSurfaceVariant,
                 ),
                 onPressed: (canEdit || isEditing) ? onToggle : null,
               ),

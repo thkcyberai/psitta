@@ -38,35 +38,35 @@ class DocumentContextPane extends ConsumerWidget {
     final tokens = PsittaTokens.of(context);
     return ColoredBox(
       color: tokens.surface2,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: projectId == null
-                    ? const _NullProjectGuard()
-                    : _ContextPaneBody(
-                        documentId: documentId,
-                        projectId: projectId!,
-                      ),
-              ),
-              const Divider(height: 1),
-              // Bottom Summarize-It panel is height-bounded to at most half the
-              // rail and scrolls internally, so a long summary can never push
-              // past the viewport (fixes the 324px bottom overflow).
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: constraints.maxHeight * 0.5,
-                ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Top context (progress + placement) is sized to its own content.
+          if (projectId == null)
+            const _NullProjectGuard()
+          else
+            _ContextPaneBody(
+              documentId: documentId,
+              projectId: projectId!,
+            ),
+          const Divider(height: 1),
+          // Summarize-It claims the remaining rail space (the area freed when
+          // the actions moved into the overflow menu). minHeight makes the card
+          // fill the space; the scroll view keeps long summaries contained.
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                padding: const EdgeInsets.all(12),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: (constraints.maxHeight - 24).clamp(0, 4000),
+                  ),
                   child: SummarizeItPanel(documentId: documentId),
                 ),
               ),
-            ],
-          );
-        },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -118,6 +118,7 @@ class _ContextPaneBody extends ConsumerWidget {
       key: const ValueKey('desk-context-pane-body'),
       color: tokens.surface2,
       child: ListView(
+        shrinkWrap: true,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         children: [
           // ── Progress card ────────────────────────────────────────────────
@@ -196,7 +197,7 @@ class _ProgressCard extends StatelessWidget {
           Text(
             'BLUEPRINT PROGRESS',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.outline,
+                  color: scheme.onSurfaceVariant,
                   letterSpacing: 0.8,
                 ),
           ),
@@ -287,7 +288,7 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
                 child: Text(
                   'PLACED IN',
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: scheme.outline,
+                        color: scheme.onSurfaceVariant,
                         letterSpacing: 0.8,
                       ),
                 ),
@@ -300,7 +301,7 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           _PlacedRow(
             concept: DeskConcept.project,
             value: projectName ?? '—',
@@ -369,7 +370,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     return PopupMenuButton<String>(
       key: const ValueKey('desk-doc-actions-menu'),
       tooltip: 'Actions',
-      icon: Icon(Icons.more_vert, size: 18, color: scheme.outline),
+      icon: Icon(Icons.more_vert, size: 20, color: scheme.onSurfaceVariant),
       onSelected: (value) {
         switch (value) {
           case 'move':

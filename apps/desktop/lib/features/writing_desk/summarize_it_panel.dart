@@ -167,7 +167,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
           child: Text(
             'SUMMARIZE IT',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.outline,
+                  color: scheme.onSurfaceVariant,
                   letterSpacing: 0.8,
                 ),
           ),
