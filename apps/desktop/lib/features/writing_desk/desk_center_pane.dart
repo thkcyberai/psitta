@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/editor/quill_codec.dart' as qcodec;
 import '../../core/theme/psitta_tokens.dart';
@@ -30,9 +32,11 @@ class DeskCenterPane extends ConsumerStatefulWidget {
   const DeskCenterPane({
     super.key,
     required this.documentId,
+    this.projectId,
   });
 
   final String documentId;
+  final String? projectId;
 
   @override
   ConsumerState<DeskCenterPane> createState() => _DeskCenterPaneState();
@@ -205,11 +209,34 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
         child: CircularProgressIndicator(),
       ),
       error: (e, _) => Center(
-        child: Text(
-          'Failed to load document',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.error,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 140),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.menu_book_outlined,
+                size: 40,
+                color: _kPaperInkMuted,
               ),
+              const SizedBox(height: 12),
+              Text(
+                'No document open',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: _kPaperInk,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Start a new document below, or open one from your Library.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: _kPaperInkMuted,
+                    ),
+              ),
+            ],
+          ),
         ),
       ),
       data: (doc) => _isEditing && _unifiedController != null
@@ -229,12 +256,15 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     const cardsHeight = 168.0;
     return Stack(
       children: [
-        const Positioned(
+        Positioned(
           left: 0,
           right: 0,
           bottom: 0,
           height: cardsHeight,
-          child: _ThreeWaysPanel(),
+          child: _ThreeWaysPanel(
+            documentId: widget.documentId,
+            projectId: widget.projectId,
+          ),
         ),
         AnimatedPositioned(
           duration: const Duration(milliseconds: 220),
@@ -458,11 +488,17 @@ class _PaperSurface extends StatelessWidget {
 
 // ── Three Ways Panel ──────────────────────────────────────────────────────────
 
-class _ThreeWaysPanel extends StatelessWidget {
-  const _ThreeWaysPanel();
+class _ThreeWaysPanel extends ConsumerWidget {
+  const _ThreeWaysPanel({
+    required this.documentId,
+    required this.projectId,
+  });
+
+  final String documentId;
+  final String? projectId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     return ColoredBox(
@@ -481,7 +517,7 @@ class _ThreeWaysPanel extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 8),
-            const Expanded(
+            Expanded(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -494,9 +530,10 @@ class _ThreeWaysPanel extends StatelessWidget {
                           'Create a new document and choose where it lives.',
                       cta: 'New Document',
                       buttonKey: 'desk-add-new-doc',
+                      onPressed: () => _newDocument(context, ref),
                     ),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: _AddCard(
                       index: '2',
@@ -506,9 +543,10 @@ class _ThreeWaysPanel extends StatelessWidget {
                           'Choose an existing document from your library.',
                       cta: 'Browse Library',
                       buttonKey: 'desk-add-from-library',
+                      onPressed: () => context.go('/library'),
                     ),
                   ),
-                  SizedBox(width: 10),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: _AddCard(
                       index: '3',
@@ -518,6 +556,7 @@ class _ThreeWaysPanel extends StatelessWidget {
                           'Set up your project and blueprint structure first.',
                       cta: 'Create New Project',
                       buttonKey: 'desk-add-create-project',
+                      onPressed: () => _createProject(context, ref),
                     ),
                   ),
                 ],
@@ -527,6 +566,82 @@ class _ThreeWaysPanel extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  // ── Card actions ────────────────────────────────────────────────────────────
+
+  /// Create a blank document and open it in the Writing Desk, carrying the
+  /// current project context when present.
+  Future<void> _newDocument(BuildContext context, WidgetRef ref) async {
+    try {
+      final repo = ref.read(documentRepositoryProvider);
+      final result = await repo.createBlankDocument();
+      final docId = result['id'];
+      ref.invalidate(documentsProvider);
+      if (docId == null || !context.mounted) return;
+      final q = projectId != null ? '?projectId=$projectId' : '';
+      context.go('/writing-desk/$docId$q');
+    } on DioException catch (e) {
+      if (!context.mounted) return;
+      final msg = e.response?.statusCode == 402
+          ? 'Document limit reached for this month — upgrade in Settings.'
+          : 'Could not create document: ${e.message ?? e}';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not create document: $e')),
+      );
+    }
+  }
+
+  /// Prompt for a name, create the project, then open it.
+  Future<void> _createProject(BuildContext context, WidgetRef ref) async {
+    final controller = TextEditingController();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New Project'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Project name',
+            hintText: 'e.g. My Memoir',
+          ),
+          onSubmitted: (_) => Navigator.of(ctx).pop(true),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    final name = controller.text.trim();
+    controller.dispose();
+    if (confirmed != true || name.isEmpty || !context.mounted) return;
+
+    try {
+      final repo = ref.read(projectRepositoryProvider);
+      final project = await repo.createProject(name);
+      if (!context.mounted) return;
+      context.go(
+        '/projects/${project.id}?projectName=${Uri.encodeComponent(project.name)}',
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not create project: $e')),
+      );
+    }
   }
 }
 
@@ -542,6 +657,7 @@ class _AddCard extends StatelessWidget {
     required this.body,
     required this.cta,
     required this.buttonKey,
+    required this.onPressed,
   });
 
   final String index;
@@ -550,6 +666,7 @@ class _AddCard extends StatelessWidget {
   final String body;
   final String cta;
   final String buttonKey;
+  final VoidCallback onPressed;
 
   Color _accentColor(ColorScheme scheme) => switch (accent) {
         _AddCardAccent.primary => scheme.primary,
@@ -634,9 +751,7 @@ class _AddCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
-              onPressed: () {
-                // TODO: wire in Project/Blueprint slice
-              },
+              onPressed: onPressed,
               child: Text(cta),
             ),
           ),
