@@ -35,6 +35,7 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
 
   double _navigatorWidth = 260;
   double _contextWidth = 280;
+  bool _contextCollapsed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -75,24 +76,33 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
               documentId: widget.documentId,
             ),
           ),
-          // ── Resize handle: center ↔ context ─────────────────────────────
-          _ResizeHandle(
-            key: const ValueKey('desk-handle-right'),
-            onDrag: (dx) => setState(() {
-              _contextWidth = (_contextWidth - dx)
-                  .clamp(_kContextMin, _kContextMax);
-            }),
-            tokens: tokens,
-          ),
-          // ── Context pane ─────────────────────────────────────────────────
-          SizedBox(
-            key: const ValueKey('desk-context-pane'),
-            width: _contextWidth,
-            child: DocumentContextPane(
-              documentId: widget.documentId,
-              projectId: effectiveProjectId,
+          // ── Resize handle: center ↔ context (drag) ──────────────────────
+          if (!_contextCollapsed)
+            _ResizeHandle(
+              key: const ValueKey('desk-handle-right'),
+              onDrag: (dx) => setState(() {
+                _contextWidth = (_contextWidth - dx)
+                    .clamp(_kContextMin, _kContextMax);
+              }),
+              tokens: tokens,
             ),
+          // ── Collapse / expand toggle rail ───────────────────────────────
+          _ContextToggleRail(
+            collapsed: _contextCollapsed,
+            tokens: tokens,
+            onToggle: () =>
+                setState(() => _contextCollapsed = !_contextCollapsed),
           ),
+          // ── Context pane (hidden when collapsed) ─────────────────────────
+          if (!_contextCollapsed)
+            SizedBox(
+              key: const ValueKey('desk-context-pane'),
+              width: _contextWidth,
+              child: DocumentContextPane(
+                documentId: widget.documentId,
+                projectId: effectiveProjectId,
+              ),
+            ),
         ],
       ),
     );
@@ -122,6 +132,58 @@ class _ResizeHandle extends StatelessWidget {
           color: tokens.divider,
         ),
       ),
+    );
+  }
+}
+
+// ── Context collapse / expand toggle rail ─────────────────────────────────────
+
+class _ContextToggleRail extends StatelessWidget {
+  const _ContextToggleRail({
+    required this.collapsed,
+    required this.onToggle,
+    required this.tokens,
+  });
+
+  final bool collapsed;
+  final VoidCallback onToggle;
+  final PsittaTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        VerticalDivider(width: 1, color: tokens.divider),
+        SizedBox(
+          width: 22,
+          child: ColoredBox(
+            color: tokens.surface2,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: IconButton(
+                  key: const ValueKey('desk-context-toggle'),
+                  iconSize: 16,
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(
+                    width: 22,
+                    height: 28,
+                  ),
+                  tooltip: collapsed ? 'Show panel' : 'Hide panel',
+                  icon: Icon(
+                    collapsed ? Icons.chevron_left : Icons.chevron_right,
+                    color: scheme.outline,
+                  ),
+                  onPressed: onToggle,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
