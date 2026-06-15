@@ -1011,6 +1011,17 @@ class _PartTreeState extends State<_PartTree> {
   final ScrollController _scroll = ScrollController();
   Timer? _scrollTimer;
 
+  // Section ids the writer has expanded. Sections start collapsed so the
+  // blueprint's structure shows as a clean, lined-up list; clicking the
+  // chevron opens a section to reveal its subsections and placed files.
+  final Set<String> _expanded = <String>{};
+
+  void _toggleExpand(String partId) {
+    setState(() {
+      if (!_expanded.remove(partId)) _expanded.add(partId);
+    });
+  }
+
   @override
   void dispose() {
     _scrollTimer?.cancel();
@@ -1099,6 +1110,9 @@ class _PartTreeState extends State<_PartTree> {
       final partDocs = widget.docs
           .where((d) => partPlacements.any((p) => p.documentId == d.id))
           .toList();
+      final expandable =
+          part.children.isNotEmpty || partDocs.isNotEmpty;
+      final expanded = _expanded.contains(part.id);
       out.add(_SectionTile(
         part: part,
         depth: depth,
@@ -1106,8 +1120,12 @@ class _PartTreeState extends State<_PartTree> {
         docs: partDocs,
         blueprintId: widget.blueprintId,
         projectId: widget.projectId,
+        expandable: expandable,
+        expanded: expanded,
+        onToggle: () => _toggleExpand(part.id),
       ));
-      _flatten(context, part.children, out, depth + 1);
+      // Recurse into subsections only when this section is open.
+      if (expanded) _flatten(context, part.children, out, depth + 1);
     }
   }
 }
@@ -1197,6 +1215,9 @@ class _SectionTile extends ConsumerWidget {
     required this.docs,
     required this.blueprintId,
     required this.projectId,
+    required this.expandable,
+    required this.expanded,
+    required this.onToggle,
   });
 
   final PartOverviewNode part;
@@ -1205,6 +1226,15 @@ class _SectionTile extends ConsumerWidget {
   final List<Document> docs;
   final String blueprintId;
   final String projectId;
+
+  /// Whether this section has subsections or placed files to reveal.
+  final bool expandable;
+
+  /// Whether this section is currently open.
+  final bool expanded;
+
+  /// Toggle this section open/closed.
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1226,6 +1256,8 @@ class _SectionTile extends ConsumerWidget {
                   d.role == Role.unknown ? Role.mainContent : d.role,
                   projectId: projectId,
                 );
+            // Open the section so the writer sees the file land in it.
+            if (!expanded) onToggle();
           },
           builder: (context, candidate, rejected) {
             final hovering = candidate.isNotEmpty;
@@ -1245,6 +1277,29 @@ class _SectionTile extends ConsumerWidget {
               ),
               child: Row(
                 children: [
+                  // Collapse/expand chevron. A fixed-width slot keeps every
+                  // section name aligned whether or not it can expand.
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: expandable
+                        ? InkWell(
+                            key: ValueKey('desk-section-toggle-${part.id}'),
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: onToggle,
+                            child: AnimatedRotation(
+                              turns: expanded ? 0.25 : 0.0,
+                              duration: const Duration(milliseconds: 150),
+                              child: Icon(
+                                Icons.chevron_right,
+                                size: 18,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+                  const SizedBox(width: 2),
                   if (depth == 0)
                     Icon(
                       DeskConcept.blueprint.icon,
@@ -1255,16 +1310,22 @@ class _SectionTile extends ConsumerWidget {
                     _ReadinessDot(readiness: part.readiness),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text(
-                      part.name,
-                      key: ValueKey('desk-section-name-${part.id}'),
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: depth == 0
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                          ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    // Tapping the name also toggles, matching file-tree UX.
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: expandable ? onToggle : null,
+                      child: Text(
+                        part.name,
+                        key: ValueKey('desk-section-name-${part.id}'),
+                        style:
+                            Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  fontWeight: depth == 0
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                   if (part.documentCount > 0)
@@ -1283,15 +1344,16 @@ class _SectionTile extends ConsumerWidget {
             );
           },
         ),
-        // Inline placed-doc sublist.
-        for (final doc in docs)
-          _PlacedDocTile(
-            key: ValueKey('desk-placed-doc-${doc.id}'),
-            doc: doc,
-            placement:
-                placements.firstWhere((p) => p.documentId == doc.id),
-            indent: 12.0 + depth * 16.0 + 24,
-          ),
+        // Inline placed-doc sublist — only when the section is open.
+        if (expanded)
+          for (final doc in docs)
+            _PlacedDocTile(
+              key: ValueKey('desk-placed-doc-${doc.id}'),
+              doc: doc,
+              placement:
+                  placements.firstWhere((p) => p.documentId == doc.id),
+              indent: 12.0 + depth * 16.0 + 24,
+            ),
       ],
     );
   }
