@@ -253,7 +253,7 @@ class _WritingNavItem extends ConsumerWidget {
 
     final item = Padding(
       padding: EdgeInsets.symmetric(
-          horizontal: isCollapsed ? 4 : 10, vertical: 6),
+          horizontal: isCollapsed ? 4 : 8, vertical: 2),
       child: InkWell(
         borderRadius: BorderRadius.circular(tokens.radius),
         onTap: !effectiveEnabled
@@ -271,7 +271,7 @@ class _WritingNavItem extends ConsumerWidget {
           duration: const Duration(milliseconds: 160),
           curve: Curves.easeOut,
           padding: EdgeInsets.symmetric(
-              horizontal: isCollapsed ? 8 : 12, vertical: 11),
+              horizontal: isCollapsed ? 8 : 10, vertical: 7),
           decoration: BoxDecoration(
             color: isActive
                 ? tokens.inputFill.withOpacity(0.45)
@@ -299,7 +299,7 @@ class _WritingNavItem extends ConsumerWidget {
             children: [
               _GradientIcon(
                 icon: icon,
-                size: 20,
+                size: 18,
                 isMuted: !isActive || !effectiveEnabled,
                 a: effectiveEnabled
                     ? theme.colorScheme.primary
@@ -308,11 +308,11 @@ class _WritingNavItem extends ConsumerWidget {
                     ? tokens.glow
                     : theme.colorScheme.outline,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
+                  style: theme.textTheme.bodySmall?.copyWith(
                     color: fg,
                     fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
                   ),

@@ -13,7 +13,7 @@ abstract final class AppConstants {
   static const double defaultPlaybackSpeed = 1.0;
 
   // ── Desktop Layout ───────────────────────────────────────────
-  static const double sidebarWidth = 260.0;
+  static const double sidebarWidth = 212.0;
   static const double sidebarCollapsedWidth = 64.0;
   static const double playerBarHeight = 80.0;
   static const double minContentWidth = 400.0;
