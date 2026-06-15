@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/concept_style.dart';
 import '../../core/theme/psitta_tokens.dart';
@@ -14,6 +15,7 @@ import '../../data/models/project_detail.dart';
 import '../../data/providers/blueprint_providers.dart';
 import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart';
+import '../projects/widgets/adopt_blueprint_dialog.dart';
 
 /// Right-rail context pane for the Writing Desk.
 ///
@@ -103,20 +105,6 @@ class _ContextPaneBody extends ConsumerWidget {
         shrinkWrap: true,
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         children: [
-          // ── Progress card ────────────────────────────────────────────────
-          overviewAsync.when(
-            loading: () => const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (_, __) => const SizedBox.shrink(),
-            data: (overview) {
-              final progress = overview.progress;
-              if (progress == null) return const SizedBox.shrink();
-              return _ProgressCard(progress: progress);
-            },
-          ),
-          const SizedBox(height: 12),
           // ── Placement card ───────────────────────────────────────────────
           placementsAsync.when(
             loading: () => const Padding(
@@ -142,54 +130,6 @@ class _ContextPaneBody extends ConsumerWidget {
                 documentId: documentId,
               );
             },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Progress card ─────────────────────────────────────────────────────────────
-
-class _ProgressCard extends StatelessWidget {
-  const _ProgressCard({required this.progress});
-  final ProgressInfo progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = PsittaTokens.of(context);
-    final scheme = Theme.of(context).colorScheme;
-    final ratio = progress.ratio ?? 0.0;
-
-    return _RailCard(
-      key: const ValueKey('desk-progress-card'),
-      tokens: tokens,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'BLUEPRINT PROGRESS',
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  letterSpacing: 0.8,
-                ),
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: ratio,
-              backgroundColor: scheme.outline.withOpacity(0.15),
-              color: scheme.primary,
-              minHeight: 4,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${progress.leavesWithContent} / ${progress.totalLeaves} sections with content',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurface,
-                ),
           ),
         ],
       ),
@@ -256,11 +196,19 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
           _PlacedRow(
             concept: DeskConcept.project,
             value: projectName ?? '—',
+            onTap: () {
+              final pn = projectName;
+              context.go(pn != null
+                  ? '/projects/${widget.projectId}'
+                      '?projectName=${Uri.encodeComponent(pn)}'
+                  : '/projects/${widget.projectId}');
+            },
           ),
           const SizedBox(height: 10),
           _PlacedRow(
             concept: DeskConcept.blueprint,
             value: placement.blueprintName,
+            onTap: () => context.go('/blueprints'),
           ),
           const SizedBox(height: 10),
           _PlacedRow(
@@ -307,9 +255,30 @@ class _UnplacedContextCard extends ConsumerWidget {
     final projectName = inProject
         ? ref.watch(projectDetailProvider(pid)).valueOrNull?.name
         : null;
-    final hint = inProject
-        ? 'Not placed in a section. Use the navigator to assign it.'
-        : 'Not in a project yet. Add this file to a project to organize it.';
+    // Adopted blueprint(s) + sections drive the guidance and the action.
+    final overview = overviewAsync?.valueOrNull;
+    final blueprintNames =
+        overview?.blueprints.map((b) => b.name).toList() ?? const <String>[];
+    final flatParts = <PartOverviewNode>[];
+    if (overview != null) {
+      for (final bp in overview.blueprints) {
+        _flatten(bp.parts, flatParts);
+      }
+    }
+    final hasBlueprint = blueprintNames.isNotEmpty;
+    final hasSections = flatParts.isNotEmpty;
+
+    void chooseBlueprint() => adoptBlueprintFlow(
+          context,
+          ref,
+          projectId: pid!,
+          adoptedIds:
+              overview?.blueprints.map((b) => b.id).toSet() ?? const {},
+        );
+
+    final bodyStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
+          color: scheme.onSurfaceVariant,
+        );
 
     return _RailCard(
       key: const ValueKey('desk-unplaced-card'),
@@ -340,11 +309,20 @@ class _UnplacedContextCard extends ConsumerWidget {
           _PlacedRow(
             concept: DeskConcept.project,
             value: projectName ?? (inProject ? '—' : 'Not in a project'),
+            onTap: inProject
+                ? () {
+                    final pn = projectName;
+                    context.go(pn != null
+                        ? '/projects/$pid?projectName=${Uri.encodeComponent(pn)}'
+                        : '/projects/$pid');
+                  }
+                : null,
           ),
           const SizedBox(height: 10),
           _PlacedRow(
             concept: DeskConcept.blueprint,
-            value: 'Not assigned',
+            value: hasBlueprint ? blueprintNames.join(', ') : 'Not assigned',
+            onTap: hasBlueprint ? () => context.go('/blueprints') : null,
           ),
           const SizedBox(height: 10),
           _PlacedRow(
@@ -357,15 +335,96 @@ class _UnplacedContextCard extends ConsumerWidget {
             value: 'Not assigned',
           ),
           const SizedBox(height: 12),
-          Text(
-            hint,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
+          if (!inProject)
+            Text(
+              'Not in a project yet. Add this file to a project to organize it.',
+              style: bodyStyle,
+            )
+          else if (!hasSections) ...[
+            Text(
+              'Step 1 — choose a blueprint to structure your book. '
+              'Then you can place this file in one of its sections.',
+              style: bodyStyle,
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const ValueKey('desk-placedin-choose-blueprint'),
+                onPressed: chooseBlueprint,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Choose a Blueprint'),
+              ),
+            ),
+          ] else ...[
+            Text(
+              'Step 2 — this file isn\'t in a section yet. '
+              'Place it in a ${blueprintNames.join(', ')} section to finish.',
+              style: bodyStyle,
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                key: const ValueKey('desk-placedin-place-section'),
+                onPressed: () => _placeInSection(context, ref, flatParts),
+                icon: const Icon(Icons.playlist_add_check, size: 18),
+                label: const Text('Place in a section'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static void _flatten(
+      List<PartOverviewNode> nodes, List<PartOverviewNode> out) {
+    for (final n in nodes) {
+      out.add(n);
+      _flatten(n.children, out);
+    }
+  }
+
+  Future<void> _placeInSection(
+    BuildContext context,
+    WidgetRef ref,
+    List<PartOverviewNode> parts,
+  ) async {
+    final chosen = await showDialog<PartOverviewNode>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Place in a Section'),
+        content: SizedBox(
+          width: 320,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final part in parts)
+                ListTile(
+                  key: ValueKey('desk-place-section-${part.id}'),
+                  title: Text(part.name),
+                  onTap: () => Navigator.of(ctx).pop(part),
                 ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
           ),
         ],
       ),
     );
+    final pid = projectId;
+    if (chosen == null || pid == null || !context.mounted) return;
+    await ref.read(blueprintActionsProvider).setPlacement(
+          documentId,
+          chosen.id,
+          Role.mainContent,
+          projectId: pid,
+        );
   }
 }
 
@@ -456,27 +515,53 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     final placement = widget.placement;
     if (overview == null || placement == null) return;
 
-    final flat = <PartOverviewNode>[];
-    for (final bp in overview.blueprints) {
-      _flattenPartsQ(bp.parts, flat);
-    }
-    if (flat.isEmpty) return;
+    if (overview.blueprints.isEmpty) return;
 
+    final scheme = Theme.of(context).colorScheme;
     final chosen = await showDialog<PartOverviewNode>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Move to Section'),
+        title: const Text('Move to blueprint / section'),
         content: SizedBox(
-          width: 320,
+          width: 340,
           child: ListView(
             shrinkWrap: true,
             children: [
-              for (final part in flat)
-                ListTile(
-                  key: ValueKey('desk-move-section-${part.id}'),
-                  title: Text(part.name),
-                  onTap: () => Navigator.of(ctx).pop(part),
+              for (final bp in overview.blueprints) ...[
+                // Blueprint group header.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
+                  child: Row(
+                    children: [
+                      Icon(DeskConcept.blueprint.icon,
+                          size: 16, color: DeskConcept.blueprint.color),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          bp.name,
+                          style: Theme.of(ctx).textTheme.labelLarge?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                for (final part in _flattenedParts(bp.parts))
+                  ListTile(
+                    key: ValueKey('desk-move-section-${part.id}'),
+                    dense: true,
+                    contentPadding:
+                        const EdgeInsets.only(left: 28, right: 12),
+                    title: Text(part.name),
+                    trailing: part.id == placement.partId
+                        ? Icon(Icons.check, size: 18, color: scheme.primary)
+                        : null,
+                    onTap: () => Navigator.of(ctx).pop(part),
+                  ),
+              ],
             ],
           ),
         ),
@@ -502,6 +587,12 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  List<PartOverviewNode> _flattenedParts(List<PartOverviewNode> nodes) {
+    final out = <PartOverviewNode>[];
+    _flattenPartsQ(nodes, out);
+    return out;
   }
 
   Future<void> _changeRole(BuildContext context) async {
@@ -745,16 +836,18 @@ class _PlacedRow extends StatelessWidget {
     required this.concept,
     required this.value,
     this.valueKey,
+    this.onTap,
   });
 
   final DeskConcept concept;
   final String value;
   final Key? valueKey;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Row(
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Icon(concept.icon, size: 16, color: concept.color),
@@ -785,6 +878,15 @@ class _PlacedRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+    if (onTap == null) return row;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: row,
+      ),
     );
   }
 }

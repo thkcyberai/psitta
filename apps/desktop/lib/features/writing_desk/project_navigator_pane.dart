@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -462,10 +464,9 @@ class _ProjectNavigatorBodyState
               ],
             ),
           ),
-          // ── Collapsible menu: SECTIONS for Book, FILES for Files ───────
+          // ── Menu fills the panel: SECTIONS for Book, FILES for Files ───
           if (!_collapsed)
             Expanded(
-              flex: 1,
               child: _panel == _RailPanel.bookContent
                   ? _BookContentPanel(
                       selected: selected,
@@ -480,20 +481,12 @@ class _ProjectNavigatorBodyState
                       parts: selected?.parts ?? const [],
                       projectId: widget.projectId,
                     ),
-            ),
-          // ── Page thumbnails & contents — always visible (not collapsed
-          //    by the toggle), sits below the menu. ───────────────────────
-          Divider(height: 1, color: scheme.outline.withOpacity(0.15)),
-          const _SectionHeader(
-            key: ValueKey('desk-book-pages-header'),
-            label: 'PAGES & CONTENTS',
-          ),
-          Expanded(
-            flex: 1,
-            child: _DocumentThumbnailsContents(
-              documentId: widget.documentId,
-            ),
-          ),
+            )
+          else
+            const Spacer(),
+          // ── Blueprint progress — pinned to the panel bottom ────────────
+          if (overview.progress != null)
+            _NavProgressFooter(progress: overview.progress!),
         ],
       ),
     );
@@ -526,6 +519,10 @@ class _BookContentPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+
+    final placedIds = placements.map((p) => p.documentId).toSet();
+    final unplaced =
+        docs.where((d) => !placedIds.contains(d.id)).toList();
 
     void chooseBlueprint() => adoptBlueprintFlow(
           context,
@@ -618,7 +615,7 @@ class _BookContentPanel extends ConsumerWidget {
                   parts: selected!.parts,
                   placements: placements,
                   docs: docs,
-                  unplacedDocs: const [],
+                  unplacedDocs: unplaced,
                   projectId: projectId,
                   blueprintId: selected!.id,
                 ),
@@ -873,25 +870,38 @@ class _BlueprintSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 4),
-      child: DropdownButtonFormField<String>(
-        key: const ValueKey('desk-blueprint-selector'),
-        value: selectedId,
-        isExpanded: true,
-        decoration: const InputDecoration(
-          labelText: 'Blueprint',
-          isDense: true,
-          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          border: OutlineInputBorder(),
-        ),
-        items: blueprints
-            .map((b) => DropdownMenuItem(
-                  value: b.id,
-                  child: Text(b.name, overflow: TextOverflow.ellipsis),
-                ))
-            .toList(),
-        onChanged: onChanged,
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 2),
+      child: Row(
+        children: [
+          Icon(DeskConcept.blueprint.icon,
+              size: 16, color: DeskConcept.blueprint.color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                key: const ValueKey('desk-blueprint-selector'),
+                value: selectedId,
+                isExpanded: true,
+                isDense: true,
+                iconSize: 18,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: scheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                items: blueprints
+                    .map((b) => DropdownMenuItem(
+                          value: b.id,
+                          child:
+                              Text(b.name, overflow: TextOverflow.ellipsis),
+                        ))
+                    .toList(),
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -933,9 +943,50 @@ class _NoBlueprintAdopt extends StatelessWidget {
   }
 }
 
+// ── Drag payload + feedback ───────────────────────────────────────────────────
+
+/// Carried while dragging a file onto a blueprint section. Keeps the file's
+/// current role so a move between sections preserves it.
+class _DocDrag {
+  const _DocDrag(this.documentId, this.role);
+  final String documentId;
+  final Role role;
+}
+
+/// The chip that follows the cursor during a file drag. Material-wrapped so its
+/// text renders correctly in the drag overlay.
+class _DragChip extends StatelessWidget {
+  const _DragChip({required this.title});
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: scheme.primary,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.article_outlined, size: 14, color: scheme.onPrimary),
+            const SizedBox(width: 6),
+            Text(title,
+                style: TextStyle(color: scheme.onPrimary, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── Part tree ─────────────────────────────────────────────────────────────────
 
-class _PartTree extends StatelessWidget {
+class _PartTree extends StatefulWidget {
   const _PartTree({
     required this.parts,
     required this.placements,
@@ -953,28 +1004,86 @@ class _PartTree extends StatelessWidget {
   final String blueprintId;
 
   @override
+  State<_PartTree> createState() => _PartTreeState();
+}
+
+class _PartTreeState extends State<_PartTree> {
+  final ScrollController _scroll = ScrollController();
+  Timer? _scrollTimer;
+
+  @override
+  void dispose() {
+    _scrollTimer?.cancel();
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  // Auto-scroll while a file is dragged over the top/bottom edge bands, so the
+  // writer can reach an off-screen section without releasing the drag.
+  void _autoScroll(int direction) {
+    if (_scrollTimer != null) return;
+    _scrollTimer =
+        Timer.periodic(const Duration(milliseconds: 16), (_) {
+      if (!_scroll.hasClients) return;
+      final max = _scroll.position.maxScrollExtent;
+      final next = (_scroll.offset + direction * 14).clamp(0.0, max);
+      if (next != _scroll.offset) _scroll.jumpTo(next);
+    });
+  }
+
+  void _stopScroll() {
+    _scrollTimer?.cancel();
+    _scrollTimer = null;
+  }
+
+  Widget _edgeBand({required bool top}) {
+    return Positioned(
+      top: top ? 0 : null,
+      bottom: top ? null : 0,
+      left: 0,
+      right: 0,
+      height: 36,
+      child: DragTarget<_DocDrag>(
+        // Reject so drops fall through to the section behind; we only use the
+        // band to detect a hovering drag and drive auto-scroll.
+        onWillAcceptWithDetails: (_) => false,
+        onMove: (_) => _autoScroll(top ? -1 : 1),
+        onLeave: (_) => _stopScroll(),
+        builder: (_, __, ___) => const SizedBox.expand(),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final items = <Widget>[];
-    _flatten(context, parts, items, 0);
+    _flatten(context, widget.parts, items, 0);
 
-    if (unplacedDocs.isNotEmpty) {
+    if (widget.unplacedDocs.isNotEmpty) {
       items.add(const _SectionHeader(
         key: ValueKey('desk-unassigned-header'),
         label: 'Unassigned documents',
       ));
-      for (final doc in unplacedDocs) {
+      for (final doc in widget.unplacedDocs) {
         items.add(_UnplacedDocTile(
           key: ValueKey('desk-unplaced-${doc.id}'),
           doc: doc,
-          parts: parts,
-          projectId: projectId,
+          parts: widget.parts,
+          projectId: widget.projectId,
         ));
       }
     }
 
-    return ListView(
-      padding: const EdgeInsets.only(top: 4, bottom: 16),
-      children: items,
+    return Stack(
+      children: [
+        ListView(
+          controller: _scroll,
+          padding: const EdgeInsets.only(top: 4, bottom: 16),
+          children: items,
+        ),
+        _edgeBand(top: true),
+        _edgeBand(top: false),
+      ],
     );
   }
 
@@ -986,8 +1095,8 @@ class _PartTree extends StatelessWidget {
   ) {
     for (final part in nodes) {
       final partPlacements =
-          placements.where((p) => p.partId == part.id).toList();
-      final partDocs = docs
+          widget.placements.where((p) => p.partId == part.id).toList();
+      final partDocs = widget.docs
           .where((d) => partPlacements.any((p) => p.documentId == d.id))
           .toList();
       out.add(_SectionTile(
@@ -995,7 +1104,8 @@ class _PartTree extends StatelessWidget {
         depth: depth,
         placements: partPlacements,
         docs: partDocs,
-        blueprintId: blueprintId,
+        blueprintId: widget.blueprintId,
+        projectId: widget.projectId,
       ));
       _flatten(context, part.children, out, depth + 1);
     }
@@ -1023,15 +1133,70 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
+// ── Blueprint progress footer ─────────────────────────────────────────────────
+//
+// Pinned to the bottom of the left navigator panel (moved here from the right
+// rail). Shows the blueprint's sections-with-content meter.
+
+class _NavProgressFooter extends StatelessWidget {
+  const _NavProgressFooter({required this.progress});
+  final ProgressInfo progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final ratio = progress.ratio ?? 0.0;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: scheme.outline.withOpacity(0.15)),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'BLUEPRINT PROGRESS',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                  letterSpacing: 0.8,
+                ),
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: ratio,
+              backgroundColor: scheme.outline.withOpacity(0.15),
+              color: scheme.primary,
+              minHeight: 4,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '${progress.leavesWithContent} / ${progress.totalLeaves} sections with content',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurface,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ── Section tile ──────────────────────────────────────────────────────────────
 
-class _SectionTile extends StatelessWidget {
+class _SectionTile extends ConsumerWidget {
   const _SectionTile({
     required this.part,
     required this.depth,
     required this.placements,
     required this.docs,
     required this.blueprintId,
+    required this.projectId,
   });
 
   final PartOverviewNode part;
@@ -1039,57 +1204,84 @@ class _SectionTile extends StatelessWidget {
   final List<ProjectPlacement> placements;
   final List<Document> docs;
   final String blueprintId;
+  final String projectId;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       key: ValueKey('desk-section-${part.id}'),
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Padding(
-          padding: EdgeInsets.only(
-            left: 12.0 + depth * 16.0,
-            right: 4,
-            top: 5,
-            bottom: 5,
-          ),
-          child: Row(
-            children: [
-              if (depth == 0)
-                Icon(
-                  DeskConcept.blueprint.icon,
-                  size: 16,
-                  color: DeskConcept.blueprint.color,
-                )
-              else
-                _ReadinessDot(readiness: part.readiness),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  part.name,
-                  key: ValueKey('desk-section-name-${part.id}'),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight:
-                            depth == 0 ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+        // The section header is a drop target: dragging a file onto it places
+        // (or moves) the file into this section.
+        DragTarget<_DocDrag>(
+          onWillAcceptWithDetails: (d) => d.data.documentId.isNotEmpty,
+          onAcceptWithDetails: (details) {
+            final d = details.data;
+            ref.read(blueprintActionsProvider).setPlacement(
+                  d.documentId,
+                  part.id,
+                  d.role == Role.unknown ? Role.mainContent : d.role,
+                  projectId: projectId,
+                );
+          },
+          builder: (context, candidate, rejected) {
+            final hovering = candidate.isNotEmpty;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              margin: EdgeInsets.only(left: 12.0 + depth * 16.0, right: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: hovering
+                    ? scheme.primary.withOpacity(0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: hovering ? scheme.primary : Colors.transparent,
+                  width: 1,
                 ),
               ),
-              if (part.documentCount > 0)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text(
-                    '${part.documentCount}',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+              child: Row(
+                children: [
+                  if (depth == 0)
+                    Icon(
+                      DeskConcept.blueprint.icon,
+                      size: 16,
+                      color: DeskConcept.blueprint.color,
+                    )
+                  else
+                    _ReadinessDot(readiness: part.readiness),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      part.name,
+                      key: ValueKey('desk-section-name-${part.id}'),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            fontWeight: depth == 0
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                          ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-              _SectionActionsMenu(part: part, blueprintId: blueprintId),
-            ],
-          ),
+                  if (part.documentCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Text(
+                        '${part.documentCount}',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                            ),
+                      ),
+                    ),
+                  _SectionActionsMenu(part: part, blueprintId: blueprintId),
+                ],
+              ),
+            );
+          },
         ),
         // Inline placed-doc sublist.
         for (final doc in docs)
@@ -1120,7 +1312,10 @@ class _SectionActionsMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
-    return PopupMenuButton<String>(
+    return SizedBox(
+      width: 26,
+      height: 26,
+      child: PopupMenuButton<String>(
       key: ValueKey('desk-section-menu-${part.id}'),
       tooltip: 'Section actions',
       padding: EdgeInsets.zero,
@@ -1136,6 +1331,7 @@ class _SectionActionsMenu extends ConsumerWidget {
           child: Text('Delete', style: TextStyle(color: scheme.error)),
         ),
       ],
+      ),
     );
   }
 
@@ -1182,7 +1378,8 @@ class _SectionActionsMenu extends ConsumerWidget {
           context,
           title: 'Delete Section?',
           message:
-              'Delete this section? Any subsections beneath it are removed too.',
+              'Delete this section? Any subsections are removed too. Files in '
+              'it return to Unassigned — they stay in your project and Library.',
         );
         if (!ok || !context.mounted) return;
         await runBlueprintMutation(
@@ -1232,14 +1429,16 @@ class _PlacedDocTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-          left: indent, right: 12, top: 2, bottom: 2),
+    final scheme = Theme.of(context).colorScheme;
+    final row = Padding(
+      padding: EdgeInsets.only(left: indent, right: 12, top: 2, bottom: 2),
       child: Row(
         children: [
+          Icon(Icons.drag_indicator,
+              size: 14, color: scheme.onSurfaceVariant.withOpacity(0.6)),
+          const SizedBox(width: 2),
           Icon(Icons.article_outlined,
-              size: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant),
+              size: 14, color: scheme.onSurfaceVariant),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -1252,11 +1451,18 @@ class _PlacedDocTile extends StatelessWidget {
           Text(
             placement.role.wire,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: scheme.onSurfaceVariant,
                 ),
           ),
         ],
       ),
+    );
+    return Draggable<_DocDrag>(
+      data: _DocDrag(doc.id, placement.role),
+      dragAnchorStrategy: childDragAnchorStrategy,
+      feedback: _DragChip(title: doc.title),
+      childWhenDragging: Opacity(opacity: 0.4, child: row),
+      child: row,
     );
   }
 }
@@ -1277,13 +1483,16 @@ class _UnplacedDocTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
+    final scheme = Theme.of(context).colorScheme;
+    final row = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Row(
         children: [
+          Icon(Icons.drag_indicator,
+              size: 14, color: scheme.onSurfaceVariant.withOpacity(0.6)),
+          const SizedBox(width: 2),
           Icon(Icons.article_outlined,
-              size: 14,
-              color: Theme.of(context).colorScheme.onSurfaceVariant),
+              size: 14, color: scheme.onSurfaceVariant),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -1307,6 +1516,13 @@ class _UnplacedDocTile extends ConsumerWidget {
           ),
         ],
       ),
+    );
+    return Draggable<_DocDrag>(
+      data: _DocDrag(doc.id, Role.mainContent),
+      dragAnchorStrategy: childDragAnchorStrategy,
+      feedback: _DragChip(title: doc.title),
+      childWhenDragging: Opacity(opacity: 0.4, child: row),
+      child: row,
     );
   }
 
