@@ -286,7 +286,7 @@ class DocumentCard extends StatelessWidget {
             child: Row(children: [
               Icon(Icons.download_outlined, size: 18),
               SizedBox(width: 8),
-              Text('Download'),
+              Text('Export'),
             ]),
           ),
         const PopupMenuItem<String>(

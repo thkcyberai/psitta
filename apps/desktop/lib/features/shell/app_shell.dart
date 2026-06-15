@@ -19,6 +19,7 @@ import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../features/writing_desk/desk_providers.dart'
     show DeskSaveState, deskDocumentProvider, deskSaveStateProvider;
+import '../../widgets/export_options_dialog.dart';
 import '../../widgets/user_avatar.dart';
 import 'widgets/player_bar.dart';
 import 'widgets/shortcuts_panel.dart';
@@ -284,6 +285,22 @@ class _ContextHeader extends ConsumerWidget {
                       docs.where((d) => d.id == documentId).firstOrNull;
                   if (doc == null) return;
                   if (!context.mounted) return;
+                  final options = await showExportOptionsDialog(
+                    context,
+                    title: doc.title,
+                    showScope: true,
+                    // Full-book export endpoint lands in the next slice.
+                    fullBookEnabled: false,
+                  );
+                  if (options == null) return;
+                  if (!context.mounted) return;
+                  if (options.fullBook) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Full-book export is coming soon.')),
+                    );
+                    return;
+                  }
                   final savePath = await FilePicker.platform.saveFile(
                     dialogTitle: 'Save Document',
                     fileName: '${doc.title}.docx',
@@ -295,7 +312,11 @@ class _ContextHeader extends ConsumerWidget {
                   try {
                     final bytes = await ref
                         .read(documentRepositoryProvider)
-                        .exportDocument(documentId);
+                        .exportDocument(
+                          documentId,
+                          includeCover: options.includeCover,
+                          includeFooter: options.includeFooter,
+                        );
                     final finalPath = savePath.endsWith('.docx')
                         ? savePath
                         : '$savePath.docx';

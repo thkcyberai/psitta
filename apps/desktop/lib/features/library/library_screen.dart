@@ -1679,7 +1679,7 @@ class _DownloadOptionsDialogState extends State<_DownloadOptionsDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('Download Options'),
+      title: const Text('Export Options'),
       content: SizedBox(
         width: 340,
         child: Column(
@@ -1726,7 +1726,7 @@ class _DownloadOptionsDialogState extends State<_DownloadOptionsDialog> {
         ),
         FilledButton.icon(
           icon: const Icon(Icons.download, size: 18),
-          label: const Text('Download'),
+          label: const Text('Export'),
           onPressed: () => Navigator.of(context).pop(
             _DownloadOptions(
               includeCover: _includeCover,
