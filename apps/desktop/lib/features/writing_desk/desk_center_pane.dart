@@ -413,6 +413,48 @@ class _DeskEditorBody extends StatelessWidget {
             quill.VerticalSpacing.zero,
             null,
           ),
+          // Headings default to full ink, not Quill's dimmed default, so the
+          // file is never theme-tinted. The writer's own colour formatting
+          // still overrides these at the run level.
+          h1: quill.DefaultTextBlockStyle(
+            (Theme.of(context).textTheme.headlineSmall ??
+                    const TextStyle(fontSize: 26))
+                .copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.bold,
+              height: 1.3,
+            ),
+            const quill.HorizontalSpacing(0, 0),
+            const quill.VerticalSpacing(16, 8),
+            quill.VerticalSpacing.zero,
+            null,
+          ),
+          h2: quill.DefaultTextBlockStyle(
+            (Theme.of(context).textTheme.titleLarge ??
+                    const TextStyle(fontSize: 22))
+                .copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w700,
+              height: 1.3,
+            ),
+            const quill.HorizontalSpacing(0, 0),
+            const quill.VerticalSpacing(12, 6),
+            quill.VerticalSpacing.zero,
+            null,
+          ),
+          h3: quill.DefaultTextBlockStyle(
+            (Theme.of(context).textTheme.titleMedium ??
+                    const TextStyle(fontSize: 18))
+                .copyWith(
+              color: scheme.onSurface,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
+            ),
+            const quill.HorizontalSpacing(0, 0),
+            const quill.VerticalSpacing(8, 4),
+            quill.VerticalSpacing.zero,
+            null,
+          ),
         ),
       ),
     );
