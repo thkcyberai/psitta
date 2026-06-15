@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/theme/concept_style.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/blueprint.dart';
 import '../../data/models/blueprint_enums.dart';
@@ -16,6 +17,8 @@ import '../player/widgets/docx_page_layout.dart'
     show paginateDocxDocument, DocxPageLayoutPage;
 import '../player/widgets/docx_player_navigator.dart'
     show DocxPlayerNavigator, DocxNavigatorEntry;
+import '../blueprints/widgets/blueprint_dialogs.dart'
+    show showSectionFormDialog, confirmDeleteDialog, runBlueprintMutation;
 import '../projects/widgets/adopt_blueprint_dialog.dart';
 import 'desk_providers.dart' show deskDocumentProvider;
 
@@ -539,6 +542,28 @@ class _BookContentPanel extends ConsumerWidget {
             blueprints: blueprints,
             selectedId: selected?.id,
             onChanged: onBlueprintSelected,
+          )
+        else if (selected != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+            child: Row(
+              children: [
+                Icon(DeskConcept.blueprint.icon,
+                    size: 16, color: DeskConcept.blueprint.color),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    selected!.name,
+                    key: const ValueKey('desk-book-blueprint-name'),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
         // SECTIONS header with an inline "Choose a Blueprint" action.
         Padding(
@@ -595,6 +620,7 @@ class _BookContentPanel extends ConsumerWidget {
                   docs: docs,
                   unplacedDocs: const [],
                   projectId: projectId,
+                  blueprintId: selected!.id,
                 ),
         ),
       ],
@@ -916,6 +942,7 @@ class _PartTree extends StatelessWidget {
     required this.docs,
     required this.unplacedDocs,
     required this.projectId,
+    required this.blueprintId,
   });
 
   final List<PartOverviewNode> parts;
@@ -923,6 +950,7 @@ class _PartTree extends StatelessWidget {
   final List<Document> docs;
   final List<Document> unplacedDocs;
   final String projectId;
+  final String blueprintId;
 
   @override
   Widget build(BuildContext context) {
@@ -967,6 +995,7 @@ class _PartTree extends StatelessWidget {
         depth: depth,
         placements: partPlacements,
         docs: partDocs,
+        blueprintId: blueprintId,
       ));
       _flatten(context, part.children, out, depth + 1);
     }
@@ -1002,12 +1031,14 @@ class _SectionTile extends StatelessWidget {
     required this.depth,
     required this.placements,
     required this.docs,
+    required this.blueprintId,
   });
 
   final PartOverviewNode part;
   final int depth;
   final List<ProjectPlacement> placements;
   final List<Document> docs;
+  final String blueprintId;
 
   @override
   Widget build(BuildContext context) {
@@ -1019,30 +1050,44 @@ class _SectionTile extends StatelessWidget {
         Padding(
           padding: EdgeInsets.only(
             left: 12.0 + depth * 16.0,
-            right: 12,
+            right: 4,
             top: 5,
             bottom: 5,
           ),
           child: Row(
             children: [
-              _ReadinessDot(readiness: part.readiness),
+              if (depth == 0)
+                Icon(
+                  DeskConcept.blueprint.icon,
+                  size: 16,
+                  color: DeskConcept.blueprint.color,
+                )
+              else
+                _ReadinessDot(readiness: part.readiness),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   part.name,
                   key: ValueKey('desk-section-name-${part.id}'),
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight:
+                            depth == 0 ? FontWeight.w600 : FontWeight.w400,
+                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
               if (part.documentCount > 0)
-                Text(
-                  '${part.documentCount}',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    '${part.documentCount}',
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
                 ),
+              _SectionActionsMenu(part: part, blueprintId: blueprintId),
             ],
           ),
         ),
@@ -1057,6 +1102,94 @@ class _SectionTile extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+// ── Section actions menu ──────────────────────────────────────────────────────
+//
+// Per-section overflow menu in the Desk's SECTIONS tree: rename, add subsection,
+// delete. Mutations go through blueprintActionsProvider (which invalidates the
+// overview, so the tree refreshes), reusing the Blueprints editor's dialogs.
+
+class _SectionActionsMenu extends ConsumerWidget {
+  const _SectionActionsMenu({required this.part, required this.blueprintId});
+
+  final PartOverviewNode part;
+  final String blueprintId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<String>(
+      key: ValueKey('desk-section-menu-${part.id}'),
+      tooltip: 'Section actions',
+      padding: EdgeInsets.zero,
+      iconSize: 16,
+      icon: Icon(Icons.more_vert, color: scheme.onSurfaceVariant),
+      onSelected: (value) => _onSelected(context, ref, value),
+      itemBuilder: (_) => [
+        const PopupMenuItem(value: 'rename', child: Text('Rename')),
+        const PopupMenuItem(value: 'addsub', child: Text('Add subsection')),
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete', style: TextStyle(color: scheme.error)),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _onSelected(
+      BuildContext context, WidgetRef ref, String value) async {
+    final actions = ref.read(blueprintActionsProvider);
+    switch (value) {
+      case 'rename':
+        final result = await showSectionFormDialog(
+          context,
+          title: 'Rename Section',
+          submitLabel: 'Save',
+          initialName: part.name,
+          initialDescription: part.description,
+        );
+        if (result == null || !context.mounted) return;
+        await runBlueprintMutation(
+          context,
+          () => actions.updatePart(
+            blueprintId,
+            part.id,
+            name: result.name,
+            description: result.description,
+          ),
+        );
+      case 'addsub':
+        final result = await showSectionFormDialog(
+          context,
+          title: 'Add Subsection',
+          submitLabel: 'Add',
+        );
+        if (result == null || !context.mounted) return;
+        await runBlueprintMutation(
+          context,
+          () => actions.createPart(
+            blueprintId,
+            name: result.name,
+            description: result.description,
+            parentPartId: part.id,
+          ),
+        );
+      case 'delete':
+        final ok = await confirmDeleteDialog(
+          context,
+          title: 'Delete Section?',
+          message:
+              'Delete this section? Any subsections beneath it are removed too.',
+        );
+        if (!ok || !context.mounted) return;
+        await runBlueprintMutation(
+          context,
+          () => actions.deletePart(blueprintId, part.id),
+        );
+    }
   }
 }
 
@@ -1181,6 +1314,44 @@ class _UnplacedDocTile extends ConsumerWidget {
       BuildContext context, WidgetRef ref) async {
     final flat = <PartOverviewNode>[];
     _flattenParts(parts, flat);
+
+    // No blueprint adopted → no sections to assign into. Guide the writer to
+    // choose a blueprint first instead of showing an empty list.
+    if (flat.isEmpty) {
+      final choose = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Assign to Section'),
+          content: SizedBox(
+            width: 320,
+            child: Text(
+              'This project has no blueprint yet, so there are no sections to '
+              'assign into. Choose a blueprint first.',
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Choose a Blueprint'),
+            ),
+          ],
+        ),
+      );
+      if (choose == true && context.mounted) {
+        await adoptBlueprintFlow(
+          context,
+          ref,
+          projectId: projectId,
+          adoptedIds: const {},
+        );
+      }
+      return;
+    }
 
     final chosen = await showDialog<PartOverviewNode>(
       context: context,
