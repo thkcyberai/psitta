@@ -12,7 +12,6 @@ import '../../data/providers/providers.dart';
 import '../../features/editor/chunk_editor_provider.dart';
 import '../player/widgets/docx_document_editor.dart' show buildDocxEditToolbar;
 import '../player/widgets/docx_page_layout.dart' show buildDocxDocumentTheme;
-import '../player/widgets/document_reading_view.dart';
 import 'desk_providers.dart';
 
 const _kPaperColor = Color(0xFFFFFFFF);
@@ -22,12 +21,10 @@ const _kPaperMaxWidth = 800.0;
 
 /// Center pane for the Writing Desk.
 ///
-/// Read mode: scrollable [DocumentReadingView] of the assembled document.
-/// Edit mode: unified [quill.QuillEditor] backed by [deskDocumentProvider].
-///
-/// Toggle button in the header switches between modes. Switching from edit
-/// back to read serialises the Quill Delta via [qcodec] and calls
-/// [chunkEditorProvider.saveChunkTexts] before re-entering read mode.
+/// Always-edit: a unified [quill.QuillEditor] backed by [deskDocumentProvider]
+/// with the formatting toolbar fixed at the top. The header shows the file name
+/// and a Save action; Save serialises the Quill Delta via [qcodec] and calls
+/// [chunkEditorProvider.saveChunkTexts] without leaving the editor.
 class DeskCenterPane extends ConsumerStatefulWidget {
   const DeskCenterPane({
     super.key,
@@ -43,11 +40,11 @@ class DeskCenterPane extends ConsumerStatefulWidget {
 }
 
 class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
-  bool _isEditing = false;
   quill.QuillController? _unifiedController;
   FocusNode? _focusNode;
   bool _isSaving = false;
   bool _sheetExpanded = false;
+  String? _loadedDocId;
 
   @override
   void dispose() {
@@ -56,7 +53,9 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     super.dispose();
   }
 
-  void _enterEditMode(PsittaDocument doc) {
+  // Build the editor for [doc]. Called once per document load so the Writing
+  // Desk is always editable with the toolbar showing.
+  void _buildEditorFor(PsittaDocument doc) {
     _unifiedController?.dispose();
     _focusNode?.dispose();
 
@@ -71,21 +70,14 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     setState(() {
       _unifiedController = controller;
       _focusNode = focusNode;
-      _isEditing = true;
+      _loadedDocId = widget.documentId;
     });
     ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.editing;
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) focusNode.requestFocus();
-    });
   }
 
-  Future<void> _saveAndExitEditMode() async {
+  Future<void> _save() async {
     final controller = _unifiedController;
-    if (controller == null) {
-      setState(() => _isEditing = false);
-      return;
-    }
+    if (controller == null) return;
 
     setState(() => _isSaving = true);
     ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.saving;
@@ -158,16 +150,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
         ref.invalidate(deskDocumentProvider(widget.documentId));
       }
     } finally {
-      if (mounted) {
-        _unifiedController?.dispose();
-        _focusNode?.dispose();
-        setState(() {
-          _unifiedController = null;
-          _focusNode = null;
-          _isEditing = false;
-          _isSaving = false;
-        });
-      }
+      if (mounted) setState(() => _isSaving = false);
       ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.saved;
     }
   }
@@ -239,19 +222,20 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
           ),
         ),
       ),
-      data: (doc) => _isEditing && _unifiedController != null
-          ? _buildEditPaper(context)
-          : SingleChildScrollView(
-              child: _PaperSurface(
-                child: DocumentReadingView(
-                  key: const ValueKey('desk-reading-body'),
-                  document: doc,
-                  activeChunkIndex: 0,
-                  alignmentPayload: const {},
-                  enableContextMenu: false,
-                ),
-              ),
-            ),
+      data: (doc) {
+        // Always-edit: build the editor once per document, then keep it so the
+        // toolbar stays and saving doesn't reset the cursor.
+        if (_unifiedController == null || _loadedDocId != widget.documentId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _buildEditorFor(doc);
+          });
+          return const Center(
+            key: ValueKey('desk-center-preparing'),
+            child: CircularProgressIndicator(),
+          );
+        }
+        return _buildEditPaper(context);
+      },
     );
     const cardsHeight = 168.0;
     return Stack(
@@ -301,25 +285,20 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     final tokens = PsittaTokens.of(context);
     final docAsync = ref.watch(deskDocumentProvider(widget.documentId));
 
+    final title = docAsync.valueOrNull?.title as String?;
     return ColoredBox(
       color: tokens.surface,
       child: Column(
         children: [
           _DeskCenterHeader(
             key: const ValueKey('desk-center-header'),
-            isEditing: _isEditing,
+            title: (title == null || title.trim().isEmpty) ? 'New file' : title,
             isSaving: _isSaving,
-            canEdit: docAsync.hasValue,
-            onToggle: () {
-              if (_isEditing) {
-                _saveAndExitEditMode();
-              } else if (docAsync.hasValue) {
-                _enterEditMode(docAsync.value!);
-              }
-            },
+            canSave: _unifiedController != null,
+            onSave: _save,
           ),
           const Divider(height: 1),
-          if (_isEditing && _unifiedController != null) ...[
+          if (_unifiedController != null) ...[
             buildDocxEditToolbar(
               controller: _unifiedController!,
               theme: Theme.of(context),
@@ -339,16 +318,16 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
 class _DeskCenterHeader extends StatelessWidget {
   const _DeskCenterHeader({
     super.key,
-    required this.isEditing,
+    required this.title,
     required this.isSaving,
-    required this.canEdit,
-    required this.onToggle,
+    required this.canSave,
+    required this.onSave,
   });
 
-  final bool isEditing;
+  final String title;
   final bool isSaving;
-  final bool canEdit;
-  final VoidCallback onToggle;
+  final bool canSave;
+  final VoidCallback onSave;
 
   @override
   Widget build(BuildContext context) {
@@ -356,31 +335,41 @@ class _DeskCenterHeader extends StatelessWidget {
     return SizedBox(
       height: 40,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        padding: const EdgeInsets.fromLTRB(14, 0, 8, 0),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
           children: [
+            Icon(Icons.description_outlined,
+                size: 16, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                key: const ValueKey('desk-file-name'),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
             if (isSaving)
-              SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: scheme.primary,
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
                 ),
               )
             else
-              IconButton(
-                key: ValueKey(
-                    isEditing ? 'desk-toggle-read' : 'desk-toggle-edit'),
-                iconSize: 18,
-                visualDensity: VisualDensity.compact,
-                tooltip: isEditing ? 'Save & read' : 'Edit document',
-                icon: Icon(
-                  isEditing ? Icons.check_rounded : Icons.edit_outlined,
-                  color: isEditing ? scheme.primary : scheme.onSurfaceVariant,
+              TextButton.icon(
+                key: const ValueKey('desk-save'),
+                onPressed: canSave ? onSave : null,
+                icon: const Icon(Icons.save_outlined, size: 18),
+                label: const Text('Save'),
+                style: TextButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
                 ),
-                onPressed: (canEdit || isEditing) ? onToggle : null,
               ),
           ],
         ),
@@ -432,21 +421,6 @@ class _DeskEditorBody extends StatelessWidget {
 
 // ── Paper helpers ─────────────────────────────────────────────────────────────
 
-ThemeData _paperThemeOf(BuildContext context) {
-  final base = Theme.of(context);
-  return base.copyWith(
-    colorScheme: base.colorScheme.copyWith(
-      surface: _kPaperColor,
-      onSurface: _kPaperInk,
-      onSurfaceVariant: _kPaperInkMuted,
-    ),
-    textTheme: base.textTheme.apply(
-      bodyColor: _kPaperInk,
-      displayColor: _kPaperInk,
-    ),
-  );
-}
-
 BoxDecoration _paperDecoration() => BoxDecoration(
       color: _kPaperColor,
       borderRadius: BorderRadius.circular(6),
@@ -458,33 +432,6 @@ BoxDecoration _paperDecoration() => BoxDecoration(
         ),
       ],
     );
-
-// ── Paper surface ─────────────────────────────────────────────────────────────
-
-class _PaperSurface extends StatelessWidget {
-  const _PaperSurface({required this.child});
-  final Widget child;
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: _kPaperMaxWidth),
-        child: Container(
-          margin: const EdgeInsets.symmetric(vertical: 28, horizontal: 24),
-          padding: const EdgeInsets.symmetric(vertical: 56, horizontal: 64),
-          decoration: _paperDecoration(),
-          child: Theme(
-            data: _paperThemeOf(context),
-            child: DefaultTextStyle.merge(
-              style: const TextStyle(color: _kPaperInk),
-              child: child,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
 
 // ── Three Ways Panel ──────────────────────────────────────────────────────────
 
