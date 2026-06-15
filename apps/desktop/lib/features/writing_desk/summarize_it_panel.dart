@@ -145,6 +145,9 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
         ? 'Document is still processing'
         : null;
 
+    final int? summariesPerPeriod =
+        llmTokens > 0 ? (llmTokens ~/ _kAvgTokensPerSummary) : null;
+
     return _PanelCard(
       tokens: tokens,
       child: Column(
@@ -152,7 +155,8 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
         children: [
           _buildHeader(context, scheme),
           const SizedBox(height: 8),
-          _buildStateContent(context, scheme, notReadyHint),
+          _buildStateContent(
+              context, scheme, notReadyHint, summariesPerPeriod),
         ],
       ),
     );
@@ -196,6 +200,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
     BuildContext context,
     ColorScheme scheme,
     String? notReadyHint,
+    int? summariesPerPeriod,
   ) {
     if (_state == _SummarizeState.loading) {
       return _buildLoading(context, scheme);
@@ -210,7 +215,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
       return _buildError(context, scheme);
     }
     // idle (notInPlan is handled before _buildStateContent is reached)
-    return _buildIdle(context, scheme, notReadyHint);
+    return _buildIdle(context, scheme, notReadyHint, summariesPerPeriod);
   }
 
   // ── Idle ───────────────────────────────────────────────────────────────────
@@ -219,6 +224,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
     BuildContext context,
     ColorScheme scheme,
     String? notReadyHint,
+    int? summariesPerPeriod,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -252,6 +258,29 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
               child: const Text('Summarize'),
             ),
           ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline,
+                size: 14, color: scheme.onSurfaceVariant),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                summariesPerPeriod != null
+                    ? 'Each summary uses AI tokens from your monthly Writing '
+                        'Nook allowance — about $summariesPerPeriod per month. '
+                        'Generate one when you want a quick recap of this file.'
+                    : 'Each summary uses AI tokens from your monthly Writing '
+                        'Nook allowance. Generate one when you want a quick '
+                        'recap of this file.',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
+          ],
         ),
       ],
     );
