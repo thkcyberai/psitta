@@ -3,8 +3,11 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
 import '../../core/state/now_reading.dart';
@@ -18,7 +21,7 @@ import '../../data/providers/providers.dart'
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../features/writing_desk/desk_providers.dart'
-    show DeskSaveState, deskDocumentProvider, deskSaveStateProvider;
+    show deskDocumentProvider;
 import '../../widgets/export_options_dialog.dart';
 import '../../widgets/user_avatar.dart';
 import 'widgets/player_bar.dart';
@@ -141,25 +144,6 @@ class _ContextHeader extends ConsumerWidget {
           ? segs[1]
           : null;
 
-      final saveState = ref.watch(deskSaveStateProvider);
-      final IconData saveIcon;
-      final String saveLabel;
-      final Color saveColor;
-      switch (saveState) {
-        case DeskSaveState.saving:
-          saveIcon = Icons.sync;
-          saveLabel = 'Saving…';
-          saveColor = scheme.secondary;
-        case DeskSaveState.editing:
-          saveIcon = Icons.edit_outlined;
-          saveLabel = 'Editing';
-          saveColor = scheme.onSurfaceVariant;
-        case DeskSaveState.saved:
-          saveIcon = Icons.check_circle_outline;
-          saveLabel = 'Saved';
-          saveColor = scheme.primary;
-      }
-
       int? wordCount;
       if (documentId != null) {
         final docAsync = ref.watch(deskDocumentProvider(documentId));
@@ -253,21 +237,7 @@ class _ContextHeader extends ConsumerWidget {
             const Spacer(),
             // Doc-specific right cluster — only on /writing-desk/:id
             if (documentId != null) ...[
-              // a) Saved indicator
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(saveIcon, size: 16, color: saveColor),
-                  const SizedBox(width: 4),
-                  Text(
-                    saveLabel,
-                    style:
-                        theme.textTheme.labelSmall?.copyWith(color: saveColor),
-                  ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              // b) Word count
+              // Word count
               Text(
                 wordCount != null
                     ? 'Word count $wordCount'
@@ -344,14 +314,34 @@ class _ContextHeader extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              // d) Share — placeholder SnackBar
+              // Share — opens a mobile-style share sheet (Instagram, Reddit,
+              // Substack, X, WhatsApp, email, …) plus "Save file" for manual
+              // attachment.
               OutlinedButton.icon(
                 key: const ValueKey('desk-share-btn'),
-                onPressed: () =>
-                    ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Sharing is coming soon.')),
-                ),
+                onPressed: () async {
+                  final docs = await ref.read(documentsProvider.future);
+                  final doc =
+                      docs.where((d) => d.id == documentId).firstOrNull;
+                  if (doc == null) return;
+                  String body = '';
+                  try {
+                    final psitta = await ref
+                        .read(deskDocumentProvider(documentId).future);
+                    body = psitta.blocks
+                        .map((b) => b.plainText)
+                        .where((t) => t.trim().isNotEmpty)
+                        .join('\n\n');
+                  } catch (_) {}
+                  if (!context.mounted) return;
+                  _showWritingShareSheet(
+                    context,
+                    ref,
+                    documentId: documentId,
+                    title: doc.title,
+                    body: body,
+                  );
+                },
                 icon: const Icon(Icons.share_outlined, size: 16),
                 label: const Text('Share'),
                 style: OutlinedButton.styleFrom(
@@ -493,6 +483,219 @@ class _ContextHeader extends ConsumerWidget {
 }
 
 // ── Writing Desk breadcrumb ───────────────────────────────────────────────────
+
+/// One target in the Writing Desk share sheet.
+class _ShareTarget {
+  const _ShareTarget(this.label, this.icon, this.color, this.onTap);
+  final String label;
+  final IconData icon;
+  final Color color;
+  final Future<void> Function() onTap;
+}
+
+/// Opens a mobile-style share sheet for the open document. Because desktop
+/// platforms have no system share sheet for web services, each target opens the
+/// service's web composer with the text pre-filled where the platform supports
+/// it (X, Reddit, WhatsApp, Telegram, email), and copies the text to the
+/// clipboard for the ones that don't (Instagram, Substack, Facebook, LinkedIn).
+void _showWritingShareSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  required String documentId,
+  required String title,
+  required String body,
+}) {
+  final full = body.trim().isEmpty ? title : '$title\n\n$body';
+  String clip(int n) => full.length <= n ? full : '${full.substring(0, n)}…';
+
+  final enc = Uri.encodeComponent(clip(1500));
+  final encTitle = Uri.encodeComponent(title);
+  final encBody = Uri.encodeComponent(clip(1400));
+
+  Future<void> open(String url) async {
+    final ok = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Couldn\'t open that app.')),
+      );
+    }
+  }
+
+  Future<void> copyThenOpen(String url, String where) async {
+    await Clipboard.setData(ClipboardData(text: full));
+    await open(url);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Text copied — paste it into $where.')),
+      );
+    }
+  }
+
+  final targets = <_ShareTarget>[
+    _ShareTarget('Copy text', Icons.content_copy, const Color(0xFF6B7280),
+        () async {
+      await Clipboard.setData(ClipboardData(text: full));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Copied to clipboard.')),
+        );
+      }
+    }),
+    _ShareTarget('Email', Icons.mail_outline, const Color(0xFF2563EB),
+        () => open('mailto:?subject=$encTitle&body=$enc')),
+    _ShareTarget('WhatsApp', Icons.chat, const Color(0xFF25D366),
+        () => open('https://wa.me/?text=$enc')),
+    _ShareTarget('Telegram', Icons.send, const Color(0xFF26A5E4),
+        () => open('https://t.me/share/url?url=&text=$enc')),
+    _ShareTarget('X', Icons.tag, const Color(0xFF111827),
+        () => open('https://twitter.com/intent/tweet?text=$enc')),
+    _ShareTarget('Reddit', Icons.forum_outlined, const Color(0xFFFF4500),
+        () => open('https://www.reddit.com/submit?title=$encTitle&text=$encBody')),
+    _ShareTarget('LinkedIn', Icons.work_outline, const Color(0xFF0A66C2),
+        () => copyThenOpen('https://www.linkedin.com/feed/', 'LinkedIn')),
+    _ShareTarget('Facebook', Icons.facebook, const Color(0xFF1877F2),
+        () => copyThenOpen('https://www.facebook.com/', 'Facebook')),
+    _ShareTarget('Substack', Icons.article_outlined, const Color(0xFFFF6719),
+        () => copyThenOpen('https://substack.com/', 'your Substack post')),
+    _ShareTarget(
+        'Instagram', Icons.camera_alt_outlined, const Color(0xFFE1306C),
+        () => copyThenOpen('https://www.instagram.com/', 'Instagram')),
+    _ShareTarget('Save file', Icons.folder_open_outlined,
+        const Color(0xFF6B7280), () => _saveAndRevealDocx(context, ref, documentId)),
+  ];
+
+  showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (ctx) {
+      final theme = Theme.of(ctx);
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Share "$title"',
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Posts open in your browser; for Instagram and Substack the '
+                'text is copied so you can paste it.',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 18,
+                runSpacing: 18,
+                children: [
+                  for (final t in targets)
+                    _ShareTargetButton(
+                      target: t,
+                      onTap: () {
+                        Navigator.of(ctx).pop();
+                        t.onTap();
+                      },
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+/// Circular icon + label tile in the share sheet.
+class _ShareTargetButton extends StatelessWidget {
+  const _ShareTargetButton({required this.target, required this.onTap});
+
+  final _ShareTarget target;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 72,
+      child: InkWell(
+        key: ValueKey('desk-share-target-${target.label}'),
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: target.color.withOpacity(0.14),
+                child: Icon(target.icon, size: 22, color: target.color),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                target.label,
+                style: Theme.of(context).textTheme.labelSmall,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Exports [documentId] to a DOCX in the user's Downloads folder and opens that
+/// folder so the writer can attach the file manually (e.g. to email).
+Future<void> _saveAndRevealDocx(
+  BuildContext context,
+  WidgetRef ref,
+  String documentId,
+) async {
+  final docs = await ref.read(documentsProvider.future);
+  final doc = docs.where((d) => d.id == documentId).firstOrNull;
+  if (doc == null) return;
+  if (!context.mounted) return;
+  try {
+    final bytes =
+        await ref.read(documentRepositoryProvider).exportDocument(documentId);
+    final dir =
+        (await getDownloadsDirectory()) ?? (await getTemporaryDirectory());
+    final safe = doc.title.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_').trim();
+    final fileName = safe.isEmpty ? 'document' : safe;
+    final path = '${dir.path}${Platform.pathSeparator}$fileName.docx';
+    await File(path).writeAsBytes(bytes);
+
+    if (Platform.isWindows) {
+      await Process.run('explorer', [dir.path]);
+    } else if (Platform.isMacOS) {
+      await Process.run('open', [dir.path]);
+    } else {
+      await Process.run('xdg-open', [dir.path]);
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Saved "$fileName.docx" — opening its folder.')),
+    );
+  } catch (e) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Save failed: $e')),
+    );
+  }
+}
 
 /// One breadcrumb segment. A non-null [route] makes the segment a navigational
 /// link; null renders it as plain text.
