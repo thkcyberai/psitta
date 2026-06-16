@@ -1080,19 +1080,21 @@ class _DeskEditorBody extends StatelessWidget {
     );
   }
 
-  // Builds the editor context menu: spelling suggestions for a misspelled word
-  // under the cursor (if any), then the editor's default Copy/Cut/Paste items.
+  // Editor right-click menu. If the click lands on a misspelled word, suppress
+  // the editor's own toolbar and instead pop our own modal suggestions menu
+  // (post-frame). The replace then runs AFTER that menu closes — the same path
+  // the Reading Nook uses successfully. Applying the edit from inside the
+  // editor's own toolbar button gets reverted during overlay teardown.
   Widget _buildSpellContextMenu(
     BuildContext context,
     quill.QuillRawEditorState rawEditorState,
   ) {
-    final items = <ContextMenuButtonItem>[];
     final ctrl = rawEditorState.controller;
     final sel = ctrl.selection;
     if (sel.isValid) {
       final plain = ctrl.document.toPlainText();
-      final off = sel.baseOffset.clamp(0, plain.isEmpty ? 0 : plain.length - 1);
       if (plain.isNotEmpty) {
+        final off = sel.baseOffset.clamp(0, plain.length - 1);
         final node = ctrl.document.queryChild(off).node;
         if (node is quill.Line) {
           final lineStart = node.documentOffset;
@@ -1101,35 +1103,15 @@ class _DeskEditorBody extends StatelessWidget {
             final tokStart = lineStart + tok.start;
             if (off >= tokStart && off <= tokStart + tok.len) {
               if (SpellDictionary.instance.isMisspelled(tok.word)) {
-                final sugg = suggest(tok.word).take(5).toList();
-                if (sugg.isEmpty) {
-                  // Flagged but no close candidate (heavily garbled word) —
-                  // show a non-actionable hint so it's clearly still misspelled.
-                  items.add(
-                    ContextMenuButtonItem(
-                      label: 'No suggestions',
-                      onPressed: rawEditorState.hideToolbar,
-                    ),
-                  );
-                } else {
-                  for (final s in sugg) {
-                    items.add(
-                      ContextMenuButtonItem(
-                        label: s,
-                        onPressed: () {
-                          rawEditorState.hideToolbar();
-                          ctrl.replaceText(
-                            tokStart,
-                            tok.len,
-                            s,
-                            TextSelection.collapsed(
-                                offset: tokStart + s.length),
-                          );
-                        },
-                      ),
-                    );
-                  }
-                }
+                final word = tok.word;
+                final start = tokStart;
+                final length = tok.len;
+                final anchor = rawEditorState.contextMenuAnchors.primaryAnchor;
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  rawEditorState.hideToolbar();
+                  _showSpellPopup(context, ctrl, word, start, length, anchor);
+                });
+                return const SizedBox.shrink();
               }
               break;
             }
@@ -1137,10 +1119,51 @@ class _DeskEditorBody extends StatelessWidget {
         }
       }
     }
-    items.addAll(rawEditorState.contextMenuButtonItems);
+    // Not on a misspelled word — show the editor's normal Copy/Cut/Paste menu.
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: rawEditorState.contextMenuAnchors,
-      buttonItems: items,
+      buttonItems: rawEditorState.contextMenuButtonItems,
+    );
+  }
+
+  // Modal suggestions popup, then a clean replace after it closes.
+  Future<void> _showSpellPopup(
+    BuildContext context,
+    quill.QuillController ctrl,
+    String word,
+    int start,
+    int length,
+    Offset anchorGlobal,
+  ) async {
+    final suggestions = suggest(word).take(6).toList();
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    final localAnchor = overlay.globalToLocal(anchorGlobal);
+    final position = RelativeRect.fromRect(
+      localAnchor & const Size(1, 1),
+      Offset.zero & overlay.size,
+    );
+    final choice = await showMenu<String>(
+      context: context,
+      position: position,
+      items: suggestions.isEmpty
+          ? const [
+              PopupMenuItem<String>(
+                enabled: false,
+                child: Text('No suggestions'),
+              ),
+            ]
+          : [
+              for (final s in suggestions)
+                PopupMenuItem<String>(value: s, child: Text(s)),
+            ],
+    );
+    if (choice == null) return;
+    ctrl.replaceText(start, length, choice, null);
+    ctrl.updateSelection(
+      TextSelection.collapsed(offset: start + choice.length),
+      quill.ChangeSource.local,
     );
   }
 }
