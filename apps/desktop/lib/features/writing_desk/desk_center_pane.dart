@@ -546,8 +546,19 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                   controller: _findCtrl,
                   focusNode: _findFocus,
                   decoration: fieldDecoration.copyWith(hintText: 'Find'),
-                  onChanged: (_) => _runFind(),
-                  onSubmitted: (_) => _findNext(),
+                  // Don't search while typing — wait for Enter. Clear stale
+                  // matches so the counter doesn't react to a half-typed word.
+                  onChanged: (_) {
+                    if (_findMatches.isNotEmpty || _findIndex != -1) {
+                      setState(() {
+                        _findMatches = const [];
+                        _findIndex = -1;
+                      });
+                    }
+                  },
+                  // Enter runs the search; Enter again cycles to the next match.
+                  onSubmitted: (_) =>
+                      _findMatches.isEmpty ? _runFind() : _findNext(),
                 ),
               ),
               const SizedBox(width: 8),
@@ -974,8 +985,25 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
   Timer? _alignmentPoll;
   String? _pollingChunkId;
 
+  // Chunks already warmed (audio + alignment prefetched) so we don't re-trigger.
+  final Set<String> _warmed = {};
+
   GlobalKey _pageKey(int pageNumber) =>
       _pageKeys.putIfAbsent(pageNumber, () => GlobalKey());
+
+  // Pre-generate a chunk's audio AND alignment ahead of Play. prefetchChunk
+  // hits /audio, which (on cache miss) writes both the mp3 and the alignment
+  // sidecar — so by the time the writer presses Play the highlight is ready
+  // instead of loading during the read.
+  void _warm(String chunkId, String voiceId) {
+    if (chunkId.isEmpty || _warmed.contains(chunkId)) return;
+    _warmed.add(chunkId);
+    ref.read(audioServiceProvider).prefetchChunk(
+          documentId: widget.documentId,
+          chunkId: chunkId,
+          voiceId: voiceId,
+        );
+  }
 
   @override
   void dispose() {
@@ -1120,6 +1148,19 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
       _stopAlignmentPoll();
     } else if (activeChunkId.isNotEmpty && isPlaying) {
       _pollAlignment(activeChunkId, voiceId);
+    }
+
+    // Warm the active chunk + the next ahead of Play so audio AND alignment are
+    // cached before listening (removes the first-listen highlight delay).
+    if (activeChunkId.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _warm(activeChunkId, voiceId);
+        final nextIdx = rawIndex + 1;
+        if (nextIdx >= 0 && nextIdx < chunkIds.length) {
+          _warm(chunkIds[nextIdx], voiceId);
+        }
+      });
     }
 
     final pages = paginateDocxDocument(context, widget.document);
