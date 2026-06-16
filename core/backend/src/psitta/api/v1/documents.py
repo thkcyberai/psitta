@@ -3278,7 +3278,7 @@ async def _eager_synthesize_chunks(
     try:
         from psitta.db.session import async_session_factory
         from psitta.providers.tts_router import TTSRouter
-        from psitta.services.audio_cache import get_mp3, put_mp3
+        from psitta.services.audio_cache import get_mp3, put_alignment, put_mp3
         logger.info("tts.eager_synthesis.start", doc_id=str(doc_id), chunk_count=len(chunk_ids))
         async with async_session_factory() as db:
             result = await db.execute(
@@ -3309,11 +3309,24 @@ async def _eager_synthesize_chunks(
                 continue
             try:
                 async with async_session_factory() as quota_db:
-                    audio_bytes, _provider = await tts.synthesize_with_quota(
-                        chunk_text, DEFAULT_VOICE_ID,
-                        user_id=user_id, db=quota_db,
+                    audio_bytes, alignment, provider = (
+                        await tts.synthesize_with_alignment_and_quota(
+                            chunk_text, DEFAULT_VOICE_ID,
+                            user_id=user_id, db=quota_db,
+                        )
                     )
                 await put_mp3(chunk_id, DEFAULT_VOICE_ID, audio_bytes)
+                # Cache the word-timing sidecar now (with-timestamps returns it
+                # in the same call at no extra cost) so the FIRST read has the
+                # highlight ready instead of synthesizing alignment on demand.
+                if alignment is not None and provider in {"elevenlabs", "edge"}:
+                    await put_alignment(chunk_id, DEFAULT_VOICE_ID, {
+                        "document_id": str(doc_id),
+                        "chunk_id": chunk_id,
+                        "voice_id": DEFAULT_VOICE_ID,
+                        "provider": provider,
+                        "alignment": alignment,
+                    })
                 synthesized += 1
                 logger.info("tts.eager_synthesis.chunk_done", doc_id=str(doc_id), chunk_id=chunk_id, size=len(audio_bytes))
             except Exception as e:
