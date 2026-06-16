@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -72,11 +74,187 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   // across the toggle so switching back keeps the cursor.
   bool _readMode = false;
 
+  // ── Find / Replace (Write mode) ─────────────────────────────────────────────
+  bool _showFind = false;
+  bool _showReplace = false;
+  bool _findCaseSensitive = false;
+  final TextEditingController _findCtrl = TextEditingController();
+  final TextEditingController _replaceCtrl = TextEditingController();
+  final FocusNode _findFocus = FocusNode(debugLabel: 'desk-find');
+  List<int> _findMatches = const [];
+  int _findIndex = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    HardwareKeyboard.instance.addHandler(_handleFindKey);
+  }
+
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleFindKey);
+    _findCtrl.dispose();
+    _replaceCtrl.dispose();
+    _findFocus.dispose();
     _unifiedController?.dispose();
     _focusNode?.dispose();
     super.dispose();
+  }
+
+  // Ctrl+F opens the find bar (Write mode only); Esc closes it. Uses a global
+  // HardwareKeyboard handler so it fires even when the Quill editor holds focus.
+  bool _handleFindKey(KeyEvent e) {
+    if (e is! KeyDownEvent) return false;
+    final ctrl = HardwareKeyboard.instance.isControlPressed;
+    if (ctrl &&
+        e.logicalKey == LogicalKeyboardKey.keyF &&
+        !_readMode &&
+        _unifiedController != null) {
+      _openFind();
+      return true;
+    }
+    if (e.logicalKey == LogicalKeyboardKey.escape && _showFind) {
+      _closeFind();
+      return true;
+    }
+    return false;
+  }
+
+  void _openFind() {
+    final controller = _unifiedController;
+    String? seed;
+    if (controller != null) {
+      final sel = controller.selection;
+      if (sel.isValid && !sel.isCollapsed) {
+        final plain = controller.document.toPlainText();
+        final start = sel.start.clamp(0, plain.length);
+        final end = sel.end.clamp(0, plain.length);
+        final s = plain.substring(start, end);
+        if (!s.contains('\n')) seed = s;
+      }
+    }
+    setState(() => _showFind = true);
+    if (seed != null && seed.isNotEmpty) {
+      _findCtrl.text = seed;
+      _runFind();
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _findFocus.requestFocus();
+      _findCtrl.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _findCtrl.text.length,
+      );
+    });
+  }
+
+  void _closeFind() {
+    setState(() {
+      _showFind = false;
+      _findMatches = const [];
+      _findIndex = -1;
+    });
+    _focusNode?.requestFocus();
+  }
+
+  void _runFind() {
+    final controller = _unifiedController;
+    final query = _findCtrl.text;
+    if (controller == null || query.isEmpty) {
+      setState(() {
+        _findMatches = const [];
+        _findIndex = -1;
+      });
+      return;
+    }
+    final matches =
+        controller.document.search(query, caseSensitive: _findCaseSensitive);
+    setState(() {
+      _findMatches = matches;
+      _findIndex = matches.isEmpty ? -1 : 0;
+    });
+    if (matches.isNotEmpty) _revealMatch(0);
+  }
+
+  // Select the match so the editor brings it into view, then return focus to
+  // the find field so the writer can keep navigating.
+  void _revealMatch(int i) {
+    final controller = _unifiedController;
+    if (controller == null || i < 0 || i >= _findMatches.length) return;
+    final off = _findMatches[i];
+    final len = _findCtrl.text.length;
+    _focusNode?.requestFocus();
+    controller.updateSelection(
+      TextSelection(baseOffset: off, extentOffset: off + len),
+      quill.ChangeSource.local,
+    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _showFind) _findFocus.requestFocus();
+    });
+  }
+
+  void _findNext() {
+    if (_findMatches.isEmpty) return;
+    setState(() => _findIndex = (_findIndex + 1) % _findMatches.length);
+    _revealMatch(_findIndex);
+  }
+
+  void _findPrev() {
+    if (_findMatches.isEmpty) return;
+    setState(() => _findIndex =
+        (_findIndex - 1 + _findMatches.length) % _findMatches.length);
+    _revealMatch(_findIndex);
+  }
+
+  void _replaceCurrent() {
+    final controller = _unifiedController;
+    if (controller == null ||
+        _findIndex < 0 ||
+        _findIndex >= _findMatches.length) {
+      return;
+    }
+    final off = _findMatches[_findIndex];
+    final qlen = _findCtrl.text.length;
+    final rep = _replaceCtrl.text;
+    controller.replaceText(
+      off,
+      qlen,
+      rep,
+      TextSelection.collapsed(offset: off + rep.length),
+    );
+    // Offsets shifted — re-search and advance past the replacement.
+    final matches = controller.document
+        .search(_findCtrl.text, caseSensitive: _findCaseSensitive);
+    var nextIdx = -1;
+    for (var k = 0; k < matches.length; k++) {
+      if (matches[k] >= off + rep.length) {
+        nextIdx = k;
+        break;
+      }
+    }
+    if (nextIdx == -1 && matches.isNotEmpty) nextIdx = 0;
+    setState(() {
+      _findMatches = matches;
+      _findIndex = nextIdx;
+    });
+    if (nextIdx >= 0) _revealMatch(nextIdx);
+  }
+
+  void _replaceAll() {
+    final controller = _unifiedController;
+    final query = _findCtrl.text;
+    if (controller == null || query.isEmpty) return;
+    final rep = _replaceCtrl.text;
+    final matches =
+        controller.document.search(query, caseSensitive: _findCaseSensitive);
+    // Replace from the end so earlier offsets remain valid.
+    for (var k = matches.length - 1; k >= 0; k--) {
+      controller.replaceText(matches[k], query.length, rep, null);
+    }
+    setState(() {
+      _findMatches = const [];
+      _findIndex = -1;
+    });
   }
 
   // Build the editor for [doc]. Called once per document load so the Writing
@@ -341,6 +519,149 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     );
   }
 
+  Widget _buildFindBar(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final total = _findMatches.length;
+    final countText =
+        total == 0 ? 'No results' : '${_findIndex + 1} of $total';
+    const fieldDecoration = InputDecoration(
+      isDense: true,
+      border: OutlineInputBorder(),
+      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+    );
+    return Container(
+      color: scheme.onSurface.withOpacity(0.04),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.search, size: 16),
+              const SizedBox(width: 6),
+              SizedBox(
+                width: 230,
+                child: TextField(
+                  key: const ValueKey('desk-find-field'),
+                  controller: _findCtrl,
+                  focusNode: _findFocus,
+                  decoration: fieldDecoration.copyWith(hintText: 'Find'),
+                  onChanged: (_) => _runFind(),
+                  onSubmitted: (_) => _findNext(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(countText,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      )),
+              const Spacer(),
+              _findToggle(
+                tooltip: 'Match case',
+                selected: _findCaseSensitive,
+                label: 'Aa',
+                onTap: () {
+                  setState(() => _findCaseSensitive = !_findCaseSensitive);
+                  _runFind();
+                },
+              ),
+              IconButton(
+                tooltip: 'Previous',
+                iconSize: 18,
+                icon: const Icon(Icons.keyboard_arrow_up),
+                onPressed: _findMatches.isEmpty ? null : _findPrev,
+              ),
+              IconButton(
+                tooltip: 'Next',
+                iconSize: 18,
+                icon: const Icon(Icons.keyboard_arrow_down),
+                onPressed: _findMatches.isEmpty ? null : _findNext,
+              ),
+              IconButton(
+                tooltip: _showReplace ? 'Hide replace' : 'Replace',
+                iconSize: 18,
+                icon: Icon(
+                    _showReplace ? Icons.expand_less : Icons.find_replace),
+                onPressed: () => setState(() => _showReplace = !_showReplace),
+              ),
+              IconButton(
+                tooltip: 'Close (Esc)',
+                iconSize: 18,
+                icon: const Icon(Icons.close),
+                onPressed: _closeFind,
+              ),
+            ],
+          ),
+          if (_showReplace) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.edit_outlined, size: 16),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 230,
+                  child: TextField(
+                    key: const ValueKey('desk-replace-field'),
+                    controller: _replaceCtrl,
+                    decoration:
+                        fieldDecoration.copyWith(hintText: 'Replace with'),
+                    onSubmitted: (_) => _replaceCurrent(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  key: const ValueKey('desk-replace-one'),
+                  onPressed: _findMatches.isEmpty ? null : _replaceCurrent,
+                  child: const Text('Replace'),
+                ),
+                TextButton(
+                  key: const ValueKey('desk-replace-all'),
+                  onPressed: _findMatches.isEmpty ? null : _replaceAll,
+                  child: const Text('Replace all'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _findToggle({
+    required String tooltip,
+    required bool selected,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: selected
+                ? scheme.primary.withOpacity(0.16)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? scheme.primary : scheme.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
@@ -359,6 +680,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             onSave: _save,
             readMode: _readMode,
             onModeChanged: (read) => setState(() => _readMode = read),
+            onFind: (!_readMode && _unifiedController != null) ? _openFind : null,
           ),
           const Divider(height: 1),
           // The formatting toolbar is edit-only; Read mode hides it.
@@ -368,6 +690,10 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
               theme: Theme.of(context),
               multiRowsDisplay: true,
             ),
+            const Divider(height: 1),
+          ],
+          if (!_readMode && _showFind && _unifiedController != null) ...[
+            _buildFindBar(context),
             const Divider(height: 1),
           ],
           Expanded(child: _buildCenterBody(context, tokens, docAsync)),
@@ -388,6 +714,7 @@ class _DeskCenterHeader extends StatelessWidget {
     required this.onSave,
     required this.readMode,
     required this.onModeChanged,
+    this.onFind,
   });
 
   final String title;
@@ -396,6 +723,7 @@ class _DeskCenterHeader extends StatelessWidget {
   final VoidCallback onSave;
   final bool readMode;
   final ValueChanged<bool> onModeChanged;
+  final VoidCallback? onFind;
 
   @override
   Widget build(BuildContext context) {
@@ -420,6 +748,15 @@ class _DeskCenterHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (onFind != null)
+              IconButton(
+                key: const ValueKey('desk-find-btn'),
+                tooltip: 'Find & Replace (Ctrl+F)',
+                iconSize: 18,
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.search),
+                onPressed: onFind,
+              ),
             _ModeToggle(readMode: readMode, onChanged: onModeChanged),
             const SizedBox(width: 8),
             if (isSaving)
@@ -629,17 +966,53 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
   final Map<String, GlobalKey> _blockKeys = {};
   final Map<int, GlobalKey> _pageKeys = {};
 
-  // Chunk ids we have already primed alignment for, so we don't re-trigger on
-  // every rebuild.
-  final Set<String> _alignmentPrimed = {};
+  // Polls the active chunk's alignment sidecar until it lands, so word
+  // highlighting (SWH) appears during the FIRST streamed listen — not only on
+  // replay. The sidecar is written when the chunk finishes streaming, which (for
+  // small chunks) happens a few seconds into playback since synthesis outpaces
+  // playback.
+  Timer? _alignmentPoll;
+  String? _pollingChunkId;
 
   GlobalKey _pageKey(int pageNumber) =>
       _pageKeys.putIfAbsent(pageNumber, () => GlobalKey());
 
   @override
   void dispose() {
+    _stopAlignmentPoll();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _stopAlignmentPoll() {
+    _alignmentPoll?.cancel();
+    _alignmentPoll = null;
+    _pollingChunkId = null;
+  }
+
+  void _pollAlignment(String chunkId, String voiceId) {
+    if (_pollingChunkId == chunkId && _alignmentPoll != null) return;
+    _stopAlignmentPoll();
+    _pollingChunkId = chunkId;
+    var attempts = 0;
+    _alignmentPoll = Timer.periodic(const Duration(milliseconds: 1500), (t) {
+      attempts++;
+      if (!mounted || attempts > 12) {
+        _stopAlignmentPoll();
+        return;
+      }
+      final key = AlignmentKey(
+        documentId: widget.documentId,
+        chunkId: chunkId,
+        voiceId: voiceId,
+      );
+      final current = ref.read(chunkAlignmentProvider(key));
+      if (current.valueOrNull?['alignment'] != null) {
+        _stopAlignmentPoll(); // loaded — SWH will render
+        return;
+      }
+      ref.invalidate(chunkAlignmentProvider(key));
+    });
   }
 
   // Follow the voice: scroll the active sentence's block to ~22% from the top
@@ -737,26 +1110,17 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
     final alignmentPayload =
         alignmentAsync?.valueOrNull ?? const <String, dynamic>{};
     final isFetchingAlignment = alignmentAsync?.isLoading ?? false;
+    final hasAlignment = alignmentPayload['alignment'] != null;
+    final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ?? false;
 
-    // When the active chunk's audio starts playing, its alignment sidecar now
-    // exists on the backend. Refresh the (previously-empty) alignment once so
-    // Synchronized Word Highlight lights up.
-    ref.listen<AsyncValue<bool>>(audioPlayingProvider, (prev, next) {
-      if (next.valueOrNull != true) return;
-      if (activeChunkId.isEmpty || _alignmentPrimed.contains(activeChunkId)) {
-        return;
-      }
-      _alignmentPrimed.add(activeChunkId);
-      ref.invalidate(
-        chunkAlignmentProvider(
-          AlignmentKey(
-            documentId: widget.documentId,
-            chunkId: activeChunkId,
-            voiceId: voiceId,
-          ),
-        ),
-      );
-    });
+    // SWH on first play: keep polling the active chunk's alignment until it
+    // lands (sidecar is written when the chunk finishes streaming). Stop once it
+    // loads.
+    if (hasAlignment) {
+      _stopAlignmentPoll();
+    } else if (activeChunkId.isNotEmpty && isPlaying) {
+      _pollAlignment(activeChunkId, voiceId);
+    }
 
     final pages = paginateDocxDocument(context, widget.document);
 
