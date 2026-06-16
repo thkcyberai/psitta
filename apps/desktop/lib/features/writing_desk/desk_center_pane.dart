@@ -95,10 +95,6 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   bool _squiggleInFlight = false;
   String? _lastSpellPlainText;
 
-  // Tap-to-fix: a GlobalKey to reach the editor's renderEditor for hit-testing
-  // the right-clicked word.
-  final GlobalKey<quill.EditorState> _editorKey =
-      GlobalKey<quill.EditorState>();
 
   @override
   void initState() {
@@ -203,91 +199,6 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
       }
     } finally {
       history.ignoreChange = priorIgnore;
-    }
-  }
-
-  // ── Tap-to-fix: right-click a squiggle → spelling suggestions ───────────────
-  void _maybeHandleSquiggleTap(Offset globalPosition) {
-    final controller = _unifiedController;
-    if (controller == null) return;
-    final renderEditor = _editorKey.currentState?.renderEditor;
-    if (renderEditor == null) return;
-    final doc = controller.document;
-    final plain = doc.toPlainText();
-    final off = renderEditor.getPositionForOffset(globalPosition).offset;
-    if (off < 0 || off >= plain.length) return;
-    final node = doc.queryChild(off).node;
-    if (node is! quill.Line) return;
-    final lineStart = node.documentOffset;
-    final lineEnd = (lineStart + node.length).clamp(0, plain.length);
-    // Find the word under the click and show suggestions only if it's actually
-    // misspelled (check the dictionary directly — more robust than reading back
-    // the transient squiggle attribute).
-    for (final tok in tokenizeWords(plain.substring(lineStart, lineEnd))) {
-      final tokStart = lineStart + tok.start;
-      if (off >= tokStart && off < tokStart + tok.len) {
-        if (!SpellDictionary.instance.isMisspelled(tok.word)) return;
-        final caretRect =
-            renderEditor.getLocalRectForCaret(TextPosition(offset: tokStart));
-        final anchorGlobal = renderEditor.localToGlobal(caretRect.bottomLeft);
-        _showSuggestions(
-          word: tok.word,
-          start: tokStart,
-          len: tok.len,
-          anchorGlobal: anchorGlobal,
-        );
-        break;
-      }
-    }
-  }
-
-  Future<void> _showSuggestions({
-    required String word,
-    required int start,
-    required int len,
-    required Offset anchorGlobal,
-  }) async {
-    final controller = _unifiedController;
-    if (controller == null) return;
-    final suggestions = suggest(word);
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (overlay == null) return;
-    final localAnchor = overlay.globalToLocal(anchorGlobal);
-    final anchor = RelativeRect.fromRect(
-      localAnchor & const Size(1, 1),
-      Offset.zero & overlay.size,
-    );
-    final choice = await showMenu<String>(
-      context: context,
-      position: anchor,
-      items: suggestions.isEmpty
-          ? const [
-              PopupMenuItem<String>(
-                enabled: false,
-                child: Text('No suggestions'),
-              ),
-            ]
-          : [
-              for (final s in suggestions)
-                PopupMenuItem<String>(value: s, child: Text(s)),
-            ],
-    );
-    if (choice == null || !mounted) return;
-    controller.replaceText(start, len, choice, null);
-    // Re-spell the paragraph so the corrected word's squiggle clears at once.
-    final doc = controller.document;
-    final node = doc.queryChild(start).node;
-    if (node is quill.Line) {
-      final lineStart = node.documentOffset;
-      final lineEnd = lineStart + node.length;
-      _squiggleInFlight = true;
-      try {
-        _runSpellPass(start: lineStart, end: lineEnd);
-      } finally {
-        _squiggleInFlight = false;
-      }
-      _lastSpellPlainText = doc.toPlainText();
     }
   }
 
@@ -603,8 +514,6 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                   key: const ValueKey('desk-editor-body'),
                   controller: _unifiedController!,
                   focusNode: _focusNode!,
-                  editorKey: _editorKey,
-                  onSecondaryTap: _maybeHandleSquiggleTap,
                 ),
               ),
             ),
@@ -1082,32 +991,24 @@ class _DeskEditorBody extends StatelessWidget {
     super.key,
     required this.controller,
     required this.focusNode,
-    required this.editorKey,
-    required this.onSecondaryTap,
   });
 
   final quill.QuillController controller;
   final FocusNode focusNode;
-  final GlobalKey<quill.EditorState> editorKey;
-  final void Function(Offset globalPosition) onSecondaryTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    // Right-click a squiggled word → spelling suggestions. GestureDetector
-    // claims the secondary tap so a single menu shows; left-click selection and
-    // scrolling are unaffected (different gestures).
-    return GestureDetector(
-      onSecondaryTapUp: (d) => onSecondaryTap(d.globalPosition),
-      child: quill.QuillEditor.basic(
-        controller: controller,
-        focusNode: focusNode,
-        configurations: quill.QuillEditorConfigurations(
-          editorKey: editorKey,
-          expands: true,
-          // Spell & Grammar: render the transient 'squiggle' attribute as a red
-          // wavy underline under misspelled words.
-          customStyleBuilder: (attribute) {
+    return quill.QuillEditor.basic(
+      controller: controller,
+      focusNode: focusNode,
+      configurations: quill.QuillEditorConfigurations(
+        expands: true,
+        // Spell & Grammar: right-click a misspelled word for suggestions, shown
+        // above the editor's default Copy/Cut/Paste menu.
+        contextMenuBuilder: _buildSpellContextMenu,
+        // Render the transient 'squiggle' attribute as a red wavy underline.
+        customStyleBuilder: (attribute) {
           if (attribute.key == 'squiggle') {
             return const TextStyle(
               decoration: TextDecoration.underline,
@@ -1176,7 +1077,70 @@ class _DeskEditorBody extends StatelessWidget {
           ),
         ),
       ),
-      ),
+    );
+  }
+
+  // Builds the editor context menu: spelling suggestions for a misspelled word
+  // under the cursor (if any), then the editor's default Copy/Cut/Paste items.
+  Widget _buildSpellContextMenu(
+    BuildContext context,
+    quill.QuillRawEditorState rawEditorState,
+  ) {
+    final items = <ContextMenuButtonItem>[];
+    final ctrl = rawEditorState.controller;
+    final sel = ctrl.selection;
+    if (sel.isValid) {
+      final plain = ctrl.document.toPlainText();
+      final off = sel.baseOffset.clamp(0, plain.isEmpty ? 0 : plain.length - 1);
+      if (plain.isNotEmpty) {
+        final node = ctrl.document.queryChild(off).node;
+        if (node is quill.Line) {
+          final lineStart = node.documentOffset;
+          final lineEnd = (lineStart + node.length).clamp(0, plain.length);
+          for (final tok in tokenizeWords(plain.substring(lineStart, lineEnd))) {
+            final tokStart = lineStart + tok.start;
+            if (off >= tokStart && off <= tokStart + tok.len) {
+              if (SpellDictionary.instance.isMisspelled(tok.word)) {
+                final sugg = suggest(tok.word).take(5).toList();
+                if (sugg.isEmpty) {
+                  // Flagged but no close candidate (heavily garbled word) —
+                  // show a non-actionable hint so it's clearly still misspelled.
+                  items.add(
+                    ContextMenuButtonItem(
+                      label: 'No suggestions',
+                      onPressed: rawEditorState.hideToolbar,
+                    ),
+                  );
+                } else {
+                  for (final s in sugg) {
+                    items.add(
+                      ContextMenuButtonItem(
+                        label: s,
+                        onPressed: () {
+                          rawEditorState.hideToolbar();
+                          ctrl.replaceText(
+                            tokStart,
+                            tok.len,
+                            s,
+                            TextSelection.collapsed(
+                                offset: tokStart + s.length),
+                          );
+                        },
+                      ),
+                    );
+                  }
+                }
+              }
+              break;
+            }
+          }
+        }
+      }
+    }
+    items.addAll(rawEditorState.contextMenuButtonItems);
+    return AdaptiveTextSelectionToolbar.buttonItems(
+      anchors: rawEditorState.contextMenuAnchors,
+      buttonItems: items,
     );
   }
 }
