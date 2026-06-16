@@ -12,8 +12,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants.dart';
 import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
-import '../../data/providers/blueprint_providers.dart'
-    show projectBlueprintOverviewProvider;
 import '../../data/providers/project_providers.dart'
     show projectDetailProvider, projectPlacementsProvider;
 import '../../data/providers/providers.dart'
@@ -181,18 +179,10 @@ class _ContextHeader extends ConsumerWidget {
             // Placed: file's blueprint (links to Blueprints) + section.
             crumbs.add(_Crumb(pl.blueprintName, '/blueprints'));
             crumbs.add(_Crumb(pl.partName));
-          } else {
-            // Unplaced: project's adopted blueprint, for consistency with the
-            // PLACED IN card and Book panel (no section yet).
-            final overview =
-                ref.watch(projectBlueprintOverviewProvider(pid)).valueOrNull;
-            final names =
-                overview?.blueprints.map((b) => b.name).toList() ??
-                    const <String>[];
-            if (names.isNotEmpty) {
-              crumbs.add(_Crumb(names.join(', '), '/blueprints'));
-            }
           }
+          // Unplaced: the file is in NO blueprint, so the breadcrumb is just
+          // Project › FileName. It must not borrow the project's adopted
+          // blueprints — that wrongly implied this file was placed in them.
         }
         final fileName = doc?.title;
         if (fileName != null && fileName.isNotEmpty) {

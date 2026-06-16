@@ -265,7 +265,6 @@ class _UnplacedContextCard extends ConsumerWidget {
         _flatten(bp.parts, flatParts);
       }
     }
-    final hasBlueprint = blueprintNames.isNotEmpty;
     final hasSections = flatParts.isNotEmpty;
 
     void chooseBlueprint() => adoptBlueprintFlow(
@@ -319,10 +318,13 @@ class _UnplacedContextCard extends ConsumerWidget {
                 : null,
           ),
           const SizedBox(height: 10),
+          // This file is not placed in any blueprint, so its Blueprint link is
+          // "Not assigned" — even when the PROJECT has adopted blueprints
+          // (those are project-level, not this file's). The project's
+          // blueprints still drive the placement guidance + action below.
           _PlacedRow(
             concept: DeskConcept.blueprint,
-            value: hasBlueprint ? blueprintNames.join(', ') : 'Not assigned',
-            onTap: hasBlueprint ? () => context.go('/blueprints') : null,
+            value: 'Not assigned',
           ),
           const SizedBox(height: 10),
           _PlacedRow(
