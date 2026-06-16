@@ -1361,6 +1361,188 @@ async def get_chunk_audio(
     return FileResponse(local_path, media_type="audio/mpeg", filename=f"{chunk_id}.mp3")
 
 
+@router.get("/{document_id}/chunks/{chunk_id}/audio/stream")
+async def get_chunk_audio_stream(
+    document_id: UUID,
+    chunk_id: UUID,
+    request: Request,
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Streaming audio for the Writing Nook: pipes TTS audio to the client as
+    the model generates it so playback can start within ~1s, then writes the
+    cache on completion so the next play is an instant, zero-credit hit. A
+    cache hit serves the file directly. The batch /audio endpoint used by the
+    Reading Nook is unchanged.
+    """
+    from fastapi.responses import FileResponse, StreamingResponse
+
+    from psitta.services.audio_cache import (
+        get_mp3,
+        put_alignment,
+        put_mp3,
+        s3_key_mp3,
+    )
+    from psitta.services.subscription_service import check_el_quota
+
+    # Validate + fetch chunk text, scoped to the authenticated user.
+    chunk_result = await db.execute(
+        text(
+            "SELECT c.text_content, c.page_number, d.source_type "
+            "FROM document_chunks c "
+            "JOIN documents d ON d.id = c.document_id "
+            "WHERE c.id = :cid AND c.document_id = :did "
+            "AND d.user_id = :uid AND d.status != 'deleted'"
+        ),
+        {"cid": chunk_id, "did": document_id, "uid": str(user_id)},
+    )
+    chunk_row = chunk_result.first()
+    if not chunk_row or not chunk_row.text_content:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+
+    source_type = (getattr(chunk_row, "source_type", "") or "").lower()
+    chunk_text = chunk_row.text_content
+    if source_type == "pdf":
+        chunk_text = _clean_pdf_chunk_text(
+            chunk_text, getattr(chunk_row, "page_number", None)
+        )
+
+    # Cache hit → serve the file directly (instant, zero credit).
+    cached = await get_mp3(str(chunk_id), voice_id)
+    if cached is not None:
+        logger.info(
+            "audio.stream.cache_hit", chunk_id=str(chunk_id), voice_id=voice_id
+        )
+        return FileResponse(
+            cached, media_type="audio/mpeg", filename=f"{chunk_id}.mp3"
+        )
+
+    # Decide ElevenLabs eligibility up-front while the request session is alive.
+    used, limit, period_start = await check_el_quota(db, user_id)
+    allow_el = not (limit > 0 and used >= limit)
+
+    await audit_service.log_event(
+        db,
+        action="chunk.audio_streamed",
+        resource_type="document_chunk",
+        user_id=str(user_id),
+        resource_id=str(chunk_id),
+        details={
+            "document_id": str(document_id),
+            "voice_id": voice_id,
+            "allow_el": allow_el,
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+
+    from psitta.providers.tts_router import TTSRouter
+
+    tts = TTSRouter()
+
+    async def _audio_stream():
+        from uuid import uuid4 as _uuid4
+
+        buf = bytearray()
+        alignment: dict | None = None
+        provider: str | None = None
+        try:
+            async for ev in tts.stream_with_alignment(
+                chunk_text, voice_id, allow_elevenlabs=allow_el
+            ):
+                if ev.get("type") == "audio":
+                    data = ev["data"]
+                    buf.extend(data)
+                    yield data
+                elif ev.get("type") == "alignment":
+                    alignment = ev.get("data")
+                    provider = ev.get("provider")
+        except Exception as e:  # noqa: BLE001 — never crash mid-stream
+            logger.error(
+                "audio.stream.synth_failed",
+                chunk_id=str(chunk_id),
+                error=str(e),
+            )
+            return
+
+        if not buf:
+            logger.warning("audio.stream.empty", chunk_id=str(chunk_id))
+            return
+
+        # Cache write-through + quota increment on a FRESH session — the
+        # request-scoped session has been torn down by the time the generator
+        # finishes streaming.
+        try:
+            audio_bytes = bytes(buf)
+            await put_mp3(str(chunk_id), voice_id, audio_bytes)
+            if alignment is not None and provider in {"elevenlabs", "edge"}:
+                await put_alignment(
+                    str(chunk_id),
+                    voice_id,
+                    {
+                        "document_id": str(document_id),
+                        "chunk_id": str(chunk_id),
+                        "voice_id": voice_id,
+                        "provider": provider,
+                        "alignment": alignment,
+                    },
+                )
+            storage_key = s3_key_mp3(str(chunk_id), voice_id)
+            from psitta.db.session import async_session_factory
+
+            async with async_session_factory() as wdb:
+                await wdb.execute(
+                    text(
+                        "DELETE FROM audio_segments "
+                        "WHERE chunk_id = :cid AND voice_id = :vid"
+                    ),
+                    {"cid": chunk_id, "vid": voice_id},
+                )
+                await wdb.execute(
+                    text(
+                        "INSERT INTO audio_segments "
+                        "(id, document_id, chunk_id, voice_id, speed, storage_key, "
+                        "duration_ms, file_size_bytes, format) "
+                        "VALUES (:id, :doc_id, :chunk_id, :voice_id, :speed, :key, "
+                        ":dur, :size, :fmt)"
+                    ),
+                    {
+                        "id": _uuid4(),
+                        "doc_id": document_id,
+                        "chunk_id": chunk_id,
+                        "voice_id": voice_id,
+                        "speed": 1.0,
+                        "key": storage_key,
+                        "dur": int(len(audio_bytes) / 24),
+                        "size": len(audio_bytes),
+                        "fmt": "mp3",
+                    },
+                )
+                if provider == "elevenlabs" and limit > 0:
+                    from psitta.services.subscription_service import (
+                        increment_el_chars,
+                    )
+
+                    await increment_el_chars(
+                        wdb, user_id, period_start, len(chunk_text)
+                    )
+                await wdb.commit()
+            logger.info(
+                "audio.stream.cached",
+                chunk_id=str(chunk_id),
+                provider=provider,
+                size=len(audio_bytes),
+            )
+        except Exception as e:  # noqa: BLE001 — cache write is best-effort
+            logger.warning(
+                "audio.stream.cache_write_failed",
+                chunk_id=str(chunk_id),
+                error=str(e),
+            )
+
+    return StreamingResponse(_audio_stream(), media_type="audio/mpeg")
+
+
 @router.get("/{document_id}/chunks/{chunk_id}/alignment")
 async def get_chunk_alignment(
     document_id: UUID,

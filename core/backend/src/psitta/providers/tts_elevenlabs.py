@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import base64
-from typing import Any
+import json
+from typing import Any, AsyncIterator
 
 import httpx
 import structlog
@@ -141,6 +142,105 @@ class ElevenLabsTTSProvider:
         }
         logger.info("elevenlabs.timestamps.ok", voice_id=voice_id, chars=len(text), audio_size=len(audio_bytes))
         return audio_bytes, alignment
+
+    async def stream_with_timestamps(
+        self,
+        text: str,
+        voice_id: str,
+        output_format: str = "mp3_44100_128",
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Stream audio + character timestamps as the model generates them.
+
+        Uses ElevenLabs /stream/with-timestamps, which returns newline-delimited
+        JSON blobs, each carrying a base64 audio segment and its character
+        alignment. Yields, in order:
+          {"type": "audio", "data": <bytes>}        # one per stream blob
+        and finally exactly once:
+          {"type": "alignment", "data": <dict|None>} # merged char alignment
+
+        The merged alignment matches the batch [synthesize_with_timestamps]
+        shape ({"alignment": {...}, "normalized_alignment": {...}} with
+        characters / character_start_times_seconds / character_end_times_seconds)
+        so the existing SWH renderer consumes it unchanged.
+        """
+        if not self.api_key:
+            raise RuntimeError("ELEVENLABS_API_KEY not configured")
+
+        url = f"{ELEVENLABS_BASE}/text-to-speech/{voice_id}/stream/with-timestamps"
+        params = {"output_format": output_format}
+
+        chars: list[str] = []
+        starts: list[float] = []
+        ends: list[float] = []
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                async with client.stream(
+                    "POST",
+                    url,
+                    json=self._payload(text),
+                    headers=self._headers(),
+                    params=params,
+                ) as response:
+                    if response.status_code != 200:
+                        body = (await response.aread())[:200]
+                        logger.error(
+                            "elevenlabs.stream_ts.failed",
+                            status=response.status_code,
+                            body=str(body),
+                        )
+                        raise TTSProviderError(
+                            "elevenlabs",
+                            f"ElevenLabs API error: {response.status_code}",
+                            status_code=response.status_code,
+                        )
+                    async for line in response.aiter_lines():
+                        if not line.strip():
+                            continue
+                        try:
+                            blob = json.loads(line)
+                        except json.JSONDecodeError:
+                            continue
+                        audio_b64 = blob.get("audio_base64")
+                        if audio_b64:
+                            yield {
+                                "type": "audio",
+                                "data": base64.b64decode(audio_b64),
+                            }
+                        na = blob.get("normalized_alignment") or blob.get("alignment")
+                        if isinstance(na, dict):
+                            c = na.get("characters")
+                            s = na.get("character_start_times_seconds")
+                            e = na.get("character_end_times_seconds")
+                            if (
+                                isinstance(c, list)
+                                and isinstance(s, list)
+                                and isinstance(e, list)
+                            ):
+                                chars.extend(c)
+                                starts.extend(s)
+                                ends.extend(e)
+        except httpx.RequestError as exc:
+            logger.error("elevenlabs.stream_ts.network_error", error=str(exc))
+            raise TTSProviderError(
+                "elevenlabs", f"Network error: {exc}", status_code=None
+            ) from exc
+
+        merged: dict[str, Any] | None = None
+        if chars:
+            block = {
+                "characters": chars,
+                "character_start_times_seconds": starts,
+                "character_end_times_seconds": ends,
+            }
+            merged = {"alignment": block, "normalized_alignment": block}
+        logger.info(
+            "elevenlabs.stream_ts.ok",
+            voice_id=voice_id,
+            chars=len(text),
+            timed_chars=len(chars),
+        )
+        yield {"type": "alignment", "data": merged}
 
     async def get_voices(self) -> list[dict]:
         """Fetch available voices from ElevenLabs API."""

@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 import structlog
-from typing import Any
+from typing import Any, AsyncIterator
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -396,6 +396,57 @@ class TTSRouter:
         if provider_name == "elevenlabs" and limit > 0:
             await increment_el_chars(db, user_id, period_start, char_count)
         return audio, alignment, provider_name
+
+    async def stream_with_alignment(
+        self,
+        text: str,
+        voice_id: str,
+        *,
+        allow_elevenlabs: bool,
+        output_format: str = "mp3_44100_128",
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Pure streaming source (NO database access).
+
+        Yields audio as the model generates it, then exactly one final
+        alignment event:
+          {"type": "audio", "data": <bytes>}
+          {"type": "alignment", "data": <dict|None>, "provider": <str>}
+
+        The caller (the Writing-Nook streaming endpoint) is responsible for the
+        EL-quota check (to set [allow_elevenlabs]), the post-stream char-count
+        increment, and the cache write-through — all with a session whose
+        lifetime spans the streamed response. Keeping DB work out of here avoids
+        using a request-scoped session after it has been torn down.
+
+        When [allow_elevenlabs] is false (quota exhausted) or the voice's
+        primary provider is not ElevenLabs, this falls back to the
+        alignment-aware Edge/Azure path (buffered, then re-chunked) so the
+        endpoint behaves identically and never silently bills ElevenLabs.
+        """
+        primary = self._provider_selected
+        if allow_elevenlabs and self._elevenlabs is not None and primary == "elevenlabs":
+            async for ev in self._elevenlabs.stream_with_timestamps(
+                text, voice_id, output_format=output_format
+            ):
+                if ev.get("type") == "alignment":
+                    yield {**ev, "provider": "elevenlabs"}
+                else:
+                    yield ev
+            return
+
+        # Fallback: Edge-first alignment-aware synthesis (no ElevenLabs), then
+        # re-chunk the buffered audio so the wire behaviour matches streaming.
+        audio, alignment, provider_name = await self._fallback_synthesize_with_alignment(
+            primary=primary,
+            text=text,
+            voice_id=voice_id,
+            speed=1.0,
+            output_format=output_format,
+        )
+        step = 16384
+        for i in range(0, len(audio), step):
+            yield {"type": "audio", "data": audio[i : i + step]}
+        yield {"type": "alignment", "data": alignment, "provider": provider_name}
 
     async def _dispatch_azure_voice(
         self,
