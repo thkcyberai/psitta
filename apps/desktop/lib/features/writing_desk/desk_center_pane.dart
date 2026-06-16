@@ -20,6 +20,8 @@ import '../../data/services/preferences_service.dart'
 import '../../features/editor/chunk_editor_provider.dart';
 import '../player/chunk_slicer.dart'
     show sliceBlocksIntoChunks, assignChunkIdsByContent, ChunkAction;
+import '../player/spellcheck/spell_dictionary.dart'
+    show SpellDictionary, tokenizeWords;
 import '../player/widgets/docx_document_editor.dart' show buildDocxEditToolbar;
 import '../player/widgets/docx_document_viewport.dart'
     show DocxDocumentViewport;
@@ -84,6 +86,14 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   List<int> _findMatches = const [];
   int _findIndex = -1;
 
+  // ── Spell & Grammar (on-device spell check) ─────────────────────────────────
+  // Red wavy squiggles under misspelled words via the 'squiggle' Quill
+  // attribute (not persisted — the codec whitelist drops it on save). Reuses the
+  // Reading Nook's offline SCOWL dictionary + edit-distance suggester.
+  Timer? _spellDebounce;
+  bool _squiggleInFlight = false;
+  String? _lastSpellPlainText;
+
   @override
   void initState() {
     super.initState();
@@ -92,6 +102,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
 
   @override
   void dispose() {
+    _spellDebounce?.cancel();
     HardwareKeyboard.instance.removeHandler(_handleFindKey);
     _findCtrl.dispose();
     _replaceCtrl.dispose();
@@ -99,6 +110,94 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     _unifiedController?.dispose();
     _focusNode?.dispose();
     super.dispose();
+  }
+
+  // Recompute squiggles ~350ms after the writer stops typing (paragraph-scoped).
+  void _onEditorChanged() {
+    if (_squiggleInFlight) return;
+    _spellDebounce?.cancel();
+    _spellDebounce = Timer(const Duration(milliseconds: 350), _spellTick);
+  }
+
+  void _spellTick() {
+    if (!mounted) return;
+    final controller = _unifiedController;
+    if (controller == null) return;
+    final plain = controller.document.toPlainText();
+    if (plain.isEmpty) {
+      _lastSpellPlainText = plain;
+      return;
+    }
+    // Attribute-only change (squiggle pass, bold toggle, cursor move) — skip.
+    if (plain == _lastSpellPlainText) return;
+
+    final offset = controller.selection.baseOffset.clamp(0, plain.length - 1);
+    final node = controller.document.queryChild(offset).node;
+    if (node is! quill.Line) {
+      _lastSpellPlainText = plain;
+      return;
+    }
+    final start = node.documentOffset;
+    final end = start + node.length;
+
+    _squiggleInFlight = true;
+    try {
+      // Re-scan the previous line too on an Enter-split / paste at line start.
+      if (offset == start && start > 0) {
+        final prev = controller.document.queryChild(start - 1).node;
+        if (prev is quill.Line) {
+          _runSpellPass(
+            start: prev.documentOffset,
+            end: prev.documentOffset + prev.length,
+          );
+        }
+      }
+      _runSpellPass(start: start, end: end);
+    } finally {
+      _squiggleInFlight = false;
+    }
+    _lastSpellPlainText = plain;
+  }
+
+  // Paint red wavy squiggles under misspelled words. Undo-safe (ignoreChange)
+  // and non-persistent (the 'squiggle' attribute isn't in the codec whitelist).
+  void _runSpellPass({int? start, int? end}) {
+    final controller = _unifiedController;
+    if (controller == null) return;
+    final plain = controller.document.toPlainText();
+    final rangeStart = (start ?? 0).clamp(0, plain.length);
+    final rangeEnd = (end ?? plain.length).clamp(rangeStart, plain.length);
+    final rangeLen = rangeEnd - rangeStart;
+    if (rangeLen <= 0) return;
+
+    final bad = <({int start, int len})>[];
+    for (final tok in tokenizeWords(plain.substring(rangeStart, rangeEnd))) {
+      if (SpellDictionary.instance.isMisspelled(tok.word)) {
+        bad.add((start: rangeStart + tok.start, len: tok.len));
+      }
+    }
+
+    final history = controller.document.history;
+    final priorIgnore = history.ignoreChange;
+    history.ignoreChange = true;
+    try {
+      controller.formatText(
+        rangeStart,
+        rangeLen,
+        const quill.Attribute('squiggle', quill.AttributeScope.inline, null),
+        shouldNotifyListeners: bad.isEmpty,
+      );
+      for (var i = 0; i < bad.length; i++) {
+        controller.formatText(
+          bad[i].start,
+          bad[i].len,
+          const quill.Attribute('squiggle', quill.AttributeScope.inline, true),
+          shouldNotifyListeners: i == bad.length - 1,
+        );
+      }
+    } finally {
+      history.ignoreChange = priorIgnore;
+    }
   }
 
   // Ctrl+F opens the find bar (Write mode only); Esc closes it. Uses a global
@@ -270,6 +369,21 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
       selection: const TextSelection.collapsed(offset: 0),
     );
     final focusNode = FocusNode(debugLabel: 'desk-unified');
+
+    // Spell & Grammar: re-spell on edits (debounced), and run a one-shot pass
+    // once the dictionary is ready (whichever is later).
+    _lastSpellPlainText = null;
+    controller.addListener(_onEditorChanged);
+    SpellDictionary.instance.ready.then((_) {
+      if (!mounted || _unifiedController != controller) return;
+      _squiggleInFlight = true;
+      try {
+        _runSpellPass();
+      } finally {
+        _squiggleInFlight = false;
+      }
+      _lastSpellPlainText = controller.document.toPlainText();
+    });
 
     setState(() {
       _unifiedController = controller;
@@ -888,6 +1002,18 @@ class _DeskEditorBody extends StatelessWidget {
       focusNode: focusNode,
       configurations: quill.QuillEditorConfigurations(
         expands: true,
+        // Spell & Grammar: render the transient 'squiggle' attribute as a red
+        // wavy underline under misspelled words.
+        customStyleBuilder: (attribute) {
+          if (attribute.key == 'squiggle') {
+            return const TextStyle(
+              decoration: TextDecoration.underline,
+              decorationStyle: TextDecorationStyle.wavy,
+              decorationColor: Color(0xFFE53935),
+            );
+          }
+          return const TextStyle();
+        },
         padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
         scrollPhysics: const ClampingScrollPhysics(),
         placeholder: 'Start writing…',
