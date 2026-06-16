@@ -14,7 +14,7 @@ import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart'
     show audioServiceProvider, audioPlayingProvider;
 import '../../data/services/preferences_service.dart'
-    show selectedVoiceIdProvider;
+    show selectedVoiceIdProvider, selectedSpeedProvider, selectedVolumeProvider;
 import '../../features/editor/chunk_editor_provider.dart';
 import '../player/chunk_slicer.dart'
     show sliceBlocksIntoChunks, assignChunkIdsByContent, ChunkAction;
@@ -642,16 +642,68 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
     super.dispose();
   }
 
-  // Follow the voice: scroll the active sentence's block into the upper third.
+  // Follow the voice: scroll the active sentence's block to ~22% from the top
+  // so the line being read always has headroom and never sits above the frame.
   void _onActiveSentence(GlobalKey blockKey) {
     final ctx = blockKey.currentContext;
     if (ctx == null) return;
     Scrollable.ensureVisible(
       ctx,
-      alignment: 0.3,
+      alignment: 0.22,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+  }
+
+  // Click-to-listen: jump playback to the line the writer clicked. Finds the
+  // chunk containing the document-level character offset, plays it on the
+  // seekable (batch) path — streaming responses can't be scrubbed — and seeks
+  // proportionally to the clicked position within that chunk.
+  Future<void> _seekToDocOffset(int docOffset) async {
+    final chunkMap = widget.document.chunkMap;
+    final chunkIds = ref.read(activeChunkIdsProvider);
+    if (chunkMap.isEmpty || chunkIds.isEmpty) return;
+
+    var targetIdx = 0;
+    for (var i = 0; i < chunkMap.length; i++) {
+      final c = chunkMap[i];
+      if (docOffset >= c.textOffset) targetIdx = i;
+      if (docOffset >= c.textOffset &&
+          docOffset < c.textOffset + c.textLength) {
+        targetIdx = i;
+        break;
+      }
+    }
+    if (targetIdx >= chunkIds.length) return;
+
+    final chunkId = chunkIds[targetIdx];
+    final voiceId = ref.read(selectedVoiceIdProvider);
+    final speed = ref.read(selectedSpeedProvider);
+    final volume = ref.read(selectedVolumeProvider);
+    final audioService = ref.read(audioServiceProvider);
+
+    ref.read(currentChunkIndexProvider.notifier).state = targetIdx;
+    await audioService.playChunk(
+      documentId: widget.documentId,
+      chunkId: chunkId,
+      voiceId: voiceId,
+      speed: speed,
+      volume: volume,
+    );
+
+    final c = chunkMap[targetIdx];
+    if (c.textLength <= 0) return;
+    final charInChunk =
+        (docOffset - c.textOffset).clamp(0, c.textLength).toInt();
+    final frac = (charInChunk / c.textLength).clamp(0.0, 0.98);
+    final dur = await audioService.player.durationStream
+        .firstWhere((d) => d != null && d > Duration.zero)
+        .timeout(const Duration(seconds: 12), onTimeout: () => null);
+    if (dur != null) {
+      await audioService.seek(
+        Duration(milliseconds: (frac * dur.inMilliseconds).round()),
+      );
+    }
   }
 
   @override
@@ -719,6 +771,9 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
         alignmentPayload: alignmentPayload,
         isFetchingAlignment: isFetchingAlignment,
         onActiveSentenceChanged: _onActiveSentence,
+        // Click a line (or its margin play icon) to jump the voice there.
+        onSentenceTap: _seekToDocOffset,
+        onLinePlayTap: _seekToDocOffset,
         audioService: audioService,
         blockKeys: _blockKeys,
         pageKeys: {
