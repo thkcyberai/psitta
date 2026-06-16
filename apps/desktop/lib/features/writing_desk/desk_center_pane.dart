@@ -1096,14 +1096,47 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
     if (c.textLength <= 0) return;
     final charInChunk =
         (docOffset - c.textOffset).clamp(0, c.textLength).toInt();
-    final frac = (charInChunk / c.textLength).clamp(0.0, 0.98);
-    final dur = await audioService.player.durationStream
-        .firstWhere((d) => d != null && d > Duration.zero)
-        .timeout(const Duration(seconds: 12), onTimeout: () => null);
-    if (dur != null) {
-      await audioService.seek(
-        Duration(milliseconds: (frac * dur.inMilliseconds).round()),
+
+    // Precise seek using the chunk's alignment (exact per-character start
+    // times). Proportional (char fraction × duration) undershoots because
+    // speech isn't linear — that made playback start ~2 words early.
+    int? seekMs;
+    try {
+      final key = AlignmentKey(
+        documentId: widget.documentId,
+        chunkId: chunkId,
+        voiceId: voiceId,
       );
+      // playChunk just wrote the sidecar via /audio; refresh so we read it.
+      ref.invalidate(chunkAlignmentProvider(key));
+      final payload = await ref
+          .read(chunkAlignmentProvider(key).future)
+          .timeout(const Duration(seconds: 12));
+      final block = payload['alignment'];
+      if (block is Map) {
+        final na = block['normalized_alignment'];
+        if (na is Map) {
+          final starts = na['character_start_times_seconds'];
+          if (starts is List && starts.isNotEmpty) {
+            final idx = charInChunk.clamp(0, starts.length - 1);
+            seekMs = ((starts[idx] as num).toDouble() * 1000).round();
+          }
+        }
+      }
+    } catch (_) {
+      // Fall through to proportional.
+    }
+
+    if (seekMs == null) {
+      final frac = (charInChunk / c.textLength).clamp(0.0, 0.98);
+      final dur = await audioService.player.durationStream
+          .firstWhere((d) => d != null && d > Duration.zero)
+          .timeout(const Duration(seconds: 12), onTimeout: () => null);
+      if (dur != null) seekMs = (frac * dur.inMilliseconds).round();
+    }
+
+    if (seekMs != null) {
+      await audioService.seek(Duration(milliseconds: seekMs));
     }
   }
 
