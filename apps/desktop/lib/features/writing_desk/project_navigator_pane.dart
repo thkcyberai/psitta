@@ -469,6 +469,7 @@ class _ProjectNavigatorBodyState
             Expanded(
               child: _panel == _RailPanel.bookContent
                   ? _BookContentPanel(
+                      documentId: widget.documentId,
                       selected: selected,
                       blueprints: blueprints,
                       placements: placements,
@@ -501,6 +502,7 @@ class _ProjectNavigatorBodyState
 
 class _BookContentPanel extends ConsumerWidget {
   const _BookContentPanel({
+    required this.documentId,
     required this.selected,
     required this.blueprints,
     required this.placements,
@@ -509,6 +511,7 @@ class _BookContentPanel extends ConsumerWidget {
     required this.onBlueprintSelected,
   });
 
+  final String documentId;
   final BlueprintOverview? selected;
   final List<BlueprintOverview> blueprints;
   final List<ProjectPlacement> placements;
@@ -523,6 +526,20 @@ class _BookContentPanel extends ConsumerWidget {
     final placedIds = placements.map((p) => p.documentId).toSet();
     final unplaced =
         docs.where((d) => !placedIds.contains(d.id)).toList();
+
+    // The blueprint belongs to the PROJECT, not to an unplaced file. If the file
+    // currently open isn't placed in any section, don't show the project's
+    // blueprint structure as if this file were part of it — show a "place this
+    // file" prompt instead (mirrors the right-rail PLACED IN "Not assigned").
+    final currentFilePlaced =
+        placements.any((p) => p.documentId == documentId);
+    if (selected != null && !currentFilePlaced) {
+      return _FileNotPlacedPanel(
+        documentId: documentId,
+        blueprints: blueprints,
+        projectId: projectId,
+      );
+    }
 
     void chooseBlueprint() => adoptBlueprintFlow(
           context,
@@ -940,6 +957,113 @@ class _NoBlueprintAdopt extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+// ── File-not-placed prompt ────────────────────────────────────────────────────
+//
+// Shown in the Book panel when the OPEN file isn't placed in any blueprint
+// section. The blueprint belongs to the project, not to an unplaced file, so we
+// don't show the project's section tree here — only a prompt to place this file.
+
+class _FileNotPlacedPanel extends ConsumerWidget {
+  const _FileNotPlacedPanel({
+    required this.documentId,
+    required this.blueprints,
+    required this.projectId,
+  });
+
+  final String documentId;
+  final List<BlueprintOverview> blueprints;
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(DeskConcept.blueprint.icon,
+                size: 30, color: DeskConcept.blueprint.color.withOpacity(0.6)),
+            const SizedBox(height: 12),
+            Text(
+              "This file isn't in a blueprint yet.",
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Place it in a section to organize it into your book.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
+            ),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              key: const ValueKey('desk-book-place-file'),
+              onPressed: () => _place(context, ref),
+              icon: const Icon(Icons.playlist_add_check, size: 18),
+              label: const Text('Place in a section'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _place(BuildContext context, WidgetRef ref) async {
+    final flat = <PartOverviewNode>[];
+    for (final bp in blueprints) {
+      _flatten(bp.parts, flat);
+    }
+    if (flat.isEmpty) return;
+    final chosen = await showDialog<PartOverviewNode>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Place in a Section'),
+        content: SizedBox(
+          width: 320,
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              for (final part in flat)
+                ListTile(
+                  key: ValueKey('desk-book-place-section-${part.id}'),
+                  title: Text(part.name),
+                  onTap: () => Navigator.of(ctx).pop(part),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+    if (chosen == null || !context.mounted) return;
+    await ref.read(blueprintActionsProvider).setPlacement(
+          documentId,
+          chosen.id,
+          Role.mainContent,
+          projectId: projectId,
+        );
+  }
+
+  static void _flatten(
+      List<PartOverviewNode> nodes, List<PartOverviewNode> out) {
+    for (final n in nodes) {
+      out.add(n);
+      _flatten(n.children, out);
+    }
   }
 }
 
