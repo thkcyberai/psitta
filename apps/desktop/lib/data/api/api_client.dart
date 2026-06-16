@@ -120,6 +120,11 @@ class ApiClient {
 
   Dio get dio => _dio;
 
+  /// Current Cognito access token, for flows that must pass the Bearer header
+  /// themselves (e.g. just_audio streaming sources, which don't go through the
+  /// Dio interceptor). Returns null when no valid token is available.
+  Future<String?> accessToken() => _authService.getAccessToken();
+
   /// Manually set the Authorization header (used by specialized flows
   /// that already possess a fresh token). Kept for backward compatibility
   /// with any caller that bypasses the request interceptor.

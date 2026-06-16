@@ -1,8 +1,18 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
+import '../../data/services/audio_service.dart' show audioServiceProvider;
+import '../shell/widgets/player_bar.dart'
+    show
+        activeChunkIdsProvider,
+        activeDocumentIdProvider,
+        currentChunkIndexProvider,
+        currentDocTitleProvider,
+        streamingPlaybackProvider,
+        totalChunksProvider;
 import 'desk_center_pane.dart';
 import 'document_context_pane.dart';
 import 'project_navigator_pane.dart';
@@ -37,6 +47,70 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
   double _contextWidth = 280;
   bool _contextCollapsed = false;
 
+  // Which document the bottom player bar has been reset for. Set the instant
+  // the open document changes so stale audio is cleared before populating.
+  String? _wiredDocId;
+
+  @override
+  void initState() {
+    super.initState();
+    // Route the bottom player bar through the streaming endpoint while the
+    // Writing Desk is the active surface (fast first play). Reset on dispose so
+    // the Reading Nook / Player keeps the batch path.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(streamingPlaybackProvider.notifier).state = true;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    ref.read(streamingPlaybackProvider.notifier).state = false;
+    super.dispose();
+  }
+
+  String? _docTitle() => ref
+      .read(documentsProvider)
+      .valueOrNull
+      ?.where((d) => d.id == widget.documentId)
+      .firstOrNull
+      ?.title;
+
+  // The open document changed: clear the previous file's prepared audio so the
+  // next Play synthesizes the NEW file instead of resuming the old one from the
+  // audio cache. Also resets the player-bar providers to the new document.
+  void _resetPlaybackForNewDoc() {
+    if (!mounted) return;
+    ref.read(audioServiceProvider).reset();
+    ref.read(activeDocumentIdProvider.notifier).state = widget.documentId;
+    ref.read(currentChunkIndexProvider.notifier).state = 0;
+    ref.read(activeChunkIdsProvider.notifier).state = const <String>[];
+    ref.read(totalChunksProvider.notifier).state = 0;
+    final title = _docTitle();
+    if (title != null && title.isNotEmpty) {
+      ref.read(currentDocTitleProvider.notifier).state = title;
+    }
+  }
+
+  // Populate the player-bar chunk ids once the NEW document's chunks load.
+  // Guarded so a chunk read that resolves after the user already switched
+  // documents can't repopulate the wrong file.
+  void _populateChunks(List<String> chunkIds) {
+    if (!mounted) return;
+    if (ref.read(activeDocumentIdProvider) != widget.documentId) return;
+    if (!listEquals(ref.read(activeChunkIdsProvider), chunkIds)) {
+      ref.read(activeChunkIdsProvider.notifier).state = chunkIds;
+      ref.read(totalChunksProvider.notifier).state = chunkIds.length;
+    }
+    final title = _docTitle();
+    if (title != null &&
+        title.isNotEmpty &&
+        ref.read(currentDocTitleProvider) != title) {
+      ref.read(currentDocTitleProvider.notifier).state = title;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
@@ -47,6 +121,27 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
         .firstOrNull
         ?.projectId;
     final effectiveProjectId = widget.projectId ?? docProjectId;
+
+    // The instant the open document changes, reset playback so a stale prepared
+    // chunk from the previous file can't be resumed by Play. This runs before
+    // chunks load, closing the window where the old file could still play.
+    if (_wiredDocId != widget.documentId) {
+      _wiredDocId = widget.documentId;
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _resetPlaybackForNewDoc());
+    }
+
+    // Populate the player bar's chunk ids once this document's chunks load.
+    ref.watch(chunksProvider(widget.documentId)).whenData((data) {
+      final chunks = (data['chunks'] as List<dynamic>?) ?? const [];
+      final chunkIds = chunks
+          .map<String>(
+              (c) => ((c as Map<String, dynamic>)['id'] ?? '').toString())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      WidgetsBinding.instance
+          .addPostFrameCallback((_) => _populateChunks(chunkIds));
+    });
     return ColoredBox(
       color: tokens.surface,
       child: Row(

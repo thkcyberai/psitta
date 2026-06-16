@@ -106,6 +106,79 @@ class AudioService {
   String _audioPath(String documentId, String chunkId, String voiceId) =>
       '/documents/$documentId/chunks/$chunkId/audio?voice_id=$voiceId';
 
+  String _streamUrl(String documentId, String chunkId, String voiceId) {
+    final base = _api.dio.options.baseUrl;
+    return '$base/documents/$documentId/chunks/$chunkId/audio/stream'
+        '?voice_id=$voiceId';
+  }
+
+  /// Streaming playback (Writing Nook): play the chunk from the backend
+  /// /audio/stream endpoint so audio begins within ~1s while the rest is still
+  /// synthesizing. Falls back to the on-disk cache when present (instant, zero
+  /// credit). just_audio's URI source carries the Bearer header directly since
+  /// it does not pass through the Dio interceptor. The Reading Nook keeps using
+  /// [playChunk]; this method is additive.
+  Future<bool> playChunkStreaming({
+    required String documentId,
+    required String chunkId,
+    String voiceId = '21m00Tcm4TlvDq8ikWAM',
+    double speed = 1.0,
+    double volume = 1.0,
+  }) async {
+    final token = _nextToken();
+    final cacheKey = '${chunkId}_$voiceId';
+
+    try {
+      await _player.stop();
+    } catch (_) {}
+
+    // Fast path: a completed cache file exists (e.g. from a prior stream's
+    // write-through) → play it directly, no streaming round-trip.
+    final cachedPath = _fileCache[cacheKey];
+    if (cachedPath != null && await File(cachedPath).exists()) {
+      try {
+        await _player.setFilePath(cachedPath);
+        if (!_isLatest(token)) return false;
+        await _player.setSpeed(speed);
+        await _player.setVolume(volume);
+        _markLoadedSource(
+            documentId: documentId, chunkId: chunkId, voiceId: voiceId);
+        await _player.play();
+        return true;
+      } catch (_) {
+        // Fall through to streaming on any cache-playback error.
+      }
+    }
+
+    _synthesizingController.add(true);
+    try {
+      final auth = await _api.accessToken();
+      final headers = <String, String>{
+        if (auth != null && auth.isNotEmpty) 'Authorization': 'Bearer $auth',
+      };
+      final source = AudioSource.uri(
+        Uri.parse(_streamUrl(documentId, chunkId, voiceId)),
+        headers: headers,
+      );
+      await _player.setAudioSource(source);
+      if (!_isLatest(token)) {
+        _synthesizingController.add(false);
+        return false;
+      }
+      await _player.setSpeed(speed);
+      await _player.setVolume(volume);
+      _markLoadedSource(
+          documentId: documentId, chunkId: chunkId, voiceId: voiceId);
+      _synthesizingController.add(false);
+      await _player.play();
+      return true;
+    } catch (e) {
+      debugPrint('[AudioService] streaming play failed: $e');
+      _synthesizingController.add(false);
+      return false;
+    }
+  }
+
   Future<String?> _downloadToFile(
     String documentId,
     String chunkId,

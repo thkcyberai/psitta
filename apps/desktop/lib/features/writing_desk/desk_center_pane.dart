@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -9,10 +11,27 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document_assembler.dart';
 import '../../data/models/psitta_document.dart';
 import '../../data/providers/providers.dart';
+import '../../data/services/audio_service.dart'
+    show audioServiceProvider, audioPlayingProvider;
+import '../../data/services/preferences_service.dart'
+    show selectedVoiceIdProvider;
 import '../../features/editor/chunk_editor_provider.dart';
+import '../player/chunk_slicer.dart'
+    show sliceBlocksIntoChunks, assignChunkIdsByContent, ChunkAction;
 import '../player/widgets/docx_document_editor.dart' show buildDocxEditToolbar;
-import '../player/widgets/docx_page_layout.dart' show buildDocxDocumentTheme;
+import '../player/widgets/docx_document_viewport.dart'
+    show DocxDocumentViewport;
+import '../player/widgets/docx_page_layout.dart'
+    show buildDocxDocumentTheme, paginateDocxDocument, DocxPageLayoutPage;
+import '../shell/widgets/player_bar.dart'
+    show activeChunkIdsProvider, currentChunkIndexProvider;
 import 'desk_providers.dart';
+
+// Fast-start tuning lever: words per sliced chunk on Desk save. Smaller →
+// the first chunk synthesizes sooner so listening starts faster (the rest
+// synthesize ahead while it plays). The Player uses 500; the Writing Desk
+// uses a smaller window so a never-played file starts quickly.
+const int _kDeskChunkWords = 150;
 
 const _kPaperColor = Color(0xFFFFFFFF);
 const _kPaperInk = Color(0xFF1F2430);
@@ -45,6 +64,13 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   bool _isSaving = false;
   bool _sheetExpanded = false;
   String? _loadedDocId;
+
+  // Edit ⟷ Read/Listen mode. Read mode renders the document through the same
+  // DocumentReadingView the Reading Nook uses, so Synchronized Word Highlight,
+  // Sentence Highlight, and "Listen from here" all come for free while the
+  // bottom player bar drives playback. The editor controller is preserved
+  // across the toggle so switching back keeps the cursor.
+  bool _readMode = false;
 
   @override
   void dispose() {
@@ -83,69 +109,88 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.saving;
 
     try {
+      // 1. Serialize the editor to a flat block-dict list.
       final flatBlocks = qcodec.quillDocumentToBlockDicts(
         controller.document,
         DocBlockType.paragraph,
         null,
       );
 
-      // Distribute serialised blocks back to their original chunks
-      // proportionally (by pre-edit formatted_content block count).
-      // M13.1b will replace this with content-hash matching; for WD-3
-      // the proportional model is correct when the user has not inserted
-      // or removed entire paragraphs near chunk boundaries.
+      // 2. Slice into small chunks so listening starts fast: the first small
+      //    chunk synthesizes quickly and the player prefetches the next while
+      //    it plays. Reuses the Player's M13 unified-save path verbatim so the
+      //    Desk produces a properly multi-chunked document instead of one
+      //    giant chunk. (Writing Nook only — the Player/Reading Nook is
+      //    untouched.)
+      final sliced =
+          sliceBlocksIntoChunks(flatBlocks, targetWords: _kDeskChunkWords);
+
+      // 3. Snapshot the pre-edit chunks (in sequence order) so unchanged
+      //    chunks keep their TTS cache and edits map to the right rows.
       final rawData =
           await ref.read(chunksProvider(widget.documentId).future);
-      final chunks = (rawData['chunks'] as List<dynamic>?) ?? [];
-      final chunkTexts = <String, String>{};
-      final chunkFormatted = <String, List<Map<String, dynamic>>>{};
+      final chunks = ((rawData['chunks'] as List<dynamic>?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .toList()
+        ..sort((a, b) => ((a['sequence_index'] ?? 0) as int)
+            .compareTo((b['sequence_index'] ?? 0) as int));
 
-      if (chunks.isNotEmpty && flatBlocks.isNotEmpty) {
-        var blockOffset = 0;
-        for (var i = 0; i < chunks.length; i++) {
-          final chunk = chunks[i] as Map<String, dynamic>;
-          final chunkId = (chunk['id'] ?? '').toString();
-          if (chunkId.isEmpty) continue;
+      final preEditChunkIds =
+          chunks.map((c) => (c['id'] ?? '').toString()).toList();
+      final preEditTexts = <String, String>{
+        for (final c in chunks)
+          (c['id'] ?? '').toString(): (c['text_content'] ?? '').toString(),
+      };
+      final preEditFormatted = <String, List<Map<String, dynamic>>>{
+        for (final c in chunks)
+          (c['id'] ?? '').toString():
+              ((c['formatted_content'] as List<dynamic>?) ?? const [])
+                  .whereType<Map<String, dynamic>>()
+                  .toList(),
+      };
 
-          final originalFc =
-              chunk['formatted_content'] as List<dynamic>?;
-          final originalCount =
-              (originalFc?.length ?? 1).clamp(1, flatBlocks.length);
-          final remaining = flatBlocks.length - blockOffset;
-          final blockCount = (i == chunks.length - 1)
-              ? remaining
-              : originalCount.clamp(0, remaining);
+      // 4. Content-preserving assignment (keep / update / insert / delete).
+      final assignments =
+          assignChunkIdsByContent(sliced, preEditChunkIds, preEditTexts);
 
-          final end =
-              (blockOffset + blockCount).clamp(0, flatBlocks.length);
-          final chunkBlocks = blockOffset < flatBlocks.length
-              ? flatBlocks.sublist(blockOffset, end)
-              : <Map<String, dynamic>>[];
-          blockOffset += blockCount;
-
-          final text = chunkBlocks
-              .map((b) =>
-                  (b['runs'] as List<dynamic>?)
-                      ?.whereType<Map>()
-                      .map((r) => (r['text'] ?? '').toString())
-                      .join() ??
-                  '')
-              .join('\n\n');
-          chunkTexts[chunkId] = text;
-          chunkFormatted[chunkId] = chunkBlocks;
+      // 5. Promote keep→update for formatting-only edits (hash matches on
+      //    plain text, so formatting changes would otherwise be dropped).
+      for (var i = 0; i < assignments.length; i++) {
+        final a = assignments[i];
+        if (a.action != ChunkAction.keep) continue;
+        final cid = a.chunkId;
+        final s = a.slicedChunk;
+        if (cid == null || s == null) continue;
+        final prev = preEditFormatted[cid] ?? const <Map<String, dynamic>>[];
+        if (jsonEncode(s.blockDicts) != jsonEncode(prev)) {
+          assignments[i] = a.copyWith(action: ChunkAction.update);
         }
       }
 
-      if (chunkTexts.isNotEmpty) {
-        await ref.read(chunkEditorProvider.notifier).saveChunkTexts(
-              documentId: widget.documentId,
-              chunkTexts: chunkTexts,
-              chunkFormatted: chunkFormatted,
-            );
+      // 6. Fan out via the shared orchestrator.
+      final ok = await ref.read(chunkEditorProvider.notifier).saveDocumentChunks(
+            documentId: widget.documentId,
+            assignments: assignments,
+          );
+
+      final hasWrites =
+          assignments.any((a) => a.action != ChunkAction.keep);
+      if (ok && hasWrites) {
+        // Clear stale client-side audio for chunks whose text changed in place
+        // (same id, new content) so the next Play re-synthesizes fresh audio
+        // rather than replaying the pre-edit cache. Newly-inserted chunks have
+        // fresh ids (no stale cache); deleted chunks are gone.
+        final audioService = ref.read(audioServiceProvider);
+        await audioService.reset();
+        for (final a in assignments) {
+          if (a.action == ChunkAction.update && a.chunkId != null) {
+            await audioService.invalidateChunkCache(a.chunkId!);
+          }
+        }
         // Force a fresh chunk read so the reassembled document reflects the
-        // just-saved formatting. deskDocumentProvider rebuilds from
-        // chunksProvider; invalidating only deskDocumentProvider would re-read
-        // the stale cached chunks and revert the edit.
+        // just-saved chunks/formatting. (No batch pre-warm here: the streaming
+        // play path starts fast on its own and caches on completion, so a
+        // batch warm-up would double-synthesize the first chunk.)
         ref.invalidate(chunksProvider(widget.documentId));
         ref.invalidate(deskDocumentProvider(widget.documentId));
       }
@@ -181,6 +226,16 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
           ),
         );
       },
+    );
+  }
+
+  // Read/Listen surface — hosts the Reading Nook's production DocxDocumentViewport
+  // (paginated rendering + SWH + Sentence Highlight + Listen-from-here).
+  Widget _buildReadPaper(BuildContext context, PsittaDocument doc) {
+    return _DeskReadView(
+      key: ValueKey('desk-read-${widget.documentId}'),
+      documentId: widget.documentId,
+      document: doc,
     );
   }
 
@@ -223,6 +278,12 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
         ),
       ),
       data: (doc) {
+        // Read/Listen mode reuses the Reading Nook's DocumentReadingView so the
+        // highlight experience is identical. The editor is still built (kept
+        // alive) so toggling back to Edit is instant.
+        if (_readMode && doc is PsittaDocument) {
+          return _buildReadPaper(context, doc);
+        }
         // Always-edit: build the editor once per document, then keep it so the
         // toolbar stays and saving doesn't reset the cursor.
         if (_unifiedController == null || _loadedDocId != widget.documentId) {
@@ -294,11 +355,14 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             key: const ValueKey('desk-center-header'),
             title: (title == null || title.trim().isEmpty) ? 'New file' : title,
             isSaving: _isSaving,
-            canSave: _unifiedController != null,
+            canSave: _unifiedController != null && !_readMode,
             onSave: _save,
+            readMode: _readMode,
+            onModeChanged: (read) => setState(() => _readMode = read),
           ),
           const Divider(height: 1),
-          if (_unifiedController != null) ...[
+          // The formatting toolbar is edit-only; Read mode hides it.
+          if (!_readMode && _unifiedController != null) ...[
             buildDocxEditToolbar(
               controller: _unifiedController!,
               theme: Theme.of(context),
@@ -322,12 +386,16 @@ class _DeskCenterHeader extends StatelessWidget {
     required this.isSaving,
     required this.canSave,
     required this.onSave,
+    required this.readMode,
+    required this.onModeChanged,
   });
 
   final String title;
   final bool isSaving;
   final bool canSave;
   final VoidCallback onSave;
+  final bool readMode;
+  final ValueChanged<bool> onModeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -352,6 +420,8 @@ class _DeskCenterHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            _ModeToggle(readMode: readMode, onChanged: onModeChanged),
+            const SizedBox(width: 8),
             if (isSaving)
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 12),
@@ -371,6 +441,78 @@ class _DeskCenterHeader extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Edit / Read mode toggle ───────────────────────────────────────────────────
+
+class _ModeToggle extends StatelessWidget {
+  const _ModeToggle({required this.readMode, required this.onChanged});
+
+  final bool readMode;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 26,
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: scheme.outline.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _seg(context, label: 'Write', icon: Icons.edit_outlined,
+              selected: !readMode, onTap: () => onChanged(false)),
+          _seg(context, label: 'Read', icon: Icons.headphones_outlined,
+              selected: readMode, onTap: () => onChanged(true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _seg(
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      key: ValueKey('desk-mode-${label.toLowerCase()}'),
+      borderRadius: BorderRadius.circular(6),
+      onTap: selected ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        margin: const EdgeInsets.all(2),
+        decoration: BoxDecoration(
+          color: selected ? scheme.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                size: 13,
+                color: selected ? scheme.onPrimary : scheme.onSurfaceVariant),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color:
+                        selected ? scheme.onPrimary : scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
           ],
         ),
       ),
@@ -456,6 +598,133 @@ class _DeskEditorBody extends StatelessWidget {
             null,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Read / Listen view ────────────────────────────────────────────────────────
+//
+// Hosts the shared DocumentReadingView (the Reading Nook's reading canvas) in a
+// scroll view, feeding it the active chunk's alignment so Synchronized Word
+// Highlight and Sentence Highlight render while the bottom player bar plays.
+// Auto-scroll follows the active sentence via Scrollable.ensureVisible.
+
+class _DeskReadView extends ConsumerStatefulWidget {
+  const _DeskReadView({
+    super.key,
+    required this.documentId,
+    required this.document,
+  });
+
+  final String documentId;
+  final PsittaDocument document;
+
+  @override
+  ConsumerState<_DeskReadView> createState() => _DeskReadViewState();
+}
+
+class _DeskReadViewState extends ConsumerState<_DeskReadView> {
+  final ScrollController _scroll = ScrollController();
+  final Map<String, GlobalKey> _blockKeys = {};
+  final Map<int, GlobalKey> _pageKeys = {};
+
+  // Chunk ids we have already primed alignment for, so we don't re-trigger on
+  // every rebuild.
+  final Set<String> _alignmentPrimed = {};
+
+  GlobalKey _pageKey(int pageNumber) =>
+      _pageKeys.putIfAbsent(pageNumber, () => GlobalKey());
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  // Follow the voice: scroll the active sentence's block into the upper third.
+  void _onActiveSentence(GlobalKey blockKey) {
+    final ctx = blockKey.currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0.3,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chunkIds = ref.watch(activeChunkIdsProvider);
+    final rawIndex = ref.watch(currentChunkIndexProvider);
+    final voiceId = ref.watch(selectedVoiceIdProvider);
+    final audioService = ref.watch(audioServiceProvider);
+
+    final chunkCount = widget.document.chunkMap.length;
+    final safeIndex = chunkCount == 0 ? 0 : rawIndex.clamp(0, chunkCount - 1);
+    final activeChunkId =
+        (rawIndex >= 0 && rawIndex < chunkIds.length) ? chunkIds[rawIndex] : '';
+
+    // Alignment for the active chunk (matches the Player). It is fetched lazily;
+    // the first fetch may resolve empty because the audio (and its alignment
+    // sidecar) has not been synthesized yet — see the playing-listener below,
+    // which invalidates the provider once the chunk's audio is ready so word
+    // highlighting appears.
+    final alignmentAsync = activeChunkId.isEmpty
+        ? null
+        : ref.watch(
+            chunkAlignmentProvider(
+              AlignmentKey(
+                documentId: widget.documentId,
+                chunkId: activeChunkId,
+                voiceId: voiceId,
+              ),
+            ),
+          );
+    final alignmentPayload =
+        alignmentAsync?.valueOrNull ?? const <String, dynamic>{};
+    final isFetchingAlignment = alignmentAsync?.isLoading ?? false;
+
+    // When the active chunk's audio starts playing, its alignment sidecar now
+    // exists on the backend. Refresh the (previously-empty) alignment once so
+    // Synchronized Word Highlight lights up.
+    ref.listen<AsyncValue<bool>>(audioPlayingProvider, (prev, next) {
+      if (next.valueOrNull != true) return;
+      if (activeChunkId.isEmpty || _alignmentPrimed.contains(activeChunkId)) {
+        return;
+      }
+      _alignmentPrimed.add(activeChunkId);
+      ref.invalidate(
+        chunkAlignmentProvider(
+          AlignmentKey(
+            documentId: widget.documentId,
+            chunkId: activeChunkId,
+            voiceId: voiceId,
+          ),
+        ),
+      );
+    });
+
+    final pages = paginateDocxDocument(context, widget.document);
+
+    return SingleChildScrollView(
+      key: const ValueKey('desk-read-scroll'),
+      controller: _scroll,
+      child: DocxDocumentViewport(
+        key: ValueKey('desk-reading-${widget.documentId}-$voiceId'),
+        document: widget.document,
+        pages: pages,
+        activeChunkIndex: safeIndex,
+        alignmentPayload: alignmentPayload,
+        isFetchingAlignment: isFetchingAlignment,
+        onActiveSentenceChanged: _onActiveSentence,
+        audioService: audioService,
+        blockKeys: _blockKeys,
+        pageKeys: {
+          for (final DocxPageLayoutPage page in pages)
+            page.pageNumber: _pageKey(page.pageNumber),
+        },
       ),
     );
   }

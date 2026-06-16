@@ -17,6 +17,12 @@ final totalChunksProvider = StateProvider<int>((ref) => 0);
 final activeDocumentIdProvider = StateProvider<String?>((ref) => null);
 final activeChunkIdsProvider = StateProvider<List<String>>((ref) => []);
 
+/// When true, the player bar streams the active chunk via the backend
+/// /audio/stream endpoint (Writing Nook) so playback starts within ~1s. Default
+/// false → batch playback (Reading Nook). The Writing Desk flips this on while
+/// it is the active surface and off when it is torn down.
+final streamingPlaybackProvider = StateProvider<bool>((ref) => false);
+
 /// Player Bar with real audio playback via just_audio.
 class PlayerBar extends ConsumerWidget {
   const PlayerBar({super.key});
@@ -232,7 +238,9 @@ class PlayerBar extends ConsumerWidget {
                                               ref.read(selectedSpeedProvider);
                                           final volume =
                                               ref.read(selectedVolumeProvider);
-                                          audioService.playChunk(
+                                          _startChunk(
+                                            ref,
+                                            audioService,
                                             documentId: docId,
                                             chunkId: chunkIds[idx],
                                             voiceId: voiceId,
@@ -318,6 +326,36 @@ class PlayerBar extends ConsumerWidget {
     );
   }
 
+  /// Start a chunk via streaming (Writing Nook) or batch (Reading Nook) based
+  /// on [streamingPlaybackProvider]. Single seam so all call sites pick the
+  /// right path without duplicating the branch.
+  Future<bool> _startChunk(
+    WidgetRef ref,
+    AudioService audioService, {
+    required String documentId,
+    required String chunkId,
+    required String voiceId,
+    required double speed,
+    required double volume,
+  }) {
+    if (ref.read(streamingPlaybackProvider)) {
+      return audioService.playChunkStreaming(
+        documentId: documentId,
+        chunkId: chunkId,
+        voiceId: voiceId,
+        speed: speed,
+        volume: volume,
+      );
+    }
+    return audioService.playChunk(
+      documentId: documentId,
+      chunkId: chunkId,
+      voiceId: voiceId,
+      speed: speed,
+      volume: volume,
+    );
+  }
+
   void _skipForward(WidgetRef ref, AudioService audioService) {
     final chunkIds = ref.read(activeChunkIdsProvider);
     final current = ref.read(currentChunkIndexProvider);
@@ -329,8 +367,9 @@ class PlayerBar extends ConsumerWidget {
         final voiceId = ref.read(selectedVoiceIdProvider);
         final speed = ref.read(selectedSpeedProvider);
         final volume = ref.read(selectedVolumeProvider);
-        audioService
-            .playChunk(
+        _startChunk(
+          ref,
+          audioService,
           documentId: docId,
           chunkId: chunkIds[nextIdx],
           voiceId: voiceId,
@@ -362,7 +401,9 @@ class PlayerBar extends ConsumerWidget {
         final voiceId = ref.read(selectedVoiceIdProvider);
         final speed = ref.read(selectedSpeedProvider);
         final volume = ref.read(selectedVolumeProvider);
-        audioService.playChunk(
+        _startChunk(
+          ref,
+          audioService,
           documentId: docId,
           chunkId: chunkIds[prevIdx],
           voiceId: voiceId,
