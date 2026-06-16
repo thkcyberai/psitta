@@ -2742,12 +2742,14 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final text = (chunk['text_content'] ?? '').toString();
     if (text.isEmpty) return 0;
 
-    // Look-ahead: how far ahead of the audible voice the PDF sentence highlight
-    // leads. A large value (was 600ms) made the highlight run ~2 words ahead of
-    // the voice; 0 tracks the voice. Kept as a one-line tunable in case a small
-    // lead is wanted later to mask render latency.
-    const lookAheadMs = 0;
-    final lookaheadPositionMs = position.inMilliseconds + lookAheadMs;
+    // Highlight-vs-voice offset. Positive leads, negative lags. The original
+    // +600ms ran ~2 words ahead; 0 still read ~1 word ahead because the
+    // reported playback position sits slightly ahead of the audible sound, so a
+    // small NEGATIVE offset pulls the highlight back onto the voice. One-line
+    // tunable: make it less negative if it ever feels a touch behind.
+    const lookAheadMs = -300;
+    final lookaheadPositionMs =
+        (position.inMilliseconds + lookAheadMs).clamp(0, 1 << 30);
 
     final alignedCharOffset = _charIndexAtMsFromAlignmentPayload(
       alignmentPayload,

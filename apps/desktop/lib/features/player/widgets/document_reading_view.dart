@@ -4,6 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/psitta_document.dart';
 import '../../../data/services/audio_service.dart';
 
+/// How far (ms) to pull word/sentence highlighting BACK from the reported
+/// playback position so it tracks the audible voice. just_audio reports a
+/// position slightly ahead of the sound (more so when streaming), which made
+/// the highlight run ahead of the voice. One-line tunable: smaller = highlight
+/// moves earlier; larger = later.
+const int kHighlightDelayMs = 300;
+
 /// Parse a stored DocRun.color hex string into a Flutter Color. Accepts
 /// `#RRGGBB`, `RRGGBB`, `#RRGGBBAA`, or `RRGGBBAA`, case-insensitive.
 /// Returns null on any unparseable shape so the caller can skip the
@@ -312,8 +319,14 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
 
   @override
   Widget build(BuildContext context) {
-    final position =
+    final rawPosition =
         ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero;
+    // Sync the highlight to the audible voice (see kHighlightDelayMs). All
+    // downstream sentence/word highlighting uses this adjusted position.
+    final position = Duration(
+      milliseconds:
+          (rawPosition.inMilliseconds - kHighlightDelayMs).clamp(0, 1 << 30),
+    );
     final duration =
         ref.watch(audioDurationProvider).valueOrNull ?? Duration.zero;
     final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ??
