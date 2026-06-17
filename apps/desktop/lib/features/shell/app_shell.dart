@@ -56,6 +56,14 @@ class AppShell extends ConsumerWidget {
         uri.pathSegments.isNotEmpty && uri.pathSegments.first == 'player';
     final effectiveRightPanel = isPlayerRoute ? null : rightPanel;
 
+    // Writing Nook: the bottom player bar lives only in the Writing Desk, where
+    // listening happens. Every other Writing-Nook screen (Library, Projects,
+    // Blueprints, Voices, Settings) hides it. The Reading Nook is unchanged —
+    // it keeps the bar on every screen.
+    final isWritingDeskRoute = uri.pathSegments.isNotEmpty &&
+        uri.pathSegments.first == 'writing-desk';
+    final showPlayerBar = !isWritingShell || isWritingDeskRoute;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: Container(
@@ -93,11 +101,13 @@ class AppShell extends ConsumerWidget {
                 ],
               ),
             ),
-            Divider(height: 1, color: tokens.divider),
-            const SizedBox(
-              height: AppConstants.playerBarHeight,
-              child: PlayerBar(),
-            ),
+            if (showPlayerBar) ...[
+              Divider(height: 1, color: tokens.divider),
+              const SizedBox(
+                height: AppConstants.playerBarHeight,
+                child: PlayerBar(),
+              ),
+            ],
           ],
         ),
       ),
