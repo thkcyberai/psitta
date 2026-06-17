@@ -287,26 +287,33 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       onDragDone: _handleDrop,
       child: Container(
         decoration: BoxDecoration(gradient: tokens.backgroundGradient),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: docsAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Failed to load: $e')),
-                data: (docs) => _buildMain(context, tokens, docs, projects),
-              ),
-            ),
-            _RightRail(
-              tokens: tokens,
-              isPro: ref.watch(planStatusProvider).isPro,
-              docCount: docsAsync.valueOrNull?.length ?? 0,
-              projects: projects,
-              onProjects: () => context.go('/projects'),
-              onSoon: _soon,
-            ),
-          ],
+        child: LayoutBuilder(
+          builder: (context, c) {
+            // Hide the right rail when the window is too narrow to host both it
+            // and a usable content area — keeps the layout from overflowing.
+            final showRail = c.maxWidth >= 920;
+            final main = docsAsync.when(
+              loading: () =>
+                  const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Failed to load: $e')),
+              data: (docs) => _buildMain(context, tokens, docs, projects),
+            );
+            if (!showRail) return main;
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: main),
+                _RightRail(
+                  tokens: tokens,
+                  isPro: ref.watch(planStatusProvider).isPro,
+                  docCount: docsAsync.valueOrNull?.length ?? 0,
+                  projects: projects,
+                  onProjects: () => context.go('/projects'),
+                  onSoon: _soon,
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -367,51 +374,84 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   // ── Header ──────────────────────────────────────────────────────────────────
   Widget _header(BuildContext context, PsittaTokens tokens) {
     final scheme = Theme.of(context).colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+
+    final titleBlock = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.local_library_outlined,
-                      color: tokens.glow, size: 26),
-                  const SizedBox(width: 10),
-                  Text('Library',
-                      style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
-                          color: scheme.onSurface)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'All your documents, notes, and writing resources in one place.',
-                style: TextStyle(
-                    fontSize: 13, color: scheme.onSurfaceVariant),
-              ),
-            ],
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.local_library_outlined, color: tokens.glow, size: 26),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text('Library',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface)),
+            ),
+          ],
         ),
-        const SizedBox(width: 16),
-        SizedBox(width: 280, child: _searchField(tokens)),
-        const SizedBox(width: 10),
-        _ghostButton(
-          tokens,
-          icon: Icons.tune,
-          label: 'Filters',
-          onTap: () => _filtersMenu(context),
-        ),
-        const SizedBox(width: 10),
-        _primaryButton(
-          tokens,
-          icon: Icons.add,
-          label: 'New Document',
-          onTap: _newDocMenu,
+        const SizedBox(height: 4),
+        Text(
+          'All your documents, notes, and writing resources in one place.',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
         ),
       ],
+    );
+
+    final filters = _ghostButton(
+      tokens,
+      icon: Icons.tune,
+      label: 'Filters',
+      onTap: () => _filtersMenu(context),
+    );
+    final newDoc = _primaryButton(
+      tokens,
+      icon: Icons.add,
+      label: 'New Document',
+      onTap: _newDocMenu,
+    );
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        // Stack controls under the title when there isn't room for them on one
+        // line — prevents the title from being squeezed and the row overflowing.
+        if (c.maxWidth < 860) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleBlock,
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(child: _searchField(tokens)),
+                  const SizedBox(width: 10),
+                  filters,
+                  const SizedBox(width: 10),
+                  newDoc,
+                ],
+              ),
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(child: titleBlock),
+            const SizedBox(width: 16),
+            SizedBox(width: 280, child: _searchField(tokens)),
+            const SizedBox(width: 10),
+            filters,
+            const SizedBox(width: 10),
+            newDoc,
+          ],
+        );
+      },
     );
   }
 
@@ -479,67 +519,71 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   // ── Stat cards ──────────────────────────────────────────────────────────────
   Widget _statRow(PsittaTokens tokens, List<Document> docs) {
     final week = _thisWeek(docs);
-    return Row(
-      children: [
-        Expanded(
-          child: _StatCard(
-            tokens: tokens,
-            icon: Icons.description_outlined,
-            value: '${docs.where((d) => d.status != 'archived').length}',
-            label: 'Documents',
-            sub: week > 0 ? '+$week this week' : null,
-            accent: tokens.glow,
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            tokens: tokens,
-            icon: Icons.folder_outlined,
-            value: '—',
-            label: 'Folders',
-            sub: 'Coming soon',
-            accent: const Color(0xFF4F8DF5),
-            onTap: () => _soon('Folders'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            tokens: tokens,
-            icon: Icons.dashboard_customize_outlined,
-            value: '—',
-            label: 'Templates',
-            sub: 'Coming soon',
-            accent: const Color(0xFF34C77B),
-            onTap: () => _soon('Templates'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            tokens: tokens,
-            icon: Icons.delete_outline,
-            value: '—',
-            label: 'Trash',
-            sub: 'Coming soon',
-            accent: const Color(0xFFE0A03A),
-            onTap: () => _soon('Trash'),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _StatCard(
-            tokens: tokens,
-            icon: Icons.cloud_outlined,
-            value: '—',
-            label: 'Storage',
-            sub: 'Coming soon',
-            accent: const Color(0xFF8A7CFF),
-            onTap: () => _soon('Storage'),
-          ),
-        ),
-      ],
+    final cards = <Widget>[
+      _StatCard(
+        tokens: tokens,
+        icon: Icons.description_outlined,
+        value: '${docs.where((d) => d.status != 'archived').length}',
+        label: 'Documents',
+        sub: week > 0 ? '+$week this week' : null,
+        accent: tokens.glow,
+      ),
+      _StatCard(
+        tokens: tokens,
+        icon: Icons.folder_outlined,
+        value: '—',
+        label: 'Folders',
+        sub: 'Coming soon',
+        accent: const Color(0xFF4F8DF5),
+        onTap: () => _soon('Folders'),
+      ),
+      _StatCard(
+        tokens: tokens,
+        icon: Icons.dashboard_customize_outlined,
+        value: '—',
+        label: 'Templates',
+        sub: 'Coming soon',
+        accent: const Color(0xFF34C77B),
+        onTap: () => _soon('Templates'),
+      ),
+      _StatCard(
+        tokens: tokens,
+        icon: Icons.delete_outline,
+        value: '—',
+        label: 'Trash',
+        sub: 'Coming soon',
+        accent: const Color(0xFFE0A03A),
+        onTap: () => _soon('Trash'),
+      ),
+      _StatCard(
+        tokens: tokens,
+        icon: Icons.cloud_outlined,
+        value: '—',
+        label: 'Storage',
+        sub: 'Coming soon',
+        accent: const Color(0xFF8A7CFF),
+        onTap: () => _soon('Storage'),
+      ),
+    ];
+    return LayoutBuilder(
+      builder: (context, c) {
+        const gap = 12.0;
+        final perRow = c.maxWidth >= 980
+            ? 5
+            : c.maxWidth >= 720
+                ? 3
+                : c.maxWidth >= 460
+                    ? 2
+                    : 1;
+        final w = (c.maxWidth - gap * (perRow - 1)) / perRow;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final card in cards) SizedBox(width: w, child: card),
+          ],
+        );
+      },
     );
   }
 
