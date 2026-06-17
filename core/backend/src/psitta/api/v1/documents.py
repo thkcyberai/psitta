@@ -1340,43 +1340,53 @@ async def _maybe_seed_welcome_kit(
     Cheap fast-path: a single boolean SELECT for already-seeded users (the
     common case). Only unseeded users pay for plan resolution. The claim
     UPDATE is atomic (``WHERE welcome_seeded = false RETURNING id``) so
-    concurrent Library loads seed at most once. Fully fail-open — a seeding
-    bug must never break the document list.
+    concurrent Library loads seed at most once.
+
+    Fully fail-open AND transaction-safe: all DB work runs inside a
+    SAVEPOINT (``begin_nested``). If anything fails — including the
+    ``welcome_seeded`` column not existing yet because the migration hasn't
+    been applied — the savepoint rolls back and the outer request
+    transaction stays usable, so the document list query that follows still
+    succeeds. A bug here must never 500 the Library.
     """
+    schedule = False
     try:
-        already = (
-            await db.execute(
-                text("SELECT welcome_seeded FROM users WHERE id = :uid"),
-                {"uid": str(user_id)},
-            )
-        ).scalar()
-        if already is not False:  # True, or None (column/row absent)
-            return
+        async with db.begin_nested():
+            already = (
+                await db.execute(
+                    text("SELECT welcome_seeded FROM users WHERE id = :uid"),
+                    {"uid": str(user_id)},
+                )
+            ).scalar()
+            if already is False:  # not yet seeded (True/None ⇒ skip)
+                from psitta.services.subscription_service import (
+                    get_effective_plan,
+                )
 
-        from psitta.services.subscription_service import get_effective_plan
+                plan = await get_effective_plan(db, user_id)
+                if plan.plan_id == "writing_nook_pro":
+                    claimed = (
+                        await db.execute(
+                            text(
+                                "UPDATE users SET welcome_seeded = true "
+                                "WHERE id = :uid AND welcome_seeded = false "
+                                "RETURNING id"
+                            ),
+                            {"uid": str(user_id)},
+                        )
+                    ).first()
+                    schedule = claimed is not None
+    except Exception:
+        logger.warning(
+            "welcome_seed.trigger_failed", user_id=str(user_id), exc_info=True
+        )
+        return
 
-        plan = await get_effective_plan(db, user_id)
-        if plan.plan_id != "writing_nook_pro":
-            return  # leave the flag false; seed if they become a writer
-
-        claimed = (
-            await db.execute(
-                text(
-                    "UPDATE users SET welcome_seeded = true "
-                    "WHERE id = :uid AND welcome_seeded = false RETURNING id"
-                ),
-                {"uid": str(user_id)},
-            )
-        ).first()
-        if claimed is None:
-            return  # another request already claimed it
-
+    if schedule:
         from psitta.services.seed_service import run_welcome_seed_background
 
         background_tasks.add_task(run_welcome_seed_background, user_id)
         logger.info("welcome_seed.scheduled", user_id=str(user_id))
-    except Exception:
-        logger.warning("welcome_seed.trigger_failed", user_id=str(user_id), exc_info=True)
 
 
 @router.get("/")
