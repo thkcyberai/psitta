@@ -1016,7 +1016,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                 style: TextStyle(
                     fontSize: 11, color: scheme.onSurfaceVariant)),
             const SizedBox(height: 6),
-            Text('DOCX · PDF · TXT · MD · XLSX and more',
+            Text('DOCX · PDF · TXT · MD · HTML',
                 style: TextStyle(
                     fontSize: 10,
                     color: scheme.onSurfaceVariant.withOpacity(0.7))),
