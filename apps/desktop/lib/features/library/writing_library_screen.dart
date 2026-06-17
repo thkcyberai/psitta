@@ -483,7 +483,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         children: [
           Icon(Icons.add, size: 16),
           SizedBox(width: 6),
-          Text('New Document', style: TextStyle(fontSize: 12)),
+          Text('New File', style: TextStyle(fontSize: 12)),
           SizedBox(width: 2),
           Icon(Icons.arrow_drop_down, size: 18),
         ],
@@ -580,7 +580,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       context: context,
       position: const RelativeRect.fromLTRB(1000, 110, 24, 0),
       items: const [
-        PopupMenuItem(value: 'blank', child: Text('New blank document')),
+        PopupMenuItem(value: 'blank', child: Text('New blank file (DOCX)')),
         PopupMenuItem(value: 'upload', child: Text('Upload from device')),
       ],
     ).then((v) {
