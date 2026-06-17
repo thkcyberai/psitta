@@ -9,20 +9,14 @@ import '../../data/models/blueprint.dart';
 import '../../data/models/blueprint_enums.dart';
 import '../../data/models/document.dart';
 import '../../data/models/project_detail.dart';
-import '../../data/models/psitta_document.dart' show PsittaDocument, DocBlock, DocBlockType;
 import '../../data/providers/blueprint_providers.dart';
 import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart'
     show documentsProvider, projectRepositoryProvider;
 import '../../data/repositories/project_repository.dart' show Project;
-import '../player/widgets/docx_page_layout.dart'
-    show paginateDocxDocument, DocxPageLayoutPage;
-import '../player/widgets/docx_player_navigator.dart'
-    show DocxPlayerNavigator, DocxNavigatorEntry;
 import '../blueprints/widgets/blueprint_dialogs.dart'
     show showSectionFormDialog, confirmDeleteDialog, runBlueprintMutation;
 import '../projects/widgets/adopt_blueprint_dialog.dart';
-import 'desk_providers.dart' show deskDocumentProvider;
 
 /// Left-rail navigator for the Writing Desk.
 ///
@@ -304,12 +298,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
               ],
             ),
           ),
-          // ── Document thumbnails & contents ───────────────────────────
-          Expanded(
-            child: _DocumentThumbnailsContents(
-              documentId: widget.documentId,
-            ),
-          ),
+          const Spacer(),
         ],
       ),
     );
@@ -697,79 +686,6 @@ class _AddFilePanel extends StatelessWidget {
                 ),
         ),
       ],
-    );
-  }
-}
-
-// ── Document thumbnails & contents ───────────────────────────────────────────
-//
-// Reuses paginateDocxDocument + DocxPlayerNavigator from the Reading Nook.
-// Falls back to a muted placeholder while loading, on error, or when the
-// document has no blocks yet (still processing).
-
-class _DocumentThumbnailsContents extends ConsumerWidget {
-  const _DocumentThumbnailsContents({required this.documentId});
-
-  final String documentId;
-
-  static Widget _placeholder(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          Icons.photo_library_outlined,
-          size: 32,
-          color: scheme.outline.withOpacity(0.4),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Page thumbnails & contents',
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: scheme.outline.withOpacity(0.55),
-              ),
-          textAlign: TextAlign.center,
-        ),
-      ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return ref.watch(deskDocumentProvider(documentId)).when(
-      loading: () => _placeholder(context),
-      error: (_, __) => _placeholder(context),
-      data: (PsittaDocument doc) {
-        if (doc.blocks.isEmpty) return _placeholder(context);
-
-        final pages = paginateDocxDocument(context, doc);
-
-        // Build block→page map then extract heading entries, mirroring
-        // player_screen.dart:3425-3427 and 3644-3660.
-        final blockPageMap = <String, int>{
-          for (final DocxPageLayoutPage page in pages)
-            for (final DocBlock block in page.blocks)
-              block.blockId: page.pageNumber,
-        };
-        final contents = <DocxNavigatorEntry>[
-          for (final DocBlock block in doc.blocks)
-            if (block.type == DocBlockType.heading)
-              DocxNavigatorEntry(
-                blockId: block.blockId,
-                title: block.plainText,
-                level: block.level ?? 1,
-                pageNumber: blockPageMap[block.blockId] ?? 1,
-              ),
-        ];
-
-        if (pages.isEmpty && contents.isEmpty) return _placeholder(context);
-
-        return DocxPlayerNavigator(
-          pages: pages,
-          contents: contents,
-          activePageNumber: 1,
-        );
-      },
     );
   }
 }
