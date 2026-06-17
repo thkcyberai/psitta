@@ -107,10 +107,70 @@ class AppShell extends ConsumerWidget {
                 height: AppConstants.playerBarHeight,
                 child: PlayerBar(),
               ),
+            ] else if (isWritingShell) ...[
+              Divider(height: 1, color: tokens.divider),
+              _WritingStatusBar(tokens: tokens),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Slim status bar shown along the bottom of Writing-Nook screens that don't
+/// host the player bar (Library, Projects, Blueprints, Voices, Settings). Gives
+/// the layout a finished, anchored edge and surfaces a couple of real shortcuts.
+class _WritingStatusBar extends StatelessWidget {
+  const _WritingStatusBar({required this.tokens});
+
+  final PsittaTokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final muted = scheme.onSurfaceVariant.withOpacity(0.85);
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(color: tokens.headerSurface),
+      child: Row(
+        children: [
+          Icon(Icons.menu_book_outlined,
+              size: 13, color: tokens.glow.withOpacity(0.85)),
+          const SizedBox(width: 8),
+          Text(
+            'The Writing Nook',
+            style: TextStyle(
+                fontSize: 11.5, color: muted, fontWeight: FontWeight.w500),
+          ),
+          const Spacer(),
+          _hint(context, 'Ctrl F', 'Search', muted),
+          const SizedBox(width: 16),
+          _hint(context, 'Ctrl /', 'Shortcuts', muted),
+        ],
+      ),
+    );
+  }
+
+  Widget _hint(BuildContext context, String keys, String label, Color muted) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+          decoration: BoxDecoration(
+            color: tokens.inputFill,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: tokens.border),
+          ),
+          child: Text(keys,
+              style: TextStyle(
+                  fontSize: 10, color: muted, fontWeight: FontWeight.w600)),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(fontSize: 11, color: muted)),
+      ],
     );
   }
 }
@@ -209,28 +269,47 @@ class _ContextHeader extends ConsumerWidget {
         ),
         child: Row(
           children: [
-            // LEFT — title + breadcrumb (or subtitle)
+            // LEFT — route-aware title. The Writing Desk shows its own title +
+            // breadcrumb; the Library renders its own large header so the top
+            // bar stays clean there; every other section shows its name.
             Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Writing Desk',
+              child: Builder(
+                builder: (context) {
+                  if (documentId != null) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Writing Desk',
+                          style: theme.textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w500),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (crumbs.isNotEmpty)
+                          _DeskBreadcrumb(crumbs: crumbs)
+                        else
+                          Text(
+                            'Write, edit, listen and perfect your story',
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: scheme.onSurfaceVariant),
+                          ),
+                      ],
+                    );
+                  }
+                  final first = uri.pathSegments.isNotEmpty
+                      ? uri.pathSegments.first
+                      : 'library';
+                  if (first == 'library') return const SizedBox.shrink();
+                  return Text(
+                    _breadcrumbFromLocation(uri),
                     style: theme.textTheme.titleLarge
                         ?.copyWith(fontWeight: FontWeight.w500),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                  ),
-                  if (crumbs.isNotEmpty)
-                    _DeskBreadcrumb(crumbs: crumbs)
-                  else
-                    Text(
-                      'Write, edit, listen and perfect your story',
-                      style: theme.textTheme.bodySmall
-                          ?.copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                ],
+                  );
+                },
               ),
             ),
             const SizedBox(width: 16),
