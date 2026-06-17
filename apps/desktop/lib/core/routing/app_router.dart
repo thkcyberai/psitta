@@ -6,7 +6,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/plan_selection_screen.dart';
 import '../../features/shell/desktop_shell.dart';
 import '../../features/splash/splash_screen.dart';
-import '../../features/library/library_screen.dart';
+import '../../features/library/writing_library_screen.dart';
 import '../../features/player/player_screen.dart';
 import '../../features/player/player_landing_screen.dart';
 import '../../features/projects/projects_screen.dart';
@@ -95,7 +95,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/library',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: LibraryScreen(),
+              child: LibraryRoute(),
             ),
           ),
           GoRoute(
