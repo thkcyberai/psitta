@@ -276,7 +276,9 @@ class _ContextHeader extends ConsumerWidget {
             // LEFT — route-aware title. The Writing Desk shows its own title +
             // breadcrumb; the Library renders its own large header so the top
             // bar stays clean there; every other section shows its name.
-            Flexible(
+            // Expanded (not Flexible+Spacer) so the trailing icon cluster is
+            // pinned to the far right identically on every sector.
+            Expanded(
               child: Builder(
                 builder: (context) {
                   if (documentId != null) {
@@ -330,7 +332,6 @@ class _ContextHeader extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 16),
-            const Spacer(),
             // Doc-specific right cluster — only on /writing-desk/:id
             if (documentId != null) ...[
               // Word count

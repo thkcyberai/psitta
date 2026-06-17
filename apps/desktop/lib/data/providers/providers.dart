@@ -106,10 +106,18 @@ final userProfileProvider =
 /// (display_name → email prefix → empty).
 String displayNameFromProfile(Map<String, dynamic>? p) {
   if (p == null) return '';
-  final dn = (p['display_name'] as String?)?.trim();
-  if (dn != null && dn.isNotEmpty) return dn;
-  final email = (p['email'] as String?)?.trim();
-  if (email != null && email.contains('@')) return email.split('@').first;
+  final id = (p['id'] as String?)?.trim() ?? '';
+  final dn = (p['display_name'] as String?)?.trim() ?? '';
+  final email = (p['email'] as String?)?.trim() ?? '';
+  final emailPrefix =
+      email.contains('@') ? email.split('@').first.trim() : '';
+  // Auto-provisioned rows store the Cognito sub (a UUID) as display_name —
+  // prefer the email prefix over an id-like value, so it reads "luisaao".
+  final looksLikeId = dn.isEmpty ||
+      dn == id ||
+      RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-').hasMatch(dn);
+  if (!looksLikeId) return dn;
+  if (emailPrefix.isNotEmpty) return emailPrefix;
   return '';
 }
 
