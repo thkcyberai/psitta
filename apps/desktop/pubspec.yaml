@@ -99,5 +99,6 @@ flutter:
     - assets/branding/psitta-horizontal.png
     - assets/branding/psitta-horizontal-dark.png
     - assets/illustrations/
+    - assets/covers/
     - assets/branding/voice_avatars/
     - assets/dictionaries/

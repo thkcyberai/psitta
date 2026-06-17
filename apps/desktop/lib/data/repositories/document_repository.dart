@@ -286,6 +286,22 @@ class DocumentRepository {
     return Document.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Upload cover from in-memory bytes (e.g. a bundled reservatory asset).
+  Future<Document> uploadCoverBytes(
+    String id,
+    List<int> bytes,
+    String filename,
+  ) async {
+    final formData = FormData.fromMap({
+      'file': MultipartFile.fromBytes(bytes, filename: filename),
+    });
+    final response = await _api.dio.post(
+      '/documents/$id/cover',
+      data: formData,
+    );
+    return Document.fromJson(response.data as Map<String, dynamic>);
+  }
+
   /// Clear audio cache for all chunks and queue re-synthesis.
   Future<void> resynthesizeDocument(String id) async {
     final response = await _api.dio.post('/documents/$id/resynthesize');

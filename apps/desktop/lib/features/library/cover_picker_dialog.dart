@@ -22,17 +22,36 @@ class CoverPickerUpload extends CoverPickerResult {
 
 class CoverPickerRemove extends CoverPickerResult {}
 
+/// Selecting a bundled photographic cover from the Psitta Covers reservatory.
+class CoverPickerStock extends CoverPickerResult {
+  CoverPickerStock(this.assetPath);
+  final String assetPath;
+}
+
+/// The bundled photographic cover reservatory. Grows over time — drop a JPG in
+/// assets/covers/ and add a line here.
+const List<({String asset, String label})> kStockCovers = [
+  (asset: 'assets/covers/writing_nook.jpg', label: 'Writing Nook'),
+  (asset: 'assets/covers/fantasy_castle.jpg', label: 'Fantasy'),
+  (asset: 'assets/covers/code_desk.jpg', label: 'Code'),
+  (asset: 'assets/covers/oak_sunset.jpg', label: 'Sunset Oak'),
+  (asset: 'assets/covers/town_square.jpg', label: 'Town Square'),
+  (asset: 'assets/covers/reading.jpg', label: 'Reading'),
+];
+
 /// Shows the cover picker dialog. Returns null if cancelled.
 Future<CoverPickerResult?> showCoverPickerDialog({
   required BuildContext context,
   String? currentCoverType,
   String? currentCoverValue,
+  bool showStockCovers = false,
 }) {
   return showDialog<CoverPickerResult>(
     context: context,
     builder: (_) => _CoverPickerDialog(
       currentCoverType: currentCoverType,
       currentCoverValue: currentCoverValue,
+      showStockCovers: showStockCovers,
     ),
   );
 }
@@ -41,10 +60,12 @@ class _CoverPickerDialog extends StatefulWidget {
   const _CoverPickerDialog({
     this.currentCoverType,
     this.currentCoverValue,
+    this.showStockCovers = false,
   });
 
   final String? currentCoverType;
   final String? currentCoverValue;
+  final bool showStockCovers;
 
   @override
   State<_CoverPickerDialog> createState() => _CoverPickerDialogState();
@@ -54,6 +75,7 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   String? _selectedBuiltinId;
+  String? _selectedStock;
   File? _selectedFile;
 
   @override
@@ -188,14 +210,20 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
   }
 
   bool get _canConfirm {
-    if (_tabController.index == 0) return _selectedBuiltinId != null;
+    if (_tabController.index == 0) {
+      return _selectedStock != null || _selectedBuiltinId != null;
+    }
     if (_tabController.index == 1) return _selectedFile != null;
     return false;
   }
 
   void _onConfirm() {
-    if (_tabController.index == 0 && _selectedBuiltinId != null) {
-      Navigator.of(context).pop(CoverPickerBuiltin(_selectedBuiltinId!));
+    if (_tabController.index == 0) {
+      if (_selectedStock != null) {
+        Navigator.of(context).pop(CoverPickerStock(_selectedStock!));
+      } else if (_selectedBuiltinId != null) {
+        Navigator.of(context).pop(CoverPickerBuiltin(_selectedBuiltinId!));
+      }
     } else if (_tabController.index == 1 && _selectedFile != null) {
       Navigator.of(context).pop(CoverPickerUpload(_selectedFile!));
     }
@@ -208,6 +236,51 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // ── Psitta Covers (photographic reservatory) — Writing Nook only ──
+        if (widget.showStockCovers) ...[
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8, top: 4),
+            child: Text(
+              'Psitta Covers',
+              style: theme.textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: theme.colorScheme.onSurface.withOpacity(0.6),
+              ),
+            ),
+          ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final c in kStockCovers)
+                GestureDetector(
+                  onTap: () => setState(() {
+                    _selectedStock = c.asset;
+                    _selectedBuiltinId = null;
+                  }),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 150),
+                    width: 104,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _selectedStock == c.asset
+                            ? tokens.glow
+                            : tokens.border.withOpacity(isDark ? 0.30 : 0.40),
+                        width: _selectedStock == c.asset ? 2.5 : 1,
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(7),
+                      child: Image.asset(c.asset, fit: BoxFit.cover),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 14),
+        ],
         for (final entry in categories.entries) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 8, top: 4),
@@ -225,7 +298,10 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
             children: entry.value.map((ill) {
               final isSelected = _selectedBuiltinId == ill.id;
               return GestureDetector(
-                onTap: () => setState(() => _selectedBuiltinId = ill.id),
+                onTap: () => setState(() {
+                  _selectedBuiltinId = ill.id;
+                  _selectedStock = null;
+                }),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   width: 80,

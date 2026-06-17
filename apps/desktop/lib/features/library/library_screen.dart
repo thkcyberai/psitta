@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
@@ -602,6 +603,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       switch (result) {
         case CoverPickerBuiltin(:final illustrationId):
           await repo.setCoverBuiltin(doc.id, illustrationId);
+        case CoverPickerStock(:final assetPath):
+          final data = await rootBundle.load(assetPath);
+          await repo.uploadCoverBytes(
+            doc.id,
+            data.buffer.asUint8List(),
+            assetPath.split('/').last,
+          );
         case CoverPickerUpload(:final file):
           await repo.uploadCover(doc.id, file.path);
         case CoverPickerRemove():
