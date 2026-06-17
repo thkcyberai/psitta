@@ -277,7 +277,7 @@ def _build_sentence_boundaries(text: str) -> list[list[int]]:
     return boundaries
 router = APIRouter()
 
-ALLOWED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".md", ".html"})
+ALLOWED_EXTENSIONS = frozenset({".pdf", ".docx", ".txt", ".md", ".html", ".epub"})
 TEXT_EXTENSIONS = frozenset({".txt", ".md", ".html"})
 TARGET_CHUNK_SIZE = 1500  # characters per chunk
 
@@ -530,7 +530,134 @@ def _extract_text(file_bytes: bytes, extension: str) -> str | list[dict] | None:
             return result[0]  # pages list only for legacy path
         return None
 
+    if extension == ".epub":
+        return _extract_epub_text(file_bytes)
+
     return None
+
+
+def _extract_epub_text(file_bytes: bytes) -> str | None:
+    """Extract readable text from an EPUB.
+
+    An EPUB is a ZIP of XHTML chapters plus an OPF package file that defines the
+    reading order (spine). We resolve the spine, strip each chapter's markup to
+    text, and join the chapters in order. Pure stdlib (zipfile + html.parser) —
+    no extra dependency. Returns None on anything unparseable so the caller logs
+    "unsupported" and fails gracefully.
+    """
+    import posixpath
+    import zipfile
+    import xml.etree.ElementTree as ET
+    from html.parser import HTMLParser
+
+    _BLOCK_TAGS = {
+        "p", "div", "br", "li", "tr", "section", "article",
+        "h1", "h2", "h3", "h4", "h5", "h6", "blockquote",
+    }
+
+    class _HtmlToText(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=True)
+            self._parts: list[str] = []
+            self._skip = 0
+
+        def handle_starttag(self, tag: str, attrs: object) -> None:
+            if tag in ("script", "style"):
+                self._skip += 1
+            elif tag in _BLOCK_TAGS:
+                self._parts.append("\n")
+
+        def handle_endtag(self, tag: str) -> None:
+            if tag in ("script", "style") and self._skip:
+                self._skip -= 1
+            elif tag in _BLOCK_TAGS:
+                self._parts.append("\n")
+
+        def handle_data(self, data: str) -> None:
+            if self._skip == 0 and data.strip():
+                self._parts.append(data)
+
+        def text(self) -> str:
+            return "".join(self._parts)
+
+    def _html_to_text(raw: bytes) -> str:
+        s = None
+        for enc in ("utf-8", "latin-1", "cp1252"):
+            try:
+                s = raw.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if s is None:
+            return ""
+        try:
+            parser = _HtmlToText()
+            parser.feed(s)
+            return parser.text()
+        except Exception:
+            return re.sub(r"<[^>]+>", " ", s)
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            names = set(zf.namelist())
+
+            # Locate the OPF package file (preferred via META-INF/container.xml).
+            opf_path: str | None = None
+            if "META-INF/container.xml" in names:
+                try:
+                    root = ET.fromstring(zf.read("META-INF/container.xml"))
+                    for el in root.iter():
+                        if el.tag.endswith("rootfile") and el.get("full-path"):
+                            opf_path = el.get("full-path")
+                            break
+                except ET.ParseError:
+                    opf_path = None
+            if not opf_path:
+                opf_path = next(
+                    (n for n in names if n.lower().endswith(".opf")), None
+                )
+            if not opf_path or opf_path not in names:
+                return None
+
+            base = posixpath.dirname(opf_path)
+            opf = ET.fromstring(zf.read(opf_path))
+
+            manifest: dict[str, str] = {}
+            for el in opf.iter():
+                if el.tag.endswith("item") and el.get("id") and el.get("href"):
+                    manifest[el.get("id")] = el.get("href")
+            spine_ids = [
+                el.get("idref")
+                for el in opf.iter()
+                if el.tag.endswith("itemref") and el.get("idref")
+            ]
+            hrefs = [manifest[i] for i in spine_ids if i in manifest]
+            if not hrefs:
+                hrefs = list(manifest.values())
+
+            parts: list[str] = []
+            for href in hrefs:
+                href = href.split("#", 1)[0]
+                candidate = (
+                    posixpath.normpath(posixpath.join(base, href))
+                    if base
+                    else href
+                )
+                path = candidate if candidate in names else (
+                    href if href in names else None
+                )
+                if path is None or not path.lower().endswith(
+                    (".xhtml", ".html", ".htm")
+                ):
+                    continue
+                chapter = _html_to_text(zf.read(path)).strip()
+                if chapter:
+                    parts.append(chapter)
+
+            text = "\n\n".join(parts).strip()
+            return text or None
+    except Exception:
+        return None
 
 
 def _chunk_markdown(raw_text: str) -> list[dict]:

@@ -219,9 +219,9 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       case 'Spreadsheets':
         return t == 'xlsx' || t == 'xls' || t == 'csv';
       case 'Books':
-        return d.projectId != null;
+        return t == 'epub' || d.projectId != null;
       case 'Other':
-        return !['docx', 'md', 'txt', 'pdf', 'xlsx', 'xls', 'csv']
+        return !['docx', 'md', 'txt', 'pdf', 'xlsx', 'xls', 'csv', 'epub']
             .contains(t);
       default:
         return true;
@@ -291,6 +291,8 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       case 'xls':
       case 'csv':
         return const Color(0xFF1FA97E);
+      case 'epub':
+        return const Color(0xFF8A7CFF);
       default:
         return tokens.glow;
     }
@@ -304,6 +306,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     if (t.contains('txt')) return Icons.text_snippet_outlined;
     if (t.contains('xls') || t.contains('csv')) return Icons.table_chart_outlined;
     if (t.contains('html')) return Icons.language;
+    if (t.contains('epub')) return Icons.menu_book_outlined;
     return Icons.description_outlined;
   }
 
@@ -1264,7 +1267,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                 style: TextStyle(
                     fontSize: 11, color: scheme.onSurfaceVariant)),
             const SizedBox(height: 6),
-            Text('DOCX · PDF · TXT · MD · HTML',
+            Text('DOCX · PDF · EPUB · TXT · MD · HTML',
                 style: TextStyle(
                     fontSize: 10,
                     color: scheme.onSurfaceVariant.withOpacity(0.7))),

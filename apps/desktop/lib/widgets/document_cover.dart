@@ -57,6 +57,7 @@ class DocumentCover extends StatelessWidget {
     if (t.contains('md')) return Icons.code;
     if (t.contains('txt')) return Icons.text_snippet;
     if (t.contains('html')) return Icons.language;
+    if (t.contains('epub')) return Icons.menu_book;
     return Icons.description;
   }
 

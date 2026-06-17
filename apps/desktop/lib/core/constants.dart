@@ -33,5 +33,6 @@ abstract final class AppConstants {
     'txt',
     'md',
     'html',
+    'epub',
   ];
 }
