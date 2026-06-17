@@ -15,7 +15,11 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart'
     show projectDetailProvider, projectPlacementsProvider;
 import '../../data/providers/providers.dart'
-    show documentRepositoryProvider, documentsProvider;
+    show
+        documentRepositoryProvider,
+        documentsProvider,
+        userProfileProvider,
+        displayNameFromProfile;
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../features/writing_desk/desk_providers.dart'
@@ -301,7 +305,20 @@ class _ContextHeader extends ConsumerWidget {
                   final first = uri.pathSegments.isNotEmpty
                       ? uri.pathSegments.first
                       : 'library';
-                  if (first == 'library') return const SizedBox.shrink();
+                  // Library: personalise with the writer's handle, e.g.
+                  // "luisaao's Library". Falls back to plain "Library" while the
+                  // profile loads or if no name is available.
+                  if (first == 'library') {
+                    final name = displayNameFromProfile(
+                        ref.watch(userProfileProvider).valueOrNull);
+                    return Text(
+                      name.isEmpty ? 'Library' : "$name's Library",
+                      style: theme.textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    );
+                  }
                   return Text(
                     _breadcrumbFromLocation(uri),
                     style: theme.textTheme.titleLarge

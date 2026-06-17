@@ -92,6 +92,27 @@ final quotaUsageProvider = FutureProvider.autoDispose<QuotaInfo>((ref) async {
   return QuotaInfo.fromSubscriptionSummary(data);
 });
 
+/// Current user's profile (`GET /users/me`) — display name, email, tier.
+/// `display_name` is the writer-facing handle (server falls back to the email
+/// prefix, e.g. "luisaao", when no name is set).
+final userProfileProvider =
+    FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final response = await api.dio.get('/users/me');
+  return Map<String, dynamic>.from(response.data as Map);
+});
+
+/// Writer-facing display name from a `/users/me` payload, with safe fallbacks
+/// (display_name → email prefix → empty).
+String displayNameFromProfile(Map<String, dynamic>? p) {
+  if (p == null) return '';
+  final dn = (p['display_name'] as String?)?.trim();
+  if (dn != null && dn.isNotEmpty) return dn;
+  final email = (p['email'] as String?)?.trim();
+  if (email != null && email.contains('@')) return email.split('@').first;
+  return '';
+}
+
 /// Snapshot of the user's monthly-document quota. Fields mirror the
 /// backend's authoritative quota model: `used` is the counter value,
 /// `limit` is the active plan's ceiling (or `-1` for unlimited), `plan`
