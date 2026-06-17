@@ -16,7 +16,6 @@ import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
 import '../../data/repositories/project_repository.dart';
 import '../../data/services/pdf_text_extractor.dart';
-import '../../shared/widgets/psitta_logo.dart';
 import '../../widgets/document_cover.dart';
 import 'library_screen.dart' show LibraryScreen, librarySearchFocusProvider;
 
@@ -528,6 +527,18 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
             onTap: () => _soon('Trash'),
           ),
         ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: _StatCard(
+            tokens: tokens,
+            icon: Icons.cloud_outlined,
+            value: '—',
+            label: 'Storage',
+            sub: 'Coming soon',
+            accent: const Color(0xFF8A7CFF),
+            onTap: () => _soon('Storage'),
+          ),
+        ),
       ],
     );
   }
@@ -643,7 +654,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
             crossAxisCount: cols,
             mainAxisSpacing: 14,
             crossAxisSpacing: 14,
-            childAspectRatio: 0.92,
+            mainAxisExtent: 210,
           ),
           itemCount: docs.length,
           itemBuilder: (_, i) => _gridCard(docs[i], projects),
@@ -683,6 +694,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                     documentId: doc.id,
                     sourceType: doc.sourceType,
                     size: DocumentCoverSize.card,
+                    height: 132,
                     borderRadius: BorderRadius.zero,
                   ),
                 ),
@@ -1116,13 +1128,7 @@ class _RightRail extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10)),
             ),
           ),
-          const SizedBox(height: 24),
-          Center(
-            child: Opacity(
-              opacity: 0.5,
-              child: PsittaLogo(width: 96, height: 26),
-            ),
-          ),
+          const SizedBox(height: 16),
         ],
       ),
     );

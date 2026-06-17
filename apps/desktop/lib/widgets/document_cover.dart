@@ -22,6 +22,7 @@ class DocumentCover extends StatelessWidget {
     this.size = DocumentCoverSize.detail,
     this.sourceType,
     this.borderRadius,
+    this.height,
   });
 
   final String? coverType;
@@ -31,7 +32,14 @@ class DocumentCover extends StatelessWidget {
   final String? sourceType;
   final BorderRadius? borderRadius;
 
-  double get _height => switch (size) {
+  /// Optional explicit banner height. When null, falls back to the per-[size]
+  /// default. Lets callers (e.g. the Library grid) render a taller cover banner
+  /// without changing the default behaviour of existing call sites.
+  final double? height;
+
+  double get _height =>
+      height ??
+      switch (size) {
         DocumentCoverSize.mini => 36,
         DocumentCoverSize.thumbnail => 60,
         DocumentCoverSize.card => 90,
