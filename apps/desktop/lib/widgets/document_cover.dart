@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../core/constants.dart';
 import '../core/theme/psitta_tokens.dart';
 import '../data/models/cover_illustration.dart';
+import '../data/providers/providers.dart' show apiClientProvider;
 
 /// Reusable document cover image widget.
 ///
@@ -130,23 +132,40 @@ class DocumentCover extends StatelessWidget {
           width: 1,
         ),
       ),
+      // The cover image endpoint is authenticated, so Image.network must send
+      // the Bearer token (a plain network image would 401 and fall back to the
+      // placeholder). Fetch the cached access token, then load with the header.
       child: ClipRRect(
         borderRadius: radius,
-        child: Image.network(
-          url,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) =>
-              _placeholderContent(tokens, isDark),
-          loadingBuilder: (_, child, progress) {
-            if (progress == null) return child;
-            return Center(
-              child: CircularProgressIndicator(
-                value: progress.expectedTotalBytes != null
-                    ? progress.cumulativeBytesLoaded /
-                        progress.expectedTotalBytes!
-                    : null,
-                strokeWidth: 2,
-              ),
+        child: Consumer(
+          builder: (context, ref, _) {
+            return FutureBuilder<String?>(
+              future: ref.read(apiClientProvider).accessToken(),
+              builder: (context, snap) {
+                final token = snap.data;
+                final headers = (token != null && token.isNotEmpty)
+                    ? {'Authorization': 'Bearer $token'}
+                    : const <String, String>{};
+                return Image.network(
+                  url,
+                  headers: headers,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      _placeholderContent(tokens, isDark),
+                  loadingBuilder: (_, child, progress) {
+                    if (progress == null) return child;
+                    return Center(
+                      child: CircularProgressIndicator(
+                        value: progress.expectedTotalBytes != null
+                            ? progress.cumulativeBytesLoaded /
+                                progress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2,
+                      ),
+                    );
+                  },
+                );
+              },
             );
           },
         ),

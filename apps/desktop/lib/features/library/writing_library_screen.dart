@@ -17,6 +17,7 @@ import '../../data/providers/providers.dart';
 import '../../data/repositories/project_repository.dart';
 import '../../data/services/pdf_text_extractor.dart';
 import '../../widgets/document_cover.dart';
+import 'cover_picker_dialog.dart';
 import 'library_screen.dart' show LibraryScreen, librarySearchFocusProvider;
 
 /// Route selector for `/library`.
@@ -832,12 +833,8 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                 Positioned(
                   right: 4,
                   top: 4,
-                  child: IconButton(
-                    iconSize: 16,
-                    visualDensity: VisualDensity.compact,
-                    icon: const Icon(Icons.more_horiz, color: Colors.white),
-                    onPressed: () => _cardMenu(doc),
-                  ),
+                  child: _cardMenuButton(doc,
+                      iconColor: Colors.white, iconSize: 16),
                 ),
               ],
             ),
@@ -933,12 +930,8 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                   Text(_fmtDate(doc.createdAt),
                       style: TextStyle(
                           fontSize: 11, color: scheme.onSurfaceVariant)),
-                  IconButton(
-                    iconSize: 18,
-                    icon: Icon(Icons.more_horiz,
-                        color: scheme.onSurfaceVariant),
-                    onPressed: () => _cardMenu(doc),
-                  ),
+                  _cardMenuButton(doc,
+                      iconColor: scheme.onSurfaceVariant, iconSize: 18),
                 ],
               ),
             ),
@@ -947,18 +940,71 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     );
   }
 
-  void _cardMenu(Document doc) {
-    showMenu<String>(
-      context: context,
-      position: const RelativeRect.fromLTRB(800, 300, 40, 0),
-      items: const [
-        PopupMenuItem(value: 'open', child: Text('Open in Writing Desk')),
-        PopupMenuItem(value: 'details', child: Text('Details')),
+  /// ⋯ menu anchored to its own button (PopupMenuButton positions itself, so
+  /// the menu opens next to the icon instead of at a fixed screen point).
+  Widget _cardMenuButton(Document doc,
+      {required Color iconColor, double iconSize = 16}) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<String>(
+      tooltip: '',
+      padding: EdgeInsets.zero,
+      iconSize: iconSize,
+      icon: Icon(Icons.more_horiz, color: iconColor),
+      color: tokens.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: tokens.border),
+      ),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+            value: 'open',
+            child: Text('Open in Writing Desk',
+                style: TextStyle(color: scheme.onSurface))),
+        PopupMenuItem(
+            value: 'cover',
+            child: Text('Change cover',
+                style: TextStyle(color: scheme.onSurface))),
+        PopupMenuItem(
+            value: 'details',
+            child:
+                Text('Details', style: TextStyle(color: scheme.onSurface))),
       ],
-    ).then((v) {
-      if (v == 'open') _openDoc(doc);
-      if (v == 'details') setState(() => _selectedDocId = doc.id);
-    });
+      onSelected: (v) {
+        if (v == 'open') _openDoc(doc);
+        if (v == 'cover') _changeCover(doc);
+        if (v == 'details') setState(() => _selectedDocId = doc.id);
+      },
+    );
+  }
+
+  Future<void> _changeCover(Document doc) async {
+    final result = await showCoverPickerDialog(
+      context: context,
+      currentCoverType: doc.coverType,
+      currentCoverValue: doc.coverValue,
+    );
+    if (result == null || !mounted) return;
+    final repo = ref.read(documentRepositoryProvider);
+    try {
+      switch (result) {
+        case CoverPickerBuiltin(:final illustrationId):
+          await repo.setCoverBuiltin(doc.id, illustrationId);
+        case CoverPickerUpload(:final file):
+          await repo.uploadCover(doc.id, file.path);
+        case CoverPickerRemove():
+          await repo.removeCover(doc.id);
+      }
+      // Clear Flutter's image cache so uploaded covers refresh immediately.
+      PaintingBinding.instance.imageCache.clear();
+      ref.invalidate(documentsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update cover: $e')),
+        );
+      }
+    }
   }
 
   Widget _emptyState(PsittaTokens tokens) {
