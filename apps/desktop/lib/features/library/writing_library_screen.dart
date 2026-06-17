@@ -275,6 +275,61 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     return docs.where((d) => d.createdAt.isAfter(cutoff)).length;
   }
 
+  Color _typeColor(String sourceType, PsittaTokens tokens) {
+    switch (sourceType.toLowerCase()) {
+      case 'pdf':
+        return const Color(0xFFE5534B);
+      case 'docx':
+        return const Color(0xFF4F8DF5);
+      case 'md':
+        return const Color(0xFF34C77B);
+      case 'txt':
+        return const Color(0xFF7C8BA1);
+      case 'xlsx':
+      case 'xls':
+      case 'csv':
+        return const Color(0xFF1FA97E);
+      default:
+        return tokens.glow;
+    }
+  }
+
+  IconData _typeIcon(String sourceType) {
+    final t = sourceType.toLowerCase();
+    if (t.contains('pdf')) return Icons.picture_as_pdf_outlined;
+    if (t.contains('docx')) return Icons.article_outlined;
+    if (t.contains('md')) return Icons.code;
+    if (t.contains('txt')) return Icons.text_snippet_outlined;
+    if (t.contains('xls') || t.contains('csv')) return Icons.table_chart_outlined;
+    if (t.contains('html')) return Icons.language;
+    return Icons.description_outlined;
+  }
+
+  /// Colored fallback banner shown when a document has no cover set — gives the
+  /// grid the mockup's "cover banner" feel until real cover images exist.
+  Widget _typeBanner(Document doc, PsittaTokens tokens) {
+    final color = _typeColor(doc.sourceType, tokens);
+    return Container(
+      height: 132,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withOpacity(0.32),
+            color.withOpacity(0.12),
+            tokens.surface2.withOpacity(0.55),
+          ],
+        ),
+      ),
+      child: Center(
+        child: Icon(_typeIcon(doc.sourceType),
+            size: 38, color: color.withOpacity(0.9)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
@@ -410,11 +465,24 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       label: 'Filters',
       onTap: () => _filtersMenu(context),
     );
-    final newDoc = _primaryButton(
-      tokens,
-      icon: Icons.add,
-      label: 'New Document',
-      onTap: _newDocMenu,
+    final newDoc = FilledButton(
+      onPressed: _newDocMenu,
+      style: FilledButton.styleFrom(
+        backgroundColor: tokens.glow,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.add, size: 16),
+          SizedBox(width: 6),
+          Text('New Document', style: TextStyle(fontSize: 12)),
+          SizedBox(width: 2),
+          Icon(Icons.arrow_drop_down, size: 18),
+        ],
+      ),
     );
 
     return LayoutBuilder(
@@ -732,15 +800,17 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                 ClipRRect(
                   borderRadius: BorderRadius.vertical(
                       top: Radius.circular(tokens.radius - 2)),
-                  child: DocumentCover(
-                    coverType: doc.coverType,
-                    coverValue: doc.coverValue,
-                    documentId: doc.id,
-                    sourceType: doc.sourceType,
-                    size: DocumentCoverSize.card,
-                    height: 132,
-                    borderRadius: BorderRadius.zero,
-                  ),
+                  child: doc.coverType != null
+                      ? DocumentCover(
+                          coverType: doc.coverType,
+                          coverValue: doc.coverValue,
+                          documentId: doc.id,
+                          sourceType: doc.sourceType,
+                          size: DocumentCoverSize.card,
+                          height: 132,
+                          borderRadius: BorderRadius.zero,
+                        )
+                      : _typeBanner(doc, tokens),
                 ),
                 Positioned(
                   left: 8,
@@ -976,22 +1046,6 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     );
   }
 
-  Widget _primaryButton(PsittaTokens tokens,
-      {required IconData icon,
-      required String label,
-      required VoidCallback onTap}) {
-    return FilledButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      style: FilledButton.styleFrom(
-        backgroundColor: tokens.glow,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
