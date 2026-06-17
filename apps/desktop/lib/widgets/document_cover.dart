@@ -35,6 +35,16 @@ class DocumentCover extends StatelessWidget {
   final String? sourceType;
   final BorderRadius? borderRadius;
 
+  /// Drop any cached cover bytes for [documentId] so the next render refetches
+  /// from the backend. Required after a cover change: uploaded covers always
+  /// live at the same key (`covers/{id}.jpg`), so `cover_value` is unchanged
+  /// and the byte cache (keyed by document + cover_value) would otherwise keep
+  /// serving the previous image.
+  static void evictCache(String documentId) {
+    _UploadedCoverState._cache
+        .removeWhere((k, _) => k.startsWith('$documentId::'));
+  }
+
   /// Optional explicit banner height. When null, falls back to the per-[size]
   /// default. Lets callers (e.g. the Library grid) render a taller cover banner
   /// without changing the default behaviour of existing call sites.

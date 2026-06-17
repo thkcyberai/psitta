@@ -1036,7 +1036,10 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         case CoverPickerRemove():
           await repo.removeCover(doc.id);
       }
-      // Clear Flutter's image cache so uploaded covers refresh immediately.
+      // Evict the per-document cover-byte cache (uploaded covers reuse the
+      // same key, so cover_value doesn't change) + Flutter's image cache so
+      // the new cover shows immediately instead of the stale one.
+      DocumentCover.evictCache(doc.id);
       PaintingBinding.instance.imageCache.clear();
       ref.invalidate(documentsProvider);
     } on DioException catch (e) {
