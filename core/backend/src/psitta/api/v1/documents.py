@@ -952,6 +952,144 @@ async def _process_document(
     return len(chunk_ids), chunk_ids
 
 
+def _extract_epub_cover_bytes(file_bytes: bytes) -> tuple[bytes, str] | None:
+    """Find and return the EPUB's embedded cover image as (bytes, extension).
+
+    Resolution order: EPUB3 manifest item with properties="cover-image";
+    EPUB2 <meta name="cover" content="id">; then any image item whose id/href
+    contains "cover". Returns None if no cover image is found.
+    """
+    import posixpath
+    import zipfile
+    import xml.etree.ElementTree as ET
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
+            names = set(zf.namelist())
+            opf_path: str | None = None
+            if "META-INF/container.xml" in names:
+                try:
+                    root = ET.fromstring(zf.read("META-INF/container.xml"))
+                    for el in root.iter():
+                        if el.tag.endswith("rootfile") and el.get("full-path"):
+                            opf_path = el.get("full-path")
+                            break
+                except ET.ParseError:
+                    opf_path = None
+            if not opf_path:
+                opf_path = next(
+                    (n for n in names if n.lower().endswith(".opf")), None
+                )
+            if not opf_path or opf_path not in names:
+                return None
+
+            base = posixpath.dirname(opf_path)
+            opf = ET.fromstring(zf.read(opf_path))
+
+            # manifest id -> (href, media_type, properties)
+            manifest: dict[str, tuple[str, str, str]] = {}
+            for el in opf.iter():
+                if el.tag.endswith("item") and el.get("id") and el.get("href"):
+                    manifest[el.get("id")] = (
+                        el.get("href"),
+                        (el.get("media-type") or "").lower(),
+                        (el.get("properties") or "").lower(),
+                    )
+
+            cover_href: str | None = None
+            for href, _mt, props in manifest.values():
+                if "cover-image" in props:
+                    cover_href = href
+                    break
+            if not cover_href:
+                cover_id = None
+                for el in opf.iter():
+                    if (
+                        el.tag.endswith("meta")
+                        and (el.get("name") or "").lower() == "cover"
+                        and el.get("content")
+                    ):
+                        cover_id = el.get("content")
+                        break
+                if cover_id and cover_id in manifest:
+                    cover_href = manifest[cover_id][0]
+            if not cover_href:
+                for cid, (href, mt, _props) in manifest.items():
+                    if mt.startswith("image/") and (
+                        "cover" in cid.lower() or "cover" in href.lower()
+                    ):
+                        cover_href = href
+                        break
+            if not cover_href:
+                return None
+
+            cover_href = cover_href.split("#", 1)[0]
+            candidate = (
+                posixpath.normpath(posixpath.join(base, cover_href))
+                if base
+                else cover_href
+            )
+            path = candidate if candidate in names else (
+                cover_href if cover_href in names else None
+            )
+            if not path:
+                return None
+            ext = path.rsplit(".", 1)[-1].lower() if "." in path else "jpg"
+            return zf.read(path), ext
+    except Exception:
+        return None
+
+
+async def _autostore_epub_cover(
+    doc_id: UUID, file_bytes: bytes, db: AsyncSession
+) -> tuple[str, str] | None:
+    """Extract the EPUB's cover image, resize to a 1600px JPEG, store it under
+    the document's cover key, and set cover_type/cover_value. Fully defensive —
+    any failure leaves the document without a cover (it falls back to the type
+    banner). Returns (cover_type, cover_value) or None.
+    """
+    try:
+        found = _extract_epub_cover_bytes(file_bytes)
+        if found is None:
+            return None
+        img_bytes, _src_ext = found
+
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(img_bytes))
+        if img.mode in ("RGBA", "P", "LA"):
+            img = img.convert("RGB")
+        max_dim = 1600
+        if img.width > max_dim or img.height > max_dim:
+            img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=88)
+        out_bytes = buf.getvalue()
+
+        settings = get_settings()
+        s3 = S3StorageProvider(settings)
+        bucket = settings.S3_BUCKET_NAME
+        key = f"covers/{doc_id}.jpg"
+        try:
+            await s3.delete_by_prefix(bucket, f"covers/{doc_id}.")
+        except Exception:
+            pass
+        await s3.put_object(bucket, key, out_bytes, content_type="image/jpeg")
+
+        await db.execute(
+            text(
+                "UPDATE documents SET cover_type = 'uploaded', cover_value = :cv "
+                "WHERE id = :id"
+            ),
+            {"cv": key, "id": str(doc_id)},
+        )
+        logger.info("document.epub.cover_autostored", doc_id=str(doc_id))
+        return "uploaded", key
+    except Exception:
+        logger.warning("document.epub.cover_autostore_failed", doc_id=str(doc_id))
+        return None
+
+
 @router.post("/blank/", status_code=status.HTTP_201_CREATED)
 async def create_blank_document(
     request: Request,
@@ -1147,6 +1285,15 @@ async def upload_document(
         background_tasks.add_task(_eager_synthesize_chunks, doc_id, chunk_ids, user_id)
         logger.info("tts.eager_synthesis.queued", doc_id=str(doc_id), chunks=chunk_count)
 
+    # EPUBs ship with their own cover art — adopt it automatically so the
+    # uploaded book looks polished (writer can still change it in the Library).
+    auto_cover_type: str | None = None
+    auto_cover_value: str | None = None
+    if extension == ".epub":
+        auto = await _autostore_epub_cover(doc_id, file_bytes, db)
+        if auto is not None:
+            auto_cover_type, auto_cover_value = auto
+
     logger.info("document.upload.accepted", doc_id=str(doc_id), title=title, chunks=chunk_count)
     logger.info(
         "upload.trace.documents.upload.complete",
@@ -1178,13 +1325,63 @@ async def upload_document(
         "source_type": source_type,
         "page_count": chunk_count,
         "created_at": now.isoformat(),
-        "cover_type": None,
-        "cover_value": None,
+        "cover_type": auto_cover_type,
+        "cover_value": auto_cover_value,
     }
+
+
+async def _maybe_seed_welcome_kit(
+    db: AsyncSession,
+    user_id: UUID,
+    background_tasks: BackgroundTasks,
+) -> None:
+    """Claim and schedule one-time welcome-kit seeding for Writing Nook writers.
+
+    Cheap fast-path: a single boolean SELECT for already-seeded users (the
+    common case). Only unseeded users pay for plan resolution. The claim
+    UPDATE is atomic (``WHERE welcome_seeded = false RETURNING id``) so
+    concurrent Library loads seed at most once. Fully fail-open — a seeding
+    bug must never break the document list.
+    """
+    try:
+        already = (
+            await db.execute(
+                text("SELECT welcome_seeded FROM users WHERE id = :uid"),
+                {"uid": str(user_id)},
+            )
+        ).scalar()
+        if already is not False:  # True, or None (column/row absent)
+            return
+
+        from psitta.services.subscription_service import get_effective_plan
+
+        plan = await get_effective_plan(db, user_id)
+        if plan.plan_id != "writing_nook_pro":
+            return  # leave the flag false; seed if they become a writer
+
+        claimed = (
+            await db.execute(
+                text(
+                    "UPDATE users SET welcome_seeded = true "
+                    "WHERE id = :uid AND welcome_seeded = false RETURNING id"
+                ),
+                {"uid": str(user_id)},
+            )
+        ).first()
+        if claimed is None:
+            return  # another request already claimed it
+
+        from psitta.services.seed_service import run_welcome_seed_background
+
+        background_tasks.add_task(run_welcome_seed_background, user_id)
+        logger.info("welcome_seed.scheduled", user_id=str(user_id))
+    except Exception:
+        logger.warning("welcome_seed.trigger_failed", user_id=str(user_id), exc_info=True)
 
 
 @router.get("/")
 async def list_documents(
+    background_tasks: BackgroundTasks,
     page: Annotated[int, Query(ge=1)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
     show_archived: bool = False,
@@ -1192,6 +1389,11 @@ async def list_documents(
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     offset = (page - 1) * size
+
+    # ── Welcome-kit seeding (Writing Nook, first login) ──────────────────
+    # On a writer's first Library load, seed the 6 starter documents once.
+    # Fail-open: any error here must never break the document list.
+    await _maybe_seed_welcome_kit(db, user_id, background_tasks)
 
     count_result = await db.execute(
         text(
