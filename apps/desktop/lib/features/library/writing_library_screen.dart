@@ -960,6 +960,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       ),
       itemBuilder: (_) => [
         _menuItem('read', Icons.headphones_outlined, 'Read', scheme),
+        _menuItem('rename', Icons.drive_file_rename_outline, 'Rename', scheme),
         _menuItem('cover', Icons.image_outlined, 'Change cover', scheme),
         _menuItem('project', Icons.folder_outlined, 'Add to Project', scheme),
         _menuItem('download', Icons.download_outlined, 'Download', scheme),
@@ -973,6 +974,8 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         switch (v) {
           case 'read':
             _read(doc);
+          case 'rename':
+            _rename(doc);
           case 'cover':
             _changeCover(doc);
           case 'project':
@@ -1048,6 +1051,47 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
 
   // Open the document in the Writing Desk's Read/Listen mode.
   void _read(Document doc) => context.go('/writing-desk/${doc.id}?read=1');
+
+  Future<void> _rename(Document doc) async {
+    final ctrl = TextEditingController(text: doc.title);
+    final newTitle = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename file'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Title'),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('Rename')),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (newTitle == null ||
+        newTitle.isEmpty ||
+        newTitle == doc.title ||
+        !mounted) {
+      return;
+    }
+    try {
+      await ref.read(documentRepositoryProvider).renameDocument(doc.id, newTitle);
+      ref.invalidate(documentsProvider);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Couldn’t rename the file.')),
+        );
+      }
+    }
+  }
 
   Future<void> _archive(Document doc) async {
     try {
