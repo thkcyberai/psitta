@@ -581,7 +581,10 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
         // Read/Listen mode reuses the Reading Nook's DocumentReadingView so the
         // highlight experience is identical. The editor is still built (kept
         // alive) so toggling back to Edit is instant.
-        if (_readMode && doc is PsittaDocument) {
+        // PDF/EPUB are read-only formats: always render the read paper, never
+        // build the editor for them.
+        if ((_readMode || (doc is PsittaDocument && doc.isReadOnly)) &&
+            doc is PsittaDocument) {
           return _buildReadPaper(context, doc);
         }
         // Always-edit: build the editor once per document, then keep it so the
@@ -801,6 +804,10 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     final docAsync = ref.watch(deskDocumentProvider(widget.documentId));
 
     final title = docAsync.valueOrNull?.title as String?;
+    // PDF and EPUB are read-only formats — no Write mode, no editor, no save.
+    final isReadOnly = docAsync.valueOrNull?.isReadOnly ?? false;
+    // Effective read state: forced on for read-only docs, otherwise the toggle.
+    final readMode = _readMode || isReadOnly;
     return ColoredBox(
       color: tokens.surface,
       child: Column(
@@ -809,15 +816,16 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             key: const ValueKey('desk-center-header'),
             title: (title == null || title.trim().isEmpty) ? 'New file' : title,
             isSaving: _isSaving,
-            canSave: _unifiedController != null && !_readMode,
+            canSave: _unifiedController != null && !readMode && !isReadOnly,
             onSave: _save,
-            readMode: _readMode,
+            readMode: readMode,
+            readOnly: isReadOnly,
             onModeChanged: (read) => setState(() => _readMode = read),
-            onFind: (!_readMode && _unifiedController != null) ? _openFind : null,
+            onFind: (!readMode && _unifiedController != null) ? _openFind : null,
           ),
           const Divider(height: 1),
           // The formatting toolbar is edit-only; Read mode hides it.
-          if (!_readMode && _unifiedController != null) ...[
+          if (!readMode && _unifiedController != null) ...[
             buildDocxEditToolbar(
               controller: _unifiedController!,
               theme: Theme.of(context),
@@ -825,7 +833,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             ),
             const Divider(height: 1),
           ],
-          if (!_readMode && _showFind && _unifiedController != null) ...[
+          if (!readMode && _showFind && _unifiedController != null) ...[
             _buildFindBar(context),
             const Divider(height: 1),
           ],
@@ -847,6 +855,7 @@ class _DeskCenterHeader extends StatelessWidget {
     required this.onSave,
     required this.readMode,
     required this.onModeChanged,
+    this.readOnly = false,
     this.onFind,
   });
 
@@ -856,6 +865,10 @@ class _DeskCenterHeader extends StatelessWidget {
   final VoidCallback onSave;
   final bool readMode;
   final ValueChanged<bool> onModeChanged;
+
+  /// When true the document type cannot be edited (PDF/EPUB): the Write↔Read
+  /// toggle is replaced by a static "Read only" chip.
+  final bool readOnly;
   final VoidCallback? onFind;
 
   @override
@@ -890,7 +903,10 @@ class _DeskCenterHeader extends StatelessWidget {
                 icon: const Icon(Icons.search),
                 onPressed: onFind,
               ),
-            _ModeToggle(readMode: readMode, onChanged: onModeChanged),
+            if (readOnly)
+              const _ReadOnlyChip()
+            else
+              _ModeToggle(readMode: readMode, onChanged: onModeChanged),
             const SizedBox(width: 8),
             if (isSaving)
               const Padding(
@@ -919,6 +935,42 @@ class _DeskCenterHeader extends StatelessWidget {
 }
 
 // ── Edit / Read mode toggle ───────────────────────────────────────────────────
+
+/// Static badge shown in place of the Write/Read toggle for read-only
+/// formats (PDF, EPUB): these open in Read/Listen only.
+class _ReadOnlyChip extends StatelessWidget {
+  const _ReadOnlyChip();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 26,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: scheme.onSurface.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: scheme.outline.withOpacity(0.2)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.headphones_outlined,
+              size: 14, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            'Read only',
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _ModeToggle extends StatelessWidget {
   const _ModeToggle({required this.readMode, required this.onChanged});

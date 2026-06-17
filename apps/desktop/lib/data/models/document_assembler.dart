@@ -269,6 +269,7 @@ class DocumentAssembler {
       sentences: sentences,
       chunkMap: chunkMapEntries,
       chunkPositions: chunkPositions,
+      sourceType: sourceType,
     );
   }
 

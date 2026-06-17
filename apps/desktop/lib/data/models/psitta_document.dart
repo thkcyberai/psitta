@@ -152,10 +152,23 @@ class PsittaDocument {
     required this.sentences,
     required this.chunkMap,
     this.chunkPositions,
+    this.sourceType,
   });
 
   final String id;
   final String title;
+
+  /// Backend `source_type` (e.g. `'docx'`, `'pdf'`, `'epub'`, `'txt'`).
+  /// Drives read-only gating: PDF and EPUB open read-only in the Desk.
+  final String? sourceType;
+
+  /// True when this document type cannot be edited in the Writing Desk
+  /// (read-only formats: PDF, EPUB).
+  bool get isReadOnly {
+    final s = sourceType?.toLowerCase();
+    return s == 'pdf' || s == 'epub';
+  }
+
   final List<DocBlock> blocks;
 
   /// Concatenated plain text of all blocks. Source of truth for offset math.
