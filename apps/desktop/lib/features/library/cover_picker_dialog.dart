@@ -37,6 +37,12 @@ const List<({String asset, String label})> kStockCovers = [
   (asset: 'assets/covers/oak_sunset.jpg', label: 'Sunset Oak'),
   (asset: 'assets/covers/town_square.jpg', label: 'Town Square'),
   (asset: 'assets/covers/reading.jpg', label: 'Reading'),
+  (asset: 'assets/covers/Romantic.jpg', label: 'Romance'),
+  (asset: 'assets/covers/Romantic2.jpg', label: 'Romance II'),
+  (asset: 'assets/covers/children_book.jpg', label: "Children's"),
+  (asset: 'assets/covers/epic.jpg', label: 'Epic'),
+  (asset: 'assets/covers/epic2.jpg', label: 'Epic II'),
+  (asset: 'assets/covers/wich.jpg', label: 'Witch'),
 ];
 
 /// Shows the cover picker dialog. Returns null if cancelled.
