@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "description": "Writing Nook welcome kit — seeded into a new writer's Library on first login. Each file is in the format it teaches; covers come from the cover reservatory.",
+  "documents": [
+    {
+      "file": "Welcome_to_the_Writing_Nook.docx",
+      "title": "Welcome to the Writing Nook",
+      "source_type": "docx",
+      "cover": "writing_nook.jpg",
+      "order": 1
+    },
+    {
+      "file": "Markdown_For_Writers.md",
+      "title": "Markdown for Writers",
+      "source_type": "md",
+      "cover": "oak_sunset.jpg",
+      "order": 2
+    },
+    {
+      "file": "Plain_Text_Quick_Notes.txt",
+      "title": "Plain Text — Quick Notes & Drafts",
+      "source_type": "txt",
+      "cover": "town_square.jpg",
+      "order": 3
+    },
+    {
+      "file": "Bringing_In_Web_Content.html",
+      "title": "Bringing In Web Content",
+      "source_type": "html",
+      "cover": "code_desk.jpg",
+      "order": 4
+    },
+    {
+      "file": "PDFs_Read_Listen_Reference.pdf",
+      "title": "PDFs — Read, Listen, Reference",
+      "source_type": "pdf",
+      "cover": "reading.jpg",
+      "order": 5
+    },
+    {
+      "file": "Ebooks_Listen_to_Your_Books.epub",
+      "title": "Ebooks — Listen to Your Books",
+      "source_type": "epub",
+      "cover": "fantasy_castle.jpg",
+      "order": 6
+    }
+  ]
+}
