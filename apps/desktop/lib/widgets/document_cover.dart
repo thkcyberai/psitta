@@ -1,11 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import '../core/constants.dart';
 import '../core/theme/psitta_tokens.dart';
 import '../data/models/cover_illustration.dart';
-import '../data/providers/providers.dart' show apiClientProvider;
+import '../data/providers/providers.dart' show documentRepositoryProvider;
 
 /// Reusable document cover image widget.
 ///
@@ -117,11 +118,6 @@ class DocumentCover extends StatelessWidget {
   }
 
   Widget _buildUploaded(PsittaTokens tokens, bool isDark, BorderRadius radius) {
-    // Cache-bust with coverValue hashCode so re-uploads show the new image.
-    final cacheBuster = coverValue?.hashCode ?? DateTime.now().millisecondsSinceEpoch;
-    final url =
-        '${AppConstants.apiBaseUrl}/documents/$documentId/cover?v=$cacheBuster';
-
     return Container(
       width: double.infinity,
       height: _height,
@@ -132,42 +128,15 @@ class DocumentCover extends StatelessWidget {
           width: 1,
         ),
       ),
-      // The cover image endpoint is authenticated, so Image.network must send
-      // the Bearer token (a plain network image would 401 and fall back to the
-      // placeholder). Fetch the cached access token, then load with the header.
+      // The cover endpoint is authenticated. Fetch the bytes through Dio (which
+      // carries the auth token) and render with Image.memory — a plain
+      // Image.network has no token and silently fails on desktop.
       child: ClipRRect(
         borderRadius: radius,
-        child: Consumer(
-          builder: (context, ref, _) {
-            return FutureBuilder<String?>(
-              future: ref.read(apiClientProvider).accessToken(),
-              builder: (context, snap) {
-                final token = snap.data;
-                final headers = (token != null && token.isNotEmpty)
-                    ? {'Authorization': 'Bearer $token'}
-                    : const <String, String>{};
-                return Image.network(
-                  url,
-                  headers: headers,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      _placeholderContent(tokens, isDark),
-                  loadingBuilder: (_, child, progress) {
-                    if (progress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: progress.expectedTotalBytes != null
-                            ? progress.cumulativeBytesLoaded /
-                                progress.expectedTotalBytes!
-                            : null,
-                        strokeWidth: 2,
-                      ),
-                    );
-                  },
-                );
-              },
-            );
-          },
+        child: _UploadedCover(
+          documentId: documentId,
+          coverValue: coverValue,
+          placeholder: _placeholderContent(tokens, isDark),
         ),
       ),
     );
@@ -213,5 +182,79 @@ class DocumentCover extends StatelessWidget {
         color: tokens.glow.withOpacity(isDark ? 0.35 : 0.30),
       ),
     );
+  }
+}
+
+/// Renders an uploaded document cover. Fetches the image bytes through the
+/// authenticated Dio client once (re-fetching only when the document or cover
+/// changes), shows a spinner while loading and the [placeholder] on failure.
+class _UploadedCover extends ConsumerStatefulWidget {
+  const _UploadedCover({
+    required this.documentId,
+    required this.coverValue,
+    required this.placeholder,
+  });
+
+  final String documentId;
+  final String? coverValue;
+  final Widget placeholder;
+
+  @override
+  ConsumerState<_UploadedCover> createState() => _UploadedCoverState();
+}
+
+class _UploadedCoverState extends ConsumerState<_UploadedCover> {
+  Uint8List? _bytes;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _UploadedCover old) {
+    super.didUpdateWidget(old);
+    if (old.documentId != widget.documentId ||
+        old.coverValue != widget.coverValue) {
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final bytes =
+        await ref.read(documentRepositoryProvider).getCoverBytes(widget.documentId);
+    if (!mounted) return;
+    setState(() {
+      _bytes = bytes;
+      _loading = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = _bytes;
+    if (bytes != null) {
+      return Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => widget.placeholder,
+      );
+    }
+    if (_loading) {
+      return const Center(
+        child: SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    return widget.placeholder;
   }
 }

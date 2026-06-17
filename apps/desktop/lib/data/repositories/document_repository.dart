@@ -187,6 +187,24 @@ class DocumentRepository {
     return response.data ?? [];
   }
 
+  /// Fetch an uploaded cover image's bytes through the authenticated Dio client.
+  /// Returns null on any error (caller falls back to a placeholder). Going
+  /// through Dio guarantees the auth interceptor runs — a plain Image.network
+  /// has no token and 401s.
+  Future<Uint8List?> getCoverBytes(String id) async {
+    try {
+      final response = await _api.dio.get<List<int>>(
+        '/documents/$id/cover',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final data = response.data;
+      if (data == null || data.isEmpty) return null;
+      return Uint8List.fromList(data);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Download the original file and persist it to a stable temp path.
   ///
   /// This is used by native viewers that prefer a file path over in-memory

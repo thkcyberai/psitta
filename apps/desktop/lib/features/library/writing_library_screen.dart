@@ -998,10 +998,20 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       // Clear Flutter's image cache so uploaded covers refresh immediately.
       PaintingBinding.instance.imageCache.clear();
       ref.invalidate(documentsProvider);
-    } catch (e) {
+    } on DioException catch (e) {
+      if (!mounted) return;
+      final code = e.response?.statusCode;
+      final msg = code == 413
+          ? 'That image is too large. Please use an image under 20 MB.'
+          : code == 415
+              ? 'Unsupported image type. Use JPEG, PNG, or GIF.'
+              : 'Couldn’t update the cover. Please try again.';
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg)));
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update cover: $e')),
+          const SnackBar(content: Text('Couldn’t update the cover.')),
         );
       }
     }

@@ -2630,13 +2630,15 @@ async def upload_cover(
     if content_type not in allowed_content_types:
         raise HTTPException(status_code=415, detail=f"Unsupported content type: {content_type}")
 
-    # Read and validate size (max 2MB)
+    # Read and validate size (max 20MB)
     file_bytes = await file.read()
-    max_size = 2 * 1024 * 1024
+    max_size = 20 * 1024 * 1024
     if len(file_bytes) > max_size:
-        raise HTTPException(status_code=413, detail="Image too large. Please use an image under 2MB.")
+        raise HTTPException(status_code=413, detail="Image too large. Please use an image under 20MB.")
 
-    # Always resize with Pillow (max 400x400, maintain aspect ratio)
+    # Always resize with Pillow (max 1600x1600, maintain aspect ratio). 1600 is
+    # large enough to stay crisp at every display size (cards, detail, player,
+    # and future full-size book-cover views) without storing the raw upload.
     try:
         from PIL import Image
 
@@ -2647,14 +2649,14 @@ async def upload_cover(
             img = img.convert("RGBA")
             ext = "png"
 
-        # Fit within 400x400 box maintaining aspect ratio
-        max_dim = 400
+        # Fit within 1600x1600 box maintaining aspect ratio
+        max_dim = 1600
         if img.width > max_dim or img.height > max_dim:
             img.thumbnail((max_dim, max_dim), Image.LANCZOS)
 
         buf = io.BytesIO()
         out_format = "PNG" if ext == "png" else "JPEG"
-        save_kwargs = {"quality": 80} if out_format == "JPEG" else {}
+        save_kwargs = {"quality": 88} if out_format == "JPEG" else {}
         if out_format == "JPEG" and img.mode in ("RGBA", "P"):
             img = img.convert("RGB")
         img.save(buf, format=out_format, **save_kwargs)

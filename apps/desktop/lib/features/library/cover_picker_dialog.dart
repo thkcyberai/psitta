@@ -79,12 +79,12 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
     if (result != null && result.files.isNotEmpty && result.files.first.path != null) {
       final file = File(result.files.first.path!);
       final size = await file.length();
-      if (size > 2 * 1024 * 1024) {
+      if (size > 20 * 1024 * 1024) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
                 content: Text(
-                    'Image is too large. Please choose an image under 2MB.')),
+                    'Image is too large. Please choose an image under 20MB.')),
           );
         }
         return;
@@ -321,7 +321,8 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Supports JPEG, PNG, and GIF (max 2MB)',
+                              'JPEG, PNG, or GIF · up to 20 MB · saved as a '
+                              'crisp 1600px cover',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurface
                                     .withOpacity(0.40),
