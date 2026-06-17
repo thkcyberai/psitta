@@ -172,6 +172,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               child: WritingDeskScreen(
                 documentId: state.pathParameters['documentId']!,
                 projectId: state.uri.queryParameters['projectId'],
+                initialRead: state.uri.queryParameters['read'] == '1',
               ),
             ),
           ),

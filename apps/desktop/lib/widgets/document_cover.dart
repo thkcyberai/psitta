@@ -204,13 +204,27 @@ class _UploadedCover extends ConsumerStatefulWidget {
 }
 
 class _UploadedCoverState extends ConsumerState<_UploadedCover> {
+  // Process-lifetime cache of decoded cover bytes, keyed by document + cover
+  // version. Survives widget remounts, so moving Library <-> Writing Desk
+  // re-shows covers instantly with no refetch or flicker. Soft-capped.
+  static final Map<String, Uint8List> _cache = {};
+  static const int _cacheCap = 80;
+
   Uint8List? _bytes;
   bool _loading = true;
+
+  String get _key => '${widget.documentId}::${widget.coverValue ?? ''}';
 
   @override
   void initState() {
     super.initState();
-    _load();
+    final cached = _cache[_key];
+    if (cached != null) {
+      _bytes = cached;
+      _loading = false;
+    } else {
+      _load();
+    }
   }
 
   @override
@@ -218,7 +232,15 @@ class _UploadedCoverState extends ConsumerState<_UploadedCover> {
     super.didUpdateWidget(old);
     if (old.documentId != widget.documentId ||
         old.coverValue != widget.coverValue) {
-      _load();
+      final cached = _cache[_key];
+      if (cached != null) {
+        setState(() {
+          _bytes = cached;
+          _loading = false;
+        });
+      } else {
+        _load();
+      }
     }
   }
 
@@ -227,6 +249,10 @@ class _UploadedCoverState extends ConsumerState<_UploadedCover> {
     final bytes =
         await ref.read(documentRepositoryProvider).getCoverBytes(widget.documentId);
     if (!mounted) return;
+    if (bytes != null) {
+      if (_cache.length >= _cacheCap) _cache.remove(_cache.keys.first);
+      _cache[_key] = bytes;
+    }
     setState(() {
       _bytes = bytes;
       _loading = false;

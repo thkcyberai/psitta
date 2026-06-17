@@ -14,6 +14,7 @@ class Document {
     this.coverType,
     this.coverValue,
     required this.createdAt,
+    this.updatedAt,
   });
 
   factory Document.fromJson(Map<String, dynamic> json) => Document(
@@ -27,6 +28,9 @@ class Document {
         coverType: json['cover_type'] as String?,
         coverValue: json['cover_value'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
+        updatedAt: json['updated_at'] != null
+            ? DateTime.parse(json['updated_at'] as String)
+            : null,
       );
 
   final String id;
@@ -39,4 +43,5 @@ class Document {
   final String? coverType;
   final String? coverValue;
   final DateTime createdAt;
+  final DateTime? updatedAt;
 }

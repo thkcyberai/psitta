@@ -1077,7 +1077,7 @@ async def list_documents(
 
     rows = await db.execute(
         text(
-            "SELECT id, title, status, source_type, page_count, word_count, created_at, project_id, cover_type, cover_value "
+            "SELECT id, title, status, source_type, page_count, word_count, created_at, updated_at, project_id, cover_type, cover_value "
             "FROM documents WHERE user_id = :uid "
             "AND status != 'deleted' AND (:show_archived OR status != 'archived') "
             "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
@@ -1094,6 +1094,9 @@ async def list_documents(
             "page_count": r.page_count,
             "word_count": getattr(r, "word_count", 0),
             "created_at": r.created_at.isoformat() if r.created_at else None,
+            "updated_at": r.updated_at.isoformat()
+            if getattr(r, "updated_at", None)
+            else None,
             "project_id": str(r.project_id) if r.project_id else None,
             "cover_type": r.cover_type,
             "cover_value": r.cover_value,

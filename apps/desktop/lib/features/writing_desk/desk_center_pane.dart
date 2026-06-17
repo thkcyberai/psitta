@@ -54,10 +54,15 @@ class DeskCenterPane extends ConsumerStatefulWidget {
     super.key,
     required this.documentId,
     this.projectId,
+    this.initialRead = false,
   });
 
   final String documentId;
   final String? projectId;
+
+  /// When true, the Desk opens directly in Read/Listen mode (used by the
+  /// Library's "Read" action).
+  final bool initialRead;
 
   @override
   ConsumerState<DeskCenterPane> createState() => _DeskCenterPaneState();
@@ -99,6 +104,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   @override
   void initState() {
     super.initState();
+    _readMode = widget.initialRead;
     HardwareKeyboard.instance.addHandler(_handleFindKey);
   }
 

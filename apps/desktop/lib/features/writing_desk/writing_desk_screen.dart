@@ -28,10 +28,14 @@ class WritingDeskScreen extends ConsumerStatefulWidget {
     super.key,
     required this.documentId,
     this.projectId,
+    this.initialRead = false,
   });
 
   final String documentId;
   final String? projectId;
+
+  /// Open straight into Read/Listen mode (Library "Read" action).
+  final bool initialRead;
 
   @override
   ConsumerState<WritingDeskScreen> createState() => _WritingDeskScreenState();
@@ -170,6 +174,7 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
               key: const ValueKey('desk-center-pane'),
               documentId: widget.documentId,
               projectId: effectiveProjectId,
+              initialRead: widget.initialRead,
             ),
           ),
           // ── Resize handle: center ↔ context (drag) ──────────────────────

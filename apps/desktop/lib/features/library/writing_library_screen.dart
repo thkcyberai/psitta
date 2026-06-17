@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -781,8 +782,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     final scheme = Theme.of(context).colorScheme;
     final selected = _selectedDocId == doc.id;
     return InkWell(
-      onTap: () => setState(() => _selectedDocId = doc.id),
-      onDoubleTap: () => _openDoc(doc),
+      onTap: () => _openDoc(doc),
       borderRadius: BorderRadius.circular(tokens.radius - 2),
       child: Container(
         decoration: BoxDecoration(
@@ -877,8 +877,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       children: [
         for (final doc in docs)
           InkWell(
-            onTap: () => setState(() => _selectedDocId = doc.id),
-            onDoubleTap: () => _openDoc(doc),
+            onTap: () => _openDoc(doc),
             child: Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.all(10),
@@ -957,24 +956,51 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         side: BorderSide(color: tokens.border),
       ),
       itemBuilder: (_) => [
-        PopupMenuItem(
-            value: 'open',
-            child: Text('Open in Writing Desk',
-                style: TextStyle(color: scheme.onSurface))),
-        PopupMenuItem(
-            value: 'cover',
-            child: Text('Change cover',
-                style: TextStyle(color: scheme.onSurface))),
-        PopupMenuItem(
-            value: 'details',
-            child:
-                Text('Details', style: TextStyle(color: scheme.onSurface))),
+        _menuItem('read', Icons.headphones_outlined, 'Read', scheme),
+        _menuItem('cover', Icons.image_outlined, 'Change cover', scheme),
+        _menuItem('project', Icons.folder_outlined, 'Add to Project', scheme),
+        _menuItem('download', Icons.download_outlined, 'Download', scheme),
+        _menuItem('details', Icons.info_outline, 'Details', scheme),
+        const PopupMenuDivider(),
+        _menuItem('archive', Icons.archive_outlined, 'Archive', scheme),
+        _menuItem('delete', Icons.delete_outline, 'Delete', scheme,
+            danger: true),
       ],
       onSelected: (v) {
-        if (v == 'open') _openDoc(doc);
-        if (v == 'cover') _changeCover(doc);
-        if (v == 'details') setState(() => _selectedDocId = doc.id);
+        switch (v) {
+          case 'read':
+            _read(doc);
+          case 'cover':
+            _changeCover(doc);
+          case 'project':
+            _addToProject(doc);
+          case 'download':
+            _download(doc);
+          case 'details':
+            _showDetails(doc);
+          case 'archive':
+            _archive(doc);
+          case 'delete':
+            _delete(doc);
+        }
       },
+    );
+  }
+
+  PopupMenuItem<String> _menuItem(
+      String value, IconData icon, String label, ColorScheme scheme,
+      {bool danger = false}) {
+    final color = danger ? const Color(0xFFE5534B) : scheme.onSurface;
+    return PopupMenuItem<String>(
+      value: value,
+      height: 40,
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: color),
+          const SizedBox(width: 10),
+          Text(label, style: TextStyle(color: color, fontSize: 13)),
+        ],
+      ),
     );
   }
 
@@ -1015,6 +1041,172 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         );
       }
     }
+  }
+
+  // Open the document in the Writing Desk's Read/Listen mode.
+  void _read(Document doc) => context.go('/writing-desk/${doc.id}?read=1');
+
+  Future<void> _archive(Document doc) async {
+    try {
+      await ref.read(documentRepositoryProvider).archiveDocument(doc.id);
+      ref.invalidate(documentsProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document archived.')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Couldn’t archive the document.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _delete(Document doc) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete document?'),
+        content: Text(
+            '“${doc.title}” will be permanently deleted. This can’t be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFE5534B)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ref.read(documentRepositoryProvider).deleteDocument(doc.id);
+      ref.invalidate(documentsProvider);
+      ref.invalidate(quotaUsageProvider);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Couldn’t delete the document.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _addToProject(Document doc) async {
+    final projects = ref.read(projectsProvider).valueOrNull ?? const [];
+    final chosen = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Add to Project'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(ctx, '__none__'),
+            child: const Text('None (remove from project)'),
+          ),
+          for (final pr in projects)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, pr.id),
+              child: Text(pr.name),
+            ),
+        ],
+      ),
+    );
+    if (chosen == null || !mounted) return;
+    final projectId = chosen == '__none__' ? null : chosen;
+    try {
+      await ref
+          .read(documentRepositoryProvider)
+          .assignToProject(doc.id, projectId);
+      ref.invalidate(documentsProvider);
+      ref.invalidate(projectsProvider);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Couldn’t update the project.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _download(Document doc) async {
+    try {
+      final bytes =
+          await ref.read(documentRepositoryProvider).downloadDocument(doc.id);
+      if (!mounted) return;
+      final savePath = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save document',
+        fileName: '${doc.title}.${doc.sourceType}',
+      );
+      if (savePath == null) return;
+      await File(savePath).writeAsBytes(bytes);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved to $savePath')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Couldn’t download the document.')),
+        );
+      }
+    }
+  }
+
+  void _showDetails(Document doc) {
+    final scheme = Theme.of(context).colorScheme;
+    String fmt(DateTime? d) => d == null ? '—' : _fmtDate(d);
+    Widget row(String label, String value) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 5),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 130,
+                child: Text(label,
+                    style: TextStyle(
+                        fontSize: 12.5, color: scheme.onSurfaceVariant)),
+              ),
+              Expanded(
+                child: Text(value,
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: scheme.onSurface)),
+              ),
+            ],
+          ),
+        );
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(doc.title, maxLines: 2, overflow: TextOverflow.ellipsis),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              row('Type', doc.sourceType.toUpperCase()),
+              row('Word count', doc.wordCount?.toString() ?? '—'),
+              row('Pages', doc.pageCount?.toString() ?? '—'),
+              row('First uploaded', fmt(doc.createdAt)),
+              row('Last changed', fmt(doc.updatedAt)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Close')),
+        ],
+      ),
+    );
   }
 
   Widget _emptyState(PsittaTokens tokens) {
