@@ -26,10 +26,21 @@ Future<void> adoptBlueprintFlow(
   }
   if (!context.mounted) return;
 
+  // Templates already cloned into this project carry the template's id in
+  // their sourceTemplateId. Hide those templates so picking the same one
+  // twice can't create duplicate blueprints on the project.
+  final usedTemplateIds = all
+      .where((b) => adoptedIds.contains(b.id))
+      .map((b) => b.sourceTemplateId)
+      .whereType<String>()
+      .toSet();
+
   final available = all.where((b) => !adoptedIds.contains(b.id)).toList();
   final own = available.where((b) => !b.isSystem).toList()
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-  final templates = available.where((b) => b.isSystem).toList()
+  final templates = available
+      .where((b) => b.isSystem && !usedTemplateIds.contains(b.id))
+      .toList()
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
   if (own.isEmpty && templates.isEmpty) {

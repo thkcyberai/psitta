@@ -30,6 +30,10 @@ dependencies:
   # Audio playback
   just_audio: ^0.9.39
   shared_preferences: ^2.2.0
+  # Note: mic capture for Whispers (the `record` package) is deferred — its
+  # 7.x line needs Dart 3.12+ and its 5.x line ships a broken record_linux.
+  # Revisit when Flutter is upgraded. Backend + Whispers UI (list/playback)
+  # are already in place.
 
   # Desktop-specific
   desktop_drop: ^0.4.4            # Drag & drop file upload

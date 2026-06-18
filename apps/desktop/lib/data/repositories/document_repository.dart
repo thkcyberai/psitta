@@ -45,6 +45,31 @@ class DocumentRepository {
         .toList();
   }
 
+  /// Upload an audio recording (Whispers). Stored as a 'recording' document.
+  Future<void> uploadRecording(
+    List<int> bytes,
+    String filename, {
+    String title = 'Voice note',
+  }) async {
+    final formData = FormData.fromMap({
+      'title': title,
+      'file': MultipartFile.fromBytes(bytes, filename: filename),
+    });
+    await _api.dio.post('/documents/recording', data: formData);
+  }
+
+  /// Fetch the user's recordings (Whispers).
+  Future<List<Document>> listRecordings() async {
+    final response = await _api.dio.get('/documents/', queryParameters: {
+      'recordings_only': true,
+      'size': 100,
+    });
+    final items = response.data['items'] as List<dynamic>;
+    return items
+        .map((e) => Document.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Fetch archived documents (the Archive view).
   Future<List<Document>> listArchived() async {
     final response = await _api.dio.get('/documents/', queryParameters: {

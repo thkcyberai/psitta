@@ -22,6 +22,7 @@ import '../../data/providers/providers.dart'
         projectsProvider,
         quotaUsageProvider,
         archivedDocumentsProvider,
+        recordingsProvider,
         storageUsageProvider,
         trashedDocumentsProvider,
         userProfileProvider,
@@ -52,6 +53,7 @@ void _refreshAllData(WidgetRef ref) {
   ref.invalidate(storageUsageProvider);
   ref.invalidate(trashedDocumentsProvider);
   ref.invalidate(archivedDocumentsProvider);
+  ref.invalidate(recordingsProvider);
 }
 
 /// AppShell — persistent desktop layout with header, sidebar, optional right panel, and pinned player bar.

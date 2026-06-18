@@ -1330,6 +1330,81 @@ async def upload_document(
     }
 
 
+@router.post("/recording", status_code=status.HTTP_201_CREATED)
+async def upload_recording(
+    request: Request,
+    file: UploadFile,
+    title: str = Form("Voice note"),
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> dict:
+    """Store an audio recording as a 'recording' document (no chunking).
+
+    The clip is the document's raw file. Recordings live in their own surface,
+    not the main Library, until (P2) they're transcribed into editable drafts.
+    """
+    filename = file.filename or "recording.m4a"
+    ext = (
+        "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ".m4a"
+    )
+    allowed = {".m4a", ".mp3", ".wav", ".ogg", ".webm", ".aac", ".opus"}
+    if ext not in allowed:
+        raise HTTPException(
+            status_code=415, detail=f"Unsupported audio type: {ext}"
+        )
+
+    file_bytes = await file.read()
+    file_size = len(file_bytes)
+    if file_size == 0:
+        raise HTTPException(status_code=400, detail="Empty recording")
+    if file_size > 50 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Recording too large")
+
+    doc_id = uuid4()
+    storage_key = f"uploads/{doc_id}{ext}"
+    now = datetime.now(timezone.utc)
+    clean_title = title.strip() or "Voice note"
+
+    from psitta.services.audio_cache import put_raw_file
+
+    await put_raw_file(str(doc_id), ext, file_bytes)
+
+    await db.execute(
+        text(
+            "INSERT INTO documents "
+            "(id, user_id, title, source_type, status, file_size_bytes, "
+            "storage_key, page_count, word_count, created_at, updated_at) "
+            "VALUES (:id, :uid, :title, 'recording', 'ready', :sz, :key, "
+            "0, 0, :now, :now)"
+        ),
+        {
+            "id": doc_id,
+            "uid": str(user_id),
+            "title": clean_title,
+            "sz": file_size,
+            "key": storage_key,
+            "now": now,
+        },
+    )
+    await db.commit()
+    await audit_service.log_event(
+        db,
+        action="recording.create",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(doc_id),
+        details={"size_bytes": file_size, "ext": ext},
+        ip_address=request.client.host if request.client else None,
+    )
+    logger.info("recording.created", doc_id=str(doc_id), size=file_size)
+    return {
+        "id": str(doc_id),
+        "title": clean_title,
+        "source_type": "recording",
+        "created_at": now.isoformat(),
+    }
+
+
 async def _maybe_seed_welcome_kit(
     db: AsyncSession,
     user_id: UUID,
@@ -1397,6 +1472,7 @@ async def list_documents(
     show_archived: bool = False,
     trashed: bool = False,
     archived_only: bool = False,
+    recordings_only: bool = False,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
@@ -1414,13 +1490,23 @@ async def list_documents(
         # Archive view: only archived docs.
         where = "user_id = :uid AND status = 'archived'"
         params = {"uid": str(user_id)}
+    elif recordings_only:
+        # Recordings view: only audio-note documents.
+        where = (
+            "user_id = :uid AND status != 'deleted' "
+            "AND source_type = 'recording'"
+        )
+        params = {"uid": str(user_id)}
     else:
         # ── Welcome-kit seeding (Writing Nook, first login) ──────────────
         # On a writer's first Library load, seed the 6 starter documents once.
         # Fail-open: any error here must never break the document list.
         await _maybe_seed_welcome_kit(db, user_id, background_tasks)
+        # Recordings are excluded from the main Library — they live in their
+        # own Recording surface until (P2) they're transcribed into drafts.
         where = (
             "user_id = :uid AND status != 'deleted' "
+            "AND source_type != 'recording' "
             "AND (:show_archived OR status != 'archived')"
         )
         params = {"uid": str(user_id), "show_archived": show_archived}
