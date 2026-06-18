@@ -266,6 +266,12 @@ final trashedDocumentsProvider =
   return ref.watch(documentRepositoryProvider).listTrashed();
 });
 
+/// Archived documents (Archive view).
+final archivedDocumentsProvider =
+    FutureProvider.autoDispose<List<Document>>((ref) async {
+  return ref.watch(documentRepositoryProvider).listArchived();
+});
+
 /// Total storage used (bytes) + document count for the Library Storage card.
 final storageUsageProvider =
     FutureProvider.autoDispose<({int usedBytes, int docCount})>((ref) async {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/blueprint.dart';
 import '../models/blueprint_enums.dart';
 import '../repositories/blueprint_repository.dart';
+import 'project_providers.dart' show projectPlacementsProvider;
 import 'providers.dart' show apiClientProvider;
 
 /// Shared "field omitted" sentinel for the controller's PATCH-style mutations.
@@ -297,8 +298,10 @@ class BlueprintActions {
   void _invalidateOverviewFor(String? projectId) {
     if (projectId != null) {
       _ref.invalidate(projectBlueprintOverviewProvider(projectId));
+      _ref.invalidate(projectPlacementsProvider(projectId));
     } else {
       _ref.invalidate(projectBlueprintOverviewProvider);
+      _ref.invalidate(projectPlacementsProvider);
     }
   }
 }

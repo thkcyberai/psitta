@@ -45,6 +45,18 @@ class DocumentRepository {
         .toList();
   }
 
+  /// Fetch archived documents (the Archive view).
+  Future<List<Document>> listArchived() async {
+    final response = await _api.dio.get('/documents/', queryParameters: {
+      'archived_only': true,
+      'size': 100,
+    });
+    final items = response.data['items'] as List<dynamic>;
+    return items
+        .map((e) => Document.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   /// Total storage used (bytes) and document count for the current user.
   Future<({int usedBytes, int docCount})> getStorageUsage() async {
     final response = await _api.dio.get('/documents/storage');

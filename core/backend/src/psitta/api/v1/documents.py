@@ -1396,6 +1396,7 @@ async def list_documents(
     size: Annotated[int, Query(ge=1, le=100)] = 20,
     show_archived: bool = False,
     trashed: bool = False,
+    archived_only: bool = False,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
@@ -1409,6 +1410,10 @@ async def list_documents(
         # Trash view: only soft-deleted docs. No seeding here.
         where = "user_id = :uid AND status = 'deleted'"
         params: dict = {"uid": str(user_id)}
+    elif archived_only:
+        # Archive view: only archived docs.
+        where = "user_id = :uid AND status = 'archived'"
+        params = {"uid": str(user_id)}
     else:
         # ── Welcome-kit seeding (Writing Nook, first login) ──────────────
         # On a writer's first Library load, seed the 6 starter documents once.

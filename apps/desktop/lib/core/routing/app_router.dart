@@ -6,6 +6,7 @@ import '../../features/auth/login_screen.dart';
 import '../../features/auth/plan_selection_screen.dart';
 import '../../features/shell/desktop_shell.dart';
 import '../../features/splash/splash_screen.dart';
+import '../../features/library/archive_screen.dart';
 import '../../features/library/trash_screen.dart';
 import '../../features/library/writing_library_screen.dart';
 import '../../features/player/player_screen.dart';
@@ -145,6 +146,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/trash',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: TrashScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/archive',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ArchiveScreen(),
             ),
           ),
           GoRoute(

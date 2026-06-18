@@ -387,9 +387,6 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                 _RightRail(
                   tokens: tokens,
                   isPro: ref.watch(planStatusProvider).isPro,
-                  docCount: docsAsync.valueOrNull?.length ?? 0,
-                  projects: projects,
-                  onProjects: () => context.go('/projects'),
                   onSoon: _soon,
                 ),
               ],
@@ -1152,6 +1149,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     try {
       await ref.read(documentRepositoryProvider).archiveDocument(doc.id);
       ref.invalidate(documentsProvider);
+      ref.invalidate(archivedDocumentsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Document archived.')),
@@ -1622,17 +1620,11 @@ class _RightRail extends StatelessWidget {
   const _RightRail({
     required this.tokens,
     required this.isPro,
-    required this.docCount,
-    required this.projects,
-    required this.onProjects,
     required this.onSoon,
   });
 
   final PsittaTokens tokens;
   final bool isPro;
-  final int docCount;
-  final List<Project> projects;
-  final VoidCallback onProjects;
   final void Function(String) onSoon;
 
   @override
@@ -1651,37 +1643,12 @@ class _RightRail extends StatelessWidget {
           const SizedBox(height: 18),
           _sectionLabel('Quick Access', scheme),
           const SizedBox(height: 8),
-          _quickRow(context, Icons.auto_stories_outlined, 'My Writing Nook',
-              '$docCount items', null),
-          _quickRow(context, Icons.folder_outlined, 'Projects',
-              '${projects.length} projects', onProjects),
-          _quickRow(context, Icons.dashboard_customize_outlined, 'Templates',
-              'Coming soon', () => onSoon('Templates')),
           _quickRow(context, Icons.inventory_2_outlined, 'Archive',
-              'Coming soon', () => onSoon('Archive')),
-          const SizedBox(height: 20),
-          _sectionLabel('Recent Collections', scheme),
-          const SizedBox(height: 8),
-          if (projects.isEmpty)
-            Text('No collections yet.',
-                style:
-                    TextStyle(fontSize: 12, color: scheme.onSurfaceVariant))
-          else
-            for (final pr in projects.take(4))
-              _collectionRow(context, pr),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => onSoon('New Collection'),
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('New Collection'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: scheme.onSurface,
-              side: BorderSide(color: tokens.border),
-              minimumSize: const Size.fromHeight(38),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-          ),
+              'Archived documents', () => context.go('/archive')),
+          _quickRow(context, Icons.sticky_note_2_outlined, 'Sticky Notes',
+              'Coming soon', () => onSoon('Sticky Notes')),
+          _quickRow(context, Icons.mic_none_outlined, 'Recording',
+              'Coming soon', () => onSoon('Recording')),
           const SizedBox(height: 16),
         ],
       ),
@@ -1782,42 +1749,4 @@ class _RightRail extends StatelessWidget {
     );
   }
 
-  Widget _collectionRow(BuildContext context, Project pr) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: tokens.glow.withOpacity(0.16),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.collections_bookmark_outlined,
-                size: 16, color: tokens.glow),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(pr.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: scheme.onSurface)),
-                Text('${pr.documentCount} documents',
-                    style: TextStyle(
-                        fontSize: 10.5, color: scheme.onSurfaceVariant)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
