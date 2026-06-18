@@ -287,10 +287,10 @@ class DocumentRepository {
   }
 
   /// Duplicate a document (server-side copy of file + chunks) into the
-  /// Library. Returns the new document's metadata.
-  Future<Document> duplicateDocument(String id) async {
-    final response = await _api.dio.post('/documents/$id/duplicate');
-    return Document.fromJson(response.data as Map<String, dynamic>);
+  /// Library. The caller refreshes the list afterwards, so we don't parse the
+  /// (minimal) response body — Dio throws on a non-2xx status on its own.
+  Future<void> duplicateDocument(String id) async {
+    await _api.dio.post('/documents/$id/duplicate');
   }
 
   /// Upload cover from in-memory bytes (e.g. a bundled reservatory asset).
