@@ -1636,6 +1636,11 @@ class _RightRail extends ConsumerWidget {
     final archiveSub = archivedCount > 0
         ? '$archivedCount document${archivedCount == 1 ? '' : 's'}'
         : 'Archived documents';
+    final notesCount = ref.watch(notesProvider).maybeWhen(
+        data: (l) => l.length, orElse: () => 0);
+    final scribblesSub = notesCount > 0
+        ? '$notesCount note${notesCount == 1 ? '' : 's'}'
+        : 'Quick notes';
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -1652,7 +1657,7 @@ class _RightRail extends ConsumerWidget {
           _quickRow(context, Icons.inventory_2_outlined, 'Archive',
               archiveSub, () => context.go('/archive')),
           _quickRow(context, Icons.sticky_note_2_outlined, 'Scribbles',
-              'Quick notes', () => context.go('/scribbles')),
+              scribblesSub, () => context.go('/scribbles')),
           _quickRow(context, Icons.mic_none_outlined, 'Whispers',
               'Voice notes', () => context.go('/whispers')),
           const SizedBox(height: 16),
