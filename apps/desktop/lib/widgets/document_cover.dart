@@ -43,6 +43,14 @@ class DocumentCover extends StatelessWidget {
   static void evictCache(String documentId) {
     _UploadedCoverState._cache
         .removeWhere((k, _) => k.startsWith('$documentId::'));
+    _UploadedCoverState._generation.value++;
+  }
+
+  /// Drop the entire cover-byte cache. Used by the top-bar Refresh action so a
+  /// manual refresh refetches every cover from the backend.
+  static void evictAllCache() {
+    _UploadedCoverState._cache.clear();
+    _UploadedCoverState._generation.value++;
   }
 
   /// Optional explicit banner height. When null, falls back to the per-[size]
@@ -221,6 +229,11 @@ class _UploadedCoverState extends ConsumerState<_UploadedCover> {
   static final Map<String, Uint8List> _cache = {};
   static const int _cacheCap = 80;
 
+  /// Bumped whenever the cover cache is evicted (single doc or all). Mounted
+  /// cover widgets listen so a cache clear forces a live refetch instead of
+  /// waiting for the next remount.
+  static final ValueNotifier<int> _generation = ValueNotifier<int>(0);
+
   Uint8List? _bytes;
   bool _loading = true;
 
@@ -229,11 +242,28 @@ class _UploadedCoverState extends ConsumerState<_UploadedCover> {
   @override
   void initState() {
     super.initState();
+    _generation.addListener(_onCacheEvicted);
     final cached = _cache[_key];
     if (cached != null) {
       _bytes = cached;
       _loading = false;
     } else {
+      _load();
+    }
+  }
+
+  @override
+  void dispose() {
+    _generation.removeListener(_onCacheEvicted);
+    super.dispose();
+  }
+
+  /// Cache was evicted: if our entry is gone, refetch; otherwise keep the
+  /// (still-valid) cached bytes. So evicting one document only refetches that
+  /// document's cover, while a full clear refetches every visible cover.
+  void _onCacheEvicted() {
+    if (!mounted) return;
+    if (!_cache.containsKey(_key)) {
       _load();
     }
   }

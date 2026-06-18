@@ -16,20 +16,37 @@ import '../../data/providers/project_providers.dart'
     show projectDetailProvider, projectPlacementsProvider;
 import '../../data/providers/providers.dart'
     show
+        billingStatusProvider,
         documentRepositoryProvider,
         documentsProvider,
+        projectsProvider,
+        quotaUsageProvider,
         userProfileProvider,
         displayNameFromProfile;
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../features/writing_desk/desk_providers.dart'
     show deskDocumentProvider;
+import '../../widgets/document_cover.dart';
 import '../../widgets/export_options_dialog.dart';
 import '../../widgets/user_avatar.dart';
 import 'widgets/player_bar.dart';
 import 'widgets/shortcuts_panel.dart';
 import 'widgets/sidebar_nav.dart';
 import 'widgets/writing_nav.dart';
+
+/// Manual refresh from the top bar: re-fetch the data that drives the current
+/// view and drop image/cover caches so anything changed server-side (covers,
+/// docs, projects, plan, profile) is reflected immediately.
+void _refreshAllData(WidgetRef ref) {
+  DocumentCover.evictAllCache();
+  PaintingBinding.instance.imageCache.clear();
+  ref.invalidate(documentsProvider);
+  ref.invalidate(projectsProvider);
+  ref.invalidate(quotaUsageProvider);
+  ref.invalidate(billingStatusProvider);
+  ref.invalidate(userProfileProvider);
+}
 
 /// AppShell — persistent desktop layout with header, sidebar, optional right panel, and pinned player bar.
 class AppShell extends ConsumerWidget {
@@ -449,7 +466,17 @@ class _ContextHeader extends ConsumerWidget {
               ),
               const SizedBox(width: 10),
             ],
-            // Always present: help, settings, avatar
+            // Always present: refresh, help, settings, avatar
+            IconButton(
+              tooltip: 'Refresh',
+              onPressed: () => _refreshAllData(ref),
+              icon: Icon(
+                Icons.refresh,
+                size: 20,
+                color: theme.iconTheme.color?.withOpacity(0.70),
+              ),
+            ),
+            const SizedBox(width: 2),
             IconButton(
               tooltip: 'Keyboard Shortcuts (Ctrl+/)',
               onPressed: () => showDialog(
@@ -544,6 +571,16 @@ class _ContextHeader extends ConsumerWidget {
             ),
           ],
           const SizedBox(width: 10),
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: () => _refreshAllData(ref),
+            icon: Icon(
+              Icons.refresh,
+              size: 20,
+              color: theme.iconTheme.color?.withOpacity(0.70),
+            ),
+          ),
+          const SizedBox(width: 2),
           IconButton(
             tooltip: 'Keyboard Shortcuts (Ctrl+/)',
             onPressed: () => showDialog(
