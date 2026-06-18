@@ -3323,6 +3323,9 @@ async def duplicate_document(
         f"uploads/{new_id}{extension}" if src.storage_key else None
     )
 
+    from psitta.config import get_settings
+    from psitta.providers.storage_s3 import S3StorageProvider
+
     settings = get_settings()
     s3 = S3StorageProvider(settings)
     bucket = settings.S3_BUCKET_NAME
