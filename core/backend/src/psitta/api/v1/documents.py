@@ -3638,16 +3638,381 @@ def _build_branded_docx(
     return buf.getvalue()
 
 
+# ── Content-to-format builders (TXT / Markdown / EPUB) ───────────────────────
+#
+# All consume the same `chunks` shape the DOCX builder uses:
+#   {title, text_content, formatted_content}
+# where formatted_content is a list of blocks:
+#   {type: 'heading'|'list_item'|'paragraph', level?, list_type?, alignment?,
+#    runs: [{text, bold?, italic?, underline?, strike?, ...}]}
+# Chunk-level synthetic titles ('Section N') are intentionally NOT emitted —
+# real structure already lives in the formatted_content headings.
+
+
+def _runs_plain(runs: list | None) -> str:
+    """Concatenate run texts with no markup."""
+    out: list[str] = []
+    for r in runs or []:
+        if isinstance(r, dict) and r.get("text"):
+            out.append(r["text"])
+    return "".join(out)
+
+
+def _runs_md(runs: list | None) -> str:
+    """Render runs to inline Markdown (bold/italic/strike; underline has no
+    portable Markdown so it is dropped)."""
+    out: list[str] = []
+    for r in runs or []:
+        if not isinstance(r, dict):
+            continue
+        t = r.get("text", "")
+        if not t:
+            continue
+        if r.get("strike"):
+            t = f"~~{t}~~"
+        if r.get("bold") and r.get("italic"):
+            t = f"***{t}***"
+        elif r.get("bold"):
+            t = f"**{t}**"
+        elif r.get("italic"):
+            t = f"*{t}*"
+        out.append(t)
+    return "".join(out)
+
+
+def _runs_xhtml(runs: list | None) -> str:
+    """Render runs to inline XHTML (for EPUB), escaping text."""
+    import html as _html
+
+    out: list[str] = []
+    for r in runs or []:
+        if not isinstance(r, dict):
+            continue
+        t = r.get("text", "")
+        if not t:
+            continue
+        t = _html.escape(t)
+        if r.get("bold"):
+            t = f"<strong>{t}</strong>"
+        if r.get("italic"):
+            t = f"<em>{t}</em>"
+        if r.get("underline"):
+            t = f"<u>{t}</u>"
+        if r.get("strike"):
+            t = f"<s>{t}</s>"
+        out.append(t)
+    return "".join(out)
+
+
+def _heading_level(block: dict, default: int = 2) -> int:
+    try:
+        return max(1, min(int(block.get("level", default)), 6))
+    except (ValueError, TypeError):
+        return default
+
+
+def _build_txt(*, title: str, chunks: list[dict]) -> bytes:
+    """Plain-text export: document title, then content paragraphs."""
+    lines: list[str] = [title, ""]
+    for chunk in chunks:
+        fmt = chunk.get("formatted_content")
+        if fmt:
+            for block in fmt:
+                if not isinstance(block, dict):
+                    continue
+                t = _runs_plain(block.get("runs"))
+                if t.strip():
+                    lines.append(t)
+                    lines.append("")
+        else:
+            for para in (chunk.get("text_content") or "").split("\n"):
+                if para.strip():
+                    lines.append(para.strip())
+                    lines.append("")
+    return "\n".join(lines).encode("utf-8")
+
+
+def _build_markdown(*, title: str, chunks: list[dict]) -> bytes:
+    """Markdown export from formatted_content (headings, lists, emphasis)."""
+    lines: list[str] = [f"# {title}", ""]
+    for chunk in chunks:
+        fmt = chunk.get("formatted_content")
+        if fmt:
+            for block in fmt:
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get("type", "paragraph")
+                inline = _runs_md(block.get("runs"))
+                if not inline.strip():
+                    continue
+                if btype == "heading":
+                    lines.append("#" * _heading_level(block) + " " + inline)
+                elif btype == "list_item":
+                    prefix = (
+                        "1. " if block.get("list_type") == "numbered" else "- "
+                    )
+                    lines.append(prefix + inline)
+                else:
+                    lines.append(inline)
+                lines.append("")
+        else:
+            for para in (chunk.get("text_content") or "").split("\n"):
+                if para.strip():
+                    lines.append(para.strip())
+                    lines.append("")
+    return "\n".join(lines).encode("utf-8")
+
+
+def _build_epub(
+    *, title: str, chunks: list[dict], project_name: str | None
+) -> bytes:
+    """Minimal, valid EPUB2 (one content document) built from the chunks."""
+    import html as _html
+    import uuid as _uuid
+    import zipfile
+
+    body: list[str] = []
+    list_open: str | None = None
+
+    def close_list() -> None:
+        nonlocal list_open
+        if list_open:
+            body.append(f"</{list_open}>")
+            list_open = None
+
+    for chunk in chunks:
+        fmt = chunk.get("formatted_content")
+        if fmt:
+            for block in fmt:
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get("type", "paragraph")
+                inline = _runs_xhtml(block.get("runs"))
+                if btype == "list_item":
+                    want = "ol" if block.get("list_type") == "numbered" else "ul"
+                    if list_open != want:
+                        close_list()
+                        body.append(f"<{want}>")
+                        list_open = want
+                    body.append(f"<li>{inline or '&#160;'}</li>")
+                    continue
+                close_list()
+                if btype == "heading":
+                    lvl = _heading_level(block)
+                    if inline.strip():
+                        body.append(f"<h{lvl}>{inline}</h{lvl}>")
+                elif inline.strip():
+                    body.append(f"<p>{inline}</p>")
+        else:
+            close_list()
+            for para in (chunk.get("text_content") or "").split("\n"):
+                if para.strip():
+                    body.append(f"<p>{_html.escape(para.strip())}</p>")
+    close_list()
+
+    esc_title = _html.escape(title)
+    esc_creator = _html.escape(project_name or "Psitta")
+    book_id = str(_uuid.uuid4())
+    body_html = "\n".join(body)
+
+    content_xhtml = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<!DOCTYPE html>\n'
+        '<html xmlns="http://www.w3.org/1999/xhtml">\n'
+        f"<head><title>{esc_title}</title>"
+        '<meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>'
+        "</head>\n"
+        f"<body>\n<h1>{esc_title}</h1>\n{body_html}\n</body>\n</html>\n"
+    )
+    container_xml = (
+        '<?xml version="1.0"?>\n'
+        '<container version="1.0" '
+        'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n'
+        '  <rootfiles><rootfile full-path="OEBPS/content.opf" '
+        'media-type="application/oebps-package+xml"/></rootfiles>\n'
+        "</container>\n"
+    )
+    opf = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="2.0" '
+        'unique-identifier="bookid">\n'
+        '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+        f"    <dc:title>{esc_title}</dc:title>\n"
+        "    <dc:language>en</dc:language>\n"
+        f"    <dc:creator>{esc_creator}</dc:creator>\n"
+        f'    <dc:identifier id="bookid">urn:uuid:{book_id}</dc:identifier>\n'
+        "  </metadata>\n"
+        "  <manifest>\n"
+        '    <item id="content" href="content.xhtml" '
+        'media-type="application/xhtml+xml"/>\n'
+        '    <item id="ncx" href="toc.ncx" '
+        'media-type="application/x-dtbncx+xml"/>\n'
+        "  </manifest>\n"
+        '  <spine toc="ncx"><itemref idref="content"/></spine>\n'
+        "</package>\n"
+    )
+    ncx = (
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">\n'
+        f'  <head><meta name="dtb:uid" content="urn:uuid:{book_id}"/></head>\n'
+        f"  <docTitle><text>{esc_title}</text></docTitle>\n"
+        '  <navMap><navPoint id="np1" playOrder="1">'
+        f"<navLabel><text>{esc_title}</text></navLabel>"
+        '<content src="content.xhtml"/></navPoint></navMap>\n'
+        "</ncx>\n"
+    )
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        # mimetype MUST be first and stored uncompressed.
+        z.writestr(
+            "mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED
+        )
+        z.writestr("META-INF/container.xml", container_xml)
+        z.writestr("OEBPS/content.opf", opf)
+        z.writestr("OEBPS/toc.ncx", ncx)
+        z.writestr("OEBPS/content.xhtml", content_xhtml)
+    return buf.getvalue()
+
+
+def _runs_rl(runs: list | None) -> str:
+    """Render runs to ReportLab Paragraph mini-markup (<b>/<i>/<u>/<strike>),
+    escaping text so & < > are safe."""
+    import html as _html
+
+    out: list[str] = []
+    for r in runs or []:
+        if not isinstance(r, dict):
+            continue
+        t = r.get("text", "")
+        if not t:
+            continue
+        t = _html.escape(t)
+        if r.get("bold"):
+            t = f"<b>{t}</b>"
+        if r.get("italic"):
+            t = f"<i>{t}</i>"
+        if r.get("underline"):
+            t = f"<u>{t}</u>"
+        if r.get("strike"):
+            t = f"<strike>{t}</strike>"
+        out.append(t)
+    return "".join(out)
+
+
+def _build_pdf(
+    *, title: str, chunks: list[dict], project_name: str | None
+) -> bytes:
+    """PDF export via ReportLab Platypus from the document's content."""
+    import html as _html
+
+    from reportlab.lib.enums import TA_LEFT
+    from reportlab.lib.pagesizes import letter
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import inch
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer
+
+    styles = getSampleStyleSheet()
+    bullet_style = ParagraphStyle(
+        "PsittaBullet",
+        parent=styles["Normal"],
+        leftIndent=20,
+        bulletIndent=6,
+        alignment=TA_LEFT,
+    )
+
+    flow: list = [
+        Paragraph(_html.escape(title), styles["Title"]),
+        Spacer(1, 12),
+    ]
+    if project_name:
+        flow.append(Paragraph(_html.escape(project_name), styles["Heading3"]))
+        flow.append(Spacer(1, 8))
+
+    num_counter = 0
+    for chunk in chunks:
+        fmt = chunk.get("formatted_content")
+        if fmt:
+            for block in fmt:
+                if not isinstance(block, dict):
+                    continue
+                btype = block.get("type", "paragraph")
+                inline = _runs_rl(block.get("runs"))
+                if not inline.strip():
+                    continue
+                if btype == "heading":
+                    num_counter = 0
+                    lvl = min(_heading_level(block), 4)
+                    flow.append(Paragraph(inline, styles[f"Heading{lvl}"]))
+                elif btype == "list_item":
+                    if block.get("list_type") == "numbered":
+                        num_counter += 1
+                        bullet = f"{num_counter}."
+                    else:
+                        num_counter = 0
+                        bullet = "•"
+                    flow.append(
+                        Paragraph(inline, bullet_style, bulletText=bullet)
+                    )
+                else:
+                    num_counter = 0
+                    flow.append(Paragraph(inline, styles["Normal"]))
+                flow.append(Spacer(1, 5))
+        else:
+            num_counter = 0
+            for para in (chunk.get("text_content") or "").split("\n"):
+                if para.strip():
+                    flow.append(
+                        Paragraph(_html.escape(para.strip()), styles["Normal"])
+                    )
+                    flow.append(Spacer(1, 5))
+
+    if len(flow) <= 2:
+        flow.append(Paragraph("(No content)", styles["Normal"]))
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=letter,
+        title=title,
+        topMargin=inch,
+        bottomMargin=inch,
+        leftMargin=inch,
+        rightMargin=inch,
+    )
+    doc.build(flow)
+    return buf.getvalue()
+
+
+# Export targets → (media type, file extension).
+_EXPORT_FORMATS = {
+    "docx": (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "docx",
+    ),
+    "pdf": ("application/pdf", "pdf"),
+    "txt": ("text/plain; charset=utf-8", "txt"),
+    "md": ("text/markdown; charset=utf-8", "md"),
+    "epub": ("application/epub+zip", "epub"),
+}
+
+
 @router.get("/{document_id}/export")
 async def export_document(
     document_id: UUID,
     request: Request,
+    format: str = Query("docx"),
     include_cover: bool = Query(True, alias="cover"),
     include_footer: bool = Query(True, alias="footer"),
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ):
-    """Export document as a branded DOCX file."""
+    """Export a document's content in the requested format (docx/txt/md/epub)."""
+    fmt = (format or "docx").lower()
+    if fmt not in _EXPORT_FORMATS:
+        raise HTTPException(
+            status_code=422, detail=f"Unsupported export format: {format}"
+        )
     # Fetch document metadata
     result = await db.execute(
         text(
@@ -3686,25 +4051,43 @@ async def export_document(
     chunks = []
     for r in chunks_result.mappings():
         meta = r["metadata_json"] if isinstance(r["metadata_json"], dict) else {}
-        fmt = r["formatted_content"] if isinstance(r["formatted_content"], list) else None
+        fmt_content = (
+            r["formatted_content"]
+            if isinstance(r["formatted_content"], list)
+            else None
+        )
         chunks.append({
             "title": meta.get("title", f"Section {r['sequence_index'] + 1}"),
             "text_content": r["text_content"] or "",
-            "formatted_content": fmt,
+            "formatted_content": fmt_content,
         })
 
     if not chunks:
         raise HTTPException(status_code=404, detail="No content to export")
 
-    docx_bytes = _build_branded_docx(
-        title=doc_title,
-        chunks=chunks,
-        project_name=project_name,
-        include_cover=include_cover,
-        include_footer=include_footer,
-    )
+    media_type, ext = _EXPORT_FORMATS[fmt]
+    if fmt == "docx":
+        data = _build_branded_docx(
+            title=doc_title,
+            chunks=chunks,
+            project_name=project_name,
+            include_cover=include_cover,
+            include_footer=include_footer,
+        )
+    elif fmt == "pdf":
+        data = _build_pdf(
+            title=doc_title, chunks=chunks, project_name=project_name
+        )
+    elif fmt == "txt":
+        data = _build_txt(title=doc_title, chunks=chunks)
+    elif fmt == "md":
+        data = _build_markdown(title=doc_title, chunks=chunks)
+    else:  # epub
+        data = _build_epub(
+            title=doc_title, chunks=chunks, project_name=project_name
+        )
 
-    filename = f"{doc_title}.docx"
+    filename = f"{doc_title}.{ext}"
     await audit_service.log_event(
         db,
         action="document.export",
@@ -3713,7 +4096,7 @@ async def export_document(
         resource_id=str(document_id),
         details={
             "filename": filename,
-            "format": "docx",
+            "format": fmt,
             "include_cover": include_cover,
             "include_footer": include_footer,
             "chunk_count": len(chunks),
@@ -3721,8 +4104,8 @@ async def export_document(
         ip_address=request.client.host if request.client else None,
     )
     return StreamingResponse(
-        io.BytesIO(docx_bytes),
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        io.BytesIO(data),
+        media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
