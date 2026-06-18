@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/theme/psitta_tokens.dart';
@@ -28,22 +29,59 @@ class CoverPickerStock extends CoverPickerResult {
   final String assetPath;
 }
 
-/// The bundled photographic cover reservatory. Grows over time — drop a JPG in
-/// assets/covers/ and add a line here.
-const List<({String asset, String label})> kStockCovers = [
-  (asset: 'assets/covers/writing_nook.jpg', label: 'Writing Nook'),
-  (asset: 'assets/covers/fantasy_castle.jpg', label: 'Fantasy'),
-  (asset: 'assets/covers/code_desk.jpg', label: 'Code'),
-  (asset: 'assets/covers/oak_sunset.jpg', label: 'Sunset Oak'),
-  (asset: 'assets/covers/town_square.jpg', label: 'Town Square'),
-  (asset: 'assets/covers/reading.jpg', label: 'Reading'),
-  (asset: 'assets/covers/Romantic.jpg', label: 'Romance'),
-  (asset: 'assets/covers/Romantic2.jpg', label: 'Romance II'),
-  (asset: 'assets/covers/children_book.jpg', label: "Children's"),
-  (asset: 'assets/covers/epic.jpg', label: 'Epic'),
-  (asset: 'assets/covers/epic2.jpg', label: 'Epic II'),
-  (asset: 'assets/covers/wich.jpg', label: 'Witch'),
-];
+/// Nicer labels for known cover files. Any file not listed gets a label
+/// derived from its filename (snake/kebab → Title Case). Keys are the
+/// lowercased filename stem.
+const Map<String, String> _kCoverLabelOverrides = {
+  'writing_nook': 'Writing Nook',
+  'fantasy_castle': 'Fantasy',
+  'code_desk': 'Code',
+  'oak_sunset': 'Sunset Oak',
+  'town_square': 'Town Square',
+  'reading': 'Reading',
+  'romantic': 'Romance',
+  'romantic2': 'Romance II',
+  'children_book': "Children's",
+  'epic': 'Epic',
+  'epic2': 'Epic II',
+  'wich': 'Witch',
+};
+
+String _coverLabelFor(String assetPath) {
+  final file = assetPath.split('/').last;
+  final dot = file.lastIndexOf('.');
+  final stem = dot > 0 ? file.substring(0, dot) : file;
+  final override = _kCoverLabelOverrides[stem.toLowerCase()];
+  if (override != null) return override;
+  return stem
+      .split(RegExp(r'[_\-\s]+'))
+      .where((w) => w.isNotEmpty)
+      .map((w) => w[0].toUpperCase() + w.substring(1))
+      .join(' ');
+}
+
+/// The bundled photographic cover reservatory, discovered at runtime from the
+/// asset bundle. Drop a JPG/PNG into assets/covers/ and it appears here on the
+/// next build — no code edit needed. Optionally add a nicer label above.
+Future<List<({String asset, String label})>> loadStockCovers() async {
+  try {
+    final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+    final keys = manifest
+        .listAssets()
+        .where((k) => k.startsWith('assets/covers/'))
+        .where((k) {
+          final l = k.toLowerCase();
+          return l.endsWith('.jpg') ||
+              l.endsWith('.jpeg') ||
+              l.endsWith('.png');
+        })
+        .toList()
+      ..sort();
+    return [for (final k in keys) (asset: k, label: _coverLabelFor(k))];
+  } catch (_) {
+    return const [];
+  }
+}
 
 /// Shows the cover picker dialog. Returns null if cancelled.
 Future<CoverPickerResult?> showCoverPickerDialog({
@@ -84,12 +122,20 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
   String? _selectedStock;
   File? _selectedFile;
 
+  /// Photographic covers discovered from the asset bundle (Writing Nook only).
+  List<({String asset, String label})> _stockCovers = const [];
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
     if (widget.currentCoverType == 'builtin') {
       _selectedBuiltinId = widget.currentCoverValue;
+    }
+    if (widget.showStockCovers) {
+      loadStockCovers().then((covers) {
+        if (mounted) setState(() => _stockCovers = covers);
+      });
     }
   }
 
@@ -243,7 +289,7 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
       padding: const EdgeInsets.all(16),
       children: [
         // ── Psitta Covers (photographic reservatory) — Writing Nook only ──
-        if (widget.showStockCovers) ...[
+        if (widget.showStockCovers && _stockCovers.isNotEmpty) ...[
           Padding(
             padding: const EdgeInsets.only(bottom: 8, top: 4),
             child: Text(
@@ -258,7 +304,7 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
             spacing: 10,
             runSpacing: 10,
             children: [
-              for (final c in kStockCovers)
+              for (final c in _stockCovers)
                 GestureDetector(
                   onTap: () => setState(() {
                     _selectedStock = c.asset;

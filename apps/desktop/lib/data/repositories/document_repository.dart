@@ -294,13 +294,28 @@ class DocumentRepository {
   }
 
   /// Upload cover from in-memory bytes (e.g. a bundled reservatory asset).
+  /// Sets an explicit content-type from the filename so the backend's
+  /// {jpeg,jpg,gif,png} content-type check passes for every format (a raw
+  /// byte part would otherwise be labelled octet-stream).
   Future<Document> uploadCoverBytes(
     String id,
     List<int> bytes,
     String filename,
   ) async {
+    final ext = filename.contains('.')
+        ? filename.split('.').last.toLowerCase()
+        : 'jpg';
+    final mediaType = switch (ext) {
+      'png' => DioMediaType('image', 'png'),
+      'gif' => DioMediaType('image', 'gif'),
+      _ => DioMediaType('image', 'jpeg'),
+    };
     final formData = FormData.fromMap({
-      'file': MultipartFile.fromBytes(bytes, filename: filename),
+      'file': MultipartFile.fromBytes(
+        bytes,
+        filename: filename,
+        contentType: mediaType,
+      ),
     });
     final response = await _api.dio.post(
       '/documents/$id/cover',
