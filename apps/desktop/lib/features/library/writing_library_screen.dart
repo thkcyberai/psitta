@@ -50,6 +50,18 @@ const List<String> _kTypeChips = [
   'Other',
 ];
 
+/// Titles of the seeded welcome-kit documents (must match the backend seed
+/// manifest exactly, em-dashes included). Their titles render in Psitta blue
+/// so they read as provided guides, distinct from a writer's own files.
+const Set<String> _kWelcomeDocTitles = {
+  'Welcome to the Writing Nook',
+  'Markdown for Writers',
+  'Plain Text — Quick Notes & Drafts',
+  'Bringing In Web Content',
+  'PDFs — Read, Listen, Reference',
+  'Ebooks — Listen to Your Books',
+};
+
 /// Remodeled Writing Nook Library.
 class WritingLibraryScreen extends ConsumerStatefulWidget {
   const WritingLibraryScreen({super.key});
@@ -249,6 +261,18 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       if (pr.id == projectId) return pr.name;
     }
     return 'Project';
+  }
+
+  bool _isWelcomeDoc(Document doc) =>
+      _kWelcomeDocTitles.contains(doc.title.trim());
+
+  /// Welcome-kit docs render in Psitta blue (brightness-aware for legibility);
+  /// everything else uses the normal on-surface colour.
+  Color _titleColor(Document doc, ColorScheme scheme) {
+    if (!_isWelcomeDoc(doc)) return scheme.onSurface;
+    return Theme.of(context).brightness == Brightness.dark
+        ? const Color(0xFF8AB4F8) // light blue, readable on dark themes
+        : const Color(0xFF1A3A8F); // dark blue on light themes
   }
 
   String _fmtDate(DateTime d) {
@@ -849,7 +873,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                       style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: scheme.onSurface)),
+                          color: _titleColor(doc, scheme))),
                   const SizedBox(height: 3),
                   Text(_projectName(doc.projectId, projects),
                       maxLines: 1,
@@ -912,7 +936,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                             style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
-                                color: scheme.onSurface)),
+                                color: _titleColor(doc, scheme))),
                         Text(_projectName(doc.projectId, projects),
                             style: TextStyle(
                                 fontSize: 11,
@@ -1192,25 +1216,36 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     }
   }
 
-  /// Save the document to disk. DOCX saves the branded export (reflects edits
-  /// made in the Writing Desk); every other format saves the original file.
+  /// Save As: pick a target format, then write the document to disk.
+  /// Converting a read-only source to its own format saves the original file;
+  /// every other case renders the current content to the chosen format.
   Future<void> _saveAs(Document doc) async {
+    final target = await _pickExportFormat(doc);
+    if (target == null || !mounted) return;
     final repo = ref.read(documentRepositoryProvider);
-    final isDocx = doc.sourceType.toLowerCase() == 'docx';
+    final src = doc.sourceType.toLowerCase();
     try {
-      final List<int> bytes = isDocx
-          ? await repo.exportDocument(
-              doc.id,
-              includeCover: false,
-              includeFooter: false,
-            )
-          : await repo.downloadDocument(doc.id);
+      final List<int> bytes;
+      if (target == src && (src == 'pdf' || src == 'epub')) {
+        // Read-only original in its own format → exact original bytes.
+        bytes = await repo.downloadDocument(doc.id);
+      } else if (target == 'docx') {
+        // Clean DOCX of the current content (no Psitta cover page/footer).
+        bytes = await repo.exportDocument(
+          doc.id,
+          format: 'docx',
+          includeCover: false,
+          includeFooter: false,
+        );
+      } else {
+        bytes = await repo.exportDocument(doc.id, format: target);
+      }
       if (!mounted) return;
       final savePath = await FilePicker.platform.saveFile(
         dialogTitle: 'Save As',
-        fileName: '${doc.title}.${doc.sourceType}',
+        fileName: '${doc.title}.$target',
         type: FileType.custom,
-        allowedExtensions: [doc.sourceType],
+        allowedExtensions: [target],
       );
       if (savePath == null) return;
       await File(savePath).writeAsBytes(bytes);
@@ -1226,6 +1261,50 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         );
       }
     }
+  }
+
+  /// Target-format chooser for Save As. Returns the chosen extension
+  /// ('docx'/'pdf'/'md'/'txt'/'epub') or null if cancelled. HTML is not a
+  /// target. The source's own format is marked "(original)".
+  Future<String?> _pickExportFormat(Document doc) async {
+    final src = doc.sourceType.toLowerCase();
+    const targets = <({String ext, String label, IconData icon})>[
+      (ext: 'docx', label: 'Word document', icon: Icons.description_outlined),
+      (ext: 'pdf', label: 'PDF', icon: Icons.picture_as_pdf_outlined),
+      (ext: 'md', label: 'Markdown', icon: Icons.tag),
+      (ext: 'txt', label: 'Plain text', icon: Icons.notes_outlined),
+      (ext: 'epub', label: 'EPUB ebook', icon: Icons.menu_book_outlined),
+    ];
+    final scheme = Theme.of(context).colorScheme;
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Save As'),
+        children: [
+          for (final t in targets)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, t.ext),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(t.icon, size: 18, color: scheme.onSurfaceVariant),
+                    const SizedBox(width: 12),
+                    Text(t.label),
+                    if (t.ext == src) ...[
+                      const SizedBox(width: 8),
+                      Text('(original)',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: scheme.onSurfaceVariant)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   /// Server-side copy of the document into the Library, then refresh the grid.

@@ -239,15 +239,18 @@ class DocumentRepository {
     return file;
   }
 
-  /// Export document as a branded DOCX. Returns the file bytes.
+  /// Export a document's content in [format] (docx/pdf/md/txt/epub). Returns
+  /// the file bytes. cover/footer apply to the branded DOCX only.
   Future<List<int>> exportDocument(
     String id, {
+    String format = 'docx',
     bool includeCover = true,
     bool includeFooter = true,
   }) async {
     final response = await _api.dio.get<List<int>>(
       '/documents/$id/export',
       queryParameters: {
+        'format': format,
         'cover': includeCover,
         'footer': includeFooter,
       },
