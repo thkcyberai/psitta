@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -5,15 +6,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
 
-/// Whispers — voice notes surface. Playback + list are live; mic capture is
-/// deferred until the Flutter/Dart toolchain supports a working `record`
-/// plugin (see pubspec note). The backend (/documents/recording) is ready, so
-/// restoring capture later is a small change to the recorder bar below.
+/// Whispers — voice notes surface. Record an idea straight from the mic,
+/// listen back, or delete. Capture uses the `record` plugin (AAC/m4a on
+/// Windows via MediaFoundation); the audio is uploaded to /documents/recording
+/// and listed via [recordingsProvider].
 class WhispersScreen extends ConsumerStatefulWidget {
   const WhispersScreen({super.key});
 
@@ -23,11 +25,22 @@ class WhispersScreen extends ConsumerStatefulWidget {
 
 class _WhispersScreenState extends ConsumerState<WhispersScreen> {
   final AudioPlayer _player = AudioPlayer();
+  final AudioRecorder _recorder = AudioRecorder();
   String? _playingId;
+  StreamSubscription<PlayerState>? _playerSub;
+
+  bool _isRecording = false;
+  bool _isSaving = false;
+  Duration _elapsed = Duration.zero;
+  Timer? _timer;
+  String? _activeRecordingPath;
 
   @override
   void dispose() {
+    _timer?.cancel();
+    _playerSub?.cancel();
     _player.dispose();
+    _recorder.dispose();
     super.dispose();
   }
 
@@ -38,22 +51,219 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
         setState(() => _playingId = null);
         return;
       }
+      // Release any prior source before loading a new one. just_audio on
+      // Windows keeps the backing file open while loaded, so reusing a fixed
+      // temp path (overwrite-while-open) intermittently fails on replay.
+      await _player.stop();
       final bytes =
           await ref.read(documentRepositoryProvider).downloadDocument(doc.id);
       final dir = await getTemporaryDirectory();
-      final tmp = File(p.join(dir.path, 'play_${doc.id}.m4a'));
+      // Choose the temp extension from the audio's magic bytes so both new
+      // WAV recordings and any legacy m4a ones decode reliably on Windows.
+      final isWav = bytes.length >= 4 &&
+          bytes[0] == 0x52 && // R
+          bytes[1] == 0x49 && // I
+          bytes[2] == 0x46 && // F
+          bytes[3] == 0x46; // F
+      final tmp = File(p.join(
+        dir.path,
+        'play_${doc.id}_${DateTime.now().millisecondsSinceEpoch}'
+        '${isWav ? '.wav' : '.m4a'}',
+      ));
       await tmp.writeAsBytes(bytes);
       await _player.setFilePath(tmp.path);
       setState(() => _playingId = doc.id);
       await _player.play();
-      _player.playerStateStream.listen((s) {
+      _playerSub?.cancel();
+      _playerSub = _player.playerStateStream.listen((s) {
         if (s.processingState == ProcessingState.completed && mounted) {
           setState(() => _playingId = null);
         }
       });
     } catch (e) {
+      debugPrint('[Whisper] play error: $e');
       _snack('Couldn’t play the recording.');
     }
+  }
+
+  // ── Mic capture ──────────────────────────────────────────────────────────
+
+  Future<void> _startRecording() async {
+    try {
+      if (!await _recorder.hasPermission()) {
+        _snack('Microphone access is blocked. Enable it in Windows settings.');
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = p.join(
+        dir.path,
+        'whisper_${DateTime.now().millisecondsSinceEpoch}.wav',
+      );
+      // WAV/PCM is the most reliable capture+playback format on Windows:
+      // record_windows and just_audio both handle it natively with no codec
+      // dependency (AAC/MediaFoundation playback proved flaky on replay).
+      // Mono @ 22.05 kHz keeps voice-note files small.
+      await _recorder.start(
+        const RecordConfig(
+          encoder: AudioEncoder.wav,
+          numChannels: 1,
+          sampleRate: 22050,
+        ),
+        path: path,
+      );
+      _activeRecordingPath = path;
+      setState(() {
+        _isRecording = true;
+        _elapsed = Duration.zero;
+      });
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _elapsed += const Duration(seconds: 1));
+      });
+    } catch (e) {
+      _snack('Couldn’t start recording.');
+    }
+  }
+
+  Future<void> _stopAndSave() async {
+    _timer?.cancel();
+    String? path;
+    try {
+      path = await _recorder.stop();
+    } catch (_) {
+      path = _activeRecordingPath;
+    }
+    setState(() => _isRecording = false);
+
+    final filePath = path ?? _activeRecordingPath;
+    if (filePath == null) {
+      _activeRecordingPath = null;
+      return;
+    }
+    if (!mounted) return;
+
+    // Ask the writer to name it. Blank keeps the timestamp default; Discard
+    // drops the recording entirely.
+    final title = await _promptName();
+    if (title == null) {
+      try {
+        await File(filePath).delete();
+      } catch (_) {}
+      _activeRecordingPath = null;
+      if (mounted) _snack('Recording discarded');
+      return;
+    }
+
+    setState(() => _isSaving = true);
+    try {
+      final file = File(filePath);
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        setState(() => _isSaving = false);
+        _snack('That recording was empty.');
+        return;
+      }
+      await ref.read(documentRepositoryProvider).uploadRecording(
+            bytes,
+            p.basename(filePath),
+            title: title,
+          );
+      ref.invalidate(recordingsProvider);
+      ref.invalidate(storageUsageProvider);
+      try {
+        await file.delete();
+      } catch (_) {}
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _snack('Whisper saved');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isSaving = false);
+        _snack('Couldn’t save the recording.');
+      }
+    } finally {
+      _activeRecordingPath = null;
+    }
+  }
+
+  /// Prompts for a whisper name. Returns the chosen title (blank falls back to
+  /// the timestamp default), or null if the writer discards the recording.
+  Future<String?> _promptName() async {
+    final ctrl = TextEditingController();
+    final fallback = _defaultTitle();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        String result() =>
+            ctrl.text.trim().isEmpty ? fallback : ctrl.text.trim();
+        return AlertDialog(
+          title: const Text('Name this whisper'),
+          content: SizedBox(
+            width: 360,
+            child: TextField(
+              controller: ctrl,
+              autofocus: true,
+              maxLength: 120,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: InputDecoration(
+                labelText: 'Name',
+                hintText: fallback,
+                border: const OutlineInputBorder(),
+              ),
+              onSubmitted: (_) => Navigator.pop(ctx, result()),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, null),
+              child: const Text('Discard'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, result()),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _cancelRecording() async {
+    _timer?.cancel();
+    try {
+      await _recorder.stop();
+    } catch (_) {}
+    final path = _activeRecordingPath;
+    if (path != null) {
+      try {
+        await File(path).delete();
+      } catch (_) {}
+    }
+    _activeRecordingPath = null;
+    if (mounted) {
+      setState(() {
+        _isRecording = false;
+        _elapsed = Duration.zero;
+      });
+    }
+  }
+
+  String _defaultTitle() {
+    final now = DateTime.now();
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final h12 = now.hour % 12 == 0 ? 12 : now.hour % 12;
+    final ampm = now.hour < 12 ? 'AM' : 'PM';
+    final mm = now.minute.toString().padLeft(2, '0');
+    return 'Whisper · ${months[now.month - 1]} ${now.day}, $h12:$mm $ampm';
+  }
+
+  String _fmtElapsed(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   Future<void> _delete(Document doc) async {
@@ -171,32 +381,83 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
     );
   }
 
-  // Mic capture is temporarily deferred (toolchain limitation). The bar stays
-  // so the surface is complete; restoring capture is a localized change.
   Widget _recorderBar(ColorScheme scheme, PsittaTokens tokens) {
+    if (_isSaving) {
+      return _bar(
+        tokens,
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text('Saving your whisper…',
+                style: TextStyle(color: scheme.onSurfaceVariant)),
+          ),
+        ],
+      );
+    }
+
+    if (_isRecording) {
+      return _bar(
+        tokens,
+        borderColor: scheme.error,
+        children: [
+          Icon(Icons.fiber_manual_record, color: scheme.error, size: 16),
+          const SizedBox(width: 10),
+          Text(_fmtElapsed(_elapsed),
+              style: TextStyle(
+                  color: scheme.onSurface,
+                  fontWeight: FontWeight.w700)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text('Recording…',
+                style: TextStyle(color: scheme.onSurfaceVariant)),
+          ),
+          TextButton(
+            onPressed: _cancelRecording,
+            child: const Text('Cancel'),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.icon(
+            onPressed: _stopAndSave,
+            icon: const Icon(Icons.stop, size: 18),
+            label: const Text('Stop & save'),
+          ),
+        ],
+      );
+    }
+
+    return _bar(
+      tokens,
+      children: [
+        Icon(Icons.mic_none_outlined, color: scheme.onSurfaceVariant, size: 20),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text('Tap record to capture a voice note.',
+              style: TextStyle(color: scheme.onSurfaceVariant)),
+        ),
+        FilledButton.icon(
+          onPressed: _startRecording,
+          icon: const Icon(Icons.mic, size: 18),
+          label: const Text('Record'),
+        ),
+      ],
+    );
+  }
+
+  Widget _bar(PsittaTokens tokens,
+      {required List<Widget> children, Color? borderColor}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
       decoration: BoxDecoration(
         color: tokens.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: tokens.border),
+        border: Border.all(color: borderColor ?? tokens.border),
       ),
-      child: Row(
-        children: [
-          Icon(Icons.mic_none_outlined,
-              color: scheme.onSurfaceVariant, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text('Voice recording is coming soon.',
-                style: TextStyle(color: scheme.onSurfaceVariant)),
-          ),
-          FilledButton.icon(
-            onPressed: () => _snack('Voice recording is coming soon.'),
-            icon: const Icon(Icons.mic, size: 18),
-            label: const Text('Record'),
-          ),
-        ],
-      ),
+      child: Row(children: children),
     );
   }
 }

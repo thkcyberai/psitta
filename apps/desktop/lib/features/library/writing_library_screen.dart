@@ -1641,6 +1641,11 @@ class _RightRail extends ConsumerWidget {
     final scribblesSub = notesCount > 0
         ? '$notesCount note${notesCount == 1 ? '' : 's'}'
         : 'Quick notes';
+    final whispersCount = ref.watch(recordingsProvider).maybeWhen(
+        data: (l) => l.length, orElse: () => 0);
+    final whispersSub = whispersCount > 0
+        ? '$whispersCount whisper${whispersCount == 1 ? '' : 's'}'
+        : 'Voice notes';
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -1659,7 +1664,7 @@ class _RightRail extends ConsumerWidget {
           _quickRow(context, Icons.sticky_note_2_outlined, 'Scribbles',
               scribblesSub, () => context.go('/scribbles')),
           _quickRow(context, Icons.mic_none_outlined, 'Whispers',
-              'Voice notes', () => context.go('/whispers')),
+              whispersSub, () => context.go('/whispers')),
           const SizedBox(height: 16),
         ],
       ),
