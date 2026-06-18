@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:desktop_drop/desktop_drop.dart';
@@ -1644,7 +1645,7 @@ class _RightRail extends ConsumerWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
         children: [
-          _profileCard(context, scheme),
+          _profileCard(context, ref, scheme),
           const SizedBox(height: 18),
           _sectionLabel('Quick Access', scheme),
           const SizedBox(height: 8),
@@ -1660,9 +1661,11 @@ class _RightRail extends ConsumerWidget {
     );
   }
 
-  Widget _profileCard(BuildContext context, ColorScheme scheme) {
-    // Avatar + quote area are placeholders designed to accept a real uploaded
-    // photo and a writer quote once account-photo uploads land.
+  Widget _profileCard(
+      BuildContext context, WidgetRef ref, ColorScheme scheme) {
+    final profile = ref.watch(userProfileProvider).valueOrNull;
+    final avatarKey = profile?['avatar_url'] as String?;
+    final quote = (profile?['quote'] as String?)?.trim() ?? '';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1672,10 +1675,29 @@ class _RightRail extends ConsumerWidget {
       ),
       child: Column(
         children: [
-          CircleAvatar(
-            radius: 32,
-            backgroundColor: tokens.glow.withOpacity(0.18),
-            child: Icon(Icons.person_outline, size: 34, color: tokens.glow),
+          // Avatar — tap to change.
+          GestureDetector(
+            onTap: () => _changePhoto(ref, context),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  _ProfileAvatar(
+                      avatarKey: avatarKey, radius: 32, tokens: tokens),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: tokens.glow,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: tokens.surface, width: 2),
+                    ),
+                    child: const Icon(Icons.photo_camera,
+                        size: 11, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 10),
           Text('Your Profile',
@@ -1698,15 +1720,114 @@ class _RightRail extends ConsumerWidget {
                     color: tokens.glow)),
           ),
           const SizedBox(height: 10),
-          Text('“Every great story starts with a single word.”',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontSize: 11.5,
-                  fontStyle: FontStyle.italic,
-                  color: scheme.onSurfaceVariant)),
+          // Quote — tap to edit.
+          InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () => _editQuote(ref, context, quote),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: quote.isNotEmpty
+                  ? Text('“$quote”',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 11.5,
+                          fontStyle: FontStyle.italic,
+                          color: scheme.onSurfaceVariant))
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.edit_outlined,
+                            size: 12, color: scheme.onSurfaceVariant),
+                        const SizedBox(width: 4),
+                        Text('Add your quote',
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                color: scheme.onSurfaceVariant)),
+                      ],
+                    ),
+            ),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _changePhoto(WidgetRef ref, BuildContext context) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'gif'],
+    );
+    if (result == null ||
+        result.files.isEmpty ||
+        result.files.first.path == null) {
+      return;
+    }
+    final file = File(result.files.first.path!);
+    if (await file.length() > 20 * 1024 * 1024) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('That image is too large (max 20 MB).')));
+      }
+      return;
+    }
+    try {
+      final api = ref.read(apiClientProvider);
+      final form = FormData.fromMap(
+          {'file': await MultipartFile.fromFile(file.path)});
+      await api.dio.post('/users/me/avatar', data: form);
+      _ProfileAvatarState.evictAll();
+      PaintingBinding.instance.imageCache.clear();
+      ref.invalidate(userProfileProvider);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Profile photo updated.')));
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Couldn’t update your photo.')));
+      }
+    }
+  }
+
+  Future<void> _editQuote(
+      WidgetRef ref, BuildContext context, String current) async {
+    final ctrl = TextEditingController(text: current);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Your quote'),
+        content: TextField(
+          controller: ctrl,
+          maxLength: 200,
+          maxLines: 3,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'A line that inspires your writing…',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (result == null) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.dio.patch('/users/me', queryParameters: {'quote': result});
+      ref.invalidate(userProfileProvider);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Couldn’t save your quote.')));
+      }
+    }
   }
 
   Widget _sectionLabel(String text, ColorScheme scheme) => Text(
@@ -1753,5 +1874,116 @@ class _RightRail extends ConsumerWidget {
       ),
     );
   }
+}
 
+/// Circular profile avatar — fetches the writer's photo bytes (authed) from
+/// GET /users/me/avatar and renders them, falling back to a person icon.
+/// Bytes are cached by avatar key so the photo doesn't re-fetch on rebuild;
+/// the cache is cleared on upload via [evictAll].
+class _ProfileAvatar extends ConsumerStatefulWidget {
+  const _ProfileAvatar({
+    required this.avatarKey,
+    required this.radius,
+    required this.tokens,
+  });
+
+  final String? avatarKey;
+  final double radius;
+  final PsittaTokens tokens;
+
+  @override
+  ConsumerState<_ProfileAvatar> createState() => _ProfileAvatarState();
+}
+
+class _ProfileAvatarState extends ConsumerState<_ProfileAvatar> {
+  static final Map<String, Uint8List> _cache = {};
+
+  /// Bumped on eviction so mounted avatars refetch even though the avatar key
+  /// (avatars/{id}.jpg) is stable across re-uploads.
+  static final ValueNotifier<int> _generation = ValueNotifier<int>(0);
+
+  static void evictAll() {
+    _cache.clear();
+    _generation.value++;
+  }
+
+  Uint8List? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _generation.addListener(_maybeLoad);
+    // Seed directly (no setState during init).
+    final key = widget.avatarKey;
+    if (key != null && key.isNotEmpty) {
+      final cached = _cache[key];
+      if (cached != null) {
+        _bytes = cached;
+      } else {
+        _load(key);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _generation.removeListener(_maybeLoad);
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProfileAvatar old) {
+    super.didUpdateWidget(old);
+    if (old.avatarKey != widget.avatarKey) _maybeLoad();
+  }
+
+  void _maybeLoad() {
+    if (!mounted) return;
+    final key = widget.avatarKey;
+    if (key == null || key.isEmpty) {
+      setState(() => _bytes = null);
+      return;
+    }
+    final cached = _cache[key];
+    if (cached != null) {
+      setState(() => _bytes = cached);
+      return;
+    }
+    _load(key);
+  }
+
+  Future<void> _load(String key) async {
+    try {
+      final api = ref.read(apiClientProvider);
+      final resp = await api.dio.get<List<int>>(
+        '/users/me/avatar',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final data = resp.data;
+      if (data != null && mounted) {
+        final bytes = Uint8List.fromList(data);
+        _cache[key] = bytes;
+        setState(() => _bytes = bytes);
+      }
+    } catch (_) {
+      if (mounted) setState(() => _bytes = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bytes = _bytes;
+    if (bytes != null) {
+      return CircleAvatar(
+        radius: widget.radius,
+        backgroundImage: MemoryImage(bytes),
+      );
+    }
+    return CircleAvatar(
+      radius: widget.radius,
+      backgroundColor: widget.tokens.glow.withOpacity(0.18),
+      child: Icon(Icons.person_outline,
+          size: widget.radius * 1.06, color: widget.tokens.glow),
+    );
+  }
 }
