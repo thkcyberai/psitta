@@ -12,6 +12,7 @@ import 'package:webview_windows/webview_windows.dart';
 
 import '../../core/state/now_reading.dart';
 import '../../features/shell/widgets/player_bar.dart';
+import '../../widgets/document_cover.dart';
 import '../providers/providers.dart';
 import 'audio_service.dart';
 
@@ -435,6 +436,10 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _ref.invalidate(quotaUsageProvider);
     _ref.invalidate(projectsProvider);
     _ref.invalidate(documentsProvider);
+    // Covers live in a process-lifetime byte cache keyed by document id. Clear
+    // it at the auth boundary so a new session never shows a cover that changed
+    // on another device while this process was running.
+    DocumentCover.evictAllCache();
   }
 
   /// Persist the player-bar snapshot so re-login restores exactly what
