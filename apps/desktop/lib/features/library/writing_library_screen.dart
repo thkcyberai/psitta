@@ -46,7 +46,6 @@ const List<String> _kTypeChips = [
   'Documents',
   'Notes',
   'PDFs',
-  'Spreadsheets',
   'Books',
   'Other',
 ];
@@ -217,13 +216,10 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         return t == 'md' || t == 'txt';
       case 'PDFs':
         return t == 'pdf';
-      case 'Spreadsheets':
-        return t == 'xlsx' || t == 'xls' || t == 'csv';
       case 'Books':
         return t == 'epub' || d.projectId != null;
       case 'Other':
-        return !['docx', 'md', 'txt', 'pdf', 'xlsx', 'xls', 'csv', 'epub']
-            .contains(t);
+        return !['docx', 'md', 'txt', 'pdf', 'epub'].contains(t);
       default:
         return true;
     }
