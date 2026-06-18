@@ -1254,10 +1254,16 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
           SnackBar(content: Text('Saved to $savePath')),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      // Surface the real cause (DioException status / file-system error) so a
+      // failed Save As is diagnosable instead of a generic message.
+      final detail = e is DioException
+          ? 'HTTP ${e.response?.statusCode ?? e.type.name}'
+          : e.runtimeType.toString();
+      debugPrint('[SAVE_AS] failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t save the document.')),
+          SnackBar(content: Text('Couldn’t save the document — $detail')),
         );
       }
     }
@@ -1268,12 +1274,21 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   /// target. The source's own format is marked "(original)".
   Future<String?> _pickExportFormat(Document doc) async {
     final src = doc.sourceType.toLowerCase();
-    const targets = <({String ext, String label, IconData icon})>[
-      (ext: 'docx', label: 'Word document', icon: Icons.description_outlined),
-      (ext: 'pdf', label: 'PDF', icon: Icons.picture_as_pdf_outlined),
-      (ext: 'md', label: 'Markdown', icon: Icons.tag),
-      (ext: 'txt', label: 'Plain text', icon: Icons.notes_outlined),
-      (ext: 'epub', label: 'EPUB ebook', icon: Icons.menu_book_outlined),
+    const meta = <String, ({String label, IconData icon})>{
+      'docx': (label: 'Word document', icon: Icons.description_outlined),
+      'pdf': (label: 'PDF', icon: Icons.picture_as_pdf_outlined),
+      'md': (label: 'Markdown', icon: Icons.tag),
+      'txt': (label: 'Plain text', icon: Icons.notes_outlined),
+      'epub': (label: 'EPUB ebook', icon: Icons.menu_book_outlined),
+    };
+    // Source-aware targets: read-only files (PDF/EPUB) only save a copy or
+    // extract to an editable format; editable docs export to every output.
+    final exts = (src == 'pdf' || src == 'epub')
+        ? <String>[src, 'docx', 'txt']
+        : <String>['docx', 'pdf', 'epub', 'txt', 'md'];
+    final targets = [
+      for (final e in exts)
+        (ext: e, label: meta[e]!.label, icon: meta[e]!.icon),
     ];
     final scheme = Theme.of(context).colorScheme;
     return showDialog<String>(

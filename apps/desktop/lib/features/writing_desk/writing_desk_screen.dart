@@ -55,6 +55,10 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
   // the open document changes so stale audio is cleared before populating.
   String? _wiredDocId;
 
+  // Captured when `ref` is valid so dispose() can reset it without touching
+  // `ref` (which throws "Cannot use ref after the widget was disposed").
+  StateController<bool>? _streamingNotifier;
+
   @override
   void initState() {
     super.initState();
@@ -69,8 +73,15 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _streamingNotifier = ref.read(streamingPlaybackProvider.notifier);
+  }
+
+  @override
   void dispose() {
-    ref.read(streamingPlaybackProvider.notifier).state = false;
+    // Use the captured notifier — `ref` is no longer usable here.
+    _streamingNotifier?.state = false;
     super.dispose();
   }
 

@@ -4088,6 +4088,18 @@ async def export_document(
         )
 
     filename = f"{doc_title}.{ext}"
+    # Content-Disposition headers must be latin-1 encodable, but titles can hold
+    # em-dashes and other non-ASCII. Emit an ASCII-safe `filename=` fallback plus
+    # an RFC 5987 `filename*=UTF-8''…` that modern clients use to recover the
+    # real title.
+    from urllib.parse import quote
+
+    ascii_stem = doc_title.encode("ascii", "ignore").decode("ascii").strip()
+    ascii_filename = f"{ascii_stem or 'document'}.{ext}"
+    content_disposition = (
+        f'attachment; filename="{ascii_filename}"; '
+        f"filename*=UTF-8''{quote(filename)}"
+    )
     await audit_service.log_event(
         db,
         action="document.export",
@@ -4106,7 +4118,7 @@ async def export_document(
     return StreamingResponse(
         io.BytesIO(data),
         media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": content_disposition},
     )
 
 
