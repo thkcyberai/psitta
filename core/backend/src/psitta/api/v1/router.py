@@ -19,6 +19,7 @@ from psitta.api.v1.blueprints import placement_router
 from psitta.api.v1.blueprints import router as blueprints_router
 from psitta.api.v1.contact import router as contact_router
 from psitta.api.v1.documents import router as documents_router
+from psitta.api.v1.notes import router as notes_router
 from psitta.api.v1.playback import router as playback_router
 from psitta.api.v1.project_blueprints import router as project_blueprints_router
 from psitta.api.v1.projects import router as projects_router
@@ -64,6 +65,13 @@ v1_router.include_router(
     users_router,
     prefix="/users",
     tags=["users"],
+)
+
+# ── Scribbles (notes) ──────────────────────────────────────────────────
+v1_router.include_router(
+    notes_router,
+    prefix="/notes",
+    tags=["notes"],
 )
 
 # ── Projects ──────────────────────────────────────────────────────────

@@ -278,6 +278,15 @@ final recordingsProvider =
   return ref.watch(documentRepositoryProvider).listRecordings();
 });
 
+/// Scribbles (notes) — raw note maps {id, content, color, created_at, ...}.
+final notesProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final response = await api.dio.get('/notes/');
+  final items = (response.data['items'] as List<dynamic>);
+  return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+});
+
 /// Total storage used (bytes) + document count for the Library Storage card.
 final storageUsageProvider =
     FutureProvider.autoDispose<({int usedBytes, int docCount})>((ref) async {

@@ -7,6 +7,7 @@ import '../../features/auth/plan_selection_screen.dart';
 import '../../features/shell/desktop_shell.dart';
 import '../../features/splash/splash_screen.dart';
 import '../../features/library/archive_screen.dart';
+import '../../features/library/scribbles_screen.dart';
 import '../../features/library/trash_screen.dart';
 import '../../features/library/whispers_screen.dart';
 import '../../features/library/writing_library_screen.dart';
@@ -159,6 +160,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/whispers',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: WhispersScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/scribbles',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: ScribblesScreen(),
             ),
           ),
           GoRoute(

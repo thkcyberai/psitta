@@ -1652,7 +1652,7 @@ class _RightRail extends ConsumerWidget {
           _quickRow(context, Icons.inventory_2_outlined, 'Archive',
               archiveSub, () => context.go('/archive')),
           _quickRow(context, Icons.sticky_note_2_outlined, 'Scribbles',
-              'Coming soon', () => onSoon('Scribbles')),
+              'Quick notes', () => context.go('/scribbles')),
           _quickRow(context, Icons.mic_none_outlined, 'Whispers',
               'Voice notes', () => context.go('/whispers')),
           const SizedBox(height: 16),
