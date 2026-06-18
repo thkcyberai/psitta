@@ -56,9 +56,9 @@ class _ResolvedPdfSentence {
   final int pageCharStart;
   final int pageCharEnd;
 
-  bool contains(Offset offset) {
+  bool contains(PdfPoint offset) {
     for (final rect in rects) {
-      if (rect.containsOffset(offset)) {
+      if (rect.containsPoint(offset)) {
         return true;
       }
     }
@@ -154,7 +154,7 @@ class PdfDocumentViewport extends ConsumerStatefulWidget {
 
   /// Current find-in-document match to highlight (from PdfTextSearcher). Scroll
   /// + page-tracking are handled by the searcher; this is highlight-only.
-  final PdfTextRangeWithFragments? findMatch;
+  final PdfPageTextRange? findMatch;
 
   @override
   ConsumerState<PdfDocumentViewport> createState() =>
@@ -165,8 +165,8 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
   late final Future<File> _pdfFileFuture;
   late final PdfViewerController _viewerController;
   late final Stopwatch _openStopwatch;
-  final Map<int, PdfPageText> _pageTextCache = {};
-  final Map<int, Future<PdfPageText?>> _pageTextFutures = {};
+  final Map<int, PdfPageRawText> _pageTextCache = {};
+  final Map<int, Future<PdfPageRawText?>> _pageTextFutures = {};
   final Map<int, List<_ResolvedPdfSentence>> _pageSentenceCache = {};
   final Map<int, Future<List<_ResolvedPdfSentence>>> _pageSentenceFutures = {};
   _ResolvedPdfSentence? _resolvedHighlight;
@@ -285,14 +285,14 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     ].join(':');
   }
 
-  Future<PdfPageText?> _loadPageText(int pageNumber) {
+  Future<PdfPageRawText?> _loadPageText(int pageNumber) {
     final cached = _pageTextCache[pageNumber];
     if (cached != null) {
       return Future.value(cached);
     }
     return _pageTextFutures.putIfAbsent(pageNumber, () async {
       try {
-        final pageText = await _viewerController.useDocument<PdfPageText?>(
+        final pageText = await _viewerController.useDocument<PdfPageRawText?>(
           (document) async => document.pages[pageNumber - 1].loadText(),
         );
         if (pageText != null) {
@@ -703,30 +703,35 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     return merged;
   }
 
-  List<PdfRect> _rectsForTextRange(PdfTextRangeWithFragments range) {
-    final rects = <PdfRect>[];
-    for (var i = 0; i < range.fragments.length; i++) {
-      final fragment = range.fragments[i];
-      final localStart = i == 0 ? range.start : 0;
-      final localEnd =
-          i == range.fragments.length - 1 ? range.end : fragment.length;
-      if (localStart >= localEnd) {
-        continue;
-      }
-      final charRects = fragment.charRects;
-      if (charRects != null && charRects.isNotEmpty) {
-        final safeStart = localStart.clamp(0, charRects.length).toInt();
-        final safeEnd = localEnd.clamp(safeStart, charRects.length).toInt();
-        rects.addAll(charRects.sublist(safeStart, safeEnd));
-      } else {
-        rects.add(fragment.bounds);
-      }
+  /// Char-range rects from a page's raw text. pdfrx 2.x exposes a flat
+  /// [PdfPageRawText.charRects] list parallel to fullText, so a [start, end)
+  /// range maps directly to charRects.sublist — no fragment walking needed.
+  List<PdfRect> _rectsForCharRange(PdfPageRawText raw, int start, int end) {
+    final charRects = raw.charRects;
+    if (charRects.isEmpty) {
+      return const [];
     }
+    final safeStart = start.clamp(0, charRects.length).toInt();
+    final safeEnd = end.clamp(safeStart, charRects.length).toInt();
+    if (safeStart >= safeEnd) {
+      return const [];
+    }
+    return _mergeHighlightRects(charRects.sublist(safeStart, safeEnd));
+  }
+
+  /// Per-fragment bounding rects for a find-match range. pdfrx 2.x's
+  /// PdfTextSearcher returns [PdfPageTextRange]; enumerateFragmentBoundingRects
+  /// already clips to the match at first/last-fragment edges, so fragment-level
+  /// boxes are precise enough for the find highlight.
+  List<PdfRect> _rectsForFindMatch(PdfPageTextRange range) {
+    final rects = <PdfRect>[
+      for (final f in range.enumerateFragmentBoundingRects()) f.bounds,
+    ];
     return _mergeHighlightRects(rects);
   }
 
   List<_ResolvedPdfSentence> _resolvePageSentences(
-    PdfPageText pageText,
+    PdfPageRawText pageText,
     int pageNumber,
   ) {
     final resolved = <_ResolvedPdfSentence>[];
@@ -801,16 +806,11 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
           tightenedRange.start,
           tightenedRange.end,
         );
-        final range = PdfTextRangeWithFragments.fromTextRange(
+        final rects = _rectsForCharRange(
           pageText,
           expandedRange.start,
           expandedRange.end,
         );
-        if (range == null) {
-          continue;
-        }
-
-        final rects = _rectsForTextRange(range);
         if (rects.isEmpty) {
           continue;
         }
@@ -1006,7 +1006,7 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
         continue;
       }
       final glyph = _playGlyphRectForSentence(sentence);
-      if (glyph != null && glyph.containsOffset(hitTest.offset)) {
+      if (glyph != null && glyph.containsPoint(hitTest.offset)) {
         return sentence;
       }
       return null;
@@ -1305,13 +1305,7 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
           looseSent.normalizedToOriginal[loosePos + looseWord.length - 1] + 1;
       final origStart = sStart + origInSent;
       final origEnd = sStart + origEndInSent;
-      final range = PdfTextRangeWithFragments.fromTextRange(
-        pageText,
-        origStart,
-        origEnd,
-      );
-      if (range == null) return;
-      final rects = _rectsForTextRange(range);
+      final rects = _rectsForCharRange(pageText, origStart, origEnd);
       if (rects.isEmpty) return;
       setState(() {
         _activeWordRects = rects;
@@ -1335,10 +1329,7 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     final origStart = sStart + origInSent;
     final origEnd = sStart + origEndInSent;
 
-    final range =
-        PdfTextRangeWithFragments.fromTextRange(pageText, origStart, origEnd);
-    if (range == null) return;
-    final rects = _rectsForTextRange(range);
+    final rects = _rectsForCharRange(pageText, origStart, origEnd);
     if (rects.isEmpty) return;
 
     setState(() {
@@ -1601,7 +1592,7 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
                       // last so it sits on top; reuses _rectsForTextRange.
                       final fm = widget.findMatch;
                       if (fm != null && fm.pageNumber == page.pageNumber) {
-                        for (final pdfRect in _rectsForTextRange(fm)) {
+                        for (final pdfRect in _rectsForFindMatch(fm)) {
                           final rect = pdfRect
                               .toRect(page: page, scaledPageSize: pageRect.size)
                               .translate(pageRect.left, pageRect.top)

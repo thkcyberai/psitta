@@ -342,7 +342,7 @@ class _DocxDocumentEditorState extends State<DocxDocumentEditor> {
     final unifiedEditor = QuillEditor.basic(
       controller: controller,
       focusNode: focusNode,
-      configurations: QuillEditorConfigurations(
+      config: QuillEditorConfig(
         editorKey: widget.unifiedEditorKey,
         expands: false,
         padding: EdgeInsets.zero,
@@ -512,7 +512,7 @@ Widget buildDocxEditToolbar({
 }) {
   return QuillSimpleToolbar(
     controller: controller,
-    configurations: QuillSimpleToolbarConfigurations(
+    config: QuillSimpleToolbarConfig(
       showBoldButton: true,
       showItalicButton: true,
       showSmallButton: false,
@@ -551,15 +551,6 @@ Widget buildDocxEditToolbar({
       //
       // The 'Clear' entry is required by flutter_quill — it triggers
       // the "remove font attribute" path in font_family_button.dart.
-      fontFamilyValues: const <String, String>{
-        'Calibri': 'Calibri',
-        'Arial': 'Arial',
-        'Times New Roman': 'Times New Roman',
-        'Georgia': 'Georgia',
-        'Courier New': 'Courier New',
-        'Cambria': 'Cambria',
-        'Clear': 'Clear',
-      },
       showStrikeThrough: true,
       showInlineCode: false,
       showColorButton: true,
@@ -581,20 +572,6 @@ Widget buildDocxEditToolbar({
       // number → round-trips end-to-end. The 'Clear' → '0' entry preserves
       // the SDK's "remove font size attribute" semantics (handler strips the
       // attribute when value == '0').
-      fontSizesValues: const <String, String>{
-        '10': '10',
-        '12': '12',
-        '14': '14',
-        '16': '16',
-        '18': '18',
-        '20': '20',
-        '24': '24',
-        '28': '28',
-        '32': '32',
-        '36': '36',
-        '48': '48',
-        'Clear': '0',
-      },
       showHeaderStyle: true,
       showAlignmentButtons: true,
       showDirection: false,
@@ -629,6 +606,37 @@ Widget buildDocxEditToolbar({
             ),
           ),
         ),
+        // quill 11.x: font family/size value maps moved from the toolbar
+        // config (fontFamilyValues / fontSizesValues) into the per-button
+        // options. The 'Clear' entries preserve the SDK's remove-attribute
+        // semantics (Clear → 'Clear' for family, Clear → '0' for size).
+        fontFamily: const QuillToolbarFontFamilyButtonOptions(
+          items: <String, String>{
+            'Calibri': 'Calibri',
+            'Arial': 'Arial',
+            'Times New Roman': 'Times New Roman',
+            'Georgia': 'Georgia',
+            'Courier New': 'Courier New',
+            'Cambria': 'Cambria',
+            'Clear': 'Clear',
+          },
+        ),
+        fontSize: const QuillToolbarFontSizeButtonOptions(
+          items: <String, String>{
+            '10': '10',
+            '12': '12',
+            '14': '14',
+            '16': '16',
+            '18': '18',
+            '20': '20',
+            '24': '24',
+            '28': '28',
+            '32': '32',
+            '36': '36',
+            '48': '48',
+            'Clear': '0',
+          },
+        ),
       ),
     ),
   );
@@ -657,7 +665,7 @@ class _DocxEditableBlock extends StatelessWidget {
     final editor = QuillEditor.basic(
       controller: controller,
       focusNode: focusNode,
-      configurations: QuillEditorConfigurations(
+      config: QuillEditorConfig(
         expands: false,
         padding: EdgeInsets.zero,
         scrollPhysics: const ClampingScrollPhysics(),

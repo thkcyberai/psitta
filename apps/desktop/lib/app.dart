@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/plan_gate.dart';
 import 'core/routing/app_router.dart';
@@ -123,6 +124,13 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
       themeMode: ThemeMode.light,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
+      // flutter_quill 11.x hard-requires its localization delegate to be
+      // registered; without it every QuillEditor/QuillSimpleToolbar throws
+      // UnimplementedError. MaterialApp still appends its own Material/Widgets
+      // default delegates, so this only adds Quill's.
+      localizationsDelegates: const [
+        FlutterQuillLocalizations.delegate,
+      ],
       builder: (context, child) {
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(

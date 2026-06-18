@@ -1060,7 +1060,7 @@ class _DeskEditorBody extends StatelessWidget {
     return quill.QuillEditor.basic(
       controller: controller,
       focusNode: focusNode,
-      configurations: quill.QuillEditorConfigurations(
+      config: quill.QuillEditorConfig(
         expands: true,
         // Spell & Grammar: right-click a misspelled word for suggestions, shown
         // above the editor's default Copy/Cut/Paste menu.

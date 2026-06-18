@@ -287,7 +287,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
 
   /// Current PDF find match (for highlight painting in the viewport). Scroll
   /// and page-tracking are handled by the searcher's goToMatchOfIndex.
-  PdfTextRangeWithFragments? get _currentPdfFindMatch {
+  PdfPageTextRange? get _currentPdfFindMatch {
     final s = _pdfTextSearcher;
     final i = s?.currentIndex;
     if (s == null || i == null || i < 0 || i >= s.matches.length) return null;
@@ -3488,7 +3488,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             },
             onPageTap: (hitTest) async {
               final fromTopRatio =
-                  (1 - (hitTest.offset.dy / hitTest.page.height))
+                  (1 - (hitTest.offset.y / hitTest.page.height))
                       .clamp(0.0, 1.0);
               await _jumpToPdfLocation(
                 chunks: chunks,

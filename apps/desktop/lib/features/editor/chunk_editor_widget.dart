@@ -141,7 +141,7 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
           // ── Quill toolbar
           QuillSimpleToolbar(
             controller: _controller,
-            configurations: QuillSimpleToolbarConfigurations(
+            config: QuillSimpleToolbarConfig(
               showBoldButton: true,
               showItalicButton: true,
               showSmallButton: false,
@@ -201,7 +201,7 @@ class _ChunkEditorWidgetState extends ConsumerState<ChunkEditorWidget> {
               child: QuillEditor.basic(
                 controller: _controller,
                 focusNode: _focusNode,
-                configurations: QuillEditorConfigurations(
+                config: QuillEditorConfig(
                   placeholder: 'Edit chunk text here...',
                   expands: true,
                   padding: EdgeInsets.zero,

@@ -22,6 +22,7 @@ class PdfTextExtractor {
       for (int i = 0; i < document.pages.length; i++) {
         final page = document.pages[i];
         final pageText = await page.loadText();
+        if (pageText == null) continue;
         final text = pageText.fullText;
         if (text.isNotEmpty) {
           results.add({

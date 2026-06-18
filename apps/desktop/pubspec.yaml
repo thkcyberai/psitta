@@ -45,10 +45,10 @@ dependencies:
   json_annotation: ^4.9.0
 
   # Rich text editing
-  flutter_quill: ^10.8.4
+  flutter_quill: ^11.5.1
 
   # PDF viewing
-  pdfrx: ^1.0.101
+  pdfrx: ^2.4.4
 
   # SVG rendering
   flutter_svg: ^2.0.10
@@ -76,8 +76,11 @@ dev_dependencies:
   golden_toolkit: ^0.15.0
 
 dependency_overrides:
-  # quill_native_bridge_windows 0.0.2 uses removed top-level GMEM_MOVEABLE constant.
-  # Local copy patches it to GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE for win32 5.x compat.
+  # quill_native_bridge_windows 0.0.2 (still the version quill 11.x resolves to)
+  # references the win32 top-level GMEM_MOVEABLE constant, which win32 5.x removed.
+  # Local copy patches it to GLOBAL_ALLOC_FLAGS.GMEM_MOVEABLE. Confirmed still
+  # required after the Flutter 3.44 / quill 11.x upgrade (GMEM build error
+  # resurfaced without it).
   quill_native_bridge_windows:
     path: local_overrides/quill_native_bridge_windows
 
