@@ -1616,7 +1616,7 @@ class _Chip extends StatelessWidget {
 }
 
 // ── Right rail ────────────────────────────────────────────────────────────────
-class _RightRail extends StatelessWidget {
+class _RightRail extends ConsumerWidget {
   const _RightRail({
     required this.tokens,
     required this.isPro,
@@ -1628,8 +1628,13 @@ class _RightRail extends StatelessWidget {
   final void Function(String) onSoon;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final archivedCount = ref.watch(archivedDocumentsProvider).maybeWhen(
+        data: (l) => l.length, orElse: () => 0);
+    final archiveSub = archivedCount > 0
+        ? '$archivedCount document${archivedCount == 1 ? '' : 's'}'
+        : 'Archived documents';
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -1644,7 +1649,7 @@ class _RightRail extends StatelessWidget {
           _sectionLabel('Quick Access', scheme),
           const SizedBox(height: 8),
           _quickRow(context, Icons.inventory_2_outlined, 'Archive',
-              'Archived documents', () => context.go('/archive')),
+              archiveSub, () => context.go('/archive')),
           _quickRow(context, Icons.sticky_note_2_outlined, 'Scribbles',
               'Coming soon', () => onSoon('Scribbles')),
           _quickRow(context, Icons.mic_none_outlined, 'Whispers',
