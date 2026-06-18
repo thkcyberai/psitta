@@ -286,6 +286,13 @@ class DocumentRepository {
     return Document.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Duplicate a document (server-side copy of file + chunks) into the
+  /// Library. Returns the new document's metadata.
+  Future<Document> duplicateDocument(String id) async {
+    final response = await _api.dio.post('/documents/$id/duplicate');
+    return Document.fromJson(response.data as Map<String, dynamic>);
+  }
+
   /// Upload cover from in-memory bytes (e.g. a bundled reservatory asset).
   Future<Document> uploadCoverBytes(
     String id,

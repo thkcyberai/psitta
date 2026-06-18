@@ -3288,6 +3288,122 @@ async def download_document(
     )
 
 
+@router.post("/{document_id}/duplicate", status_code=201)
+async def duplicate_document(
+    document_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> dict:
+    """Copy a document (row + chunks + raw file + cover) into the Library.
+
+    The copy keeps the same project and cover; the title gets a ' (Copy)'
+    suffix. JSONB columns (metadata_json, chunk_positions, formatted_content)
+    are copied natively via INSERT ... SELECT to avoid round-tripping JSON
+    through Python. Duplicating does not consume the monthly upload quota —
+    it is the writer's own content.
+    """
+    src = (
+        await db.execute(
+            text(
+                "SELECT title, source_type, storage_key FROM documents "
+                "WHERE id = :did AND user_id = :uid AND status != 'deleted'"
+            ),
+            {"did": document_id, "uid": str(user_id)},
+        )
+    ).first()
+    if not src:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    new_id = uuid4()
+    extension = f".{src.source_type}"
+    now = datetime.now(timezone.utc)
+    new_title = f"{src.title} (Copy)"
+    new_storage_key = (
+        f"uploads/{new_id}{extension}" if src.storage_key else None
+    )
+
+    settings = get_settings()
+    s3 = S3StorageProvider(settings)
+    bucket = settings.S3_BUCKET_NAME
+
+    # 1. Copy the raw uploaded file (best-effort — chunks drive reading, so a
+    #    missing raw file doesn't block the copy; it just disables download).
+    if src.storage_key and new_storage_key:
+        try:
+            raw = await s3.get_object(bucket, src.storage_key)
+            await s3.put_object(
+                bucket, new_storage_key, raw, "application/octet-stream"
+            )
+        except Exception:
+            logger.warning(
+                "document.duplicate.raw_copy_failed", doc_id=str(document_id)
+            )
+            new_storage_key = None
+
+    # 2. Copy the documents row natively; override only what changes. The copy
+    #    starts with no cover (cover_type/value forced NULL) — the writer picks
+    #    one in the Library.
+    await db.execute(
+        text(
+            "INSERT INTO documents "
+            "(id, user_id, title, source_type, status, file_size_bytes, "
+            "storage_key, page_count, word_count, metadata_json, "
+            "chunk_positions, project_id, cover_type, cover_value, "
+            "created_at, updated_at) "
+            "SELECT :new_id, user_id, :new_title, source_type, status, "
+            "file_size_bytes, :new_key, page_count, word_count, metadata_json, "
+            "chunk_positions, project_id, NULL, NULL, :now, :now "
+            "FROM documents WHERE id = :src_id AND user_id = :uid"
+        ),
+        {
+            "new_id": new_id,
+            "new_title": new_title,
+            "new_key": new_storage_key,
+            "now": now,
+            "src_id": document_id,
+            "uid": str(user_id),
+        },
+    )
+
+    # 3. Copy all chunks natively with fresh ids.
+    await db.execute(
+        text(
+            "INSERT INTO document_chunks "
+            "(id, document_id, sequence_index, chunk_type, text_content, "
+            "tone, page_number, character_count, metadata_json, "
+            "formatted_content) "
+            "SELECT gen_random_uuid(), :new_id, sequence_index, chunk_type, "
+            "text_content, tone, page_number, character_count, metadata_json, "
+            "formatted_content "
+            "FROM document_chunks WHERE document_id = :src_id"
+        ),
+        {"new_id": new_id, "src_id": document_id},
+    )
+
+    await audit_service.log_event(
+        db,
+        action="document.duplicate",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(new_id),
+        details={"source_document_id": str(document_id), "title": new_title},
+        ip_address=request.client.host if request.client else None,
+    )
+    logger.info(
+        "document.duplicated",
+        src_doc_id=str(document_id),
+        new_doc_id=str(new_id),
+    )
+    return {
+        "id": str(new_id),
+        "title": new_title,
+        "source_type": src.source_type,
+        "cover_type": None,
+        "cover_value": None,
+    }
+
+
 # ── Branded DOCX export ──────────────────────────────────────────────────────
 
 _LOGO_PATH = Path(__file__).resolve().parents[1] / "assets" / "logo.png"

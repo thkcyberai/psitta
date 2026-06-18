@@ -960,7 +960,8 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         _menuItem('rename', Icons.drive_file_rename_outline, 'Rename', scheme),
         _menuItem('cover', Icons.image_outlined, 'Change cover', scheme),
         _menuItem('project', Icons.folder_outlined, 'Add to Project', scheme),
-        _menuItem('download', Icons.download_outlined, 'Download', scheme),
+        _menuItem('duplicate', Icons.content_copy_outlined, 'Duplicate', scheme),
+        _menuItem('saveas', Icons.save_alt_outlined, 'Save As…', scheme),
         _menuItem('details', Icons.info_outline, 'Details', scheme),
         const PopupMenuDivider(),
         _menuItem('archive', Icons.archive_outlined, 'Archive', scheme),
@@ -977,8 +978,10 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
             _changeCover(doc);
           case 'project':
             _addToProject(doc);
-          case 'download':
-            _download(doc);
+          case 'duplicate':
+            _duplicate(doc);
+          case 'saveas':
+            _saveAs(doc);
           case 'details':
             _showDetails(doc);
           case 'archive':
@@ -1189,14 +1192,25 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     }
   }
 
-  Future<void> _download(Document doc) async {
+  /// Save the document to disk. DOCX saves the branded export (reflects edits
+  /// made in the Writing Desk); every other format saves the original file.
+  Future<void> _saveAs(Document doc) async {
+    final repo = ref.read(documentRepositoryProvider);
+    final isDocx = doc.sourceType.toLowerCase() == 'docx';
     try {
-      final bytes =
-          await ref.read(documentRepositoryProvider).downloadDocument(doc.id);
+      final List<int> bytes = isDocx
+          ? await repo.exportDocument(
+              doc.id,
+              includeCover: false,
+              includeFooter: false,
+            )
+          : await repo.downloadDocument(doc.id);
       if (!mounted) return;
       final savePath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save document',
+        dialogTitle: 'Save As',
         fileName: '${doc.title}.${doc.sourceType}',
+        type: FileType.custom,
+        allowedExtensions: [doc.sourceType],
       );
       if (savePath == null) return;
       await File(savePath).writeAsBytes(bytes);
@@ -1208,7 +1222,25 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t download the document.')),
+          const SnackBar(content: Text('Couldn’t save the document.')),
+        );
+      }
+    }
+  }
+
+  /// Server-side copy of the document into the Library, then refresh the grid.
+  Future<void> _duplicate(Document doc) async {
+    try {
+      await ref.read(documentRepositoryProvider).duplicateDocument(doc.id);
+      if (!mounted) return;
+      ref.invalidate(documentsProvider);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Duplicated “${doc.title}”')),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Couldn’t duplicate the document.')),
         );
       }
     }
