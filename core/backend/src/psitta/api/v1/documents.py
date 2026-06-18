@@ -1395,33 +1395,43 @@ async def list_documents(
     page: Annotated[int, Query(ge=1)] = 1,
     size: Annotated[int, Query(ge=1, le=100)] = 20,
     show_archived: bool = False,
+    trashed: bool = False,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
 ) -> dict:
     offset = (page - 1) * size
 
-    # ── Welcome-kit seeding (Writing Nook, first login) ──────────────────
-    # On a writer's first Library load, seed the 6 starter documents once.
-    # Fail-open: any error here must never break the document list.
-    await _maybe_seed_welcome_kit(db, user_id, background_tasks)
+    _cols = (
+        "id, title, status, source_type, page_count, word_count, created_at, "
+        "updated_at, project_id, cover_type, cover_value"
+    )
+    if trashed:
+        # Trash view: only soft-deleted docs. No seeding here.
+        where = "user_id = :uid AND status = 'deleted'"
+        params: dict = {"uid": str(user_id)}
+    else:
+        # ── Welcome-kit seeding (Writing Nook, first login) ──────────────
+        # On a writer's first Library load, seed the 6 starter documents once.
+        # Fail-open: any error here must never break the document list.
+        await _maybe_seed_welcome_kit(db, user_id, background_tasks)
+        where = (
+            "user_id = :uid AND status != 'deleted' "
+            "AND (:show_archived OR status != 'archived')"
+        )
+        params = {"uid": str(user_id), "show_archived": show_archived}
 
     count_result = await db.execute(
-        text(
-            "SELECT COUNT(*) FROM documents WHERE user_id = :uid "
-            "AND status != 'deleted' AND (:show_archived OR status != 'archived')"
-        ),
-        {"uid": str(user_id), "show_archived": show_archived},
+        text(f"SELECT COUNT(*) FROM documents WHERE {where}"),  # noqa: S608 — where is a fixed literal
+        params,
     )
     total = count_result.scalar() or 0
 
     rows = await db.execute(
         text(
-            "SELECT id, title, status, source_type, page_count, word_count, created_at, updated_at, project_id, cover_type, cover_value "
-            "FROM documents WHERE user_id = :uid "
-            "AND status != 'deleted' AND (:show_archived OR status != 'archived') "
+            f"SELECT {_cols} FROM documents WHERE {where} "  # noqa: S608 — fixed literals, params bound
             "ORDER BY created_at DESC LIMIT :lim OFFSET :off"
         ),
-        {"uid": str(user_id), "show_archived": show_archived, "lim": size, "off": offset},
+        {**params, "lim": size, "off": offset},
     )
 
     items = [
@@ -1444,6 +1454,30 @@ async def list_documents(
     ]
 
     return {"items": items, "page": page, "size": size, "total": total}
+
+
+# NOTE: this static path MUST stay above @router.get("/{document_id}") or the
+# UUID route would capture "storage" and 422.
+@router.get("/storage")
+async def storage_usage(
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> dict:
+    """Total storage used by the user's non-deleted documents."""
+    row = (
+        await db.execute(
+            text(
+                "SELECT COALESCE(SUM(file_size_bytes), 0) AS used, "
+                "COUNT(*) AS cnt FROM documents "
+                "WHERE user_id = :uid AND status != 'deleted'"
+            ),
+            {"uid": str(user_id)},
+        )
+    ).first()
+    return {
+        "used_bytes": int(row.used or 0),
+        "doc_count": int(row.cnt or 0),
+    }
 
 
 @router.get("/{document_id}")
@@ -3151,6 +3185,97 @@ async def delete_document(
     await audit_service.log_event(
         db,
         action="document.delete",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details=None,
+        ip_address=request.client.host if request.client else None,
+    )
+
+
+@router.post("/{document_id}/restore", status_code=status.HTTP_200_OK)
+async def restore_document(
+    document_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> dict:
+    """Restore a soft-deleted document from Trash back to the Library."""
+    result = await db.execute(
+        text(
+            "UPDATE documents SET status = 'ready', updated_at = NOW() "
+            "WHERE id = :did AND user_id = :uid AND status = 'deleted'"
+        ),
+        {"did": document_id, "uid": str(user_id)},
+    )
+    if result.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Document not found in Trash")
+    await db.commit()
+    logger.info("document.restored", doc_id=str(document_id))
+    await audit_service.log_event(
+        db,
+        action="document.restore",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=str(document_id),
+        details=None,
+        ip_address=request.client.host if request.client else None,
+    )
+    return {"id": str(document_id), "status": "ready"}
+
+
+@router.delete(
+    "/{document_id}/permanent", status_code=status.HTTP_204_NO_CONTENT
+)
+async def purge_document(
+    document_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> None:
+    """Permanently delete a document that is already in Trash.
+
+    Hard-deletes the documents row; chunks, audio_segments and sessions cascade
+    via their ON DELETE CASCADE foreign keys. S3 cleanup (raw file + cover) is
+    best-effort — orphaned objects are harmless and must never block the purge.
+    """
+    row = (
+        await db.execute(
+            text(
+                "SELECT storage_key, cover_type, cover_value FROM documents "
+                "WHERE id = :did AND user_id = :uid AND status = 'deleted'"
+            ),
+            {"did": document_id, "uid": str(user_id)},
+        )
+    ).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Document not found in Trash")
+
+    try:
+        from psitta.config import get_settings
+        from psitta.providers.storage_s3 import S3StorageProvider
+
+        settings = get_settings()
+        s3 = S3StorageProvider(settings)
+        bucket = settings.S3_BUCKET_NAME
+        if row.storage_key:
+            await s3.delete_by_prefix(bucket, row.storage_key)
+        if row.cover_type == "uploaded":
+            await s3.delete_by_prefix(bucket, f"covers/{document_id}.")
+    except Exception:
+        logger.warning(
+            "document.purge.s3_cleanup_failed", doc_id=str(document_id)
+        )
+
+    await db.execute(
+        text("DELETE FROM documents WHERE id = :did AND user_id = :uid"),
+        {"did": document_id, "uid": str(user_id)},
+    )
+    await db.commit()
+    logger.info("document.purged", doc_id=str(document_id))
+    await audit_service.log_event(
+        db,
+        action="document.purge",
         resource_type="document",
         user_id=str(user_id),
         resource_id=str(document_id),

@@ -610,9 +610,30 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     });
   }
 
+  static String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var b = bytes.toDouble();
+    var i = 0;
+    while (b >= 1024 && i < units.length - 1) {
+      b /= 1024;
+      i++;
+    }
+    final str = i == 0 ? b.toInt().toString() : b.toStringAsFixed(b >= 100 ? 0 : 1);
+    return '$str ${units[i]}';
+  }
+
   // ── Stat cards ──────────────────────────────────────────────────────────────
   Widget _statRow(PsittaTokens tokens, List<Document> docs) {
     final week = _thisWeek(docs);
+    final storage = ref.watch(storageUsageProvider);
+    final storageValue = storage.maybeWhen(
+        data: (s) => _formatBytes(s.usedBytes), orElse: () => '—');
+    final storageSub = storage.maybeWhen(
+        data: (s) => '${s.docCount} document${s.docCount == 1 ? '' : 's'}',
+        orElse: () => 'Used');
+    final trashCount = ref.watch(trashedDocumentsProvider).maybeWhen(
+        data: (l) => '${l.length}', orElse: () => '—');
     final cards = <Widget>[
       _StatCard(
         tokens: tokens,
@@ -626,37 +647,36 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         tokens: tokens,
         icon: Icons.folder_outlined,
         value: '—',
-        label: 'Folders',
-        sub: 'Coming soon',
+        label: 'Projects',
+        sub: 'Organize your work',
         accent: const Color(0xFF4F8DF5),
-        onTap: () => _soon('Folders'),
+        onTap: () => context.go('/projects'),
       ),
       _StatCard(
         tokens: tokens,
-        icon: Icons.dashboard_customize_outlined,
+        icon: Icons.account_tree_outlined,
         value: '—',
-        label: 'Templates',
-        sub: 'Coming soon',
+        label: 'Blueprints',
+        sub: 'Book templates',
         accent: const Color(0xFF34C77B),
-        onTap: () => _soon('Templates'),
+        onTap: () => context.go('/blueprints'),
       ),
       _StatCard(
         tokens: tokens,
         icon: Icons.delete_outline,
-        value: '—',
+        value: trashCount,
         label: 'Trash',
-        sub: 'Coming soon',
+        sub: 'Restore deleted',
         accent: const Color(0xFFE0A03A),
-        onTap: () => _soon('Trash'),
+        onTap: () => context.go('/trash'),
       ),
       _StatCard(
         tokens: tokens,
         icon: Icons.cloud_outlined,
-        value: '—',
+        value: storageValue,
         label: 'Storage',
-        sub: 'Coming soon',
+        sub: storageSub,
         accent: const Color(0xFF8A7CFF),
-        onTap: () => _soon('Storage'),
       ),
     ];
     return LayoutBuilder(
@@ -1150,9 +1170,9 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete document?'),
+        title: const Text('Move to Trash?'),
         content: Text(
-            '“${doc.title}” will be permanently deleted. This can’t be undone.'),
+            '“${doc.title}” will be moved to Trash. You can restore it later.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -1161,7 +1181,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
             style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFE5534B)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
+            child: const Text('Move to Trash'),
           ),
         ],
       ),
@@ -1171,6 +1191,13 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       await ref.read(documentRepositoryProvider).deleteDocument(doc.id);
       ref.invalidate(documentsProvider);
       ref.invalidate(quotaUsageProvider);
+      ref.invalidate(trashedDocumentsProvider);
+      ref.invalidate(storageUsageProvider);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Moved to Trash.')),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

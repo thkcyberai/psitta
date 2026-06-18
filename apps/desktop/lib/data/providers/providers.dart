@@ -260,6 +260,18 @@ final documentsProvider =
   return repo.listDocuments(showArchived: showArchived);
 });
 
+/// Soft-deleted documents (Trash view).
+final trashedDocumentsProvider =
+    FutureProvider.autoDispose<List<Document>>((ref) async {
+  return ref.watch(documentRepositoryProvider).listTrashed();
+});
+
+/// Total storage used (bytes) + document count for the Library Storage card.
+final storageUsageProvider =
+    FutureProvider.autoDispose<({int usedBytes, int docCount})>((ref) async {
+  return ref.watch(documentRepositoryProvider).getStorageUsage();
+});
+
 /// Fetches voice catalog from API.
 final voicesProvider = FutureProvider.autoDispose<List<Voice>>((ref) async {
   final repo = ref.watch(voiceRepositoryProvider);

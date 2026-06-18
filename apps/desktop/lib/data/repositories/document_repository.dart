@@ -33,6 +33,38 @@ class DocumentRepository {
         .toList();
   }
 
+  /// Fetch soft-deleted documents (the Trash view).
+  Future<List<Document>> listTrashed() async {
+    final response = await _api.dio.get('/documents/', queryParameters: {
+      'trashed': true,
+      'size': 100,
+    });
+    final items = response.data['items'] as List<dynamic>;
+    return items
+        .map((e) => Document.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Total storage used (bytes) and document count for the current user.
+  Future<({int usedBytes, int docCount})> getStorageUsage() async {
+    final response = await _api.dio.get('/documents/storage');
+    final d = response.data as Map<String, dynamic>;
+    return (
+      usedBytes: (d['used_bytes'] as num?)?.toInt() ?? 0,
+      docCount: (d['doc_count'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  /// Restore a soft-deleted document from Trash back to the Library.
+  Future<void> restoreDocument(String id) async {
+    await _api.dio.post('/documents/$id/restore');
+  }
+
+  /// Permanently delete a document that is already in Trash.
+  Future<void> purgeDocument(String id) async {
+    await _api.dio.delete('/documents/$id/permanent');
+  }
+
   /// Upload a document file.
   ///
   /// When [pageTexts] is provided the extracted page texts are sent alongside
