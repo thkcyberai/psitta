@@ -219,11 +219,23 @@ class _BlueprintListPane extends ConsumerWidget {
     return ListView(
       children: [
         const SizedBox(height: 4),
-        for (final b in ordered)
-          _BlueprintListCard(
-            blueprint: b,
-            isSelected: b.id == selectedId,
-          ),
+        if (templates.isNotEmpty) ...[
+          const _BlueprintGroupHeader(label: 'Templates'),
+          for (final b in templates)
+            _BlueprintListCard(
+              blueprint: b,
+              isSelected: b.id == selectedId,
+            ),
+        ],
+        if (mine.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const _BlueprintGroupHeader(label: 'My Books'),
+          for (final b in mine)
+            _BlueprintListCard(
+              blueprint: b,
+              isSelected: b.id == selectedId,
+            ),
+        ],
       ],
     );
   }
@@ -252,6 +264,28 @@ String _coverForGenre(String genreWire) {
   }
 }
 
+/// Group header in the blueprint list pane: 'Templates' (built-in) and
+/// 'My Books' (the user's own structures). Visual only.
+class _BlueprintGroupHeader extends StatelessWidget {
+  const _BlueprintGroupHeader({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(2, 8, 2, 6),
+      child: Text(
+        label.toUpperCase(),
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+      ),
+    );
+  }
+}
 class _BlueprintListCard extends ConsumerWidget {
   const _BlueprintListCard({required this.blueprint, required this.isSelected});
 
