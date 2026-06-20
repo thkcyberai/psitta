@@ -7,6 +7,7 @@ import '../../../data/providers/blueprint_providers.dart';
 import '../blueprint_screen_state.dart';
 import 'blueprint_dialogs.dart';
 import '../../../data/providers/blueprint_placed_files_provider.dart';
+import 'package:go_router/go_router.dart';
 
 /// Center pane: the selected blueprint's section tree, with editing for owned
 /// blueprints and a clone action for system templates.
@@ -502,28 +503,7 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
           ),
         ),
         for (final f in placed)
-          Padding(
-            padding: EdgeInsets.only(
-              left: _baseIndent + (widget.depth + 1) * _perDepth + 18,
-              top: 1,
-              bottom: 1,
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.article_outlined,
-                    size: 15, color: theme.colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    f.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                ),
-              ],
-            ),
-          ),
+          _PlacedFileRow(file: f, depth: widget.depth + 1),
         if (hasChildren && _expanded)
           for (var i = 0; i < node.children.length; i++)
             _PartTreeNode(
@@ -602,6 +582,55 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
       tooltip: tooltip,
       onPressed: onPressed,
       icon: Icon(icon),
+    );
+  }
+}
+
+/// A tappable placed-file row under a blueprint section. Opens the file in
+/// the Writing Desk (with project context), mirroring the Project book tree.
+class _PlacedFileRow extends StatelessWidget {
+  const _PlacedFileRow({required this.file, required this.depth});
+
+  final PlacedFile file;
+  final int depth;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: EdgeInsets.only(left: 8 + depth * 20.0 + 18, top: 1, bottom: 1),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => context.go(
+              '/writing-desk/${file.documentId}?projectId=${file.projectId}'),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 6),
+            child: Row(
+              children: [
+                Icon(Icons.article_outlined, size: 15, color: scheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    file.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: scheme.primary,
+                      decoration: TextDecoration.underline,
+                      decorationColor: scheme.primary.withValues(alpha: 0.4),
+                    ),
+                  ),
+                ),
+                Icon(Icons.open_in_new, size: 13, color: scheme.primary),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

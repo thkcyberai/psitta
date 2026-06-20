@@ -4,17 +4,20 @@ import 'blueprint_providers.dart';
 import 'project_providers.dart';
 import 'providers.dart';
 
-/// A document placed into a blueprint section, for read-only display in the
-/// Blueprints "Book Structure" tab. Mirrors what the Writing Desk shows.
+/// A document placed into a blueprint section, for display in the Blueprints
+/// "Book Structure" tab. Mirrors what the Writing Desk shows, and carries the
+/// projectId so the row can open the file in the Writing Desk with context.
 class PlacedFile {
   const PlacedFile({
     required this.documentId,
     required this.title,
+    required this.projectId,
     required this.sortOrder,
   });
 
   final String documentId;
   final String title;
+  final String projectId;
   final double sortOrder;
 }
 
@@ -38,9 +41,10 @@ final blueprintPlacedFilesProvider = FutureProvider.autoDispose
     }
   }
   if (projectId == null) return const <String, List<PlacedFile>>{};
+  final pid = projectId;
 
   final placements =
-      await ref.watch(projectPlacementsProvider(projectId).future);
+      await ref.watch(projectPlacementsProvider(pid).future);
   final docs = await ref.watch(documentsProvider.future);
   final titleById = {for (final d in docs) d.id: d.title};
 
@@ -49,6 +53,7 @@ final blueprintPlacedFilesProvider = FutureProvider.autoDispose
     (map[pl.partId] ??= <PlacedFile>[]).add(PlacedFile(
       documentId: pl.documentId,
       title: titleById[pl.documentId] ?? 'Untitled',
+      projectId: pid,
       sortOrder: pl.sortOrder,
     ));
   }
