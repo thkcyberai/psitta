@@ -358,6 +358,20 @@ class _BlueprintListCard extends ConsumerWidget {
                               ),
                             ),
                           ),
+                          if (!blueprint.isSystem)
+                            SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: IconButton(
+                                padding: EdgeInsets.zero,
+                                iconSize: 16,
+                                tooltip: 'Rename Book Structure',
+                                icon: Icon(Icons.edit_outlined,
+                                    color: scheme.onSurfaceVariant),
+                                onPressed: () => _rename(context, ref),
+                              ),
+                            ),
+                          if (!blueprint.isSystem) const SizedBox(width: 2),
                           // Owned Book Structures can be deleted from here;
                           // templates (isSystem) cannot.
                           if (!blueprint.isSystem)
@@ -402,6 +416,32 @@ class _BlueprintListCard extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _rename(BuildContext context, WidgetRef ref) async {
+    final result = await showBlueprintFormDialog(
+      context,
+      title: 'Rename Book Structure',
+      submitLabel: 'Save',
+      initialName: blueprint.name,
+      initialGenre: blueprint.genre,
+      initialStatus: blueprint.status,
+    );
+    if (result == null || !context.mounted) return;
+    try {
+      await ref.read(blueprintActionsProvider).updateBlueprint(
+            blueprint.id,
+            name: result.name,
+            genre: result.genre,
+            status: result.status,
+          );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(describeBlueprintError(e))),
+        );
+      }
+    }
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
