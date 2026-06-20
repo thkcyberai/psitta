@@ -13,6 +13,7 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document_assembler.dart';
 import '../../data/models/psitta_document.dart';
 import '../../data/providers/providers.dart';
+import '../projects/widgets/add_documents_dialog.dart';
 import '../../data/services/audio_service.dart'
     show audioServiceProvider, audioPlayingProvider;
 import '../../data/services/preferences_service.dart'
@@ -1596,7 +1597,15 @@ class _ThreeWaysPanel extends ConsumerWidget {
                           'Choose an existing document from your library.',
                       cta: 'Browse Library',
                       buttonKey: 'desk-add-from-library',
-                      onPressed: () => context.go('/library'),
+                      onPressed: () {
+                        final pid = projectId;
+                        if (pid != null) {
+                          addDocumentsToProjectFlow(context, ref,
+                              projectId: pid);
+                        } else {
+                          context.go('/library');
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(width: 10),
