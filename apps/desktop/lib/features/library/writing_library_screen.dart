@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../widgets/new_sheet_dialog.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -188,10 +189,13 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       await showQuotaDialog(context, cachedQuota);
       return;
     }
+    final name = await promptNewSheetName(context);
+    if (name == null || !mounted) return;
     try {
       final repo = ref.read(documentRepositoryProvider);
       final result = await repo.createBlankDocument();
       final docId = result['id']!;
+      if (name.isNotEmpty) await repo.renameDocument(docId, name);
       ref.invalidate(documentsProvider);
       ref.invalidate(quotaUsageProvider);
       if (mounted) context.go('/writing-desk/$docId');

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../widgets/new_sheet_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1689,10 +1690,13 @@ class _ThreeWaysPanel extends ConsumerWidget {
   Future<void> _newDocument(BuildContext context, WidgetRef ref) async {
     try {
       final repo = ref.read(documentRepositoryProvider);
+      final name = await promptNewSheetName(context);
+      if (name == null || !context.mounted) return;
       final result = await repo.createBlankDocument();
       final docId = result['id'];
       ref.invalidate(documentsProvider);
       if (docId == null || !context.mounted) return;
+      if (name.isNotEmpty) await repo.renameDocument(docId, name);
       final q = projectId != null ? '?projectId=$projectId' : '';
       context.go('/writing-desk/$docId$q');
     } on DioException catch (e) {

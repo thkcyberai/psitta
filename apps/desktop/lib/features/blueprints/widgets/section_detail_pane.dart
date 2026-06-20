@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../../widgets/new_sheet_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -276,8 +277,11 @@ class SectionDetailPane extends ConsumerWidget {
     String? docId;
     try {
       if (kind == 'new') {
+        final name = await promptNewSheetName(context);
+        if (name == null || !context.mounted) return;
         final res = await repo.createBlankDocument();
         docId = res['id'];
+        if (name.isNotEmpty) await repo.renameDocument(res['id']!, name);
       } else {
         final picked = await FilePicker.platform.pickFiles(
           type: FileType.custom,
