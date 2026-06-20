@@ -8,6 +8,7 @@ import 'widgets/project_blueprints_tab.dart';
 import 'widgets/project_documents_tab.dart';
 import 'widgets/project_overview_tab.dart';
 import 'widgets/project_right_rail.dart';
+import 'widgets/add_documents_dialog.dart';
 
 /// Project screen — tabbed shell (Overview · Documents · Blueprints · Activity)
 /// with a project-level right rail (About, Project Actions, Activity).
@@ -116,6 +117,13 @@ class _ProjectHeader extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
             ),
+          ),
+          const SizedBox(width: 12),
+          FilledButton.icon(
+            icon: const Icon(Icons.note_add_outlined, size: 16),
+            label: const Text('Add files'),
+            onPressed: () =>
+                addDocumentsToProjectFlow(context, ref, projectId: projectId),
           ),
         ],
       ),
