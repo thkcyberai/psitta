@@ -385,6 +385,14 @@ class _ActivityOutput extends ConsumerWidget {
           ),
         ),
         _Card(
+          icon: Icons.calendar_month_outlined,
+          title: 'Writing days',
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+            child: _Heatmap(dailyWords: stats.dailyWords),
+          ),
+        ),
+        _Card(
           icon: Icons.trending_up_outlined,
           title: 'Words written',
           child: Padding(
@@ -408,6 +416,71 @@ class _ActivityOutput extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+
+/// A GitHub-style grid of writing days (last ~14 weeks). Intensity reflects
+/// words written; reads the locally-recorded daily rollup.
+class _Heatmap extends StatelessWidget {
+  const _Heatmap({required this.dailyWords});
+  final Map<String, int> dailyWords;
+
+  static String _ymd(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    const weeks = 14;
+    final start = today.subtract(const Duration(days: weeks * 7 - 1));
+    final startMonday = start.subtract(Duration(days: start.weekday - 1));
+    final cols = <List<DateTime>>[];
+    var cur = startMonday;
+    while (!cur.isAfter(today)) {
+      final wk = <DateTime>[];
+      for (var i = 0; i < 7; i++) {
+        wk.add(cur);
+        cur = cur.add(const Duration(days: 1));
+      }
+      cols.add(wk);
+    }
+    Color cell(DateTime d) {
+      if (d.isAfter(today)) return Colors.transparent;
+      final w = dailyWords[_ymd(d)] ?? 0;
+      if (w <= 0) return scheme.onSurface.withValues(alpha: 0.07);
+      if (w < 100) return scheme.primary.withValues(alpha: 0.30);
+      if (w < 500) return scheme.primary.withValues(alpha: 0.55);
+      return scheme.primary.withValues(alpha: 0.90);
+    }
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final wk in cols)
+            Padding(
+              padding: const EdgeInsets.only(right: 3),
+              child: Column(
+                children: [
+                  for (final d in wk)
+                    Container(
+                      width: 12,
+                      height: 12,
+                      margin: const EdgeInsets.only(bottom: 3),
+                      decoration: BoxDecoration(
+                        color: cell(d),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

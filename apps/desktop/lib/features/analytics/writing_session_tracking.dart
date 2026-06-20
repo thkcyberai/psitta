@@ -148,6 +148,7 @@ class WriterStats {
     required this.wordsTracked,
     required this.productiveHour,
     required this.productiveWeekday,
+    required this.dailyWords,
   });
 
   final bool hasData;
@@ -162,11 +163,13 @@ class WriterStats {
   final int wordsTracked;
   final int? productiveHour; // 0-23
   final int? productiveWeekday; // 1=Mon..7=Sun
+  final Map<String, int> dailyWords; // day -> words
 
   static const empty = WriterStats(
     hasData: false, currentStreak: 0, longestStreak: 0, totalSessions: 0,
     sessionsThisWeek: 0, avgSessionMin: 0, wordsToday: 0, wordsThisWeek: 0,
     wordsThisMonth: 0, wordsTracked: 0, productiveHour: null, productiveWeekday: null,
+    dailyWords: const {},
   );
 
   String? get productiveHourLabel {
@@ -225,6 +228,7 @@ class WriterStats {
     var wToday = 0, wWeek = 0, wMonth = 0, wAll = 0, sessWeek = 0, totalDur = 0;
     final hour = <int, int>{};
     final dow = <int, int>{};
+    final daily = <String, int>{};
     for (final s in sessions) {
       wAll += s.words;
       if (s.day == today) wToday += s.words;
@@ -238,6 +242,7 @@ class WriterStats {
       hour[s.start.hour] = (hour[s.start.hour] ?? 0) + 1;
       dow[s.start.weekday] = (dow[s.start.weekday] ?? 0) + 1;
       totalDur += s.durationS;
+      daily[s.day] = (daily[s.day] ?? 0) + s.words;
     }
     int? mode(Map<int, int> m) => m.isEmpty
         ? null
@@ -256,6 +261,7 @@ class WriterStats {
       wordsTracked: wAll,
       productiveHour: mode(hour),
       productiveWeekday: mode(dow),
+      dailyWords: daily,
     );
   }
 }
