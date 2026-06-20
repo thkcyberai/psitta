@@ -107,6 +107,19 @@ class WritingSessionStore {
     m['base'] = base;
     await prefs.setString(_key(uid), jsonEncode(m));
   }
+
+  /// Seed a document's baseline once (at open), so the first save counts the
+  /// words written during that opening session. No-op if already known.
+  static Future<void> seed(String uid,
+      {required String documentId, required int wordCount}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final m = await _raw(prefs, uid);
+    final base = (m['base'] as Map).cast<String, dynamic>();
+    if (base.containsKey(documentId)) return;
+    base[documentId] = wordCount;
+    m['base'] = base;
+    await prefs.setString(_key(uid), jsonEncode(m));
+  }
 }
 
 /// Bumped on every recorded save so the Analytics summary recomputes live.
@@ -127,6 +140,13 @@ class WritingSessionTracker {
     await WritingSessionStore.record(uid,
         documentId: documentId, projectId: projectId, wordCount: wordCount);
     _ref.read(writingSessionsRevisionProvider.notifier).state++;
+  }
+
+  Future<void> seedBaseline(String documentId, int wordCount) async {
+    final uid = _ref.read(currentUserIdProvider);
+    if (uid == null) return;
+    await WritingSessionStore.seed(uid,
+        documentId: documentId, wordCount: wordCount);
   }
 }
 

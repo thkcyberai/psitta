@@ -402,6 +402,15 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
       _loadedDocId = widget.documentId;
     });
     ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.editing;
+    final seedWordCount = controller.document
+        .toPlainText()
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .length;
+    ref
+        .read(writingSessionTrackerProvider)
+        .seedBaseline(widget.documentId, seedWordCount);
   }
 
   Future<void> _save() async {
