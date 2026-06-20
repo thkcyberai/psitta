@@ -17,6 +17,7 @@ import '../../core/quota_gate.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
+import '../../data/providers/document_actions.dart';
 import '../../data/providers/blueprint_providers.dart';
 import '../../data/repositories/project_repository.dart';
 import '../../data/services/pdf_text_extractor.dart';
@@ -1043,7 +1044,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     try {
       switch (result) {
         case CoverPickerBuiltin(:final illustrationId):
-          await repo.setCoverBuiltin(doc.id, illustrationId);
+          await ref.read(documentActionsProvider).setCoverBuiltin(doc.id, illustrationId);
         case CoverPickerStock(:final assetPath):
           final data = await rootBundle.load(assetPath);
           await repo.uploadCoverBytes(
@@ -1114,7 +1115,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       return;
     }
     try {
-      await ref.read(documentRepositoryProvider).renameDocument(doc.id, newTitle);
+      await ref.read(documentActionsProvider).renameDocument(doc.id, newTitle);
       ref.invalidate(documentsProvider);
     } catch (_) {
       if (mounted) {
@@ -1127,7 +1128,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
 
   Future<void> _archive(Document doc) async {
     try {
-      await ref.read(documentRepositoryProvider).archiveDocument(doc.id);
+      await ref.read(documentActionsProvider).archiveDocument(doc.id);
       ref.invalidate(documentsProvider);
       ref.invalidate(archivedDocumentsProvider);
       if (mounted) {
@@ -1166,7 +1167,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     );
     if (ok != true || !mounted) return;
     try {
-      await ref.read(documentRepositoryProvider).deleteDocument(doc.id);
+      await ref.read(documentActionsProvider).deleteDocument(doc.id);
       ref.invalidate(documentsProvider);
       ref.invalidate(quotaUsageProvider);
       ref.invalidate(trashedDocumentsProvider);
@@ -1330,7 +1331,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   /// Server-side copy of the document into the Library, then refresh the grid.
   Future<void> _duplicate(Document doc) async {
     try {
-      await ref.read(documentRepositoryProvider).duplicateDocument(doc.id);
+      await ref.read(documentActionsProvider).duplicateDocument(doc.id);
       if (!mounted) return;
       ref.invalidate(documentsProvider);
       ScaffoldMessenger.of(context).showSnackBar(

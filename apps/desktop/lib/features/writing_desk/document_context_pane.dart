@@ -15,6 +15,7 @@ import '../../data/models/project_detail.dart';
 import '../../data/providers/blueprint_providers.dart';
 import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart';
+import '../../data/providers/document_actions.dart';
 import '../projects/widgets/adopt_blueprint_dialog.dart';
 
 /// Right-rail context pane for the Writing Desk.
@@ -758,7 +759,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     setState(() => _busy = true);
     try {
       final repo = ref.read(documentRepositoryProvider);
-      await repo.deleteDocument(widget.documentId);
+      await ref.read(documentActionsProvider).deleteDocument(widget.documentId);
       ref.invalidate(documentsProvider);
       if (context.mounted) Navigator.of(context).maybePop();
     } catch (e) {

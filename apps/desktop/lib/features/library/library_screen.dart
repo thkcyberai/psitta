@@ -18,6 +18,7 @@ import '../../core/theme/colors.dart';
 import '../../data/services/pdf_text_extractor.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
+import '../../data/providers/document_actions.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
@@ -345,7 +346,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     final repo = ref.read(documentRepositoryProvider);
     try {
-      await repo.deleteDocument(doc.id);
+      await ref.read(documentActionsProvider).deleteDocument(doc.id);
       final activeId = ref.read(activeDocumentIdProvider);
       if (activeId == doc.id) {
         ref.read(activeDocumentIdProvider.notifier).state = null;
@@ -369,7 +370,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Future<void> _archiveDocument(Document doc) async {
     try {
       final repo = ref.read(documentRepositoryProvider);
-      await repo.archiveDocument(doc.id);
+      await ref.read(documentActionsProvider).archiveDocument(doc.id);
       ref.invalidate(documentsProvider);
     } catch (e) {
       if (mounted) {
@@ -563,7 +564,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     if (selected == null) return;
     try {
       final repo = ref.read(documentRepositoryProvider);
-      await repo.assignToProject(doc.id, selected.id);
+      await ref.read(documentActionsProvider).assignToProject(doc.id, selected.id);
       ref.invalidate(documentsProvider);
       ref.invalidate(projectsProvider);
     } catch (e) {
@@ -578,7 +579,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Future<void> _removeFromProject(Document doc) async {
     try {
       final repo = ref.read(documentRepositoryProvider);
-      await repo.assignToProject(doc.id, null);
+      await ref.read(documentActionsProvider).assignToProject(doc.id, null);
       ref.invalidate(documentsProvider);
       ref.invalidate(projectsProvider);
     } catch (e) {
@@ -602,7 +603,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     try {
       switch (result) {
         case CoverPickerBuiltin(:final illustrationId):
-          await repo.setCoverBuiltin(doc.id, illustrationId);
+          await ref.read(documentActionsProvider).setCoverBuiltin(doc.id, illustrationId);
         case CoverPickerStock(:final assetPath):
           final data = await rootBundle.load(assetPath);
           await repo.uploadCoverBytes(
@@ -664,7 +665,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     final repo = ref.read(documentRepositoryProvider);
     try {
-      await repo.renameDocument(doc.id, trimmed);
+      await ref.read(documentActionsProvider).renameDocument(doc.id, trimmed);
       ref.invalidate(documentsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

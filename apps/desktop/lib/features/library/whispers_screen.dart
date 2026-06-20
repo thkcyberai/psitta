@@ -13,6 +13,7 @@ import '../../data/models/document.dart';
 import '../../widgets/library_breadcrumb.dart';
 import '../../data/providers/providers.dart';
 
+import '../../data/providers/document_actions.dart';
 /// Whispers — voice notes surface. Record an idea straight from the mic,
 /// listen back, or delete. Capture uses the `record` plugin (AAC/m4a on
 /// Windows via MediaFoundation); the audio is uploaded to /documents/recording
@@ -269,7 +270,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
 
   Future<void> _delete(Document doc) async {
     try {
-      await ref.read(documentRepositoryProvider).deleteDocument(doc.id);
+      await ref.read(documentActionsProvider).deleteDocument(doc.id);
       ref.invalidate(recordingsProvider);
       ref.invalidate(storageUsageProvider);
       ref.invalidate(trashedDocumentsProvider);

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
+import '../../data/providers/document_actions.dart';
 import '../../widgets/library_breadcrumb.dart';
 
 /// Archive — archived documents, with unarchive / move-to-Trash.
@@ -33,7 +34,7 @@ class ArchiveScreen extends ConsumerWidget {
       WidgetRef ref, BuildContext context, Document doc) async {
     try {
       // archive toggle: archived -> ready
-      await ref.read(documentRepositoryProvider).archiveDocument(doc.id);
+      await ref.read(documentActionsProvider).archiveDocument(doc.id);
       ref.invalidate(archivedDocumentsProvider);
       ref.invalidate(documentsProvider);
       if (context.mounted) {
@@ -53,7 +54,7 @@ class ArchiveScreen extends ConsumerWidget {
   Future<void> _trash(
       WidgetRef ref, BuildContext context, Document doc) async {
     try {
-      await ref.read(documentRepositoryProvider).deleteDocument(doc.id);
+      await ref.read(documentActionsProvider).deleteDocument(doc.id);
       ref.invalidate(archivedDocumentsProvider);
       ref.invalidate(trashedDocumentsProvider);
       ref.invalidate(storageUsageProvider);

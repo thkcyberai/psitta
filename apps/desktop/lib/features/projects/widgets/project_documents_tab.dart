@@ -6,6 +6,7 @@ import '../../../core/plan_gate.dart';
 import '../../../data/models/document.dart';
 import '../../../data/providers/project_providers.dart';
 import '../../../data/providers/providers.dart';
+import '../../../data/providers/document_actions.dart';
 import '../../../data/repositories/project_repository.dart';
 import '../../../widgets/document_cover.dart';
 import '../../shell/widgets/player_bar.dart';
@@ -232,7 +233,7 @@ class _DocContextMenu extends ConsumerWidget {
     if (confirmed == true && controller.text.trim().isNotEmpty) {
       try {
         final repo = ref.read(documentRepositoryProvider);
-        await repo.renameDocument(doc.id, controller.text.trim());
+        await ref.read(documentActionsProvider).renameDocument(doc.id, controller.text.trim());
         ref.invalidate(projectDocumentsProvider(projectId));
       } catch (e) {
         if (context.mounted) {
@@ -309,7 +310,7 @@ class _DocContextMenu extends ConsumerWidget {
 
     try {
       final repo = ref.read(projectRepositoryProvider);
-      await repo.assignToProject(doc.id, targetProject.id);
+      await ref.read(documentActionsProvider).assignToProject(doc.id, targetProject.id);
       ref.invalidate(projectDocumentsProvider(projectId));
       ref.invalidate(projectsProvider);
     } catch (e) {
@@ -348,7 +349,7 @@ class _DocContextMenu extends ConsumerWidget {
     if (confirmed == true) {
       try {
         final repo = ref.read(projectRepositoryProvider);
-        await repo.assignToProject(doc.id, null);
+        await ref.read(documentActionsProvider).assignToProject(doc.id, null);
         ref.invalidate(projectDocumentsProvider(projectId));
         ref.invalidate(projectsProvider);
       } catch (e) {

@@ -6,6 +6,7 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
 
+import '../../data/providers/document_actions.dart';
 /// Trash — soft-deleted documents with restore / delete-forever.
 class TrashScreen extends ConsumerWidget {
   const TrashScreen({super.key});
@@ -32,7 +33,7 @@ class TrashScreen extends ConsumerWidget {
   Future<void> _restore(
       WidgetRef ref, BuildContext context, Document doc) async {
     try {
-      await ref.read(documentRepositoryProvider).restoreDocument(doc.id);
+      await ref.read(documentActionsProvider).restoreDocument(doc.id);
       ref.invalidate(trashedDocumentsProvider);
       ref.invalidate(documentsProvider);
       ref.invalidate(storageUsageProvider);
@@ -73,7 +74,7 @@ class TrashScreen extends ConsumerWidget {
     );
     if (ok != true) return;
     try {
-      await ref.read(documentRepositoryProvider).purgeDocument(doc.id);
+      await ref.read(documentActionsProvider).purgeDocument(doc.id);
       ref.invalidate(trashedDocumentsProvider);
       ref.invalidate(storageUsageProvider);
       if (context.mounted) {
@@ -117,7 +118,7 @@ class TrashScreen extends ConsumerWidget {
     var failed = 0;
     for (final d in docs) {
       try {
-        await repo.purgeDocument(d.id);
+        await ref.read(documentActionsProvider).purgeDocument(d.id);
       } catch (_) {
         failed++;
       }
