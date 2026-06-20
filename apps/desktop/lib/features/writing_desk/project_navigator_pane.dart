@@ -17,6 +17,7 @@ import '../../data/repositories/project_repository.dart' show Project;
 import '../blueprints/widgets/blueprint_dialogs.dart'
     show showSectionFormDialog, confirmDeleteDialog, runBlueprintMutation;
 import '../projects/widgets/adopt_blueprint_dialog.dart';
+import 'package:go_router/go_router.dart';
 
 /// Left-rail navigator for the Writing Desk.
 ///
@@ -1274,6 +1275,7 @@ class _SectionTile extends ConsumerWidget {
               doc: doc,
               placement:
                   placements.firstWhere((p) => p.documentId == doc.id),
+              projectId: projectId,
               indent: 12.0 + depth * 16.0 + 24,
             ),
       ],
@@ -1405,11 +1407,13 @@ class _PlacedDocTile extends StatelessWidget {
     required this.doc,
     required this.placement,
     required this.indent,
+    required this.projectId,
   });
 
   final Document doc;
   final ProjectPlacement placement;
   final double indent;
+  final String projectId;
 
   @override
   Widget build(BuildContext context) {
@@ -1441,12 +1445,21 @@ class _PlacedDocTile extends StatelessWidget {
         ],
       ),
     );
+    final tappable = MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () =>
+            context.go('/writing-desk/${doc.id}?projectId=$projectId'),
+        child: row,
+      ),
+    );
     return Draggable<_DocDrag>(
       data: _DocDrag(doc.id, placement.role),
       dragAnchorStrategy: childDragAnchorStrategy,
       feedback: _DragChip(title: doc.title),
       childWhenDragging: Opacity(opacity: 0.4, child: row),
-      child: row,
+      child: tappable,
     );
   }
 }
