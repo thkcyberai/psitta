@@ -15,6 +15,7 @@ import '../../data/models/psitta_document.dart';
 import '../../data/providers/providers.dart';
 import '../../data/providers/document_actions.dart';
 import '../projects/widgets/add_documents_dialog.dart';
+import '../analytics/writing_session_tracking.dart';
 import '../../data/services/audio_service.dart'
     show audioServiceProvider, audioPlayingProvider;
 import '../../data/services/preferences_service.dart'
@@ -495,6 +496,17 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
         // batch warm-up would double-synthesize the first chunk.)
         ref.invalidate(chunksProvider(widget.documentId));
         ref.invalidate(deskDocumentProvider(widget.documentId));
+        final deskWordCount = controller.document
+            .toPlainText()
+            .trim()
+            .split(RegExp(r'\s+'))
+            .where((w) => w.isNotEmpty)
+            .length;
+        ref.read(writingSessionTrackerProvider).recordSave(
+              documentId: widget.documentId,
+              projectId: widget.projectId,
+              wordCount: deskWordCount,
+            );
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);

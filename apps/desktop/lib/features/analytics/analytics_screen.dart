@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'writing_session_tracking.dart';
+
 import '../../data/providers/blueprint_providers.dart';
 import '../../data/providers/providers.dart';
 
@@ -187,20 +189,7 @@ class _Dashboard extends StatelessWidget {
                       ],
                     ),
             ),
-            _Card(
-              icon: Icons.local_fire_department_outlined,
-              title: 'Writing activity & streaks',
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                child: Text(
-                  'Streaks, sessions, and daily word trends arrive next, once '
-                  'Psitta starts recording your writing sessions. The project '
-                  'and career numbers above are live today.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant),
-                ),
-              ),
-            ),
+            const _ActivityOutput(),
             const SizedBox(height: 24),
           ],
         ),
@@ -344,6 +333,81 @@ class _Card extends StatelessWidget {
           child,
         ],
       ),
+    );
+  }
+}
+
+
+/// Live writing activity + output, from locally-recorded sessions.
+class _ActivityOutput extends ConsumerWidget {
+  const _ActivityOutput();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final stats = ref.watch(writerStatsProvider).valueOrNull;
+    if (stats == null || !stats.hasData) {
+      return _Card(
+        icon: Icons.local_fire_department_outlined,
+        title: 'Writing activity & streaks',
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          child: Text(
+            'Your first saved writing will start your streak. Streaks, sessions, '
+            'and word trends build automatically as you write in the Desk.',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+      );
+    }
+    final hour = stats.productiveHourLabel;
+    return Column(
+      children: [
+        _Card(
+          icon: Icons.local_fire_department_outlined,
+          title: 'Writing activity',
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Wrap(
+              spacing: 30,
+              runSpacing: 16,
+              children: [
+                _Stat(value: '${stats.currentStreak}', label: 'Day streak'),
+                _Stat(value: '${stats.longestStreak}', label: 'Longest streak'),
+                _Stat(
+                    value: '${stats.sessionsThisWeek}',
+                    label: 'Sessions this week'),
+                _Stat(value: '${stats.avgSessionMin}m', label: 'Avg session'),
+                if (hour != null) _Stat(value: hour, label: 'Most productive'),
+              ],
+            ),
+          ),
+        ),
+        _Card(
+          icon: Icons.trending_up_outlined,
+          title: 'Words written',
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Wrap(
+              spacing: 30,
+              runSpacing: 16,
+              children: [
+                _Stat(value: _Dashboard.fmt(stats.wordsToday), label: 'Today'),
+                _Stat(
+                    value: _Dashboard.fmt(stats.wordsThisWeek),
+                    label: 'This week'),
+                _Stat(
+                    value: _Dashboard.fmt(stats.wordsThisMonth),
+                    label: 'This month'),
+                _Stat(
+                    value: _Dashboard.fmt(stats.wordsTracked),
+                    label: 'Tracked total'),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
