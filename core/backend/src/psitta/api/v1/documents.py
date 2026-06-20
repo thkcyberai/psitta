@@ -3272,6 +3272,13 @@ async def delete_document(
     )
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Document not found")
+    # Heart: clear any blueprint-part placement so a soft-deleted document
+    # leaves no orphan part_documents row (the FK CASCADE only fires on a hard
+    # delete; soft-delete would otherwise leave a dangling placement).
+    await db.execute(
+        text("DELETE FROM part_documents WHERE document_id = :did"),
+        {"did": document_id},
+    )
     logger.info("document.deleted", doc_id=str(document_id))
     await audit_service.log_event(
         db,
@@ -3427,13 +3434,19 @@ async def assign_project(
     Body: {"project_id": "<uuid>"} to assign, {"project_id": null} to remove.
     """
     project_id = body.get("project_id")
-    # Verify document exists and belongs to authenticated user
+    # Verify document exists and belongs to authenticated user. Capture the
+    # current project so we can detect an actual move below.
     row = await db.execute(
-        text("SELECT id FROM documents WHERE id = :id AND user_id = :uid AND status != 'deleted'"),
+        text(
+            "SELECT project_id FROM documents "
+            "WHERE id = :id AND user_id = :uid AND status != 'deleted'"
+        ),
         {"id": document_id, "uid": str(user_id)},
     )
-    if not row.mappings().first():
+    existing = row.mappings().first()
+    if not existing:
         raise HTTPException(status_code=404, detail="Document not found")
+    current_project_id = existing["project_id"]
     # Verify project exists if assigning
     if project_id is not None:
         proj_row = await db.execute(
@@ -3446,6 +3459,15 @@ async def assign_project(
         text("UPDATE documents SET project_id = :pid WHERE id = :id"),
         {"pid": project_id, "id": document_id},
     )
+    # Heart: a blueprint-part placement lives inside the OLD project's adopted
+    # blueprint. When the document actually moves to a different project (or is
+    # removed from one), clear the placement so no ghost surfaces under the new
+    # project. A no-op re-assign to the same project keeps the placement.
+    if str(current_project_id) != str(project_id):
+        await db.execute(
+            text("DELETE FROM part_documents WHERE document_id = :id"),
+            {"id": document_id},
+        )
     await db.commit()
     await audit_service.log_event(
         db,
