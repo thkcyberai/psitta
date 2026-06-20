@@ -8,6 +8,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_secure_storage_windows
   hotkey_manager_windows
   just_audio_windows
+  record_windows
   screen_retriever_windows
   url_launcher_windows
   webview_windows
@@ -15,7 +16,6 @@ list(APPEND FLUTTER_PLUGIN_LIST
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
-  pdfrx
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)
