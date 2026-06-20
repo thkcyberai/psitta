@@ -155,3 +155,11 @@ Thumbs.db
 .claude/worktrees/
 CLAUDE.md.backup
 CLAUDE.md.backup.*
+
+# Phase 0 hygiene (2026-06-20)
+*.msix
+.junit-*.xml
+*.backup-*
+infra/terraform/*plan*.txt
+infra/terraform/drift_review.txt
+.build/

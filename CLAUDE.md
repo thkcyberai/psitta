@@ -677,24 +677,70 @@ Immutable append-only log. Never rewrite past entries — only append new ones a
 - 2026-06-08: CI was never an enforced gate and its integration test database was unwired. The app and Alembic read POSTGRES_*, but CI set DATABASE_*; with Settings ignoring extras, those values were silently dropped and tests fell back to wrong defaults, so they never connected. The integration step also ran no migration, so the schema was empty. Fix: set POSTGRES_* in the test-backend job and add an alembic upgrade head step before the tests.
 - 2026-06-08: Alembic env.py applied the whole chain in one transaction. A fresh base-to-head apply fails on the enum migration because PostgreSQL forbids using a newly added enum value in the same transaction that added it. Fix: transaction_per_migration=True. Production was never affected because it applied migrations incrementally across separate ECS one-off runs, committing the enum value before any later use.
 - 2026-06-08: Data-backfill migrations that target specific production records (migration 030, Stage 3 email backfill and Auth0 orphan purge) abort on any database lacking those records, which breaks fresh applies in CI, new environments, and disaster recovery. Principle: data migrations must no-op gracefully when their target data is absent and perform the backfill only when it is present.
+- 2026-06-08: CI was never an enforced gate and its integration test DB was unwired. The app and Alembic read POSTGRES_*, CI set DATABASE_*, and Settings ignored the extras, so tests fell back to wrong defaults and never connected; the integration step also ran no migration. Fix: set POSTGRES_* and add alembic upgrade head before the integration tests.
+- 2026-06-08: Alembic env.py applied the whole chain in one transaction. A fresh base-to-head apply fails on the enum migration because PostgreSQL forbids using a newly added enum value in the same transaction that added it. Fix: transaction_per_migration=True. Production was safe because it applied incrementally across separate runs.
+- 2026-06-08: Data-backfill migrations that target specific production records (migration 020, Stage 2 email backfill and Auth0 orphan purge; NOT 030/Stage 3 as an earlier draft stated) abort on any database lacking those records. Principle: a data migration must no-op gracefully when its target data is absent and run fully only when present, so the chain applies in CI, new environments, and disaster recovery.
+- 2026-06-08: Integration tests that route through the app's module-level QueuePool engine raise RuntimeError: Event loop is closed at teardown under function-scoped event loops, because pooled asyncpg connections outlive the loop. Fix: in the integration conftest, override get_db_session with a NullPool engine created and disposed inside the test loop. Saved as a reusable harness pattern.
+- 2026-06-08: An ORM model that declares ForeignKey() to a raw, unmapped table (here users, projects, documents) raises NoReferencedTableError when an instance is flushed, because the target is not in the metadata. Reads never surface it; only writes flush. Fix: declare such cross-boundary columns as plain UUID columns and let the migration-owned database constraint enforce integrity. Do not register stub tables, as that creates an autogenerate hazard.
+- 2026-06-08: Speed levers: authenticating gh in the dev shell lets Claude Code read failing CI logs itself; an Execution autonomy section in CLAUDE.md plus a /slice command let low-risk additive slices run end to end in one turn, stopping to ask only on migrations, security, secrets, deletions, irreversible or public actions, CI/infra config, or uncovered decisions.
+- 2026-06-09: 2026-06-09 — Client key exposure: an API key is unsafe in any client, an extension or the desktop app alike. Safety comes from routing the AI call through a server-side backend, which Psitta already does, not from where the client lives.
+- 2026-06-09: 2026-06-09 — Centralizing every mutation with its full invalidation set in one controller removes a whole class of silent stale-state bugs that scattered invalidate calls invite. Prove it with a family-versus-instance test.
+- 2026-06-09: 2026-06-09 — To mirror a backend PATCH that uses exclude_unset in Dart, use a const Object() sentinel so a field can be omitted (unchanged), explicitly null (clear), or set, three distinct states a plain nullable cannot express.
+- 2026-06-09: 2026-06-09 — Enum fromWire must never throw; map any unrecognized value to a uniform unknown sentinel, and never serialize that sentinel back, because the backend CHECK constraint rejects it.
+- 2026-06-09: 2026-06-09 — For a multi-skin app, take all colors from theme tokens and add a test that builds each screen under every skin enumerated from the theme definition, plus a guard asserting the skin set size, so coverage cannot silently drift.
+- 2026-06-09: 2026-06-09 — Avoid a prod migration when the feature does not require it. The Phase 5 backend slice stayed read-only by deferring the project description column, which kept it low-risk to deploy.
+- 2026-06-09: 2026-06-09 Client key exposure: API and LLM keys never live in any client (Flutter app or future browser extension). Safety comes from server-side proxying, which the backend already does.
+- 2026-06-09: 2026-06-09 Centralized invalidation: a single mutation controller owns all cache invalidation; reads stay pure FutureProviders. Family-vs-instance invalidation was proven by test.
+- 2026-06-09: 2026-06-09 Tri-state PATCH: a const Object() sentinel distinguishes omit, explicit null, and value, mirroring the backend exclude_unset semantics.
+- 2026-06-09: 2026-06-09 Uniform unknown enum: non-throwing fromWire with a uniform unknown sentinel; never serialize unknown back (the backend CHECK constraint rejects it).
+- 2026-06-09: 2026-06-09 4-skin theming guard: a build test asserts the skin set is exactly four, catching hardcoded colors before they ship.
+- 2026-06-09: 2026-06-09 Avoid unneeded migrations: derive values on read and defer columns (for example project.description) until a feature truly needs them.
+- 2026-06-09: 2026-06-09 Coexist, do not replace: stand up the new Writing Desk route beside the untouched live player, sharing extracted pure converters (quill_codec.dart) rather than duplicating or entangling state.
+- 2026-06-09: 2026-06-09 Deploy ground truth: verify by ECR-equals-ECS digest, never task-def revision; treat the known red CI jobs as rot and confirm a rot-match rather than chasing them.
+- 2026-06-11: 2026-06-11 — Security. PATCH /users/me/plan had no authorization gate despite a docstring claiming admin-only; any authenticated user could self-grant any tier. Pre-existing and live. Lesson: audit docstring-claimed gates against actual code, and prefer a closed-by-default posture (admin gate with no admin members) over an open or env-flagged endpoint.
+- 2026-06-11: 2026-06-11 — Entitlement precedence. get_effective_plan resolves in order Stripe > dev-override (user_subscriptions) > tester_allowlist > Free. A tester_allowlist grant is shadowed by any higher entitlement, which is why a Creative grant displayed as Reading Nook Pro.
+- 2026-06-11: 2026-06-11 — Frozen ENUM. user_subscriptions.plan_id is a Postgres ENUM created in migration 009 as (free, pro_monthly, pro_annual) and never widened. It cannot hold writing_nook_pro or creative_nook_pro, which blocks both dev-override grants and real Stripe subscriptions to the new tiers. tester_allowlist.plan_id is TEXT and holds any tier but resolves at the lowest precedence.
+- 2026-06-11: 2026-06-11 — Split plan vocabulary. Plan definitions live in three places out of sync: the user_subscriptions ENUM, the legacy subscription_service.PLAN_LIMITS, and plan_limits.py. Reconciling to one source of truth is the main risk in Phase 1.
+- 2026-06-11: 2026-06-11 — Frontend tier-unaware. billingStatusProvider recognizes only free, reading_nook_pro, and creative_nook_pro. A tier-aware frontend is required before tier-to-shell routing can work.
+- 2026-06-11: 2026-06-11 — documents.py 204. A route declares a 204 status but returns a response body; FastAPI flags it. Surfaced when the security-fix test had to mount only the subscriptions router to avoid create_app() failing on that assertion. Benign in prod now, latent on a FastAPI bump.
+- 2026-06-11: 2026-06-11 — Architecture. Tiers are delivered as three separate shells, not nested UI. Documents, projects, and blueprints are the shared substrate across shells; the shell is selected by resolved tier.
+- 2026-06-11: 2026-06-11 — Deploy verification (reaffirmed). ECR :latest digest equal to the running ECS task imageDigest is the only valid deploy-completed signal. Verified for all three deploys today.
+- 2026-06-12: 2026-06-12 — Tier-based shells: read the plan in the shell builder (DesktopShell.build) and swap the nav widget; do not branch in the post-login redirect (it runs before billing resolves and causes a wrong-shell race). Single ShellRoute, Reading shell left byte-for-byte unchanged.
+- 2026-06-12: 2026-06-12 — A feature can be fully built yet invisible because of a guard. Summarize-it was complete and wired to the live backend; a projectId null-guard blanked the whole right pane for Library docs. Check guards before assuming a feature is missing.
+- 2026-06-12: 2026-06-12 — Writing Desk overflow: DocumentReadingView lays out at natural height. Fix by wrapping it in SingleChildScrollView at the Desk call site, never inside the shared widget (the Player provides its own scroller; touching the shared view risks nested scrollables). Keep the three render paths symmetric.
+- 2026-06-12: 2026-06-12 — Test on the exact tier you ship, not a superset. Creative was masking the Writing path; moving the test account to writing_nook_pro is the correct setup.
+- 2026-06-12: 2026-06-12 — Working method that worked: one small slice, build it, visually verify, then the next. Use CC read-only to investigate and propose; approve; then implement. Diagnostic-first on any slice that can touch a Player-shared file.
+- 2026-06-17: flutter_quill 10.8.5 — QuillEditor.basic copyWith honors contextMenuBuilder and editorKey but drops config tap hooks. Use contextMenuBuilder for editor right-click features. Apply an edit AFTER a modal menu closes; replaceText from the editor's own selection toolbar is reverted during overlay teardown (mirror the Reading Nook showMenu + replaceText, null selection).
+- 2026-06-17: On-device SCOWL suggester finds candidates within ~2 edits; show a disabled 'No suggestions' item for heavily garbled words so the flag still reads as intentional.
+- 2026-06-17: Tier-specific screens — route a new screen for one tier via a small selector widget at the route (LibraryRoute: writing_nook_pro -> WritingLibraryScreen, else the untouched LibraryScreen). Keeps the Reading Nook isolated.
+- 2026-06-17: Honest states beat fake data — render the full mockup chrome but wire only what is real; show 'Coming soon' for unbacked tiles (Folders/Templates/Trash/Storage/Collections). No invented numbers.
+- 2026-06-17: DocumentCover gained an optional height param (additive, backward-compatible) so the Library grid can use a taller banner without changing Reading Nook call sites.
+- 2026-06-17: Responsive shell — use LayoutBuilder + Wrap and Expanded instead of fixed widths/Spacer to prevent overflow on resize; hide the right rail below ~920px.
+- 2026-06-17: The bottom player bar is shell-level and the Writing Desk's Read/Listen plays through it — gate it route-aware (show only on /writing-desk for the Writing Nook) rather than removing it globally.
+- 2026-06-17: Pin a trailing toolbar cluster to the right with Expanded on the leading title, not Flexible+Spacer — gives identical placement across all routes.
+- 2026-06-17: GET /users/me returns display_name, which for auto-provisioned users is the Cognito sub (a UUID). Derive the writer handle from the email prefix when display_name is id-like, so the title reads 'luisaao' not the UUID.
+- 2026-06-17: Excel is unsupported — backend ALLOWED_EXTENSIONS = {.pdf,.docx,.txt,.md,.html}; xlsx -> 415. Adding it needs an extension allowlist entry + a spreadsheet parser + a source_type path (Phase 2).
+- 2026-06-17: The sandbox's git view can diverge from the operator's real repo (stale/garbled diffs, NUL-byte artifacts, index.lock errors). Treat the operator's terminal as ground truth and never commit a sandbox-reported large deletion.
 
 ## Last Devlog
-- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260608_CIIntegrationDBWiring_MigrationChainFix_v1_0.docx`
+- **File**: `C:\Users\Admin\OneDrive\_Psitta\Docs\DevLogs\Psitta_DevLog_20260617_WritingNook_LibraryRemodel.docx`
+- **Date**: June 17, 2026
+- **Title**: Psitta — Development Log
 - **Recent commits** (`git log --oneline -10`):
 
 ```
-f70fe63 fix(blueprints): drop ORM FKs to unmapped tables (users/projects/documents), DB constraints retained - fixes NoReferencedTableError on Blueprint flush
-02d948a feat(blueprints): 2C write API - create, clone, update, delete with system-write guards and tests
-863bc75 test(integration): bind get_db_session to a NullPool engine disposed in the test loop, fixing Event loop is closed
-3a91511 feat(blueprints): 2B read API - schemas, service, GET /blueprints endpoints, tests
-cf535b3 fix(migrations): no-op stage2 backfill on fresh/empty DB
-d3984f4 fix(migrations): apply each migration in its own transaction
-781d5bd ci(test-backend): wire integration DB via POSTGRES_* env + alembic upgrade head
-e19845b test(M11): commit voice redirect fix and audit_log quarantine; scope coverage floor to unit step
-8eb3f35 test(M11): fix integration auth and redirect handling (follow_redirects, opt-in auth override and JWKS stub)
-de65c97 ci(M11): set backend coverage floor to 30 percent (honest current baseline, ratchet up later)
+8734d8b fix(writing-nook): pin top-bar icons to far right on all sectors (Expanded title); show '<emailprefix>'s Library' instead of UUID
+384b14d feat(writing-nook): personalize Library title (<name>'s Library via /users/me); fix providers show-list
+79f3c46 feat(writing-nook): route-aware top header (no stale 'Writing Desk' on Library) + slim bottom status bar where the player bar is hidden
+f4c8ae1 feat(writing-nook): show bottom player bar only in the Writing Desk (hide on Library/Projects/Blueprints/Voices/Settings); Reading Nook unchanged
+26e9dc4 fix(writing-library): upload hint lists only supported types (drop XLSX until Excel parsing lands)
+6ae2ec3 feat(writing-library): colored per-type cover banners for coverless docs; New Document split-button caret
+b267ffb fix(writing-library): responsive header/stat-row/right-rail to remove overflow on resize; compact cards + Storage stat card
+144f1df feat(writing-library): compact fixed-height cards + taller cover banner, add Storage stat card, drop redundant rail logo
+3f5de25 feat(writing-library): Phase 1 Library remodel (UI shell, real data, honest states); route writing tier via LibraryRoute, Reading Nook untouched
+143d029 refactor(writing-desk): remove Page Thumbnails & Contents panel from Writing Nook (Reading Nook unchanged)
 ```
-- _Auto-updated by Stop hook at 2026-06-08 12:59 UTC_
+- _Auto-updated by Stop hook at 2026-06-17 15:20 UTC_
 
 ## Further Reading
 - `ARCHITECTURE.md` — full system design and component diagram

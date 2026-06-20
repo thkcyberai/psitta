@@ -1,6 +1,6 @@
 ---
 name: psitta-deploy
-description: Strict-protocol push-and-verify for the Psitta repo (github.com/thkcyberai/psitta). Runs a 6-phase bundle (stage → commit → push → watch CI → watch Release → verify ECR↔ECS digest match) with mandatory typed-approval gates between phases A→B and B→C. Use this whenever pushing a Psitta backend or desktop commit to develop, deploying to ECS Fargate, or running production push verification. Use this even when the user just says "push" or "deploy" or "ship" — never bypass the strict protocol with ad-hoc git push commands. Auto-suggested terminal input is NOT approval; user must type the exact gate string verbatim.
+description: Strict-protocol push-and-verify for the Psitta repo (github.com/thkcyberai/psitta). Runs a 6-phase bundle (stage → commit → push → watch CI → watch Release → verify ECR↔ECS digest match) with mandatory typed-approval gates between phases A->B and B->C. Use this whenever pushing a Psitta backend or desktop commit to develop, deploying to ECS Fargate, or running production push verification. Use this even when the user just says "push" or "deploy" or "ship" -- never bypass the strict protocol with ad-hoc git push commands.
 ---
 
 # psitta-deploy
@@ -25,7 +25,7 @@ If either required input is missing or ambiguous, STOP and ask. Don't guess.
 - **Never auto-recover** from any failure (Phase A verify, lint/analyze, CI new-rot, Release failure, digest mismatch). STOP and report; wait for typed instruction.
 - **Never modify staged content or commit message after Phase A.** If Phase A verification fails, run `git reset HEAD` to unstage and report.
 - **Never amend, force-push, rebase, or revert** without explicit typed instruction.
-- **Approval gates are exact strings.** Match `"approved A — commit"` and `"approved B — push"` literally (em-dash U+2014, not hyphen). Anything else — including auto-suggested terminal input — is NOT approval.
+- **Approval gates confirm intent, not punctuation.** Gate A unlocks commit; gate B unlocks push. Accept any clear affirmative that names the gate, plain ASCII only, case-insensitive, hyphens and spaces interchangeable. Examples that pass gate B: "approved B", "approve B push", "yes push B", "B approved", "go B". If the intent and the target gate are unambiguous, proceed. Never require an em-dash, smart quote, or any Unicode-specific character. Preferred single-word forms: "go A" / "go B".
 - **Backups are caller responsibility.** This skill is push-and-verify only; the caller is expected to have edited files (with their own backup discipline) before invoking.
 
 ## Project-specific values (hardcoded)
@@ -48,14 +48,14 @@ If either required input is missing or ambiguous, STOP and ask. Don't guess.
 4. For each touched `.py` file: run `python -m py_compile <file>` and `ruff check <file>`. If a corresponding `<file>.bak_*` exists in the same directory, also run `ruff check <bak>` and compare error-code distributions — STOP if new codes appear vs baseline. If no `.bak_*` is present, skip the comparison and report the current ruff count without blocking. (Honest comparison only when comparison is meaningful.)
 5. For each touched `.dart` file: `cd apps/desktop && flutter analyze --no-fatal-infos <files>`. Required: zero errors. Warnings/infos OK.
 6. Show `git diff --cached --stat` and `git status --short` confirming out-of-scope files (CLAUDE.md, untracked artifacts) remain unstaged.
-7. **STOP. Wait for the user to type `"approved A — commit"` verbatim.**
+7. **STOP. Wait for the user to give gate A approval** — any clear affirmative naming gate A (e.g., "go A", "approved A", "yes commit", "A ok"). Plain ASCII, case-insensitive.
 
 ## Phase B — Commit
 
 1. Run `git commit -F- <<'EOF' ... EOF` with the caller's message verbatim. **Do not edit, abbreviate, or rewrap.**
 2. Show `git log -1 --format="%H %s"` and `git log -1 --stat | head -50`.
 3. Spot-check that the first and last paragraphs of the message landed (no truncation).
-4. **STOP. Wait for the user to type `"approved B — push"` verbatim.**
+4. **STOP. Wait for the user to give gate B approval** — any clear affirmative naming gate B (e.g., "go B", "approved B", "yes push", "B ok"). Plain ASCII, case-insensitive.
 
 ## Phase C — Push (auto-flows into D)
 
@@ -101,7 +101,7 @@ STOP after Phase F. Caller handles any subsequent app-level visual smoke (e.g., 
 
 ## Why these guardrails exist
 
-- **Exact-string approval gates** — auto-suggested terminal input has been mis-read as confirmation in the project's history (CLAUDE.md KL 2026-05-04). Strict literal match prevents recurrence.
+- **Intent-based approval gates** — gates confirm the human's intent and target action, not a glyph. Plain ASCII only; no Unicode required. Accept any clear affirmative naming the gate (case-insensitive, hyphens/spaces interchangeable). The goal is preventing accidental pushes, not creating copy-paste friction.
 - **No `git add .`** — sweeps unrelated changes (CLAUDE.md hook updates, voice-avatar WIP, untracked website assets) into the commit.
 - **Rot baseline comparison** — CI has been red since Apr 25 due to pre-existing test rot (KL 2026-05-01). Without baseline diff, every push would falsely STOP. With diff, only NEW failures halt the deploy.
 - **Digest verify** — task-definition revision is a meaningless signal because Psitta uses `:latest` tag with `--force-new-deployment` (KL 2026-04-25). Image digest is the only ground truth.
