@@ -114,7 +114,6 @@ class TrashScreen extends ConsumerWidget {
       ),
     );
     if (ok != true) return;
-    final repo = ref.read(documentRepositoryProvider);
     var failed = 0;
     for (final d in docs) {
       try {

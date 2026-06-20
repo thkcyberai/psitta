@@ -232,7 +232,6 @@ class _DocContextMenu extends ConsumerWidget {
     );
     if (confirmed == true && controller.text.trim().isNotEmpty) {
       try {
-        final repo = ref.read(documentRepositoryProvider);
         await ref.read(documentActionsProvider).renameDocument(doc.id, controller.text.trim());
         ref.invalidate(projectDocumentsProvider(projectId));
       } catch (e) {
@@ -309,7 +308,6 @@ class _DocContextMenu extends ConsumerWidget {
     if (targetProject == null) return;
 
     try {
-      final repo = ref.read(projectRepositoryProvider);
       await ref.read(documentActionsProvider).assignToProject(doc.id, targetProject.id);
       ref.invalidate(projectDocumentsProvider(projectId));
       ref.invalidate(projectsProvider);
@@ -348,7 +346,6 @@ class _DocContextMenu extends ConsumerWidget {
     );
     if (confirmed == true) {
       try {
-        final repo = ref.read(projectRepositoryProvider);
         await ref.read(documentActionsProvider).assignToProject(doc.id, null);
         ref.invalidate(projectDocumentsProvider(projectId));
         ref.invalidate(projectsProvider);

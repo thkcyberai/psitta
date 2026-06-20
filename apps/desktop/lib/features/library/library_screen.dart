@@ -344,7 +344,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     if (confirmed != true) return;
 
-    final repo = ref.read(documentRepositoryProvider);
     try {
       await ref.read(documentActionsProvider).deleteDocument(doc.id);
       final activeId = ref.read(activeDocumentIdProvider);
@@ -369,7 +368,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Future<void> _archiveDocument(Document doc) async {
     try {
-      final repo = ref.read(documentRepositoryProvider);
       await ref.read(documentActionsProvider).archiveDocument(doc.id);
       ref.invalidate(documentsProvider);
     } catch (e) {
@@ -563,7 +561,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
     if (selected == null) return;
     try {
-      final repo = ref.read(documentRepositoryProvider);
       await ref.read(documentActionsProvider).assignToProject(doc.id, selected.id);
       ref.invalidate(documentsProvider);
       ref.invalidate(projectsProvider);
@@ -578,7 +575,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Future<void> _removeFromProject(Document doc) async {
     try {
-      final repo = ref.read(documentRepositoryProvider);
       await ref.read(documentActionsProvider).assignToProject(doc.id, null);
       ref.invalidate(documentsProvider);
       ref.invalidate(projectsProvider);
@@ -663,7 +659,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final trimmed = (newTitle ?? '').trim();
     if (trimmed.isEmpty || trimmed == doc.title) return;
 
-    final repo = ref.read(documentRepositoryProvider);
     try {
       await ref.read(documentActionsProvider).renameDocument(doc.id, trimmed);
       ref.invalidate(documentsProvider);

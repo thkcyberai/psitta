@@ -758,7 +758,6 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
 
     setState(() => _busy = true);
     try {
-      final repo = ref.read(documentRepositoryProvider);
       await ref.read(documentActionsProvider).deleteDocument(widget.documentId);
       ref.invalidate(documentsProvider);
       if (context.mounted) Navigator.of(context).maybePop();
