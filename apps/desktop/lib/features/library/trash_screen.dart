@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
@@ -89,11 +90,56 @@ class TrashScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _emptyTrash(
+      WidgetRef ref, BuildContext context, List<Document> docs) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Empty Trash?'),
+        content: Text(
+            'All ${docs.length} document${docs.length == 1 ? '' : 's'} in Trash '
+            'will be permanently deleted. This can’t be undone.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFE5534B)),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete all'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final repo = ref.read(documentRepositoryProvider);
+    var failed = 0;
+    for (final d in docs) {
+      try {
+        await repo.purgeDocument(d.id);
+      } catch (_) {
+        failed++;
+      }
+    }
+    ref.invalidate(trashedDocumentsProvider);
+    ref.invalidate(storageUsageProvider);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text(failed == 0
+                ? 'Trash emptied'
+                : 'Emptied — $failed item${failed == 1 ? '' : 's'} couldn’t be deleted')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final async = ref.watch(trashedDocumentsProvider);
+    final docs = async.valueOrNull ?? const <Document>[];
 
     return Container(
       color: tokens.surface,
@@ -101,6 +147,34 @@ class TrashScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Breadcrumb — where you came from.
+          Row(
+            children: [
+              InkWell(
+                onTap: () => context.go('/library'),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.chevron_left, size: 16, color: scheme.primary),
+                      Text('Library',
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: scheme.primary)),
+                    ],
+                  ),
+                ),
+              ),
+              Text('  ›  Trash',
+                  style: TextStyle(
+                      fontSize: 12.5, color: scheme.onSurfaceVariant)),
+            ],
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.delete_outline, size: 26, color: scheme.onSurface),
@@ -108,6 +182,15 @@ class TrashScreen extends ConsumerWidget {
               Text('Trash',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800)),
+              const Spacer(),
+              if (docs.isNotEmpty)
+                OutlinedButton.icon(
+                  onPressed: () => _emptyTrash(ref, context, docs),
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFE5534B)),
+                  icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                  label: Text('Empty Trash (${docs.length})'),
+                ),
             ],
           ),
           const SizedBox(height: 4),

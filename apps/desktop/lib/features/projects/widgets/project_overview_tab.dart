@@ -91,7 +91,7 @@ class _StatRow extends StatelessWidget {
             valueKey: 'stat-in-blueprints-value',
             icon: Icons.account_tree_outlined,
             value: '$inBlueprints',
-            label: 'In Blueprints',
+            label: 'In Book Structures',
           ),
         ),
         const SizedBox(width: 12),
@@ -137,14 +137,14 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: tokens.surface.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(tokens.radius),
-        border: Border.all(color: tokens.border.withOpacity(0.5)),
+        color: tokens.surface2,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: tokens.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: theme.colorScheme.onSurfaceVariant),
+          Icon(icon, size: 18, color: tokens.glow),
           const SizedBox(height: 10),
           Text(
             value,
@@ -181,7 +181,7 @@ class _SummaryLine extends StatelessWidget {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Text(
       '$inBlueprints of $total document${total == 1 ? '' : 's'} '
-      'in blueprints · $unassigned not in blueprints',
+      'in Book Structures · $unassigned not in Book Structures',
       style: TextStyle(fontSize: 12, color: muted),
     );
   }
@@ -233,9 +233,9 @@ class _RecentDocumentsSection extends StatelessWidget {
         else
           Container(
             decoration: BoxDecoration(
-              color: tokens.surface.withOpacity(0.4),
-              borderRadius: BorderRadius.circular(tokens.radius),
-              border: Border.all(color: tokens.border.withOpacity(0.5)),
+              color: tokens.surface2,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: tokens.border),
             ),
             child: Column(
               children: [
@@ -285,7 +285,7 @@ class _DocRow extends StatelessWidget {
           children: [
             cell(3, Text('Title', style: headerStyle)),
             cell(2, Text('Status', style: headerStyle)),
-            cell(3, Text('Blueprint / Section', style: headerStyle)),
+            cell(3, Text('Book Structure / Section', style: headerStyle)),
             cell(2, Text('Last edited', style: headerStyle)),
           ],
         ),
@@ -350,14 +350,14 @@ class _BlueprintsSection extends ConsumerWidget {
           children: [
             const Expanded(
               child: Text(
-                'Blueprints in this Project',
+                'Book Structures in this Project',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             FilledButton.icon(
               key: const ValueKey('add-blueprint-to-project-button'),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Blueprint to Project'),
+              label: const Text('Use a Book Structure'),
               onPressed: () => adoptBlueprintFlow(
                 context,
                 ref,
@@ -375,7 +375,7 @@ class _BlueprintsSection extends ConsumerWidget {
             final blueprints = ov.blueprints;
             if (blueprints.isEmpty) {
               return Text(
-                'No blueprints yet. Add one to structure this project.',
+                'No Book Structures yet. Use one to structure this project.',
                 style: TextStyle(color: muted),
               );
             }

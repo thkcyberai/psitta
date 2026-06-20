@@ -21,7 +21,7 @@ Future<void> adoptBlueprintFlow(
   try {
     all = await ref.read(blueprintsListProvider.future);
   } catch (e) {
-    if (context.mounted) _snack(context, 'Failed to load blueprints: $e');
+    if (context.mounted) _snack(context, 'Failed to load Book Structures: $e');
     return;
   }
   if (!context.mounted) return;
@@ -44,7 +44,8 @@ Future<void> adoptBlueprintFlow(
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
   if (own.isEmpty && templates.isEmpty) {
-    _snack(context, 'No blueprints to add. Create one in Blueprints first.');
+    _snack(context,
+        'No Book Structures to add. Create one in the Blueprints sector first.');
     return;
   }
 
@@ -78,7 +79,7 @@ class _BlueprintPickerDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text('Choose a Blueprint'),
+      title: const Text('Choose a Book Structure'),
       contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
       content: SizedBox(
         width: 380,
@@ -92,7 +93,7 @@ class _BlueprintPickerDialog extends StatelessWidget {
                 unselectedLabelColor: scheme.onSurfaceVariant,
                 indicatorColor: scheme.primary,
                 tabs: [
-                  Tab(text: 'My Blueprints (${own.length})'),
+                  Tab(text: 'My Book Structures (${own.length})'),
                   Tab(text: 'Templates (${templates.length})'),
                 ],
               ),
@@ -101,8 +102,8 @@ class _BlueprintPickerDialog extends StatelessWidget {
                   children: [
                     _BlueprintList(
                       items: own,
-                      emptyText: 'No blueprints of your own yet.\n'
-                          'Create one in Blueprints, or start from a template.',
+                      emptyText: 'No Book Structures of your own yet.\n'
+                          'Create one in the Blueprints sector, or start from a template.',
                     ),
                     _BlueprintList(
                       items: templates,

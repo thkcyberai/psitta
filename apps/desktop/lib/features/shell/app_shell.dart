@@ -284,6 +284,9 @@ class _ContextHeader extends ConsumerWidget {
           // Unplaced: the file is in NO blueprint, so the breadcrumb is just
           // Project › FileName. It must not borrow the project's adopted
           // blueprints — that wrongly implied this file was placed in them.
+        } else {
+          // Opened from the Library (not in a project): show the return path.
+          crumbs.add(_Crumb('Library', '/library'));
         }
         final fileName = doc?.title;
         if (fileName != null && fileName.isNotEmpty) {
@@ -347,6 +350,19 @@ class _ContextHeader extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     );
+                  }
+                  // Screens that render their own large in-content header
+                  // suppress the top-bar title so the heading isn't shown
+                  // twice. Everything else (Settings, etc.) keeps it.
+                  const ownsHeaderRoutes = {
+                    'blueprints',
+                    'voices',
+                    'whispers',
+                    'scribbles',
+                    'projects',
+                  };
+                  if (ownsHeaderRoutes.contains(first)) {
+                    return const SizedBox.shrink();
                   }
                   return Text(
                     _breadcrumbFromLocation(uri),

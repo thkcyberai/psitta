@@ -10,6 +10,7 @@ import 'package:record/record.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
+import '../../widgets/library_breadcrumb.dart';
 import '../../data/providers/providers.dart';
 
 /// Whispers — voice notes surface. Record an idea straight from the mic,
@@ -296,6 +297,8 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const LibraryBreadcrumb(current: 'Whispers'),
+          const SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.graphic_eq, size: 26, color: scheme.onSurface),

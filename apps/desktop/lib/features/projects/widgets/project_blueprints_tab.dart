@@ -7,6 +7,7 @@ import '../../blueprints/widgets/blueprint_dialogs.dart'
     show confirmDeleteDialog, describeBlueprintError;
 import 'adopt_blueprint_dialog.dart';
 import 'adopted_blueprint_card.dart';
+import 'project_book_tree.dart';
 
 /// Blueprints tab: the project's adopted blueprints (reusing
 /// AdoptedBlueprintCard) with per-card Set-as-Primary / Remove-from-Project
@@ -33,14 +34,14 @@ class ProjectBlueprintsTab extends ConsumerWidget {
           children: [
             const Expanded(
               child: Text(
-                'Blueprints in this Project',
+                'Book Structures in this Project',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             FilledButton.icon(
               key: const ValueKey('blueprints-tab-add-button'),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Add Blueprint to Project'),
+              label: const Text('Use a Book Structure'),
               onPressed: () => adoptBlueprintFlow(
                 context,
                 ref,
@@ -57,7 +58,7 @@ class ProjectBlueprintsTab extends ConsumerWidget {
           data: (ov) {
             if (ov.blueprints.isEmpty) {
               return Text(
-                'No blueprints in this project yet. '
+                'No Book Structures in this project yet. '
                 'Add one to structure your work.',
                 style: TextStyle(color: muted),
               );
@@ -75,6 +76,21 @@ class ProjectBlueprintsTab extends ConsumerWidget {
             );
           },
         ),
+        const SizedBox(height: 24),
+        Divider(color: Theme.of(context).colorScheme.outlineVariant),
+        const SizedBox(height: 8),
+        const Text(
+          'Your Book',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Files placed into the primary Book Structure, section by section. '
+          'Click a file to open it in the Writing Desk.',
+          style: TextStyle(fontSize: 12.5, color: muted),
+        ),
+        const SizedBox(height: 10),
+        ProjectBookTree(projectId: projectId),
       ],
     );
   }
@@ -146,7 +162,7 @@ class _BlueprintCardMenu extends ConsumerWidget {
       context,
       title: 'Remove from Project?',
       message:
-          'Remove "${blueprint.name}" from this project? The blueprint itself '
+          'Remove "${blueprint.name}" from this project? The Book Structure itself '
           'is not deleted.',
       confirmLabel: 'Remove',
     );

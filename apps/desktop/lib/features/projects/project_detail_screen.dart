@@ -42,7 +42,7 @@ class ProjectDetailScreen extends ConsumerWidget {
               tabs: [
                 Tab(text: 'Overview'),
                 Tab(text: 'Documents'),
-                Tab(text: 'Blueprints'),
+                Tab(text: 'Book Structure'),
                 Tab(text: 'Activity'),
               ],
             ),

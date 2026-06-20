@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
+import '../../widgets/library_breadcrumb.dart';
 
 /// Pastel sticky-note colors, keyed by the backend color tag.
 const Map<String, Color> _kNoteColors = {
@@ -133,6 +134,8 @@ class ScribblesScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const LibraryBreadcrumb(current: 'Scribbles'),
+          const SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.sticky_note_2_outlined,

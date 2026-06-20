@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
+import '../../widgets/library_breadcrumb.dart';
 
 /// Archive — archived documents, with unarchive / move-to-Trash.
 class ArchiveScreen extends ConsumerWidget {
@@ -82,6 +83,8 @@ class ArchiveScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const LibraryBreadcrumb(current: 'Archive'),
+          const SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.inventory_2_outlined,

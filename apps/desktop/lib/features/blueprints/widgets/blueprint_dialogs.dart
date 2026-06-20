@@ -111,7 +111,7 @@ class _BlueprintFormDialogState extends State<_BlueprintFormDialog> {
               autofocus: true,
               decoration: const InputDecoration(
                 labelText: 'Name',
-                hintText: 'Blueprint name',
+                hintText: 'Book Structure name',
                 border: OutlineInputBorder(),
               ),
               onSubmitted: (_) => _submit(),

@@ -17,6 +17,7 @@ import '../../core/quota_gate.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
+import '../../data/providers/blueprint_providers.dart';
 import '../../data/repositories/project_repository.dart';
 import '../../data/services/pdf_text_extractor.dart';
 import '../../widgets/document_cover.dart';
@@ -483,29 +484,38 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       ],
     );
 
-    final filters = _ghostButton(
-      tokens,
-      icon: Icons.tune,
-      label: 'Filters',
-      onTap: () => _filtersMenu(context),
-    );
-    final newDoc = FilledButton(
-      onPressed: _newDocMenu,
-      style: FilledButton.styleFrom(
-        backgroundColor: tokens.glow,
+    final newDoc = PopupMenuButton<String>(
+      tooltip: 'New file',
+      position: PopupMenuPosition.under,
+      offset: const Offset(0, 6),
+      onSelected: (v) {
+        if (v == 'blank') _newBlank();
+        if (v == 'upload') _handleFilePick();
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'blank', child: Text('New blank file (DOCX)')),
+        PopupMenuItem(value: 'upload', child: Text('Upload from device')),
+      ],
+      child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.add, size: 16),
-          SizedBox(width: 6),
-          Text('New File', style: TextStyle(fontSize: 12)),
-          SizedBox(width: 2),
-          Icon(Icons.arrow_drop_down, size: 18),
-        ],
+        decoration: BoxDecoration(
+          color: tokens.glow,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add, size: 16, color: Colors.white),
+            SizedBox(width: 6),
+            Text('New File',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600)),
+            SizedBox(width: 2),
+            Icon(Icons.arrow_drop_down, size: 18, color: Colors.white),
+          ],
+        ),
       ),
     );
 
@@ -523,8 +533,6 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                 children: [
                   Expanded(child: _searchField(tokens)),
                   const SizedBox(width: 10),
-                  filters,
-                  const SizedBox(width: 10),
                   newDoc,
                 ],
               ),
@@ -537,8 +545,6 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
             Expanded(child: titleBlock),
             const SizedBox(width: 16),
             SizedBox(width: 280, child: _searchField(tokens)),
-            const SizedBox(width: 10),
-            filters,
             const SizedBox(width: 10),
             newDoc,
           ],
@@ -575,39 +581,6 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     );
   }
 
-  void _filtersMenu(BuildContext context) {
-    final showArchived = ref.read(showArchivedProvider);
-    showMenu<String>(
-      context: context,
-      position: const RelativeRect.fromLTRB(600, 110, 40, 0),
-      items: [
-        CheckedPopupMenuItem<String>(
-          value: 'archived',
-          checked: showArchived,
-          child: const Text('Show archived'),
-        ),
-      ],
-    ).then((v) {
-      if (v == 'archived') {
-        ref.read(showArchivedProvider.notifier).state = !showArchived;
-      }
-    });
-  }
-
-  void _newDocMenu() {
-    showMenu<String>(
-      context: context,
-      position: const RelativeRect.fromLTRB(1000, 110, 24, 0),
-      items: const [
-        PopupMenuItem(value: 'blank', child: Text('New blank file (DOCX)')),
-        PopupMenuItem(value: 'upload', child: Text('Upload from device')),
-      ],
-    ).then((v) {
-      if (v == 'blank') _newBlank();
-      if (v == 'upload') _handleFilePick();
-    });
-  }
-
   static String _formatBytes(int bytes) {
     if (bytes <= 0) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -632,6 +605,12 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         orElse: () => 'Used');
     final trashCount = ref.watch(trashedDocumentsProvider).maybeWhen(
         data: (l) => '${l.length}', orElse: () => '—');
+    final projectCount = ref.watch(projectsProvider).maybeWhen(
+        data: (p) => '${p.length}', orElse: () => '—');
+    // Count the writer's own Book Structures (exclude read-only templates).
+    final structureCount = ref.watch(blueprintsListProvider).maybeWhen(
+        data: (l) => '${l.where((b) => !b.isSystem).length}',
+        orElse: () => '—');
     final cards = <Widget>[
       _StatCard(
         tokens: tokens,
@@ -644,7 +623,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       _StatCard(
         tokens: tokens,
         icon: Icons.folder_outlined,
-        value: '—',
+        value: projectCount,
         label: 'Projects',
         sub: 'Organize your work',
         accent: const Color(0xFF4F8DF5),
@@ -653,9 +632,9 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       _StatCard(
         tokens: tokens,
         icon: Icons.account_tree_outlined,
-        value: '—',
-        label: 'Blueprints',
-        sub: 'Book templates',
+        value: structureCount,
+        label: 'Book Structures',
+        sub: 'Your outlines',
         accent: const Color(0xFF34C77B),
         onTap: () => context.go('/blueprints'),
       ),
@@ -1482,25 +1461,6 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   }
 
   // ── Shared small buttons ────────────────────────────────────────────────────
-  Widget _ghostButton(PsittaTokens tokens,
-      {required IconData icon,
-      required String label,
-      required VoidCallback onTap}) {
-    final scheme = Theme.of(context).colorScheme;
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: const TextStyle(fontSize: 12)),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: scheme.onSurface,
-        side: BorderSide(color: tokens.border),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10)),
-      ),
-    );
-  }
-
 }
 
 // ── Stat card ─────────────────────────────────────────────────────────────────

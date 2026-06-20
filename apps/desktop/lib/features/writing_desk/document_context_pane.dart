@@ -344,7 +344,7 @@ class _UnplacedContextCard extends ConsumerWidget {
             )
           else if (!hasSections) ...[
             Text(
-              'Step 1 — choose a blueprint to structure your book. '
+              'Step 1 — choose a Book Structure for your book. '
               'Then you can place this file in one of its sections.',
               style: bodyStyle,
             ),
@@ -355,7 +355,7 @@ class _UnplacedContextCard extends ConsumerWidget {
                 key: const ValueKey('desk-placedin-choose-blueprint'),
                 onPressed: chooseBlueprint,
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('Choose a Blueprint'),
+                label: const Text('Choose a Book Structure'),
               ),
             ),
           ] else ...[
@@ -523,7 +523,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     final chosen = await showDialog<PartOverviewNode>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Move to blueprint / section'),
+        title: const Text('Move to Book Structure / section'),
         content: SizedBox(
           width: 340,
           child: ListView(

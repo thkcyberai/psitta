@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
 import '../../data/repositories/project_repository.dart';
 import '../../widgets/document_cover.dart';
+import '../../widgets/library_breadcrumb.dart';
 import 'project_cover_picker_dialog.dart';
 
 class ProjectsScreen extends ConsumerWidget {
@@ -13,46 +15,52 @@ class ProjectsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final projectsAsync = ref.watch(projectsProvider);
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Text(
-                  'Projects',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
-                ),
-                const Spacer(),
-                FilledButton.icon(
-                  icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-                  label: const Text('New Project'),
-                  onPressed: () => _showCreateDialog(context, ref),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Group your documents into projects.',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            Expanded(
-              child: projectsAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Error: $e')),
-                data: (projects) => projects.isEmpty
-                    ? _buildEmptyState(context, ref)
-                    : _buildGrid(context, ref, projects),
+    return Container(
+      color: tokens.surface,
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const LibraryBreadcrumb(current: 'Projects'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.folder_copy_outlined,
+                  size: 26, color: scheme.onSurface),
+              const SizedBox(width: 10),
+              Text('Projects',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800)),
+              const Spacer(),
+              FilledButton.icon(
+                icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+                label: const Text('New Project'),
+                onPressed: () => _showCreateDialog(context, ref),
               ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Group your documents into projects.',
+            style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 18),
+          Expanded(
+            child: projectsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text('Couldn’t load projects.',
+                    style: TextStyle(color: scheme.onSurfaceVariant)),
+              ),
+              data: (projects) => projects.isEmpty
+                  ? _buildEmptyState(context, ref)
+                  : _buildGrid(context, ref, projects),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -161,20 +169,30 @@ class _ProjectCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
+    final tokens = PsittaTokens.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
         onTap: () => context.go(
           '/projects/${project.id}?projectName=${Uri.encodeComponent(project.name)}',
         ),
-        child: _hasCover
-            ? _buildWithCover(context, ref)
-            : _buildDefault(context, ref),
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: tokens.surface2,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: tokens.border),
+          ),
+          child: _hasCover
+              ? _buildWithCover(context, ref)
+              : _buildDefault(context, ref),
+        ),
       ),
     );
   }
 
   Widget _buildDefault(BuildContext context, WidgetRef ref) {
+    final tokens = PsittaTokens.of(context);
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -182,9 +200,7 @@ class _ProjectCard extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.folder_outlined,
-                  size: 28,
-                  color: Theme.of(context).colorScheme.primary),
+              Icon(Icons.folder_rounded, size: 28, color: tokens.glow),
               const Spacer(),
               _ProjectMenu(project: project),
             ],

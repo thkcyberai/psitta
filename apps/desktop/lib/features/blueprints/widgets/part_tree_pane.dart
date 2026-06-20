@@ -35,9 +35,19 @@ class PartTreePane extends ConsumerWidget {
     );
   }
 
+  /// Total sections including nested subsections.
+  static int _countSections(List<PartNode> nodes) {
+    var n = 0;
+    for (final node in nodes) {
+      n += 1 + _countSections(node.children);
+    }
+    return n;
+  }
+
   Widget _content(BuildContext context, WidgetRef ref, BlueprintDetail detail) {
     final tokens = PsittaTokens.of(context);
     final owned = !detail.isSystem;
+    final sectionCount = _countSections(detail.parts);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 16),
@@ -60,7 +70,7 @@ class PartTreePane extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Sections',
+                      '$sectionCount section${sectionCount == 1 ? '' : 's'}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -76,7 +86,7 @@ class PartTreePane extends ConsumerWidget {
                 FilledButton.icon(
                   key: const ValueKey('use-template-button'),
                   icon: const Icon(Icons.auto_awesome, size: 18),
-                  label: const Text('Use this Blueprint'),
+                  label: const Text('Use this Book Structure'),
                   onPressed: () => _useTemplate(context, ref, detail),
                 ),
             ],
@@ -162,7 +172,7 @@ class PartTreePane extends ConsumerWidget {
   ) async {
     final result = await showBlueprintFormDialog(
       context,
-      title: 'Edit Blueprint',
+      title: 'Edit Book Structure',
       submitLabel: 'Save',
       initialName: detail.name,
       initialGenre: detail.genre,
@@ -210,7 +220,7 @@ class PartTreePane extends ConsumerWidget {
   ) async {
     final ok = await confirmDeleteDialog(
       context,
-      title: 'Delete Blueprint?',
+      title: 'Delete Book Structure?',
       message:
           'Delete "${detail.name}"? Its sections will be permanently removed.',
     );
@@ -407,7 +417,7 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
           ),
           child: Material(
             color: isSelected
-                ? tokens.inputFill.withOpacity(0.5)
+                ? tokens.glow.withValues(alpha: 0.10)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             clipBehavior: Clip.antiAlias,
@@ -419,13 +429,13 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
                 child: Row(
                   children: [
                     SizedBox(
-                      width: 24,
+                      width: 22,
                       child: hasChildren
                           ? IconButton(
                               key: ValueKey('part-caret-${node.id}'),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(
-                                  minWidth: 24, minHeight: 24),
+                                  minWidth: 22, minHeight: 22),
                               iconSize: 18,
                               icon: Icon(
                                 _expanded
@@ -437,7 +447,18 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
                             )
                           : null,
                     ),
-                    const SizedBox(width: 2),
+                    Icon(
+                      hasChildren
+                          ? (_expanded
+                              ? Icons.folder_open_rounded
+                              : Icons.folder_rounded)
+                          : Icons.description_outlined,
+                      size: 18,
+                      color: hasChildren
+                          ? tokens.glow
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 9),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1133,6 +1133,33 @@ class _DeskEditorBody extends StatelessWidget {
             quill.VerticalSpacing.zero,
             null,
           ),
+          // Lists default to full ink like paragraphs — without this, numbered
+          // and bulleted lines fall back to Quill's dimmed grey (near-invisible
+          // on the light paper).
+          lists: quill.DefaultListBlockStyle(
+            Theme.of(context).textTheme.bodyMedium!.copyWith(
+                  color: scheme.onSurface,
+                  height: 1.6,
+                ),
+            const quill.HorizontalSpacing(0, 0),
+            const quill.VerticalSpacing(0, 8),
+            quill.VerticalSpacing.zero,
+            null,
+            null,
+          ),
+          // The list MARKER (number / bullet) is drawn from `leading`, not
+          // `lists` — without this it falls back to Quill's dimmed grey, so the
+          // numbers look faded even when the text is full ink.
+          leading: quill.DefaultTextBlockStyle(
+            Theme.of(context).textTheme.bodyMedium!.copyWith(
+                  color: scheme.onSurface,
+                  height: 1.6,
+                ),
+            const quill.HorizontalSpacing(0, 0),
+            const quill.VerticalSpacing(0, 0),
+            quill.VerticalSpacing.zero,
+            null,
+          ),
         ),
       ),
     );
@@ -1579,7 +1606,7 @@ class _ThreeWaysPanel extends ConsumerWidget {
                       accent: _AddCardAccent.tertiary,
                       title: 'Create Project First',
                       body:
-                          'Set up your project and blueprint structure first.',
+                          'Set up your project and Book Structure first.',
                       cta: 'Create New Project',
                       buttonKey: 'desk-add-create-project',
                       onPressed: () => _createProject(context, ref),

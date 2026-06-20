@@ -159,7 +159,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'No blueprint.',
+                              'No Book Structure.',
                               style: Theme.of(ctx).textTheme.bodySmall
                                   ?.copyWith(color: scheme.onSurfaceVariant),
                             ),
@@ -583,7 +583,7 @@ class _BookContentPanel extends ConsumerWidget {
                 ),
               ),
               Tooltip(
-                message: 'Choose a blueprint for this project',
+                message: 'Choose a Book Structure for this project',
                 child: InkWell(
                   key: const ValueKey('desk-add-blueprint'),
                   onTap: chooseBlueprint,
@@ -597,7 +597,7 @@ class _BookContentPanel extends ConsumerWidget {
                         Icon(Icons.add, size: 14, color: scheme.primary),
                         const SizedBox(width: 2),
                         Text(
-                          'Blueprint',
+                          'Book Structure',
                           style: Theme.of(context)
                               .textTheme
                               .labelSmall
@@ -856,7 +856,7 @@ class _NoBlueprintAdopt extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'No blueprint yet.\nChoose one to structure your book.',
+              'No Book Structure yet.\nChoose one to structure your book.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
@@ -867,7 +867,7 @@ class _NoBlueprintAdopt extends StatelessWidget {
               key: const ValueKey('desk-choose-blueprint-empty'),
               onPressed: onAdd,
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Choose a Blueprint'),
+              label: const Text('Choose a Book Structure'),
             ),
           ],
         ),
@@ -906,7 +906,7 @@ class _FileNotPlacedPanel extends ConsumerWidget {
                 size: 30, color: DeskConcept.blueprint.color.withOpacity(0.6)),
             const SizedBox(height: 12),
             Text(
-              "This file isn't in a blueprint yet.",
+              "This file isn't in a Book Structure yet.",
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
                     fontWeight: FontWeight.w600,
@@ -1643,8 +1643,8 @@ class _UnplacedDocTile extends ConsumerWidget {
           content: SizedBox(
             width: 320,
             child: Text(
-              'This project has no blueprint yet, so there are no sections to '
-              'assign into. Choose a blueprint first.',
+              'This project has no Book Structure yet, so there are no sections to '
+              'assign into. Choose a Book Structure first.',
               style: Theme.of(ctx).textTheme.bodySmall,
             ),
           ),
@@ -1655,7 +1655,7 @@ class _UnplacedDocTile extends ConsumerWidget {
             ),
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Choose a Blueprint'),
+              child: const Text('Choose a Book Structure'),
             ),
           ],
         ),
