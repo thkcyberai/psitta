@@ -1651,10 +1651,10 @@ class _ThreeWaysPanel extends ConsumerWidget {
                     child: _AddCard(
                       index: '1',
                       accent: _AddCardAccent.primary,
-                      title: 'Start New Document',
+                      title: 'Start New File',
                       body:
                           'Create a new document and choose where it lives.',
-                      cta: 'New Document',
+                      cta: 'New File',
                       buttonKey: 'desk-add-new-doc',
                       onPressed: () => _newDocument(context, ref),
                     ),
