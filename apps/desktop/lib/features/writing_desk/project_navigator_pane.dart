@@ -925,7 +925,7 @@ class _FileNotPlacedPanel extends ConsumerWidget {
               key: const ValueKey('desk-book-place-file'),
               onPressed: () => _place(context, ref),
               icon: const Icon(Icons.playlist_add_check, size: 18),
-              label: const Text('Insert into a Book Structure'),
+              label: const Text('Add to a Blueprint'),
             ),
           ],
         ),
