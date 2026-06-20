@@ -72,7 +72,6 @@ class WritingNav extends StatelessWidget {
                   label: 'Analytics',
                   icon: Icons.bar_chart_outlined,
                   route: '/analytics',
-                  enabled: false,
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(

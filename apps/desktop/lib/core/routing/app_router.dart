@@ -21,6 +21,7 @@ import '../../features/settings/settings_screen.dart';
 import '../../features/voices/voice_selector_screen.dart';
 import '../../features/writing_desk/writing_desk_screen.dart';
 import '../../features/help/help_screen.dart';
+import '../../features/analytics/analytics_screen.dart';
 
 /// A [ChangeNotifier] that bridges Riverpod [AuthState] to GoRouter.
 ///
@@ -185,6 +186,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/voices',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: VoiceSelectorScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/analytics',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: AnalyticsScreen(),
             ),
           ),
           GoRoute(
