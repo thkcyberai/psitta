@@ -232,6 +232,23 @@ class WriterStats {
     return (typedChars * 100 / total).round();
   }
 
+  /// Total words per week for the last [weeks] weeks (oldest first, newest
+  /// last). Buckets the locally-recorded daily rollup by 7-day windows
+  /// ending today.
+  List<int> weeklyWords([int weeks = 8]) {
+    final out = List<int>.filled(weeks, 0);
+    final now = DateTime.now();
+    final start = DateTime(now.year, now.month, now.day);
+    dailyWords.forEach((k, v) {
+      final d = DateTime.tryParse(k);
+      if (d == null) return;
+      final daysAgo = start.difference(DateTime(d.year, d.month, d.day)).inDays;
+      if (daysAgo < 0 || daysAgo >= weeks * 7) return;
+      out[weeks - 1 - (daysAgo ~/ 7)] += v;
+    });
+    return out;
+  }
+
   static int _streakEndingAt(Set<String> days, DateTime start) {
     var n = 0;
     var c = start;

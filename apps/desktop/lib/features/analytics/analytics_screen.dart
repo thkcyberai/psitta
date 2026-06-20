@@ -427,6 +427,14 @@ class _ActivityOutput extends ConsumerWidget {
             ),
           ),
         ),
+        _Card(
+          icon: Icons.show_chart_outlined,
+          title: 'Weekly words trend',
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+            child: _WeeklyTrend(weekly: stats.weeklyWords()),
+          ),
+        ),
       ],
     );
   }
@@ -495,4 +503,127 @@ class _Heatmap extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// A lightweight line chart of total words per week (last ~8 weeks),
+/// drawn with a CustomPainter so it needs no charting dependency. Fed by
+/// the locally-recorded daily rollup via WriterStats.weeklyWords().
+class _WeeklyTrend extends StatelessWidget {
+  const _WeeklyTrend({required this.weekly});
+  final List<int> weekly;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final maxV = weekly.fold<int>(0, (m, v) => v > m ? v : m);
+    if (maxV <= 0) {
+      return Text(
+        'Your weekly word trend appears here once you have written across a '
+        'few days. Keep saving in the Desk and the line will grow.',
+        style: theme.textTheme.bodySmall
+            ?.copyWith(color: scheme.onSurfaceVariant),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 132,
+          width: double.infinity,
+          child: CustomPaint(
+            painter: _WeeklyTrendPainter(
+              weekly: weekly,
+              line: scheme.primary,
+              fill: scheme.primary.withValues(alpha: 0.12),
+              grid: scheme.onSurface.withValues(alpha: 0.08),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('${weekly.length} weeks ago',
+                style: theme.textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant)),
+            Text('${_Dashboard.fmt(weekly.last)} words this week',
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color: scheme.primary, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _WeeklyTrendPainter extends CustomPainter {
+  _WeeklyTrendPainter({
+    required this.weekly,
+    required this.line,
+    required this.fill,
+    required this.grid,
+  });
+  final List<int> weekly;
+  final Color line;
+  final Color fill;
+  final Color grid;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = weekly.length;
+    if (n == 0) return;
+    final maxV = weekly.fold<int>(1, (m, v) => v > m ? v : m);
+    const padL = 6.0, padR = 6.0, padT = 12.0, padB = 10.0;
+    final w = size.width - padL - padR;
+    final h = size.height - padT - padB;
+    double xAt(int i) => padL + (n == 1 ? w / 2 : w * i / (n - 1));
+    double yAt(int v) => padT + h - (v / maxV) * h;
+
+    final gridP = Paint()
+      ..color = grid
+      ..strokeWidth = 1;
+    canvas.drawLine(
+        Offset(padL, padT + h), Offset(padL + w, padT + h), gridP);
+
+    final pts = <Offset>[
+      for (var i = 0; i < n; i++) Offset(xAt(i), yAt(weekly[i])),
+    ];
+
+    final area = Path()..moveTo(pts.first.dx, padT + h);
+    for (final p in pts) {
+      area.lineTo(p.dx, p.dy);
+    }
+    area
+      ..lineTo(pts.last.dx, padT + h)
+      ..close();
+    canvas.drawPath(area, Paint()..color = fill);
+
+    final stroke = Path()..moveTo(pts.first.dx, pts.first.dy);
+    for (var i = 1; i < n; i++) {
+      stroke.lineTo(pts[i].dx, pts[i].dy);
+    }
+    canvas.drawPath(
+      stroke,
+      Paint()
+        ..color = line
+        ..strokeWidth = 2.5
+        ..style = PaintingStyle.stroke
+        ..strokeJoin = StrokeJoin.round
+        ..strokeCap = StrokeCap.round,
+    );
+
+    for (var i = 0; i < n; i++) {
+      final isLast = i == n - 1;
+      if (isLast) {
+        canvas.drawCircle(
+            pts[i], 7, Paint()..color = line.withValues(alpha: 0.18));
+      }
+      canvas.drawCircle(pts[i], isLast ? 4.5 : 2.8, Paint()..color = line);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WeeklyTrendPainter old) => true;
 }
