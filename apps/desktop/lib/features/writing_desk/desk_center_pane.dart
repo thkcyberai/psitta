@@ -110,10 +110,26 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     super.initState();
     _readMode = widget.initialRead;
     HardwareKeyboard.instance.addHandler(_handleFindKey);
+    // Space types while writing, plays/pauses in read/listen mode: flip the
+    // shell-wide editing flag so the Space->PlayPause shortcut is removed
+    // while the editor is active.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(isInlineEditingProvider.notifier).state = !_readMode;
+      }
+    });
   }
 
   @override
   void dispose() {
+    // Leaving the Desk: clear the editing flag (deferred to avoid mutating a
+    // provider during teardown) so Space-to-play works elsewhere.
+    final editingNotifier = ref.read(isInlineEditingProvider.notifier);
+    Future.microtask(() {
+      try {
+        editingNotifier.state = false;
+      } catch (_) {}
+    });
     _spellDebounce?.cancel();
     HardwareKeyboard.instance.removeHandler(_handleFindKey);
     _findCtrl.dispose();
@@ -874,7 +890,10 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             onSave: _save,
             readMode: readMode,
             readOnly: isReadOnly,
-            onModeChanged: (read) => setState(() => _readMode = read),
+            onModeChanged: (read) {
+              setState(() => _readMode = read);
+              ref.read(isInlineEditingProvider.notifier).state = !read;
+            },
             onFind: (!readMode && _unifiedController != null) ? _openFind : null,
           ),
           const Divider(height: 1),
