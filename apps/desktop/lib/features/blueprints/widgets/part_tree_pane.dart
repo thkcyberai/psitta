@@ -157,14 +157,36 @@ class PartTreePane extends ConsumerWidget {
     WidgetRef ref,
     BlueprintDetail detail,
   ) async {
+    final result = await showBlueprintFormDialog(
+      context,
+      title: 'Name your Book Structure',
+      submitLabel: 'Create',
+      initialName: detail.name,
+      initialGenre: detail.genre,
+    );
+    if (result == null || !context.mounted) return;
     final clone = await runBlueprintMutation(
       context,
-      () => ref.read(blueprintActionsProvider).cloneBlueprint(detail.id),
+      () => ref
+          .read(blueprintActionsProvider)
+          .cloneBlueprint(detail.id, name: result.name),
     );
-    if (clone != null) {
-      ref.read(selectedBlueprintIdProvider.notifier).state = clone.id;
-      ref.read(selectedPartIdProvider.notifier).state = null;
+    if (clone == null) return;
+    // Apply the title/genre/status chosen for this copy (the clone otherwise
+    // inherits the template's genre and a default Draft status).
+    if (clone.genre != result.genre || clone.status != result.status) {
+      await runBlueprintMutation(
+        context,
+        () => ref.read(blueprintActionsProvider).updateBlueprint(
+              clone.id,
+              name: result.name,
+              genre: result.genre,
+              status: result.status,
+            ),
+      );
     }
+    ref.read(selectedBlueprintIdProvider.notifier).state = clone.id;
+    ref.read(selectedPartIdProvider.notifier).state = null;
   }
 
   Future<void> _editBlueprint(
