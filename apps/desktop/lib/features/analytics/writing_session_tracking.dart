@@ -5,9 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../data/services/auth_service.dart';
 
-/// A coalesced writing sitting (one or more saves within 30 minutes), captured
-/// locally on this device. "words" is the positive word-count growth recorded
-/// during the sitting. Stored per account; never leaves the device.
+/// A coalesced writing sitting (saves within 30 minutes), captured locally on
+/// this device. "words" is the positive word-count growth; "typed"/"pasted" are
+/// characters classified by edit-burst size (typing vs paste). Account-scoped;
+/// never leaves the device.
 class WritingSession {
   WritingSession({
     required this.start,
@@ -16,6 +17,8 @@ class WritingSession {
     required this.day,
     this.documentId,
     this.projectId,
+    this.typed = 0,
+    this.pasted = 0,
   });
 
   final DateTime start;
@@ -24,6 +27,8 @@ class WritingSession {
   final String day; // local yyyy-mm-dd
   final String? documentId;
   final String? projectId;
+  final int typed;
+  final int pasted;
 
   int get durationS => end.difference(start).inSeconds;
 
@@ -34,14 +39,14 @@ class WritingSession {
         day: j['d'] as String? ?? '',
         documentId: j['doc'] as String?,
         projectId: j['proj'] as String?,
+        typed: (j['t'] as num?)?.toInt() ?? 0,
+        pasted: (j['p'] as num?)?.toInt() ?? 0,
       );
 }
 
 String _ymd(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
-/// Local, account-scoped store of writing sessions + per-document word-count
-/// baselines (so output deltas survive app restarts).
 class WritingSessionStore {
   static const Duration _gap = Duration(minutes: 30);
   static String _key(String uid) => 'user_${uid}_writing_sessions_v1';
@@ -73,6 +78,8 @@ class WritingSessionStore {
     required String documentId,
     String? projectId,
     required int wordCount,
+    int typed = 0,
+    int pasted = 0,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     final m = await _raw(prefs, uid);
@@ -90,6 +97,8 @@ class WritingSessionStore {
       if (lastEnd != null && now.difference(lastEnd) <= _gap) {
         last['e'] = now.toIso8601String();
         last['w'] = ((last['w'] as num?)?.toInt() ?? 0) + delta;
+        last['t'] = ((last['t'] as num?)?.toInt() ?? 0) + typed;
+        last['p'] = ((last['p'] as num?)?.toInt() ?? 0) + pasted;
         extended = true;
       }
     }
@@ -101,6 +110,8 @@ class WritingSessionStore {
         'd': _ymd(now),
         'doc': documentId,
         'proj': projectId,
+        't': typed,
+        'p': pasted,
       });
     }
     m['sessions'] = sessions;
@@ -108,8 +119,7 @@ class WritingSessionStore {
     await prefs.setString(_key(uid), jsonEncode(m));
   }
 
-  /// Seed a document's baseline once (at open), so the first save counts the
-  /// words written during that opening session. No-op if already known.
+  /// Seed a document's baseline once (at open) so the first save counts words.
   static Future<void> seed(String uid,
       {required String documentId, required int wordCount}) async {
     final prefs = await SharedPreferences.getInstance();
@@ -125,7 +135,6 @@ class WritingSessionStore {
 /// Bumped on every recorded save so the Analytics summary recomputes live.
 final writingSessionsRevisionProvider = StateProvider<int>((ref) => 0);
 
-/// Called from the Writing Desk after a successful save.
 class WritingSessionTracker {
   WritingSessionTracker(this._ref);
   final Ref _ref;
@@ -134,11 +143,17 @@ class WritingSessionTracker {
     required String documentId,
     String? projectId,
     required int wordCount,
+    int typed = 0,
+    int pasted = 0,
   }) async {
     final uid = _ref.read(currentUserIdProvider);
     if (uid == null) return;
     await WritingSessionStore.record(uid,
-        documentId: documentId, projectId: projectId, wordCount: wordCount);
+        documentId: documentId,
+        projectId: projectId,
+        wordCount: wordCount,
+        typed: typed,
+        pasted: pasted);
     _ref.read(writingSessionsRevisionProvider.notifier).state++;
   }
 
@@ -153,7 +168,6 @@ class WritingSessionTracker {
 final writingSessionTrackerProvider =
     Provider<WritingSessionTracker>((ref) => WritingSessionTracker(ref));
 
-/// Aggregated, account-private writing stats for the Analytics dashboard.
 class WriterStats {
   const WriterStats({
     required this.hasData,
@@ -169,6 +183,8 @@ class WriterStats {
     required this.productiveHour,
     required this.productiveWeekday,
     required this.dailyWords,
+    required this.typedChars,
+    required this.pastedChars,
   });
 
   final bool hasData;
@@ -181,15 +197,17 @@ class WriterStats {
   final int wordsThisWeek;
   final int wordsThisMonth;
   final int wordsTracked;
-  final int? productiveHour; // 0-23
-  final int? productiveWeekday; // 1=Mon..7=Sun
-  final Map<String, int> dailyWords; // day -> words
+  final int? productiveHour;
+  final int? productiveWeekday;
+  final Map<String, int> dailyWords;
+  final int typedChars;
+  final int pastedChars;
 
   static const empty = WriterStats(
     hasData: false, currentStreak: 0, longestStreak: 0, totalSessions: 0,
     sessionsThisWeek: 0, avgSessionMin: 0, wordsToday: 0, wordsThisWeek: 0,
     wordsThisMonth: 0, wordsTracked: 0, productiveHour: null, productiveWeekday: null,
-    dailyWords: const {},
+    dailyWords: const {}, typedChars: 0, pastedChars: 0,
   );
 
   String? get productiveHourLabel {
@@ -205,6 +223,13 @@ class WriterStats {
     final d = productiveWeekday;
     if (d == null || d < 1 || d > 7) return null;
     return names[d - 1];
+  }
+
+  /// Percent of characters typed vs pasted (null when nothing recorded yet).
+  int? get typedPct {
+    final total = typedChars + pastedChars;
+    if (total == 0) return null;
+    return (typedChars * 100 / total).round();
   }
 
   static int _streakEndingAt(Set<String> days, DateTime start) {
@@ -246,11 +271,14 @@ class WriterStats {
     }
 
     var wToday = 0, wWeek = 0, wMonth = 0, wAll = 0, sessWeek = 0, totalDur = 0;
+    var typedC = 0, pastedC = 0;
     final hour = <int, int>{};
     final dow = <int, int>{};
     final daily = <String, int>{};
     for (final s in sessions) {
       wAll += s.words;
+      typedC += s.typed;
+      pastedC += s.pasted;
       if (s.day == today) wToday += s.words;
       if (s.start.isAfter(weekAgo)) {
         wWeek += s.words;
@@ -282,11 +310,12 @@ class WriterStats {
       productiveHour: mode(hour),
       productiveWeekday: mode(dow),
       dailyWords: daily,
+      typedChars: typedC,
+      pastedChars: pastedC,
     );
   }
 }
 
-/// Account-private writing stats; recomputes when a save is recorded.
 final writerStatsProvider = FutureProvider.autoDispose<WriterStats>((ref) async {
   ref.watch(writingSessionsRevisionProvider);
   final uid = ref.watch(currentUserIdProvider);

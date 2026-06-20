@@ -380,6 +380,10 @@ class _ActivityOutput extends ConsumerWidget {
                     label: 'Sessions this week'),
                 _Stat(value: '${stats.avgSessionMin}m', label: 'Avg session'),
                 if (hour != null) _Stat(value: hour, label: 'Most productive'),
+                if (stats.typedPct != null)
+                  _Stat(
+                      value: '${stats.typedPct}%',
+                      label: 'Typed (vs paste)'),
               ],
             ),
           ),

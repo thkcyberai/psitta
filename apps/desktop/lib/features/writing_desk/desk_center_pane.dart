@@ -124,7 +124,30 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   }
 
   // Recompute squiggles ~350ms after the writer stops typing (paragraph-scoped).
+  // Typing-integrity counters (typed vs pasted), flushed on save.
+  int? _lastDocLen;
+  int _typedChars = 0;
+  int _pastedChars = 0;
+  static const int _kTypeBurst = 4;
+
+  void _trackTyping() {
+    final controller = _unifiedController;
+    if (controller == null) return;
+    final len = controller.document.length;
+    final last = _lastDocLen;
+    _lastDocLen = len;
+    if (last == null) return;
+    final delta = len - last;
+    if (delta <= 0) return;
+    if (delta <= _kTypeBurst) {
+      _typedChars += delta;
+    } else {
+      _pastedChars += delta;
+    }
+  }
+
   void _onEditorChanged() {
+    _trackTyping();
     if (_squiggleInFlight) return;
     _spellDebounce?.cancel();
     _spellDebounce = Timer(const Duration(milliseconds: 350), _spellTick);
@@ -411,6 +434,9 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     ref
         .read(writingSessionTrackerProvider)
         .seedBaseline(widget.documentId, seedWordCount);
+    _lastDocLen = controller.document.length;
+    _typedChars = 0;
+    _pastedChars = 0;
   }
 
   Future<void> _save() async {
@@ -515,7 +541,11 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
               documentId: widget.documentId,
               projectId: widget.projectId,
               wordCount: deskWordCount,
+              typed: _typedChars,
+              pasted: _pastedChars,
             );
+        _typedChars = 0;
+        _pastedChars = 0;
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
