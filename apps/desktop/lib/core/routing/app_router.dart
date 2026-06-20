@@ -20,6 +20,7 @@ import '../../features/editor/document_editor_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/voices/voice_selector_screen.dart';
 import '../../features/writing_desk/writing_desk_screen.dart';
+import '../../features/help/help_screen.dart';
 
 /// A [ChangeNotifier] that bridges Riverpod [AuthState] to GoRouter.
 ///
@@ -172,6 +173,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/settings',
             pageBuilder: (context, state) => const NoTransitionPage(
               child: SettingsScreen(),
+            ),
+          ),
+          GoRoute(
+            path: '/help',
+            pageBuilder: (context, state) => const NoTransitionPage(
+              child: HelpScreen(),
             ),
           ),
           GoRoute(

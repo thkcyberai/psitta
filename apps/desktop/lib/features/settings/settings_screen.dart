@@ -6,7 +6,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/plan_gate.dart';
 import '../../core/quota_gate.dart';
-import '../../core/theme/colors.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
@@ -105,194 +104,207 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         : availableSpeeds.last;
 
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 600),
+      constraints: const BoxConstraints(maxWidth: 640),
       child: ListView(
+        padding: const EdgeInsets.only(bottom: 28),
         children: [
-          const _SectionHeader(title: 'Account'),
-          const _AccountTile(),
-          const _SubscriptionTile(),
-          const _ManageSubscriptionTile(),
-          const _ChangePlanTile(),
-          const _StaySignedInTile(),
-          _LogoutTile(),
-          const SizedBox(height: 16),
-          const _SectionHeader(title: 'Usage'),
-          const _PremiumVoicesUsageTile(),
-          const SizedBox(height: 16),
-          const _SectionHeader(title: 'Appearance'),
-          ListTile(
-            title: const Text('Theme'),
-            subtitle: Text(selectedTheme),
-            trailing: SizedBox(
-              width: 260,
-              child: DropdownButtonFormField<String>(
-                value: selectedTheme,
-                items: ThemeNames.all
-                    .map(
-                      (t) => DropdownMenuItem(
-                        value: t,
-                        child: Text(t),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  ref.read(selectedThemeNameProvider.notifier).select(value);
-                },
-                decoration: const InputDecoration(
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          const _SettingsCard(
+            icon: Icons.person_outline,
+            title: 'Account',
+            children: [
+              _AccountTile(),
+              _SubscriptionTile(),
+              _ManageSubscriptionTile(),
+              _ChangePlanTile(),
+              _StaySignedInTile(),
+            ],
+          ),
+          _SettingsCard(
+            icon: Icons.logout,
+            title: 'Session',
+            children: [_LogoutTile()],
+          ),
+          const _SettingsCard(
+            icon: Icons.graphic_eq_outlined,
+            title: 'Usage',
+            children: [_PremiumVoicesUsageTile()],
+          ),
+          _SettingsCard(
+            icon: Icons.palette_outlined,
+            title: 'Appearance',
+            children: [
+              ListTile(
+                title: const Text('Theme'),
+                subtitle: Text(selectedTheme),
+                trailing: SizedBox(
+                  width: 220,
+                  child: DropdownButtonFormField<String>(
+                    value: selectedTheme,
+                    items: ThemeNames.all
+                        .map((th) => DropdownMenuItem(value: th, child: Text(th)))
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      ref.read(selectedThemeNameProvider.notifier).select(value);
+                    },
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                  ),
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(height: 16),
-          const _SectionHeader(title: 'Playback'),
-          Builder(builder: (context) {
-            final voicesAsync = ref.watch(voicesProvider);
-            final selectedId = ref.watch(selectedVoiceIdProvider);
-            final displayName = voicesAsync.whenOrNull(
-              data: (voices) {
-                for (final v in voices) {
-                  if (v.id == selectedId) return v.displayName;
-                }
-                return null;
-              },
-            );
-            return ListTile(
-              leading: displayName == null
-                  ? const SizedBox(width: 32, height: 32)
-                  : VoiceAvatar(
-                      voiceName: displayName,
-                      size: 32,
-                      variant: VoiceAvatarVariant.small,
-                    ),
-              title: const Text('Default Voice'),
-              subtitle: Text(displayName ?? 'Select a voice'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => context.go('/voices'),
-            );
-          }),
-          ListTile(
-            title: const Text('Playback Speed'),
-            subtitle: isPro
-                ? null
-                : const Text(
-                    'Free plan limited to 2.0x. '
-                    'Upgrade for up to 4.0x.',
-                    style: TextStyle(fontSize: 11),
-                  ),
-            trailing: DropdownButton<double>(
-              value: displaySpeed,
-              underline: const SizedBox(),
-              items: availableSpeeds
-                  .map(
-                    (s) => DropdownMenuItem<double>(
-                      value: s,
-                      child: Text('${s}x'),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (val) {
-                if (val == null) return;
-                ref.read(selectedSpeedProvider.notifier).select(val);
-              },
-            ),
-          ),
-          const SizedBox(height: 16),
-          const _SectionHeader(title: 'Sync Word Highlight'),
-          if (!isPro)
-            Padding(
-              padding:
-                  const EdgeInsets.only(left: 16, right: 16, bottom: 4, top: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.lock_outline,
-                    size: 14,
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      'Available with Reading Nook Pro',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+          _SettingsCard(
+            icon: Icons.headphones_outlined,
+            title: 'Playback',
+            children: [
+              Builder(builder: (context) {
+                final voicesAsync = ref.watch(voicesProvider);
+                final selectedId = ref.watch(selectedVoiceIdProvider);
+                final displayName = voicesAsync.whenOrNull(
+                  data: (voices) {
+                    for (final v in voices) {
+                      if (v.id == selectedId) return v.displayName;
+                    }
+                    return null;
+                  },
+                );
+                return ListTile(
+                  leading: displayName == null
+                      ? const SizedBox(width: 32, height: 32)
+                      : VoiceAvatar(
+                          voiceName: displayName,
+                          size: 32,
+                          variant: VoiceAvatarVariant.small,
+                        ),
+                  title: const Text('Default Voice'),
+                  subtitle: Text(displayName ?? 'Select a voice'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.go('/voices'),
+                );
+              }),
+              ListTile(
+                title: const Text('Playback Speed'),
+                subtitle: isPro
+                    ? null
+                    : const Text(
+                        'Free plan limited to 2.0x. Upgrade for up to 4.0x.',
+                        style: TextStyle(fontSize: 11),
                       ),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => context.go('/plan'),
-                    child: const Text('Upgrade'),
-                  ),
-                ],
+                trailing: DropdownButton<double>(
+                  value: displaySpeed,
+                  underline: const SizedBox(),
+                  items: availableSpeeds
+                      .map((s) => DropdownMenuItem<double>(
+                            value: s,
+                            child: Text('${s}x'),
+                          ))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val == null) return;
+                    ref.read(selectedSpeedProvider.notifier).select(val);
+                  },
+                ),
               ),
-            ),
-          RadioListTile<String>(
-            title: const Text('Read with S.W.H'),
-            subtitle: const Text(
-              "Highlights each word as it's spoken",
-              style: TextStyle(fontSize: 11),
-            ),
-            value: SwhMode.always,
-            groupValue: swhMode,
-            onChanged: isPro
-                ? (v) => ref.read(selectedSwhModeProvider.notifier).select(v!)
-                : null,
+            ],
           ),
-          RadioListTile<String>(
-            title: const Text('Read without S.W.H'),
-            value: SwhMode.never,
-            groupValue: swhMode,
-            onChanged: isPro
-                ? (v) => ref.read(selectedSwhModeProvider.notifier).select(v!)
-                : null,
+          _SettingsCard(
+            icon: Icons.subtitles_outlined,
+            title: 'Sync Word Highlight',
+            children: [
+              if (!isPro)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                  child: Row(
+                    children: [
+                      Icon(Icons.lock_outline,
+                          size: 14, color: theme.colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Available with Reading Nook Pro',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.go('/plan'),
+                        child: const Text('Upgrade'),
+                      ),
+                    ],
+                  ),
+                ),
+              RadioListTile<String>(
+                title: const Text('Read with S.W.H'),
+                subtitle: const Text(
+                  "Highlights each word as it's spoken",
+                  style: TextStyle(fontSize: 11),
+                ),
+                value: SwhMode.always,
+                groupValue: swhMode,
+                onChanged: isPro
+                    ? (v) =>
+                        ref.read(selectedSwhModeProvider.notifier).select(v!)
+                    : null,
+              ),
+              RadioListTile<String>(
+                title: const Text('Read without S.W.H'),
+                value: SwhMode.never,
+                groupValue: swhMode,
+                onChanged: isPro
+                    ? (v) =>
+                        ref.read(selectedSwhModeProvider.notifier).select(v!)
+                    : null,
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          const _SectionHeader(title: 'Storage'),
-          ListTile(
-            title: const Text('Auto-Delete Documents'),
-            trailing: DropdownButton<int?>(
-              value: ref.watch(selectedAutoDeleteProvider),
-              underline: const SizedBox(),
-              items: AutoDeletePreferenceNotifier.options
-                  .map(
-                    (d) => DropdownMenuItem<int?>(
-                      value: d,
-                      child: Text(_autoDeleteLabel(d)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (val) {
-                ref.read(selectedAutoDeleteProvider.notifier).select(val);
-              },
-            ),
+          _SettingsCard(
+            icon: Icons.sd_storage_outlined,
+            title: 'Storage',
+            children: [
+              ListTile(
+                title: const Text('Auto-Delete Documents'),
+                trailing: DropdownButton<int?>(
+                  value: ref.watch(selectedAutoDeleteProvider),
+                  underline: const SizedBox(),
+                  items: AutoDeletePreferenceNotifier.options
+                      .map((d) => DropdownMenuItem<int?>(
+                            value: d,
+                            child: Text(_autoDeleteLabel(d)),
+                          ))
+                      .toList(),
+                  onChanged: (val) {
+                    ref.read(selectedAutoDeleteProvider.notifier).select(val);
+                  },
+                ),
+              ),
+              ListTile(
+                title: const Text('Cache Size'),
+                trailing: DropdownButton<int>(
+                  value: ref.watch(selectedCacheSizeProvider),
+                  underline: const SizedBox(),
+                  items: CacheSizePreferenceNotifier.options
+                      .map((s) => DropdownMenuItem<int>(
+                            value: s,
+                            child: Text(_cacheSizeLabel(s)),
+                          ))
+                      .toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      ref.read(selectedCacheSizeProvider.notifier).select(val);
+                    }
+                  },
+                ),
+              ),
+            ],
           ),
-          ListTile(
-            title: const Text('Cache Size'),
-            trailing: DropdownButton<int>(
-              value: ref.watch(selectedCacheSizeProvider),
-              underline: const SizedBox(),
-              items: CacheSizePreferenceNotifier.options
-                  .map(
-                    (s) => DropdownMenuItem<int>(
-                      value: s,
-                      child: Text(_cacheSizeLabel(s)),
-                    ),
-                  )
-                  .toList(),
-              onChanged: (val) {
-                if (val != null) {
-                  ref.read(selectedCacheSizeProvider.notifier).select(val);
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 32),
           Padding(
-            padding: const EdgeInsets.only(bottom: 24, top: 16),
+            padding: const EdgeInsets.only(top: 8, bottom: 16),
             child: Center(
               child: Text(
                 _appVersion.isEmpty ? 'Psitta' : 'Psitta v$_appVersion',
@@ -303,6 +315,58 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+
+/// A polished settings section: rounded card with an icon + title header and a
+/// list of control rows. Big-tech grouped-settings look.
+class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({
+    required this.icon,
+    required this.title,
+    required this.children,
+  });
+
+  final IconData icon;
+  final String title;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.outline.withValues(alpha: 0.18)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+            child: Row(
+              children: [
+                Icon(icon, size: 18, color: scheme.primary),
+                const SizedBox(width: 10),
+                Text(
+                  title,
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: scheme.outline.withValues(alpha: 0.14)),
+          ...children,
         ],
       ),
     );
@@ -732,25 +796,6 @@ class _LogoutTile extends ConsumerWidget {
       onTap: () async {
         await ref.read(authStateProvider.notifier).logout();
       },
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w700,
-              color: AppColors.primary,
-            ),
-      ),
     );
   }
 }

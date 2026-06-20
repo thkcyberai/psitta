@@ -81,6 +81,12 @@ class WritingNav extends StatelessWidget {
                   route: '/settings',
                   isCollapsed: isCollapsed,
                 ),
+                _WritingNavItem(
+                  label: 'Help',
+                  icon: Icons.help_outline,
+                  route: '/help',
+                  isCollapsed: isCollapsed,
+                ),
               ],
             ),
           ),

@@ -36,7 +36,6 @@ import '../../widgets/document_cover.dart';
 import '../../widgets/export_options_dialog.dart';
 import '../../widgets/user_avatar.dart';
 import 'widgets/player_bar.dart';
-import 'widgets/shortcuts_panel.dart';
 import 'widgets/sidebar_nav.dart';
 import 'widgets/writing_nav.dart';
 
@@ -504,11 +503,8 @@ class _ContextHeader extends ConsumerWidget {
             ),
             const SizedBox(width: 2),
             IconButton(
-              tooltip: 'Keyboard Shortcuts (Ctrl+/)',
-              onPressed: () => showDialog(
-                context: context,
-                builder: (_) => const ShortcutsPanel(),
-              ),
+              tooltip: 'Help & Guides',
+              onPressed: () => context.go('/help'),
               icon: Icon(
                 Icons.help_outline,
                 size: 20,
@@ -608,11 +604,8 @@ class _ContextHeader extends ConsumerWidget {
           ),
           const SizedBox(width: 2),
           IconButton(
-            tooltip: 'Keyboard Shortcuts (Ctrl+/)',
-            onPressed: () => showDialog(
-              context: context,
-              builder: (_) => const ShortcutsPanel(),
-            ),
+            tooltip: 'Help & Guides',
+            onPressed: () => context.go('/help'),
             icon: Icon(
               Icons.help_outline,
               size: 20,
