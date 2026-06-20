@@ -13,6 +13,7 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document_assembler.dart';
 import '../../data/models/psitta_document.dart';
 import '../../data/providers/providers.dart';
+import '../../data/providers/document_actions.dart';
 import '../projects/widgets/add_documents_dialog.dart';
 import '../../data/services/audio_service.dart'
     show audioServiceProvider, audioPlayingProvider;
@@ -1613,12 +1614,12 @@ class _ThreeWaysPanel extends ConsumerWidget {
                     child: _AddCard(
                       index: '3',
                       accent: _AddCardAccent.tertiary,
-                      title: 'Create Project First',
+                      title: 'Put in a Project',
                       body:
-                          'Set up your project and Book Structure first.',
-                      cta: 'Create New Project',
+                          'Create a new project, or add this file to one you already have.',
+                      cta: 'Choose a Project',
                       buttonKey: 'desk-add-create-project',
-                      onPressed: () => _createProject(context, ref),
+                      onPressed: () => _chooseProjectAction(context, ref),
                     ),
                   ),
                 ],
@@ -1654,6 +1655,79 @@ class _ThreeWaysPanel extends ConsumerWidget {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not create document: $e')),
+      );
+    }
+  }
+
+  /// Let the writer create a new project for this file or add it to one they
+  /// already have.
+  Future<void> _chooseProjectAction(BuildContext context, WidgetRef ref) async {
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Put this file in a Project'),
+        content: const Text(
+          'Create a new project for it, or add it to a project you already have.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop('existing'),
+            child: const Text('Add to existing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop('create'),
+            child: const Text('Create new'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) return;
+    if (choice == 'create') {
+      await _createProject(context, ref);
+    } else if (choice == 'existing') {
+      await _addToExistingProject(context, ref);
+    }
+  }
+
+  /// Assign the current file to an existing project, then reopen the Desk with
+  /// that project's context so every sector reflects it (the Heart).
+  Future<void> _addToExistingProject(BuildContext context, WidgetRef ref) async {
+    try {
+      final projects = await ref.read(projectsProvider.future);
+      if (!context.mounted) return;
+      if (projects.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No projects yet \u2014 create one first.')),
+        );
+        return;
+      }
+      final chosenId = await showDialog<String>(
+        context: context,
+        builder: (ctx) => SimpleDialog(
+          title: const Text('Add to a Project'),
+          children: [
+            for (final p in projects)
+              SimpleDialogOption(
+                onPressed: () => Navigator.of(ctx).pop(p.id),
+                child: Text(p.name),
+              ),
+          ],
+        ),
+      );
+      if (chosenId == null || !context.mounted) return;
+      await ref
+          .read(documentActionsProvider)
+          .assignToProject(documentId, chosenId);
+      if (!context.mounted) return;
+      context.go('/writing-desk/$documentId?projectId=$chosenId');
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not add to project: $e')),
       );
     }
   }
