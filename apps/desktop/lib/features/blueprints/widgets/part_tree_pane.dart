@@ -441,7 +441,11 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
         Padding(
           key: ValueKey('part-pad-${node.id}'),
           padding: EdgeInsets.only(
-            left: _baseIndent + widget.depth * _perDepth,
+            // Leaf rows (file icons) sit one level inset from folder icons
+            // so the structure reads as files living inside folders.
+            left: _baseIndent +
+                widget.depth * _perDepth +
+                (hasChildren ? 0 : _perDepth + 20),
             top: 1,
             bottom: 1,
           ),
