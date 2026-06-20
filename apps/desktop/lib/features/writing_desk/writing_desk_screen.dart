@@ -80,8 +80,17 @@ class _WritingDeskScreenState extends ConsumerState<WritingDeskScreen> {
 
   @override
   void dispose() {
-    // Use the captured notifier — `ref` is no longer usable here.
-    _streamingNotifier?.state = false;
+    // Defer the reset off the teardown frame: mutating a provider during
+    // dispose() notifies listeners while the widget tree is finalizing,
+    // which Riverpod forbids. The captured notifier survives the deferral.
+    final streamingNotifier = _streamingNotifier;
+    Future.microtask(() {
+      try {
+        streamingNotifier?.state = false;
+      } catch (_) {
+        // Provider already disposed — nothing to reset.
+      }
+    });
     super.dispose();
   }
 
