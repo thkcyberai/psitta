@@ -384,6 +384,14 @@ class _ActivityOutput extends ConsumerWidget {
                   _Stat(
                       value: '${stats.typedPct}%',
                       label: 'Typed (vs paste)'),
+                if (stats.typedChars > 0 || stats.pastedChars > 0) ...[
+                  _Stat(
+                      value: _Dashboard.fmt(stats.typedChars),
+                      label: 'Keystrokes'),
+                  _Stat(
+                      value: _Dashboard.fmt(stats.pastedChars),
+                      label: 'Chars pasted'),
+                ],
               ],
             ),
           ),
