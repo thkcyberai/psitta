@@ -6,6 +6,7 @@ import '../../../data/models/blueprint.dart';
 import '../../../data/providers/blueprint_providers.dart';
 import '../blueprint_screen_state.dart';
 import 'blueprint_dialogs.dart';
+import '../../../data/providers/blueprint_placed_files_provider.dart';
 
 /// Center pane: the selected blueprint's section tree, with editing for owned
 /// blueprints and a clone action for system templates.
@@ -404,6 +405,12 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
     final hasChildren = node.children.isNotEmpty;
     final isSelected = ref.watch(selectedPartIdProvider) == node.id;
     final description = node.description;
+    final placed = ref
+        .watch(blueprintPlacedFilesProvider(widget.blueprintId))
+        .maybeWhen(
+          data: (m) => m[node.id] ?? const <PlacedFile>[],
+          orElse: () => const <PlacedFile>[],
+        );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -494,6 +501,29 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
             ),
           ),
         ),
+        for (final f in placed)
+          Padding(
+            padding: EdgeInsets.only(
+              left: _baseIndent + (widget.depth + 1) * _perDepth + 18,
+              top: 1,
+              bottom: 1,
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.article_outlined,
+                    size: 15, color: theme.colorScheme.onSurfaceVariant),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    f.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+              ],
+            ),
+          ),
         if (hasChildren && _expanded)
           for (var i = 0; i < node.children.length; i++)
             _PartTreeNode(
