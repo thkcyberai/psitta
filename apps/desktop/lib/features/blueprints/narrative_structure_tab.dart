@@ -539,7 +539,7 @@ class _StructureList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 10, 12),
+      padding: const EdgeInsets.fromLTRB(16, 6, 10, 12),
       child: ListView.builder(
         itemCount: kNarrativeStructures.length + 1,
         itemBuilder: (context, i) {
@@ -719,7 +719,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
     final count = _selected.length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 10, 28, 8),
+      padding: const EdgeInsets.fromLTRB(28, 2, 28, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -859,7 +859,7 @@ class _StructureInfo extends StatelessWidget {
 
     return Container(
       color: tokens.surface,
-      padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
       child: ListView(
         children: [
           ClipRRect(
