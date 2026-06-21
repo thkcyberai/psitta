@@ -1,3 +1,4 @@
+import json
 import uuid
 from typing import Annotated
 from uuid import UUID
@@ -8,7 +9,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
-from psitta.schemas.api import ProjectDetail, ProjectPlacement
+from psitta.schemas.api import (
+    ProjectDetail,
+    ProjectNarrativeUpdate,
+    ProjectPlacement,
+)
 from psitta.services import audit_service
 
 logger = structlog.get_logger(__name__)
@@ -129,6 +134,8 @@ async def get_project(
         text("""
             SELECT
                 p.id, p.name, p.user_id, p.created_at, p.updated_at,
+                p.narrative_structure_key, p.narrative_variant,
+                p.narrative_beats,
                 (SELECT COUNT(*) FROM documents d
                    WHERE d.project_id = p.id AND d.status != 'deleted')
                     AS document_count,
@@ -152,6 +159,9 @@ async def get_project(
         document_count=r["document_count"],
         blueprint_count=r["blueprint_count"],
         total_words=r["total_words"],
+        narrative_structure_key=r["narrative_structure_key"],
+        narrative_variant=r["narrative_variant"],
+        narrative_beats=r["narrative_beats"],
     )
 
 
@@ -211,6 +221,57 @@ async def update_project(
         ip_address=request.client.host if request.client else None,
     )
     return {"id": project_id, **{k: v for k, v in body.items() if k in ("name", "cover_document_id")}}
+
+
+@router.put("/{project_id}/narrative", response_model=ProjectDetail)
+async def set_project_narrative(
+    project_id: str,
+    data: ProjectNarrativeUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Set (or clear) this project's chosen narrative. Owner-guarded; the
+    narrative lives on the project, never as Book Structure sections."""
+    await _get_project_or_404(project_id, str(user_id), db)
+    beats_json = (
+        json.dumps(data.narrative_beats)
+        if data.narrative_beats is not None
+        else None
+    )
+    await db.execute(
+        text(
+            """
+            UPDATE projects
+            SET narrative_structure_key = :k,
+                narrative_variant = :v,
+                narrative_beats = CAST(:b AS JSONB),
+                updated_at = now()
+            WHERE id = :id
+            """
+        ),
+        {
+            "k": data.narrative_structure_key,
+            "v": data.narrative_variant,
+            "b": beats_json,
+            "id": project_id,
+        },
+    )
+    await db.commit()
+    await audit_service.log_event(
+        db,
+        action="project.set_narrative",
+        resource_type="project",
+        user_id=str(user_id),
+        resource_id=project_id,
+        details={
+            "structure_key": data.narrative_structure_key,
+            "variant": data.narrative_variant,
+            "beats": len(data.narrative_beats or []),
+        },
+        ip_address=request.client.host if request.client else None,
+    )
+    return await get_project(project_id=project_id, db=db, user_id=user_id)
 
 
 @router.delete("/{project_id}", status_code=204)

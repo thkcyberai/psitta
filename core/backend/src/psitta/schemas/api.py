@@ -581,6 +581,17 @@ class ProjectDetail(StrictSchema):
     document_count: int = Field(ge=0)
     blueprint_count: int = Field(ge=0)
     total_words: int = Field(ge=0)
+    narrative_structure_key: str | None = None
+    narrative_variant: str | None = None
+    narrative_beats: list[str] | None = None
+
+
+class ProjectNarrativeUpdate(StrictSchema):
+    """Set (or clear) a project's chosen narrative structure."""
+
+    narrative_structure_key: str | None = Field(default=None, max_length=80)
+    narrative_variant: str | None = Field(default=None, max_length=80)
+    narrative_beats: list[str] | None = None
 
 
 class ProjectPlacement(StrictSchema):
