@@ -35,7 +35,7 @@ class BlueprintsScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(28, 10, 28, 0),
+            padding: EdgeInsets.fromLTRB(28, 6, 28, 0),
             child: Align(
               alignment: Alignment.centerLeft,
               child: LibraryBreadcrumb(current: 'Blueprints'),
@@ -43,26 +43,31 @@ class BlueprintsScreen extends ConsumerWidget {
           ),
           // ── Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(28, 2, 28, 8),
+            padding: const EdgeInsets.fromLTRB(28, 0, 28, 2),
             child: Row(
               children: [
                 Icon(Icons.account_tree_outlined,
                     size: 26, color: scheme.onSurface),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
                     children: [
                       Text('Blueprints',
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
                               ?.copyWith(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text(
-                        'Design the structure of your book, and the narrative structure.',
-                        style: TextStyle(
-                            fontSize: 13, color: scheme.onSurfaceVariant),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Design the structure of your book, and the narrative structure.',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 13, color: scheme.onSurfaceVariant),
+                        ),
                       ),
                     ],
                   ),

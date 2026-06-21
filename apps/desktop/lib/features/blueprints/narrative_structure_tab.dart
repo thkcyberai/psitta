@@ -246,11 +246,11 @@ class _StructureCircle extends StatelessWidget {
                     ? 10.5
                     : 9.5;
 
-        const gap = 8.0; // node edge → label gap
+        const gap = 6.0; // node edge → label gap (labels sit close to nodes)
         const margin = 8.0; // keep clear of the container edge
 
         // Label box width per side, bounded so the ring keeps real estate.
-        final labelW = (w * 0.24).clamp(96.0, 150.0).toDouble();
+        final labelW = (w * 0.23).clamp(92.0, 138.0).toDouble();
 
         // One font that fits every label in ≤3 lines inside the box (3 lines so
         // long beats like "Crossing into space, simulation, or future world"
@@ -335,23 +335,23 @@ class _StructureCircle extends StatelessWidget {
             ),
           ));
 
-          // Label, anchored just outside the node and aligned by its side so it
-          // fans out diagonally from the numbered node (never over the ring).
-          final ax = cx + (r + nodeR + gap) * cosT;
-          final ay = cy + (r + nodeR + gap) * sinT;
+          // Label, anchored just outside the node. In the crowded top/bottom
+          // arcs the labels would sit at nearly the same height and collide, so
+          // we push alternate labels further out — a two-tier stagger that
+          // separates neighbours vertically.
+          final crowded = cosT.abs() < 0.55;
+          final extraOut = (crowded && i.isOdd) ? labelH * 0.45 : 0.0;
+          final ax = cx + (r + nodeR + gap + extraOut) * cosT;
+          final ay = cy + (r + nodeR + gap + extraOut) * sinT;
 
-          // Tuck near-bottom labels directly beneath their node (centred) so
-          // they sit "under" the number instead of fanning far out to the side.
-          final bool centerPlace =
-              cosT.abs() <= 0.18 || (sinT > 0.62 && cosT.abs() <= 0.55);
           final double left;
           final TextAlign align;
           final Alignment boxAlign;
-          if (!centerPlace && cosT > 0) {
+          if (cosT > 0.18) {
             left = ax;
             align = TextAlign.left;
             boxAlign = Alignment.centerLeft;
-          } else if (!centerPlace && cosT < 0) {
+          } else if (cosT < -0.18) {
             left = ax - labelW;
             align = TextAlign.right;
             boxAlign = Alignment.centerRight;
@@ -360,10 +360,11 @@ class _StructureCircle extends StatelessWidget {
             align = TextAlign.center;
             boxAlign = Alignment.center;
           }
-          // Centred labels sit fully clear of the node (below at the bottom,
-          // above at the top); side labels centre on the radial anchor.
-          final double top =
-              centerPlace ? (sinT < 0 ? ay - labelH : ay) : ay - labelH / 2;
+          // Near-vertical (top/bottom) labels sit fully clear of the node;
+          // diagonal/side labels centre on the radial anchor.
+          final double top = cosT.abs() <= 0.18
+              ? (sinT < 0 ? ay - labelH : ay)
+              : ay - labelH / 2;
 
           children.add(Positioned(
             left: left,
@@ -809,7 +810,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                 // Give the circle generous room so labels never collide or
                 // clip; scroll vertically when the pane is shorter than needed.
                 final n = components.length;
-                final need = 280.0 + (n > 11 ? (n - 11) * 16.0 : 0.0);
+                final need = 360.0 + (n > 10 ? (n - 10) * 20.0 : 0.0);
                 final hh = math.max(cns.maxHeight, need);
                 return SingleChildScrollView(
                   child: SizedBox(
