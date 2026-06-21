@@ -12,19 +12,28 @@ import 'narrative_structures.dart';
 /// Index of the selected narrative structure within [kNarrativeStructures].
 final selectedStructureIndexProvider = StateProvider<int>((ref) => 0);
 
-/// The "Narrative Structure" tab — a list of structures, a detail view of the
-/// selected one's components, and an info panel. "Use this Structure" generates
-/// a real blueprint with each component as a section, then jumps to the
-/// My Blueprints tab with it selected.
+/// Index of the selected audience variant within the current structure's
+/// `variants`. Reset to 0 whenever the writer picks a different structure.
+final selectedVariantIndexProvider = StateProvider<int>((ref) => 0);
+
+/// The "Narrative Structure" tab — a list of structures on the left, a detail
+/// view of the selected one in the centre (Best For selector + interactive
+/// circle of steps), and an info panel on the right. "Use this Structure"
+/// generates a real blueprint with each picked step as a section, then jumps to
+/// the My Blueprints tab with it selected.
 class NarrativeStructureTab extends ConsumerWidget {
   const NarrativeStructureTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
-    final raw = ref.watch(selectedStructureIndexProvider);
-    final index = raw.clamp(0, kNarrativeStructures.length - 1);
-    final structure = kNarrativeStructures[index];
+    final sIndex = ref
+        .watch(selectedStructureIndexProvider)
+        .clamp(0, kNarrativeStructures.length - 1);
+    final structure = kNarrativeStructures[sIndex];
+    final vIndex = ref
+        .watch(selectedVariantIndexProvider)
+        .clamp(0, structure.variants.length - 1);
 
     return Column(
       children: [
@@ -32,11 +41,18 @@ class NarrativeStructureTab extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SizedBox(width: 300, child: _StructureList(selectedIndex: index)),
+              SizedBox(width: 300, child: _StructureList(selectedIndex: sIndex)),
               VerticalDivider(width: 1, color: tokens.divider),
-              Expanded(child: _StructureDetail(structure: structure)),
+              Expanded(
+                child: _StructureDetail(
+                    structure: structure, variantIndex: vIndex),
+              ),
               VerticalDivider(width: 1, color: tokens.divider),
-              SizedBox(width: 300, child: _StructureInfo(structure: structure)),
+              SizedBox(
+                width: 300,
+                child:
+                    _StructureInfo(structure: structure, variantIndex: vIndex),
+              ),
             ],
           ),
         ),
@@ -142,10 +158,9 @@ class _ToolCard extends StatelessWidget {
   }
 }
 
-// ── The circle: steps as numbered nodes around a ring, colored by act ────────
+// ── Palette: nodes/arcs cycle through these as a progression around the ring ──
 
-/// Per-act node/arc colors (cycled when a structure has more than five acts).
-const List<Color> _kActColors = [
+const List<Color> _kStepColors = [
   Color(0xFF8A7CFF), // purple
   Color(0xFF4FB0E5), // blue
   Color(0xFF54C68A), // green
@@ -153,19 +168,29 @@ const List<Color> _kActColors = [
   Color(0xFFE5709B), // pink
 ];
 
+/// Colour for step [i] of [n], stepping through the palette as a progression
+/// (early beats purple → late beats pink), so the ring reads as a journey.
+Color _stepColor(int i, int n) {
+  if (n <= 1) return _kStepColors.first;
+  final idx = (i * _kStepColors.length / n).floor();
+  return _kStepColors[idx.clamp(0, _kStepColors.length - 1)];
+}
+
+// ── The circle: steps as numbered nodes around a ring ────────────────────────
+
 /// A self-sizing circular story map: every step is a numbered node on the ring,
-/// with its label placed radially just outside the node. Labels are measured
-/// up-front so they share one font that fits all of them in ≤2 lines, and the
-/// ring radius is computed only after reserving a label gutter on every side —
-/// so nothing is ever clipped by the container or overlaps the ring.
+/// with its label placed radially (diagonally) just outside the node. Labels are
+/// measured up-front so they share one font that fits all of them in ≤3 lines,
+/// and the ring radius is computed only after reserving a label gutter on every
+/// side — so nothing is ever clipped or overlapping the ring.
 class _StructureCircle extends StatelessWidget {
   const _StructureCircle({
-    required this.structure,
+    required this.components,
     required this.selected,
     required this.onToggle,
   });
 
-  final NarrativeStructure structure;
+  final List<String> components;
   final Set<int> selected;
   final void Function(int) onToggle;
 
@@ -202,23 +227,13 @@ class _StructureCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final steps = structure.components;
+    final steps = components;
     final n = steps.length;
-
-    // Phase index for each flat step (drives its node/label/arc color).
-    final phaseOf = <int>[];
-    for (var p = 0; p < structure.phases.length; p++) {
-      for (var k = 0; k < structure.phases[p].steps.length; k++) {
-        phaseOf.add(p);
-      }
-    }
 
     return LayoutBuilder(
       builder: (context, cns) {
-        // Guard against unbounded constraints (Infinity = "render box with no
-        // size"); the Stack below needs a definite, finite size.
         final w = cns.maxWidth.isFinite ? cns.maxWidth : 640.0;
-        final h = cns.maxHeight.isFinite ? cns.maxHeight : 360.0;
+        final h = cns.maxHeight.isFinite ? cns.maxHeight : 420.0;
 
         // Node size and base font ease down as the step count grows.
         final nodeR = n > 14 ? 11.0 : (n > 9 ? 12.5 : 14.0);
@@ -231,27 +246,31 @@ class _StructureCircle extends StatelessWidget {
                     : 9.5;
 
         const gap = 8.0; // node edge → label gap
-        const margin = 6.0; // keep clear of the container edge
+        const margin = 8.0; // keep clear of the container edge
 
         // Label box width per side, bounded so the ring keeps real estate.
-        final labelW = (w * 0.24).clamp(92.0, 152.0).toDouble();
+        final labelW = (w * 0.24).clamp(96.0, 150.0).toDouble();
 
-        // One font that fits every label in ≤2 lines inside the box.
-        final font = _uniformLabelFont(steps, labelW - 4, baseFont, 8.5, 2);
-        final lineH = font * 1.3;
-        final labelH = lineH * 2 + 2;
+        // One font that fits every label in ≤3 lines inside the box (3 lines so
+        // long beats like "Crossing into space, simulation, or future world"
+        // are never truncated).
+        final font = _uniformLabelFont(steps, labelW - 4, baseFont, 7.5, 3);
+        final lineH = font * 1.25;
+        final labelH = lineH * 3 + 2;
 
         // Radius = whatever remains after reserving label gutters all round.
         final halfW = w / 2 - labelW - gap - nodeR - margin;
         final halfH = h / 2 - labelH - gap - nodeR - margin;
-        final r = math.max(56.0, math.min(halfW, halfH));
+        // A touch smaller than the available room so the ring sits comfortably
+        // inside its gutters, with breathing space around the labels.
+        final r = math.max(56.0, math.min(halfW, halfH) * 0.84);
         final cx = w / 2;
         final cy = h / 2;
 
         final children = <Widget>[
           Positioned.fill(
             child: CustomPaint(
-              painter: _RingPainter(n: n, phaseOf: phaseOf, radius: r),
+              painter: _RingPainter(n: n, radius: r),
             ),
           ),
           // Centre caption.
@@ -278,7 +297,7 @@ class _StructureCircle extends StatelessWidget {
           final theta = -math.pi / 2 + (2 * math.pi * i / n);
           final cosT = math.cos(theta);
           final sinT = math.sin(theta);
-          final color = _kActColors[phaseOf[i] % _kActColors.length];
+          final color = _stepColor(i, n);
           final isSel = selected.contains(i);
 
           final nx = cx + r * cosT;
@@ -315,18 +334,19 @@ class _StructureCircle extends StatelessWidget {
             ),
           ));
 
-          // Label, anchored just outside the node and aligned by its side.
+          // Label, anchored just outside the node and aligned by its side so it
+          // fans out diagonally from the numbered node (never over the ring).
           final ax = cx + (r + nodeR + gap) * cosT;
           final ay = cy + (r + nodeR + gap) * sinT;
 
           final double left;
           final TextAlign align;
           final Alignment boxAlign;
-          if (cosT > 0.30) {
+          if (cosT > 0.18) {
             left = ax;
             align = TextAlign.left;
             boxAlign = Alignment.centerLeft;
-          } else if (cosT < -0.30) {
+          } else if (cosT < -0.18) {
             left = ax - labelW;
             align = TextAlign.right;
             boxAlign = Alignment.centerRight;
@@ -335,9 +355,9 @@ class _StructureCircle extends StatelessWidget {
             align = TextAlign.center;
             boxAlign = Alignment.center;
           }
-          // Near-vertical (top/bottom) labels are pushed fully clear of the
-          // node; side labels are centred on the anchor.
-          final double top = cosT.abs() <= 0.30
+          // Near-vertical (top/bottom) labels sit fully clear of the node;
+          // diagonal/side labels centre on the radial anchor.
+          final double top = cosT.abs() <= 0.18
               ? (sinT < 0 ? ay - labelH : ay)
               : ay - labelH / 2;
 
@@ -352,7 +372,7 @@ class _StructureCircle extends StatelessWidget {
                 alignment: boxAlign,
                 child: Text(
                   steps[i],
-                  maxLines: 2,
+                  maxLines: 3,
                   textAlign: align,
                   softWrap: true,
                   overflow: TextOverflow.ellipsis,
@@ -360,8 +380,7 @@ class _StructureCircle extends StatelessWidget {
                     fontSize: font,
                     height: 1.2,
                     fontWeight: isSel ? FontWeight.w700 : FontWeight.w600,
-                    color:
-                        isSel ? scheme.onSurface : scheme.onSurfaceVariant,
+                    color: isSel ? scheme.onSurface : scheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -389,9 +408,8 @@ class _StructureCircle extends StatelessWidget {
 }
 
 class _RingPainter extends CustomPainter {
-  _RingPainter({required this.n, required this.phaseOf, required this.radius});
+  _RingPainter({required this.n, required this.radius});
   final int n;
-  final List<int> phaseOf;
   final double radius;
 
   @override
@@ -405,8 +423,7 @@ class _RingPainter extends CustomPainter {
     for (var i = 0; i < n; i++) {
       final a0 = -math.pi / 2 + (2 * math.pi * i / n);
       final sweep = 2 * math.pi / n;
-      stroke.color =
-          _kActColors[phaseOf[i] % _kActColors.length].withValues(alpha: 0.5);
+      stroke.color = _stepColor(i, n).withValues(alpha: 0.5);
       canvas.drawArc(rect, a0, sweep, false, stroke);
     }
   }
@@ -416,79 +433,89 @@ class _RingPainter extends CustomPainter {
       old.n != n || old.radius != radius;
 }
 
-/// The act header cards (Act I — Departure, etc.), color-coded per act.
-class _ActCards extends StatelessWidget {
-  const _ActCards({required this.structure});
+/// The Best-For selector cards above the circle. One card per audience variant;
+/// the selected one is highlighted. Tapping a card swaps the circle to that
+/// audience's components.
+class _BestForCards extends StatelessWidget {
+  const _BestForCards({
+    required this.structure,
+    required this.selectedVariant,
+    required this.onSelect,
+  });
+
   final NarrativeStructure structure;
+  final int selectedVariant;
+  final void Function(int) onSelect;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final tokens = PsittaTokens.of(context);
     final cards = <Widget>[];
-    var start = 1;
-    for (var p = 0; p < structure.phases.length; p++) {
-      final phase = structure.phases[p];
-      final color = _kActColors[p % _kActColors.length];
-      final end = start + phase.steps.length - 1;
-      final range =
-          phase.steps.length == 1 ? 'Step $start' : 'Steps $start–$end';
+    for (var i = 0; i < structure.variants.length; i++) {
+      final v = structure.variants[i];
+      final isSel = i == selectedVariant;
+      final color = tokens.glow;
       cards.add(Expanded(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: color.withValues(alpha: 0.4)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 24,
-                height: 24,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.18),
-                  shape: BoxShape.circle,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: () => onSelect(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 120),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isSel
+                    ? color.withValues(alpha: 0.14)
+                    : tokens.surface2,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: isSel ? color : tokens.border,
+                  width: isSel ? 1.8 : 1,
                 ),
-                child: Text('${p + 1}',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: color)),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      phase.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          color: color),
+              child: Row(
+                children: [
+                  Icon(
+                    isSel
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 16,
+                    color: isSel ? color : scheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          v.bestFor,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w800,
+                            color: isSel ? color : scheme.onSurface,
+                          ),
+                        ),
+                        Text('${v.components.length} steps',
+                            style: TextStyle(
+                                fontSize: 10.5,
+                                color: scheme.onSurfaceVariant)),
+                      ],
                     ),
-                    Text(range,
-                        style: TextStyle(
-                            fontSize: 10.5, color: scheme.onSurfaceVariant)),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ));
-      if (p < structure.phases.length - 1) {
+      if (i < structure.variants.length - 1) {
         cards.add(const SizedBox(width: 10));
       }
-      start = end + 1;
     }
-    // IntrinsicHeight gives the Row a bounded height so crossAxisAlignment.stretch
-    // works (a stretch Row directly in a Column gets unbounded height → the cards
-    // become infinitely tall → "render box with no size" → blank pane).
     return IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -529,8 +556,11 @@ class _StructureList extends ConsumerWidget {
           return _StructureListCard(
             structure: kNarrativeStructures[idx],
             isSelected: idx == selectedIndex,
-            onTap: () =>
-                ref.read(selectedStructureIndexProvider.notifier).state = idx,
+            onTap: () {
+              // New structure → reset the variant selector to the first one.
+              ref.read(selectedStructureIndexProvider.notifier).state = idx;
+              ref.read(selectedVariantIndexProvider.notifier).state = 0;
+            },
           );
         },
       ),
@@ -614,7 +644,9 @@ class _StructureListCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          '${structure.components.length} sections',
+                          structure.hasVariants
+                              ? '${structure.variants.length} audiences'
+                              : '${structure.components.length} sections',
                           style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w700,
@@ -637,8 +669,9 @@ class _StructureListCard extends StatelessWidget {
 // ── Center: selected structure detail ────────────────────────────────────────
 
 class _StructureDetail extends ConsumerStatefulWidget {
-  const _StructureDetail({required this.structure});
+  const _StructureDetail({required this.structure, required this.variantIndex});
   final NarrativeStructure structure;
+  final int variantIndex;
 
   @override
   ConsumerState<_StructureDetail> createState() => _StructureDetailState();
@@ -646,6 +679,9 @@ class _StructureDetail extends ConsumerStatefulWidget {
 
 class _StructureDetailState extends ConsumerState<_StructureDetail> {
   late Set<int> _selected;
+
+  List<String> get _components =>
+      widget.structure.variants[widget.variantIndex].components;
 
   @override
   void initState() {
@@ -656,16 +692,15 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
   @override
   void didUpdateWidget(covariant _StructureDetail old) {
     super.didUpdateWidget(old);
-    // Reset the picks when the writer switches to a different structure.
-    if (old.structure.name != widget.structure.name) {
+    // Reset the picks when the writer switches structure OR Best-For variant.
+    if (old.structure.name != widget.structure.name ||
+        old.variantIndex != widget.variantIndex) {
       setState(_selectAll);
     }
   }
 
   void _selectAll() {
-    _selected = {
-      for (var i = 0; i < widget.structure.components.length; i++) i,
-    };
+    _selected = {for (var i = 0; i < _components.length; i++) i};
   }
 
   @override
@@ -673,7 +708,9 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final s = widget.structure;
-    final total = s.components.length;
+    final variant = s.variants[widget.variantIndex];
+    final components = _components;
+    final total = components.length;
     final count = _selected.length;
 
     return Padding(
@@ -693,7 +730,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                             fontSize: 18, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 1),
                     Text(
-                      '${s.bestFor}  ·  $count of $total sections selected',
+                      '${variant.bestFor}  ·  $count of $total sections selected',
                       style: TextStyle(
                           fontSize: 11.5, color: scheme.onSurfaceVariant),
                     ),
@@ -718,13 +755,32 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                           s,
                           [
                             for (var i = 0; i < total; i++)
-                              if (_selected.contains(i)) s.components[i],
+                              if (_selected.contains(i)) components[i],
                           ],
                         ),
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          // Best-For selector — pick the audience, the circle redraws.
+          Row(
+            children: [
+              Text('BEST FOR',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                      color: scheme.onSurfaceVariant)),
+            ],
+          ),
           const SizedBox(height: 6),
+          _BestForCards(
+            structure: s,
+            selectedVariant: widget.variantIndex,
+            onSelect: (i) =>
+                ref.read(selectedVariantIndexProvider.notifier).state = i,
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               Text('Pick the sections you want:',
@@ -741,17 +797,31 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
               ),
             ],
           ),
-          if (s.hasActs) ...[
-            const SizedBox(height: 8),
-            _ActCards(structure: s),
-          ],
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Divider(height: 1, color: tokens.divider),
           Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: _StructureCircle(
-                  structure: s, selected: _selected, onToggle: _toggle),
+            child: LayoutBuilder(
+              builder: (context, cns) {
+                // Give the circle generous room so labels never collide or
+                // clip; scroll vertically when the pane is shorter than needed.
+                final n = components.length;
+                final need = 360.0 + (n > 9 ? (n - 9) * 22.0 : 0.0);
+                final hh = math.max(cns.maxHeight, need);
+                return SingleChildScrollView(
+                  child: SizedBox(
+                    width: cns.maxWidth,
+                    height: hh,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 10, bottom: 6),
+                      child: _StructureCircle(
+                        components: components,
+                        selected: _selected,
+                        onToggle: _toggle,
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -766,20 +836,21 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
           _selected.add(i);
         }
       });
-
 }
 
 // ── Right: info panel ────────────────────────────────────────────────────────
 
 class _StructureInfo extends StatelessWidget {
-  const _StructureInfo({required this.structure});
+  const _StructureInfo({required this.structure, required this.variantIndex});
   final NarrativeStructure structure;
+  final int variantIndex;
 
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final tags = structure.bestFor.split(',').map((t) => t.trim()).toList();
+    final variants = structure.variants;
+    final selected = variants[variantIndex];
 
     return Container(
       color: tokens.surface,
@@ -814,19 +885,23 @@ class _StructureInfo extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final t in tags)
+              for (var i = 0; i < variants.length; i++)
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: tokens.glow.withValues(alpha: 0.14),
+                    color: i == variantIndex
+                        ? tokens.glow
+                        : tokens.glow.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(t,
+                  child: Text(variants[i].bestFor,
                       style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
-                          color: tokens.glow)),
+                          color: i == variantIndex
+                              ? Colors.white
+                              : tokens.glow)),
                 ),
             ],
           ),
@@ -834,7 +909,7 @@ class _StructureInfo extends StatelessWidget {
           _label(context, 'INCLUDES'),
           const SizedBox(height: 8),
           _infoRow(scheme, Icons.check_circle_outline,
-              '${structure.components.length} sections'),
+              '${selected.components.length} sections (${selected.bestFor})'),
           const SizedBox(height: 8),
           _infoRow(scheme, Icons.check_circle_outline,
               'Editable in the Writing Desk'),
@@ -865,6 +940,7 @@ class _StructureInfo extends StatelessWidget {
       );
 
   Widget _infoRow(ColorScheme scheme, IconData icon, String text) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 16, color: scheme.onSurfaceVariant),
           const SizedBox(width: 8),
@@ -879,10 +955,11 @@ class _StructureInfo extends StatelessWidget {
 
 // ── Generate a blueprint from a structure ────────────────────────────────────
 
-/// Creates a user blueprint from [s], seeding each component as a section, then
-/// switches to the My Blueprints tab with the new blueprint selected. Sections
-/// are created in reverse with no afterPartId — each becomes the first sibling —
-/// so the final order matches the catalog without id chaining.
+/// Creates a user blueprint from [s], seeding each picked [components] entry as
+/// a section, then switches to the My Blueprints tab with the new blueprint
+/// selected. Sections are created in reverse with no afterPartId — each becomes
+/// the first sibling — so the final order matches the catalog without id
+/// chaining.
 Future<void> _generateFromStructure(
     BuildContext context,
     WidgetRef ref,
@@ -930,8 +1007,8 @@ Future<void> _generateFromStructure(
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-            content: Text(
-                'Created "${s.name}" with ${components.length} sections')),
+            content:
+                Text('Created "${s.name}" with ${components.length} sections')),
       );
     }
   } catch (_) {
