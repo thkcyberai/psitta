@@ -266,11 +266,9 @@ class _StructureCircle extends StatelessWidget {
         // inside its gutters, with generous breathing space all around.
         final r = math.max(52.0, math.min(halfW, halfH) * 0.70);
         final cx = w / 2;
-        // Lift the whole ring up into the unused space above it. Bounded by the
-        // real vertical slack (so the top labels never clip), ~1-2 lines.
-        final vSlack =
-            (h / 2 - r - nodeR - gap - labelH - margin).clamp(0.0, 36.0);
-        final cy = h / 2 - vSlack;
+        // Centre the ring in its room: equal clearance top and bottom so no
+        // label clips on either side.
+        final cy = h / 2;
 
         final children = <Widget>[
           Positioned.fill(
