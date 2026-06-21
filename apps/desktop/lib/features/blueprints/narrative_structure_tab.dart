@@ -261,9 +261,9 @@ class _StructureCircle extends StatelessWidget {
         // Radius = whatever remains after reserving label gutters all round.
         final halfW = w / 2 - labelW - gap - nodeR - margin;
         final halfH = h / 2 - labelH - gap - nodeR - margin;
-        // A touch smaller than the available room so the ring sits comfortably
-        // inside its gutters, with breathing space around the labels.
-        final r = math.max(56.0, math.min(halfW, halfH) * 0.84);
+        // Noticeably smaller than the available room so the ring sits well
+        // inside its gutters, with generous breathing space all around.
+        final r = math.max(52.0, math.min(halfW, halfH) * 0.70);
         final cx = w / 2;
         final cy = h / 2;
 
