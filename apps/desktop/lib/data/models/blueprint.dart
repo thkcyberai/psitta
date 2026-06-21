@@ -31,6 +31,8 @@ class BlueprintSummary {
     required this.status,
     required this.isSystem,
     this.sourceTemplateId,
+    this.narrativeStructureKey,
+    this.narrativeVariant,
   });
 
   factory BlueprintSummary.fromJson(Map<String, dynamic> json) =>
@@ -42,6 +44,8 @@ class BlueprintSummary {
         status: BlueprintStatus.fromWire(json['status'] as String),
         isSystem: json['is_system'] as bool,
         sourceTemplateId: json['source_template_id'] as String?,
+        narrativeStructureKey: json['narrative_structure_key'] as String?,
+        narrativeVariant: json['narrative_variant'] as String?,
       );
 
   final String id;
@@ -51,6 +55,8 @@ class BlueprintSummary {
   final BlueprintStatus status;
   final bool isSystem;
   final String? sourceTemplateId;
+  final String? narrativeStructureKey;
+  final String? narrativeVariant;
 }
 
 /// A blueprint part and its nested children — the recursive read-tree node
@@ -92,6 +98,8 @@ class BlueprintDetail extends BlueprintSummary {
     required super.status,
     required super.isSystem,
     super.sourceTemplateId,
+    super.narrativeStructureKey,
+    super.narrativeVariant,
     required this.parts,
   });
 
@@ -104,6 +112,8 @@ class BlueprintDetail extends BlueprintSummary {
         status: BlueprintStatus.fromWire(json['status'] as String),
         isSystem: json['is_system'] as bool,
         sourceTemplateId: json['source_template_id'] as String?,
+        narrativeStructureKey: json['narrative_structure_key'] as String?,
+        narrativeVariant: json['narrative_variant'] as String?,
         parts: _partNodes(json['parts']),
       );
 
@@ -155,6 +165,8 @@ class AdoptedBlueprint extends BlueprintSummary {
     required super.status,
     required super.isSystem,
     super.sourceTemplateId,
+    super.narrativeStructureKey,
+    super.narrativeVariant,
     required this.isPrimary,
     required this.adoptedAt,
   });
@@ -168,6 +180,8 @@ class AdoptedBlueprint extends BlueprintSummary {
         status: BlueprintStatus.fromWire(json['status'] as String),
         isSystem: json['is_system'] as bool,
         sourceTemplateId: json['source_template_id'] as String?,
+        narrativeStructureKey: json['narrative_structure_key'] as String?,
+        narrativeVariant: json['narrative_variant'] as String?,
         isPrimary: json['is_primary'] as bool,
         adoptedAt: DateTime.parse(json['adopted_at'] as String),
       );
@@ -280,6 +294,8 @@ class BlueprintOverview extends AdoptedBlueprint {
     required super.status,
     required super.isSystem,
     super.sourceTemplateId,
+    super.narrativeStructureKey,
+    super.narrativeVariant,
     required super.isPrimary,
     required super.adoptedAt,
     required this.progress,
@@ -295,6 +311,8 @@ class BlueprintOverview extends AdoptedBlueprint {
         status: BlueprintStatus.fromWire(json['status'] as String),
         isSystem: json['is_system'] as bool,
         sourceTemplateId: json['source_template_id'] as String?,
+        narrativeStructureKey: json['narrative_structure_key'] as String?,
+        narrativeVariant: json['narrative_variant'] as String?,
         isPrimary: json['is_primary'] as bool,
         adoptedAt: DateTime.parse(json['adopted_at'] as String),
         progress:
