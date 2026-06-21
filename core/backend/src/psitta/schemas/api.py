@@ -335,6 +335,8 @@ class BlueprintSummary(StrictSchema):
     status: BlueprintStatusEnum
     is_system: bool
     source_template_id: UUID | None = None
+    narrative_structure_key: str | None = None
+    narrative_variant: str | None = None
 
 
 class PartNode(StrictSchema):
@@ -367,6 +369,8 @@ class BlueprintCreate(StrictSchema):
     description: str | None = None
     genre: GenreEnum
     status: BlueprintStatusEnum = BlueprintStatusEnum.DRAFT
+    narrative_structure_key: str | None = Field(default=None, max_length=80)
+    narrative_variant: str | None = Field(default=None, max_length=80)
 
 
 class BlueprintUpdate(StrictSchema):

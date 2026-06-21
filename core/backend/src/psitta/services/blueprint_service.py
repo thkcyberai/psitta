@@ -189,6 +189,8 @@ async def create_blueprint(
         genre=data.genre.value,
         status=data.status.value,
         source_template_id=None,
+        narrative_structure_key=data.narrative_structure_key,
+        narrative_variant=data.narrative_variant,
     )
     db.add(blueprint)
     await db.flush()  # populate server-generated id

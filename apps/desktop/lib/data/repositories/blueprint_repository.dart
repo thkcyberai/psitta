@@ -55,6 +55,8 @@ class BlueprintRepository {
     required Genre genre,
     String? description,
     BlueprintStatus? status,
+    String? narrativeStructureKey,
+    String? narrativeVariant,
   }) async {
     final body = <String, dynamic>{
       'name': name,
@@ -62,6 +64,10 @@ class BlueprintRepository {
     };
     if (description != null) body['description'] = description;
     if (status != null) body['status'] = _statusToWire(status);
+    if (narrativeStructureKey != null) {
+      body['narrative_structure_key'] = narrativeStructureKey;
+    }
+    if (narrativeVariant != null) body['narrative_variant'] = narrativeVariant;
     final response = await _api.dio.post('/blueprints/', data: body);
     return BlueprintSummary.fromJson(response.data as Map<String, dynamic>);
   }

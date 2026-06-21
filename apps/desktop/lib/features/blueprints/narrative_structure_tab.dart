@@ -760,6 +760,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                           context,
                           ref,
                           s,
+                          variant.bestFor,
                           [
                             for (var i = 0; i < total; i++)
                               if (_selected.contains(i)) components[i],
@@ -971,6 +972,7 @@ Future<void> _generateFromStructure(
     BuildContext context,
     WidgetRef ref,
     NarrativeStructure s,
+    String bestFor,
     List<String> components) async {
   final tabController = DefaultTabController.maybeOf(context);
 
@@ -1002,7 +1004,12 @@ Future<void> _generateFromStructure(
 
   try {
     final actions = ref.read(blueprintActionsProvider);
-    final bp = await actions.createBlueprint(name: s.name, genre: s.genre);
+    final bp = await actions.createBlueprint(
+      name: s.name,
+      genre: s.genre,
+      narrativeStructureKey: s.key,
+      narrativeVariant: bestFor,
+    );
     for (final component in components.reversed) {
       await actions.createPart(bp.id, name: component);
     }

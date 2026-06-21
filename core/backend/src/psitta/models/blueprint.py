@@ -95,6 +95,10 @@ class Blueprint(Base):
         ForeignKey("blueprints.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Narrative origin — set when the blueprint was generated from the Narrative
+    # Structure catalog (NULL for hand-built blueprints). Added in migration 028.
+    narrative_structure_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    narrative_variant: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )

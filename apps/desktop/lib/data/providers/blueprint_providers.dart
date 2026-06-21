@@ -107,12 +107,16 @@ class BlueprintActions {
     required Genre genre,
     String? description,
     BlueprintStatus? status,
+    String? narrativeStructureKey,
+    String? narrativeVariant,
   }) async {
     final created = await _repo.createBlueprint(
       name: name,
       genre: genre,
       description: description,
       status: status,
+      narrativeStructureKey: narrativeStructureKey,
+      narrativeVariant: narrativeVariant,
     );
     // A new blueprint joins the visible list.
     _ref.invalidate(blueprintsListProvider);
