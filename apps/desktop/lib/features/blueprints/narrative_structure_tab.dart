@@ -1,11 +1,9 @@
-import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
-import '../../data/providers/blueprint_providers.dart';
 import 'blueprint_screen_state.dart';
 import 'narrative_structures.dart';
 
@@ -756,15 +754,12 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                 label: const Text('Use this Structure'),
                 onPressed: count == 0
                     ? null
-                    : () => _generateFromStructure(
-                          context,
-                          ref,
-                          s,
-                          variant.bestFor,
-                          [
-                            for (var i = 0; i < total; i++)
-                              if (_selected.contains(i)) components[i],
-                          ],
+                    : () => ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                                'Linking a narrative to your book is coming '
+                                'soon. It leaves your Book Structure untouched.'),
+                          ),
                         ),
               ),
             ],
@@ -959,78 +954,4 @@ class _StructureInfo extends StatelessWidget {
           ),
         ],
       );
-}
-
-// ── Generate a blueprint from a structure ────────────────────────────────────
-
-/// Creates a user blueprint from [s], seeding each picked [components] entry as
-/// a section, then switches to the My Blueprints tab with the new blueprint
-/// selected. Sections are created in reverse with no afterPartId — each becomes
-/// the first sibling — so the final order matches the catalog without id
-/// chaining.
-Future<void> _generateFromStructure(
-    BuildContext context,
-    WidgetRef ref,
-    NarrativeStructure s,
-    String bestFor,
-    List<String> components) async {
-  final tabController = DefaultTabController.maybeOf(context);
-
-  unawaited(showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: (ctx) => Center(
-      child: Material(
-        color: Theme.of(ctx).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(30, 26, 30, 26),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: CircularProgressIndicator(strokeWidth: 2.6)),
-              const SizedBox(height: 16),
-              Text('Building your ${s.name}…',
-                  style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
-          ),
-        ),
-      ),
-    ),
-  ));
-
-  try {
-    final actions = ref.read(blueprintActionsProvider);
-    final bp = await actions.createBlueprint(
-      name: s.name,
-      genre: s.genre,
-      narrativeStructureKey: s.key,
-      narrativeVariant: bestFor,
-    );
-    for (final component in components.reversed) {
-      await actions.createPart(bp.id, name: component);
-    }
-    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-    ref.invalidate(blueprintsListProvider);
-    ref.read(selectedBlueprintIdProvider.notifier).state = bp.id;
-    ref.read(selectedPartIdProvider.notifier).state = null;
-    tabController?.animateTo(0); // jump to My Blueprints
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text('Created "${s.name}" with ${components.length} sections')),
-      );
-    }
-  } catch (_) {
-    if (context.mounted) Navigator.of(context, rootNavigator: true).pop();
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Couldn’t build the structure.')),
-      );
-    }
-  }
 }

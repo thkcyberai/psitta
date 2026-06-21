@@ -6,6 +6,7 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart';
 import 'widgets/project_blueprints_tab.dart';
 import 'widgets/project_documents_tab.dart';
+import 'widgets/project_narrative_tab.dart';
 import 'widgets/project_overview_tab.dart';
 import 'widgets/project_right_rail.dart';
 import 'widgets/add_documents_dialog.dart';
@@ -30,7 +31,7 @@ class ProjectDetailScreen extends ConsumerWidget {
     final tokens = PsittaTokens.of(context);
 
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Column(
@@ -44,6 +45,7 @@ class ProjectDetailScreen extends ConsumerWidget {
                 Tab(text: 'Overview'),
                 Tab(text: 'Documents'),
                 Tab(text: 'Book Structure'),
+                Tab(text: 'Narrative'),
                 Tab(text: 'Activity'),
               ],
             ),
@@ -61,6 +63,7 @@ class ProjectDetailScreen extends ConsumerWidget {
                           projectName: projectName,
                         ),
                         ProjectBlueprintsTab(projectId: projectId),
+                        ProjectNarrativeTab(projectId: projectId),
                         const Center(child: ProjectActivityComingSoon()),
                       ],
                     ),
