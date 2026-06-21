@@ -35,7 +35,7 @@ class BlueprintsScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Padding(
-            padding: EdgeInsets.fromLTRB(28, 14, 28, 0),
+            padding: EdgeInsets.fromLTRB(28, 10, 28, 0),
             child: Align(
               alignment: Alignment.centerLeft,
               child: LibraryBreadcrumb(current: 'Blueprints'),
@@ -43,7 +43,7 @@ class BlueprintsScreen extends ConsumerWidget {
           ),
           // ── Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(28, 8, 28, 12),
+            padding: const EdgeInsets.fromLTRB(28, 2, 28, 8),
             child: Row(
               children: [
                 Icon(Icons.account_tree_outlined,

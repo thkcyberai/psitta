@@ -81,8 +81,9 @@ class _BottomTools extends StatelessWidget {
           'Track your progress through the journey.'),
     ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: Row(
+        // (bottom tools strip — slightly tighter to give the circle room above)
         children: [
           for (final t in tools) ...[
             Expanded(child: _ToolCard(icon: t.$1, title: t.$2, subtitle: t.$3)),
@@ -263,7 +264,7 @@ class _StructureCircle extends StatelessWidget {
         final halfH = h / 2 - labelH - gap - nodeR - margin;
         // Noticeably smaller than the available room so the ring sits well
         // inside its gutters, with generous breathing space all around.
-        final r = math.max(48.0, math.min(halfW, halfH) * 0.62);
+        final r = math.max(52.0, math.min(halfW, halfH) * 0.70);
         final cx = w / 2;
         final cy = h / 2;
 
