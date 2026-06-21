@@ -263,7 +263,7 @@ class _StructureCircle extends StatelessWidget {
         final halfH = h / 2 - labelH - gap - nodeR - margin;
         // Noticeably smaller than the available room so the ring sits well
         // inside its gutters, with generous breathing space all around.
-        final r = math.max(52.0, math.min(halfW, halfH) * 0.70);
+        final r = math.max(48.0, math.min(halfW, halfH) * 0.62);
         final cx = w / 2;
         final cy = h / 2;
 
@@ -714,7 +714,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
     final count = _selected.length;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 14, 28, 12),
+      padding: const EdgeInsets.fromLTRB(28, 10, 28, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -805,14 +805,14 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                 // Give the circle generous room so labels never collide or
                 // clip; scroll vertically when the pane is shorter than needed.
                 final n = components.length;
-                final need = 360.0 + (n > 9 ? (n - 9) * 22.0 : 0.0);
+                final need = 280.0 + (n > 11 ? (n - 11) * 16.0 : 0.0);
                 final hh = math.max(cns.maxHeight, need);
                 return SingleChildScrollView(
                   child: SizedBox(
                     width: cns.maxWidth,
                     height: hh,
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 10, bottom: 6),
+                      padding: const EdgeInsets.only(top: 4, bottom: 4),
                       child: _StructureCircle(
                         components: components,
                         selected: _selected,
