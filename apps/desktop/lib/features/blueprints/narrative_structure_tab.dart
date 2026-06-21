@@ -340,14 +340,18 @@ class _StructureCircle extends StatelessWidget {
           final ax = cx + (r + nodeR + gap) * cosT;
           final ay = cy + (r + nodeR + gap) * sinT;
 
+          // Tuck near-bottom labels directly beneath their node (centred) so
+          // they sit "under" the number instead of fanning far out to the side.
+          final bool centerPlace =
+              cosT.abs() <= 0.18 || (sinT > 0.62 && cosT.abs() <= 0.55);
           final double left;
           final TextAlign align;
           final Alignment boxAlign;
-          if (cosT > 0.18) {
+          if (!centerPlace && cosT > 0) {
             left = ax;
             align = TextAlign.left;
             boxAlign = Alignment.centerLeft;
-          } else if (cosT < -0.18) {
+          } else if (!centerPlace && cosT < 0) {
             left = ax - labelW;
             align = TextAlign.right;
             boxAlign = Alignment.centerRight;
@@ -356,11 +360,10 @@ class _StructureCircle extends StatelessWidget {
             align = TextAlign.center;
             boxAlign = Alignment.center;
           }
-          // Near-vertical (top/bottom) labels sit fully clear of the node;
-          // diagonal/side labels centre on the radial anchor.
-          final double top = cosT.abs() <= 0.18
-              ? (sinT < 0 ? ay - labelH : ay)
-              : ay - labelH / 2;
+          // Centred labels sit fully clear of the node (below at the bottom,
+          // above at the top); side labels centre on the radial anchor.
+          final double top =
+              centerPlace ? (sinT < 0 ? ay - labelH : ay) : ay - labelH / 2;
 
           children.add(Positioned(
             left: left,
