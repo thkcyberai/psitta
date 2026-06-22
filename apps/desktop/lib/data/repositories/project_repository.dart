@@ -91,6 +91,15 @@ class ProjectRepository {
     return ProjectDetail.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Structure Analyzer: whole-manuscript assessment against the project's
+  /// beats (`POST /projects/{id}/narrative/analyze`). Throws DioException on
+  /// 402/403/422/503 so the caller can surface the message.
+  Future<StructureAnalysis> analyzeStructure(String projectId) async {
+    final response =
+        await _api.dio.post('/projects/$projectId/narrative/analyze');
+    return StructureAnalysis.fromJson(response.data as Map<String, dynamic>);
+  }
+
   /// Curated, reverse-chronological Activity feed for a project
   /// (`GET /projects/{id}/activity`).
   Future<List<ActivityEvent>> getProjectActivity(String id,

@@ -8,6 +8,7 @@ import '../../../data/providers/project_providers.dart';
 import '../../blueprints/narrative_structures.dart';
 import 'progress_tracker.dart';
 import 'scene_map_dialog.dart';
+import 'structure_analyzer_dialog.dart';
 
 /// Project → Narrative tab.
 ///
@@ -134,7 +135,58 @@ class _NarrativeView extends StatelessWidget {
         Divider(height: 1, color: tokens.divider),
         const SizedBox(height: 14),
         _MapScenesButton(projectId: projectId, beats: beats),
+        const SizedBox(height: 10),
+        _AnalyzeButton(projectId: projectId),
       ],
+    );
+  }
+}
+
+/// Opens the Structure Analyzer (on-demand whole-manuscript AI assessment).
+class _AnalyzeButton extends StatelessWidget {
+  const _AnalyzeButton({required this.projectId});
+
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: () => showStructureAnalyzer(context, projectId: projectId),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: tokens.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: tokens.border),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.insights_outlined, size: 20, color: tokens.glow),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Analyze structure',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(
+                    'AI checks your writing against each beat · Present / Thin / '
+                    'Missing',
+                    style:
+                        TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward, size: 16, color: tokens.glow),
+          ],
+        ),
+      ),
     );
   }
 }

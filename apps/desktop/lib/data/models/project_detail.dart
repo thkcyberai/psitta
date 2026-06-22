@@ -101,3 +101,75 @@ class ProjectPlacement {
   /// Ordering position within the part (gapped NUMERIC, first append = 1000.0).
   final double sortOrder;
 }
+
+/// One curated entry in a project's Activity feed (`GET /projects/{id}/activity`).
+/// Read-only; mirrors the backend `ActivityEvent` schema. [kind] is a coarse
+/// category for icon choice; [summary] is the display sentence.
+class ActivityEvent {
+  const ActivityEvent({
+    required this.id,
+    required this.kind,
+    required this.summary,
+    required this.createdAt,
+    required this.resourceType,
+    this.resourceId,
+  });
+
+  factory ActivityEvent.fromJson(Map<String, dynamic> json) => ActivityEvent(
+        id: json['id'] as String,
+        kind: json['kind'] as String,
+        summary: json['summary'] as String,
+        createdAt: DateTime.parse(json['created_at'] as String),
+        resourceType: json['resource_type'] as String,
+        resourceId: json['resource_id'] as String?,
+      );
+
+  final String id;
+
+  /// Coarse category: project, narrative, document_add, document_edit,
+  /// document_remove, document_restore, summary, or event.
+  final String kind;
+  final String summary;
+  final DateTime createdAt;
+  final String resourceType;
+  final String? resourceId;
+}
+
+/// One beat's assessment from the Structure Analyzer
+/// (`POST /projects/{id}/narrative/analyze`).
+class StructureBeatResult {
+  const StructureBeatResult({
+    required this.beat,
+    required this.status,
+    required this.note,
+  });
+
+  factory StructureBeatResult.fromJson(Map<String, dynamic> json) =>
+      StructureBeatResult(
+        beat: (json['beat'] as String?) ?? '',
+        status: ((json['status'] as String?) ?? '').toLowerCase(),
+        note: (json['note'] as String?) ?? '',
+      );
+
+  final String beat;
+
+  /// present | thin | missing (anything else → treated as unknown).
+  final String status;
+  final String note;
+}
+
+/// Whole-manuscript Structure Analyzer result.
+class StructureAnalysis {
+  const StructureAnalysis({required this.overall, required this.beats});
+
+  factory StructureAnalysis.fromJson(Map<String, dynamic> json) =>
+      StructureAnalysis(
+        overall: (json['overall'] as String?) ?? '',
+        beats: ((json['beats'] as List?) ?? const [])
+            .map((e) => StructureBeatResult.fromJson(e as Map<String, dynamic>))
+            .toList(),
+      );
+
+  final String overall;
+  final List<StructureBeatResult> beats;
+}

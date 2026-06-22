@@ -8,6 +8,7 @@ import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart';
 import '../projects/widgets/progress_tracker.dart';
 import '../projects/widgets/scene_map_dialog.dart';
+import '../projects/widgets/structure_analyzer_dialog.dart';
 import 'interactive_guide_dialog.dart';
 import 'narrative_structures.dart';
 
@@ -93,7 +94,7 @@ class _BottomTools extends ConsumerWidget {
         Icons.insights_outlined,
         'Structure Analyzer',
         'Analyze your manuscript against this structure.',
-        null,
+        () => pickProjectAndShowAnalyzer(context, ref),
       ),
       (
         Icons.hub_outlined,
@@ -992,14 +993,6 @@ class _StructureInfo extends StatelessWidget {
           const SizedBox(height: 8),
           _infoRow(scheme, Icons.check_circle_outline,
               'Place your documents into each section'),
-          const SizedBox(height: 24),
-          _label(context, 'COMING SOON'),
-          const SizedBox(height: 8),
-          Text(
-            'Structure analyzer, scene mapper, progress tracking and writing tips.',
-            style: TextStyle(
-                fontSize: 12, height: 1.4, color: scheme.onSurfaceVariant),
-          ),
         ],
       ),
     );
