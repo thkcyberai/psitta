@@ -594,6 +594,28 @@ class ProjectNarrativeUpdate(StrictSchema):
     narrative_beats: list[str] | None = None
 
 
+class NarrativeCheckRequest(StrictSchema):
+    """AI Story-Coach: ask whether a drafted passage fits the project's
+    committed narrative. ``beat_index`` is an optional 0-based hint for the
+    beat the writer believes they are currently writing."""
+
+    passage: str = Field(min_length=1, max_length=12_000)
+    beat_index: int | None = Field(default=None, ge=0)
+
+
+class NarrativeCheckResponse(StrictSchema):
+    """The coach's verdict for one passage. ``aligned`` is True unless the
+    passage clearly works against the chosen arc; ``message`` is one short,
+    kind sentence to surface as a nudge."""
+
+    aligned: bool
+    message: str
+    suspected_beat: str
+    tokens_used_this_request: int = Field(ge=0)
+    tokens_used_period: int = Field(ge=0)
+    tokens_limit_period: int = Field(ge=0)
+
+
 class ProjectPlacement(StrictSchema):
     """A document's placement within an adopted blueprint's part (Phase 5, read).
 

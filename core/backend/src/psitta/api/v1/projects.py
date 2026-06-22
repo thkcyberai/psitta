@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
 from psitta.schemas.api import (
+    NarrativeCheckRequest,
+    NarrativeCheckResponse,
     ProjectDetail,
     ProjectNarrativeUpdate,
     ProjectPlacement,
@@ -272,6 +274,38 @@ async def set_project_narrative(
         ip_address=request.client.host if request.client else None,
     )
     return await get_project(project_id=project_id, db=db, user_id=user_id)
+
+
+@router.post("/{project_id}/narrative/check", response_model=NarrativeCheckResponse)
+async def check_project_narrative(
+    project_id: str,
+    data: NarrativeCheckRequest,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> NarrativeCheckResponse:
+    """AI Story-Coach — judge whether a drafted passage fits this project's
+    committed narrative (Writing Nook Pro / Creative Nook Pro).
+
+    Owner-guarded (404 if absent/not-owned). 422 if the project has no
+    narrative attached. Quota-gated against llm_usage_counters: 403 if the plan
+    has no LLM access, 402 if the period quota is exhausted. Privacy-safe — the
+    passage is sent to the LLM for judging but is never logged or audited.
+    """
+    from psitta.services.narrative_coach_service import check_narrative_with_quota
+
+    try:
+        pid = UUID(project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+
+    result = await check_narrative_with_quota(
+        db,
+        user_id,
+        pid,
+        passage=data.passage,
+        beat_index=data.beat_index,
+    )
+    return NarrativeCheckResponse(**result)
 
 
 @router.delete("/{project_id}", status_code=204)
