@@ -7,6 +7,7 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart';
 import 'blueprint_screen_state.dart';
+import 'interactive_guide_dialog.dart';
 import 'narrative_structures.dart';
 
 /// Index of the selected narrative structure within [kNarrativeStructures].
@@ -65,29 +66,62 @@ class NarrativeStructureTab extends ConsumerWidget {
 
 // ── Bottom: analysis tools (Layer 3 — shown as coming soon) ──────────────────
 
-class _BottomTools extends StatelessWidget {
+class _BottomTools extends ConsumerWidget {
   const _BottomTools();
 
   @override
-  Widget build(BuildContext context) {
-    const tools = [
-      (Icons.menu_book_outlined, 'Interactive Guide',
-          'Learn each step with examples and tips.'),
-      (Icons.insights_outlined, 'Structure Analyzer',
-          'Analyze your manuscript against this structure.'),
-      (Icons.hub_outlined, 'Scene Mapper',
-          'Map your chapters to the structure.'),
-      (Icons.track_changes_outlined, 'Progress Tracker',
-          'Track your progress through the journey.'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sIndex = ref
+        .watch(selectedStructureIndexProvider)
+        .clamp(0, kNarrativeStructures.length - 1);
+    final structure = kNarrativeStructures[sIndex];
+    final vIndex = ref
+        .watch(selectedVariantIndexProvider)
+        .clamp(0, structure.variants.length - 1);
+
+    // Interactive Guide is live; the other three remain "Coming soon" (onTap null).
+    final tools = <(IconData, String, String, VoidCallback?)>[
+      (
+        Icons.menu_book_outlined,
+        'Interactive Guide',
+        'Learn each step with examples and tips.',
+        () => showInteractiveGuide(context,
+            structure: structure, variantIndex: vIndex),
+      ),
+      (
+        Icons.insights_outlined,
+        'Structure Analyzer',
+        'Analyze your manuscript against this structure.',
+        null,
+      ),
+      (
+        Icons.hub_outlined,
+        'Scene Mapper',
+        'Map your chapters to the structure.',
+        null,
+      ),
+      (
+        Icons.track_changes_outlined,
+        'Progress Tracker',
+        'Track your progress through the journey.',
+        null,
+      ),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       child: Row(
         // (bottom tools strip — slightly tighter to give the circle room above)
         children: [
-          for (final t in tools) ...[
-            Expanded(child: _ToolCard(icon: t.$1, title: t.$2, subtitle: t.$3)),
-            if (t != tools.last) const SizedBox(width: 12),
+          for (var i = 0; i < tools.length; i++) ...[
+            Expanded(
+              child: _ToolCard(
+                icon: tools[i].$1,
+                title: tools[i].$2,
+                subtitle: tools[i].$3,
+                onTap: tools[i].$4,
+              ),
+            ),
+            if (i < tools.length - 1) const SizedBox(width: 12),
           ],
         ],
       ),
@@ -100,22 +134,30 @@ class _ToolCard extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    this.onTap,
   });
 
   final IconData icon;
   final String title;
   final String subtitle;
 
+  /// When non-null the card is live (tappable, shows an "Open" affordance);
+  /// when null it shows the "Coming soon" pill.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
-    return Container(
+    final active = onTap != null;
+
+    final card = Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: tokens.surface2,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: tokens.border),
+        border: Border.all(
+            color: active ? tokens.glow.withValues(alpha: 0.5) : tokens.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -141,19 +183,43 @@ class _ToolCard extends StatelessWidget {
               style: TextStyle(
                   fontSize: 11, height: 1.3, color: scheme.onSurfaceVariant)),
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: tokens.glow.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(20),
+          if (active)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Open guide',
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        color: tokens.glow)),
+                const SizedBox(width: 3),
+                Icon(Icons.arrow_forward, size: 12, color: tokens.glow),
+              ],
+            )
+          else
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: tokens.glow.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text('Coming soon',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: tokens.glow)),
             ),
-            child: Text('Coming soon',
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.glow)),
-          ),
         ],
+      ),
+    );
+
+    if (!active) return card;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: card,
       ),
     );
   }
