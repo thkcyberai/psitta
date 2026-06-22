@@ -38,12 +38,17 @@ class ProgressTrackerBar extends ConsumerWidget {
       children: [
         Row(
           children: [
+            // Cumulative fill: the first [covered] segments are lit and grow
+            // left-to-right as more beats get covered (a running progress meter,
+            // not a per-beat map — the checklist below shows which beats).
             for (var i = 0; i < beats.length; i++) ...[
               Expanded(
-                child: Container(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 450),
+                  curve: Curves.easeOut,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: _isCovered(docs, beats[i])
+                    color: i < covered
                         ? tokens.glow
                         : scheme.onSurface.withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(4),
