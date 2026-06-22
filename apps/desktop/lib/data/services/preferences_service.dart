@@ -428,3 +428,90 @@ final staySignedInProvider =
     StateNotifierProvider<StaySignedInNotifier, bool>(
   (ref) => StaySignedInNotifier(),
 );
+
+// ── AI Story-Coach (Writing Nook) ─────────────────────────────────────
+
+const bool kDefaultStoryCoachEnabled = true;
+const String _kBaseStoryCoachKey = 'story_coach_enabled';
+const String _kBaseStoryCoachMutedKey = 'story_coach_muted_docs';
+
+/// Global on/off for AI Story-Coach nudges, scoped by user_id. Default on.
+/// New key — no legacy unscoped value to migrate.
+class StoryCoachPreferenceNotifier extends StateNotifier<bool> {
+  StoryCoachPreferenceNotifier({required this.userId})
+      : super(kDefaultStoryCoachEnabled) {
+    if (userId != null) _load();
+  }
+
+  final String? userId;
+
+  Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_userKey(uid, _kBaseStoryCoachKey));
+    if (saved != null) state = saved;
+  }
+
+  Future<void> setEnabled(bool value) async {
+    state = value;
+    final uid = userId;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_userKey(uid, _kBaseStoryCoachKey), value);
+  }
+}
+
+final storyCoachEnabledProvider =
+    StateNotifierProvider<StoryCoachPreferenceNotifier, bool>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return StoryCoachPreferenceNotifier(userId: userId);
+});
+
+/// Per-document opt-out set for the Story-Coach, scoped by user_id. A document
+/// whose id is in this set is never checked (the writer muted it for this file).
+class StoryCoachMutedDocsNotifier extends StateNotifier<Set<String>> {
+  StoryCoachMutedDocsNotifier({required this.userId}) : super(const {}) {
+    if (userId != null) _load();
+  }
+
+  final String? userId;
+
+  Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getStringList(_userKey(uid, _kBaseStoryCoachMutedKey));
+    if (saved != null) state = saved.toSet();
+  }
+
+  bool isMuted(String docId) => state.contains(docId);
+
+  Future<void> mute(String docId) async {
+    if (state.contains(docId)) return;
+    state = {...state, docId};
+    await _persist();
+  }
+
+  Future<void> unmute(String docId) async {
+    if (!state.contains(docId)) return;
+    state = ({...state}..remove(docId));
+    await _persist();
+  }
+
+  Future<void> _persist() async {
+    final uid = userId;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _userKey(uid, _kBaseStoryCoachMutedKey),
+      state.toList(),
+    );
+  }
+}
+
+final storyCoachMutedDocsProvider =
+    StateNotifierProvider<StoryCoachMutedDocsNotifier, Set<String>>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return StoryCoachMutedDocsNotifier(userId: userId);
+});

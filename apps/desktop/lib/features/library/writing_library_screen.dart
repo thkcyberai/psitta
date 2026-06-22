@@ -215,7 +215,11 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     }
   }
 
-  void _openDoc(Document doc) => context.go('/writing-desk/${doc.id}');
+  void _openDoc(Document doc) => context.go(
+        doc.projectId != null
+            ? '/writing-desk/${doc.id}?projectId=${doc.projectId}'
+            : '/writing-desk/${doc.id}',
+      );
 
   void _soon(String label) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1087,7 +1091,11 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   }
 
   // Open the document in the Writing Desk's Read/Listen mode.
-  void _read(Document doc) => context.go('/writing-desk/${doc.id}?read=1');
+  void _read(Document doc) => context.go(
+        doc.projectId != null
+            ? '/writing-desk/${doc.id}?read=1&projectId=${doc.projectId}'
+            : '/writing-desk/${doc.id}?read=1',
+      );
 
   Future<void> _rename(Document doc) async {
     final ctrl = TextEditingController(text: doc.title);

@@ -14,13 +14,19 @@ import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document_assembler.dart';
 import '../../data/models/psitta_document.dart';
 import '../../data/providers/providers.dart';
+import '../../data/providers/project_providers.dart' show projectDetailProvider;
 import '../../data/providers/document_actions.dart';
 import '../projects/widgets/add_documents_dialog.dart';
 import '../analytics/writing_session_tracking.dart';
 import '../../data/services/audio_service.dart'
     show audioServiceProvider, audioPlayingProvider;
 import '../../data/services/preferences_service.dart'
-    show selectedVoiceIdProvider, selectedSpeedProvider, selectedVolumeProvider;
+    show
+        selectedVoiceIdProvider,
+        selectedSpeedProvider,
+        selectedVolumeProvider,
+        storyCoachEnabledProvider,
+        storyCoachMutedDocsProvider;
 import '../../features/editor/chunk_editor_provider.dart';
 import '../player/chunk_slicer.dart'
     show sliceBlocksIntoChunks, assignChunkIdsByContent, ChunkAction;
@@ -146,6 +152,35 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   int _typedChars = 0;
   int _pastedChars = 0;
   static const int _kTypeBurst = 4;
+
+  // ── AI Story-Coach (narrative-deviation nudge) ──────────────────────────────
+  // After a save that wrote changes, ask the backend whether the recent writing
+  // still fits the project's committed narrative. Fail-quiet: a nudge appears
+  // ONLY on a genuine drift verdict; no project, no attached narrative, no LLM
+  // entitlement (Free / out of quota), network errors, and aligned passages all
+  // surface nothing.
+  DateTime _lastCoachAt = DateTime.fromMillisecondsSinceEpoch(0);
+  String _lastCoachText = '';
+  // Full plain text at the last check — the baseline the next check diffs
+  // against so the coach judges only what was newly written (edit-aware).
+  String _prevCheckedPlain = '';
+  String? _coachMessage;
+  String? _coachBeat;
+  static const Duration _kCoachMinGap = Duration(seconds: 20);
+  static const int _kCoachTailChars = 6000;
+  static const int _kCoachMinChars = 200;
+  // After a baseline exists, even a short new sentence is worth checking.
+  static const int _kCoachMinNewChars = 24;
+
+  // Length of the shared leading run of two strings (char-diff anchor).
+  int _commonPrefixLen(String a, String b) {
+    final n = a.length < b.length ? a.length : b.length;
+    var i = 0;
+    while (i < n && a.codeUnitAt(i) == b.codeUnitAt(i)) {
+      i++;
+    }
+    return i;
+  }
 
   void _trackTyping() {
     final controller = _unifiedController;
@@ -563,11 +598,91 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             );
         _typedChars = 0;
         _pastedChars = 0;
+        // AI Story-Coach: check the just-saved writing against the project's
+        // narrative (fire-and-forget; never blocks or fails the save).
+        unawaited(_maybeCoachCheck());
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
       ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.saved;
     }
+  }
+
+  // Fire-and-forget narrative-deviation check after a save that wrote changes.
+  // Fail-quiet by design — returns early (no balloon, no error) when there's no
+  // project, no attached narrative, the throttle window is open, the text is
+  // unchanged, the writer isn't entitled, or the passage is aligned.
+  Future<void> _maybeCoachCheck() async {
+    final projectId = widget.projectId;
+    if (projectId == null) return;
+    final controller = _unifiedController;
+    if (controller == null) return;
+
+    // Opt-outs: global Settings toggle, then per-file mute.
+    if (!ref.read(storyCoachEnabledProvider)) return;
+    if (ref.read(storyCoachMutedDocsProvider).contains(widget.documentId)) {
+      return;
+    }
+
+    // Throttle: at most once per _kCoachMinGap regardless of save frequency.
+    final now = DateTime.now();
+    if (now.difference(_lastCoachAt) < _kCoachMinGap) return;
+
+    final plain = controller.document.toPlainText().trimRight();
+    if (plain.trim().length < _kCoachMinChars) return;
+
+    // Edit-aware: judge what was ADDED since the last check, not the whole
+    // passage. The first check (no baseline yet) judges the recent tail to
+    // establish a baseline; after that, only the newly-written text is sent,
+    // so a single off-arc line in otherwise-good writing is caught.
+    final prev = _prevCheckedPlain;
+    String passage;
+    if (prev.isEmpty) {
+      passage = plain.length > _kCoachTailChars
+          ? plain.substring(plain.length - _kCoachTailChars)
+          : plain;
+      final nl = passage.indexOf('\n');
+      if (plain.length > _kCoachTailChars &&
+          nl > 0 &&
+          nl < passage.length - 1) {
+        passage = passage.substring(nl + 1);
+      }
+    } else {
+      final common = _commonPrefixLen(prev, plain);
+      passage = plain.substring(common);
+      if (passage.length > _kCoachTailChars) {
+        passage = passage.substring(passage.length - _kCoachTailChars);
+      }
+    }
+    passage = passage.trim();
+
+    final minNeeded = prev.isEmpty ? _kCoachMinChars : _kCoachMinNewChars;
+    if (passage.length < minNeeded) return;
+    if (passage == _lastCoachText) return; // unchanged since the last check
+
+    // Only spend an API call / quota when the project actually has a narrative.
+    try {
+      final detail = await ref.read(projectDetailProvider(projectId).future);
+      if (detail.narrativeStructureKey == null) return;
+    } catch (_) {
+      return;
+    }
+    if (!mounted) return;
+
+    _lastCoachAt = now;
+    _lastCoachText = passage;
+    _prevCheckedPlain = plain;
+
+    final result = await ref
+        .read(projectRepositoryProvider)
+        .checkNarrative(projectId, passage: passage);
+    if (!mounted || result == null) return;
+    if (result.aligned || result.message.trim().isEmpty) return;
+    setState(() {
+      _coachMessage = result.message.trim();
+      final beat = result.suspectedBeat.trim();
+      _coachBeat = beat.isEmpty ? null : beat;
+    });
   }
 
   Widget _buildEditPaper(BuildContext context) {
@@ -910,8 +1025,209 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             _buildFindBar(context),
             const Divider(height: 1),
           ],
-          Expanded(child: _buildCenterBody(context, tokens, docAsync)),
+          // AI Story-Coach nudge — a thinking balloon on the right edge of the
+          // document, present only on a genuine drift verdict. Non-blocking
+          // (overlaid, never modal, never over the player bar).
+          Expanded(
+            child: Stack(
+              children: [
+                _buildCenterBody(context, tokens, docAsync),
+                if (_coachMessage != null)
+                  Positioned(
+                    top: 18,
+                    right: 18,
+                    child: _CoachThoughtBubble(
+                      message: _coachMessage!,
+                      beat: _coachBeat,
+                      onDismiss: () => setState(() {
+                        _coachMessage = null;
+                        _coachBeat = null;
+                      }),
+                      onMute: () {
+                        ref
+                            .read(storyCoachMutedDocsProvider.notifier)
+                            .mute(widget.documentId);
+                        setState(() {
+                          _coachMessage = null;
+                          _coachBeat = null;
+                        });
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+// ── AI Story-Coach thinking balloon ─────────────────────────────────────────
+
+/// A non-blocking "thinking balloon" that floats at the right edge of the
+/// document when the writer's latest writing drifts from the project's
+/// narrative. The Psitta bird "thinks" the bubble (cloud + trailing dots);
+/// dismissible, never modal, never over the player bar.
+class _CoachThoughtBubble extends StatelessWidget {
+  const _CoachThoughtBubble({
+    required this.message,
+    required this.onDismiss,
+    required this.onMute,
+    this.beat,
+  });
+
+  final String message;
+  final String? beat;
+  final VoidCallback onDismiss;
+  final VoidCallback onMute;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final accent = tokens.glow;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 300),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // The thought "cloud".
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: accent.withValues(alpha: 0.35)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.18),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.auto_stories_outlined, size: 15, color: accent),
+                    const SizedBox(width: 6),
+                    Text(
+                      'STORY-COACH',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: accent,
+                      ),
+                    ),
+                    const Spacer(),
+                    InkWell(
+                      key: const ValueKey('desk-coach-dismiss'),
+                      onTap: onDismiss,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2),
+                        child: Icon(Icons.close,
+                            size: 15, color: scheme.onSurfaceVariant),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  message,
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w500,
+                    color: scheme.onSurface,
+                  ),
+                ),
+                if (beat != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Reads like: $beat',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontStyle: FontStyle.italic,
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      key: const ValueKey('desk-coach-mute'),
+                      onPressed: onMute,
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: scheme.onSurfaceVariant,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: const Text('Mute here',
+                          style: TextStyle(fontSize: 12)),
+                    ),
+                    TextButton(
+                      onPressed: onDismiss,
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: accent,
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: const Text('Got it',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700)),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // Trailing thought dots (bubble → thinker).
+          Padding(
+            padding: const EdgeInsets.only(right: 24, top: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                _dot(scheme, accent, 9),
+                const SizedBox(height: 3),
+                _dot(scheme, accent, 6),
+              ],
+            ),
+          ),
+          const SizedBox(height: 2),
+          // The Psitta bird, "thinking".
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Image.asset(
+              'assets/branding/psitta-bird.png',
+              width: 40,
+              height: 40,
+              errorBuilder: (_, __, ___) =>
+                  Icon(Icons.flutter_dash, size: 36, color: accent),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dot(ColorScheme scheme, Color accent, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        shape: BoxShape.circle,
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
       ),
     );
   }

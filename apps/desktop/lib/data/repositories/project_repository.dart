@@ -31,6 +31,28 @@ class Project {
   final String? coverValue;
 }
 
+/// AI Story-Coach verdict for one passage (`POST /projects/{id}/narrative/check`).
+class NarrativeCheckResult {
+  const NarrativeCheckResult({
+    required this.aligned,
+    required this.message,
+    required this.suspectedBeat,
+  });
+
+  factory NarrativeCheckResult.fromJson(Map<String, dynamic> json) =>
+      NarrativeCheckResult(
+        aligned: json['aligned'] as bool? ?? true,
+        message: (json['message'] as String?) ?? '',
+        suspectedBeat: (json['suspected_beat'] as String?) ?? '',
+      );
+
+  /// True when the passage fits the project's chosen arc. Defaults true so a
+  /// malformed response never raises a false alarm.
+  final bool aligned;
+  final String message;
+  final String suspectedBeat;
+}
+
 class ProjectRepository {
   ProjectRepository(this._api);
   final ApiClient _api;
@@ -76,6 +98,29 @@ class ProjectRepository {
     return (response.data as List)
         .map((e) => ProjectPlacement.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// AI Story-Coach: ask whether [passage] fits the project's committed
+  /// narrative (`POST /projects/{id}/narrative/check`).
+  ///
+  /// Fail-quiet by design — returns null on ANY error (no LLM plan → 403,
+  /// quota exhausted → 402, no narrative → 422, network/5xx/timeout), so the
+  /// caller can simply skip showing a nudge and never surfaces an error.
+  Future<NarrativeCheckResult?> checkNarrative(
+    String projectId, {
+    required String passage,
+  }) async {
+    try {
+      final response = await _api.dio.post(
+        '/projects/$projectId/narrative/check',
+        data: {'passage': passage},
+      );
+      return NarrativeCheckResult.fromJson(
+        response.data as Map<String, dynamic>,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> renameProject(String id, String name) async {

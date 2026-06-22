@@ -264,6 +264,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           _SettingsCard(
+            icon: Icons.auto_stories_outlined,
+            title: 'Story-Coach',
+            children: [
+              SwitchListTile(
+                title: const Text('AI Story-Coaching'),
+                subtitle: const Text(
+                  "Nudge me when my writing drifts from my book's narrative",
+                  style: TextStyle(fontSize: 11),
+                ),
+                value: ref.watch(storyCoachEnabledProvider),
+                onChanged: (v) =>
+                    ref.read(storyCoachEnabledProvider.notifier).setEnabled(v),
+              ),
+            ],
+          ),
+          _SettingsCard(
             icon: Icons.sd_storage_outlined,
             title: 'Storage',
             children: [
