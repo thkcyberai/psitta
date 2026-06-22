@@ -17,6 +17,7 @@ from psitta.schemas.api import (
     ProjectDetail,
     ProjectNarrativeUpdate,
     ProjectPlacement,
+    StructureAnalysisResponse,
 )
 from psitta.services import audit_service
 
@@ -308,6 +309,34 @@ async def check_project_narrative(
         beat_index=data.beat_index,
     )
     return NarrativeCheckResponse(**result)
+
+
+@router.post("/{project_id}/narrative/analyze",
+             response_model=StructureAnalysisResponse)
+async def analyze_project_structure(
+    project_id: str,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> StructureAnalysisResponse:
+    """Structure Analyzer — assess the whole manuscript against this project's
+    narrative beats (Writing Nook Pro / Creative Nook Pro).
+
+    Owner-guarded (404). 422 if the project has no narrative or no written text.
+    Quota-gated against llm_usage_counters: 403 if the plan has no LLM access,
+    402 if the period quota is exhausted. Privacy-safe — the manuscript is sent
+    to the LLM but never logged or audited.
+    """
+    from psitta.services.structure_analysis_service import (
+        analyze_structure_with_quota,
+    )
+
+    try:
+        pid = UUID(project_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Project not found") from exc
+
+    result = await analyze_structure_with_quota(db, user_id, pid)
+    return StructureAnalysisResponse(**result)
 
 
 # ── Activity feed ───────────────────────────────────────────────────────────

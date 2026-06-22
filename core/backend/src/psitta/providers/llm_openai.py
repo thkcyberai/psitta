@@ -51,6 +51,26 @@ _COACH_SYSTEM_PROMPT = (
     "never a command. Address the writer as 'you'."
 )
 
+# Structure Analyzer: whole-manuscript assessment against the chosen arc.
+_ANALYZE_SYSTEM_PROMPT = (
+    "You are a seasoned developmental editor. You will be given a story's "
+    "narrative structure, its audience variant, an ordered list of beats, and "
+    "the manuscript (or as much of it as fits). Assess how well the actual "
+    "WRITING delivers each beat — judge the text, not the outline.\n"
+    "For EACH beat in the provided list, decide a status:\n"
+    '  - "present": the beat is clearly written and lands.\n'
+    '  - "thin": the beat is touched but underwritten, rushed, or weak.\n'
+    '  - "missing": the beat does not appear in the manuscript at all.\n'
+    "Stay grounded in the actual text; never invent content that is not there. "
+    "A beat with no corresponding writing is 'missing', not 'thin'.\n"
+    "Respond with ONLY a JSON object, no prose, no code fences, with exactly:\n"
+    '  "overall": string — 2 to 3 warm, specific sentences on the manuscript\'s '
+    "structural health (its strengths and the single biggest gap).\n"
+    '  "beats": array — one object per beat IN THE GIVEN ORDER, each with '
+    '"beat" (the EXACT beat label provided), "status" '
+    '(present|thin|missing), and "note" (one short, specific, kind sentence).'
+)
+
 
 class LlmProviderError(Exception):
     """Raised when the LLM provider call fails."""
@@ -249,3 +269,104 @@ class LlmOpenAIProvider:
         )
 
         return verdict, prompt_tokens, completion_tokens
+
+    async def analyze_structure(
+        self,
+        *,
+        structure_name: str,
+        variant: str | None,
+        beats: list[str],
+        manuscript: str,
+    ) -> tuple[dict, int, int]:
+        """Assess a whole manuscript against its narrative beats.
+
+        Returns (analysis, prompt_tokens, completion_tokens) where analysis is a
+        dict with ``overall`` (str) and ``beats`` (list of {beat, status, note}).
+        Always coerced to a safe shape; a parse failure degrades to an empty
+        analysis rather than raising.
+
+        Raises:
+            LlmProviderError on network errors or non-200 status codes.
+        """
+        beat_lines = "\n".join(
+            f"  {i + 1}. {b}" for i, b in enumerate(beats)
+        ) or "  (none)"
+        arc_label = structure_name + (f" — {variant}" if variant else "")
+        user_content = (
+            f"NARRATIVE: {arc_label}\n"
+            f"BEATS (in order):\n{beat_lines}\n\n"
+            f"MANUSCRIPT:\n{manuscript}"
+        )
+
+        payload = {
+            "model": self._model,
+            "messages": [
+                {"role": "system", "content": _ANALYZE_SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            "max_tokens": 1100,
+            "response_format": {"type": "json_object"},
+        }
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                response = await client.post(
+                    _CHAT_URL,
+                    json=payload,
+                    headers=headers,
+                )
+        except httpx.RequestError as exc:
+            logger.error("llm.openai.analyze.request_error", error=str(exc))
+            raise LlmProviderError(f"OpenAI request failed: {exc}") from exc
+
+        if response.status_code != 200:
+            logger.error(
+                "llm.openai.analyze.error_status",
+                status=response.status_code,
+                body=response.text[:200],
+            )
+            raise LlmProviderError(f"OpenAI returned HTTP {response.status_code}")
+
+        data = response.json()
+        raw: str = data["choices"][0]["message"]["content"]
+        usage = data.get("usage", {})
+        prompt_tokens: int = usage.get("prompt_tokens", 0)
+        completion_tokens: int = usage.get("completion_tokens", 0)
+
+        analysis: dict = {"overall": "", "beats": []}
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                overall = parsed.get("overall")
+                analysis["overall"] = overall if isinstance(overall, str) else ""
+                beats_out = parsed.get("beats")
+                if isinstance(beats_out, list):
+                    clean: list[dict] = []
+                    for item in beats_out:
+                        if not isinstance(item, dict):
+                            continue
+                        b = item.get("beat")
+                        s = item.get("status")
+                        n = item.get("note")
+                        clean.append({
+                            "beat": b if isinstance(b, str) else "",
+                            "status": (s if isinstance(s, str) else "").lower(),
+                            "note": n if isinstance(n, str) else "",
+                        })
+                    analysis["beats"] = clean
+        except (ValueError, TypeError) as exc:
+            logger.warning("llm.openai.analyze.parse_failed", error=str(exc))
+
+        logger.info(
+            "llm.openai.analyze.ok",
+            model=self._model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            beat_count=len(analysis["beats"]),
+        )
+
+        return analysis, prompt_tokens, completion_tokens

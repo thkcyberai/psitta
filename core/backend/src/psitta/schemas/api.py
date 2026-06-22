@@ -639,6 +639,25 @@ class DocumentBeatUpdate(StrictSchema):
     beat: str | None = Field(default=None, max_length=120)
 
 
+class StructureBeatResult(StrictSchema):
+    """One beat's assessment in a whole-manuscript Structure Analysis."""
+
+    beat: str
+    status: str  # present | thin | missing
+    note: str
+
+
+class StructureAnalysisResponse(StrictSchema):
+    """Structure Analyzer result: an overall read plus a per-beat assessment of
+    how well the actual writing delivers each beat."""
+
+    overall: str
+    beats: list[StructureBeatResult]
+    tokens_used_this_request: int = Field(ge=0)
+    tokens_used_period: int = Field(ge=0)
+    tokens_limit_period: int = Field(ge=0)
+
+
 class ProjectPlacement(StrictSchema):
     """A document's placement within an adopted blueprint's part (Phase 5, read).
 
