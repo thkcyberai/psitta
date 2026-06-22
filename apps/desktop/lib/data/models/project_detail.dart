@@ -20,6 +20,9 @@ class ProjectDetail {
     required this.documentCount,
     required this.blueprintCount,
     required this.totalWords,
+    this.narrativeStructureKey,
+    this.narrativeVariant,
+    this.narrativeBeats,
   });
 
   factory ProjectDetail.fromJson(Map<String, dynamic> json) => ProjectDetail(
@@ -31,6 +34,11 @@ class ProjectDetail {
         documentCount: (json['document_count'] as num).toInt(),
         blueprintCount: (json['blueprint_count'] as num).toInt(),
         totalWords: (json['total_words'] as num).toInt(),
+        narrativeStructureKey: json['narrative_structure_key'] as String?,
+        narrativeVariant: json['narrative_variant'] as String?,
+        narrativeBeats: (json['narrative_beats'] as List?)
+            ?.map((e) => e as String)
+            .toList(),
       );
 
   final String id;
@@ -49,6 +57,11 @@ class ProjectDetail {
 
   /// Sum of word_count over non-deleted documents.
   final int totalWords;
+
+  /// The project's chosen narrative — NULL until the writer attaches one.
+  final String? narrativeStructureKey;
+  final String? narrativeVariant;
+  final List<String>? narrativeBeats;
 }
 
 /// A document's placement within an adopted blueprint's part

@@ -53,6 +53,22 @@ class ProjectRepository {
     return ProjectDetail.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Set (or clear) the project's chosen narrative
+  /// (`PUT /projects/{id}/narrative`). Returns the refreshed detail.
+  Future<ProjectDetail> setProjectNarrative(
+    String id, {
+    required String? structureKey,
+    required String? variant,
+    required List<String>? beats,
+  }) async {
+    final response = await _api.dio.put('/projects/$id/narrative', data: {
+      'narrative_structure_key': structureKey,
+      'narrative_variant': variant,
+      'narrative_beats': beats,
+    });
+    return ProjectDetail.fromJson(response.data as Map<String, dynamic>);
+  }
+
   /// Document→blueprint/part placements for a project
   /// (`GET /projects/{id}/placements`).
   Future<List<ProjectPlacement>> getProjectPlacements(String id) async {

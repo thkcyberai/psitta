@@ -1,18 +1,177 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
+import '../../../data/providers/project_providers.dart';
+import '../../blueprints/narrative_structures.dart';
 
 /// Project → Narrative tab.
 ///
-/// The home for the story shape *this book* follows — the chosen structure
-/// (e.g. the Hero's Journey), its audience (Best For), and the beats. The pick
-/// + attach flow and its persisted, project-scoped data land with the
-/// project-narrative backend work; until then this is the honest placeholder so
-/// the surface lives exactly where writers expect it, beside Book Structure.
-class ProjectNarrativeTab extends StatelessWidget {
+/// Shows the story shape THIS book follows — the writer's saved pick (structure
+/// + Best-For + the chosen beats). Read-only here; the writer chooses or changes
+/// it from Blueprints → Narrative Structure ("Use this Structure"). This is also
+/// where the AI Story-Coach will surface deviation nudges in a later phase.
+class ProjectNarrativeTab extends ConsumerWidget {
   const ProjectNarrativeTab({super.key, required this.projectId});
 
   final String projectId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final detail = ref.watch(projectDetailProvider(projectId));
+    return detail.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Could not load the narrative: $e')),
+      data: (p) {
+        final hasNarrative =
+            p.narrativeVariant != null || p.narrativeStructureKey != null;
+        if (!hasNarrative) return const _NarrativeEmpty();
+        return _NarrativeView(
+          structureKey: p.narrativeStructureKey,
+          variant: p.narrativeVariant,
+          beats: p.narrativeBeats ?? const [],
+        );
+      },
+    );
+  }
+}
+
+/// Map a stored catalog key back to its display name (e.g. 'hero_s_journey' →
+/// "Hero's Journey"); falls back to a prettified slug if not found.
+String _structureDisplayName(String? key) {
+  if (key == null || key.isEmpty) return 'Narrative';
+  for (final s in kNarrativeStructures) {
+    if (s.key == key) return s.name;
+  }
+  return key
+      .split('_')
+      .where((w) => w.isNotEmpty)
+      .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+      .join(' ');
+}
+
+class _NarrativeView extends StatelessWidget {
+  const _NarrativeView({
+    required this.structureKey,
+    required this.variant,
+    required this.beats,
+  });
+
+  final String? structureKey;
+  final String? variant;
+  final List<String> beats;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final name = _structureDisplayName(structureKey);
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(28, 22, 28, 24),
+      children: [
+        Row(
+          children: [
+            Icon(Icons.auto_stories_outlined, size: 22, color: tokens.glow),
+            const SizedBox(width: 10),
+            Text('This book follows',
+                style: TextStyle(
+                    fontSize: 13, color: scheme.onSurfaceVariant)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 10,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text(name,
+                style:
+                    const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+            if (variant != null)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: tokens.glow.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(variant!,
+                    style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: tokens.glow)),
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${beats.length} beats chosen. Change this in Blueprints → Narrative '
+          'Structure.',
+          style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 18),
+        Divider(height: 1, color: tokens.divider),
+        const SizedBox(height: 14),
+        Text('YOUR BEATS',
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.8,
+                color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 10),
+        for (var i = 0; i < beats.length; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: tokens.glow.withValues(alpha: 0.14),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Text('${i + 1}',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: tokens.glow)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(beats[i],
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w500)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 18),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+            color: tokens.glow.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text('AI coaching · coming soon',
+              style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: tokens.glow)),
+        ),
+      ],
+    );
+  }
+}
+
+class _NarrativeEmpty extends StatelessWidget {
+  const _NarrativeEmpty();
 
   @override
   Widget build(BuildContext context) {
@@ -28,35 +187,16 @@ class ProjectNarrativeTab extends StatelessWidget {
             children: [
               Icon(Icons.auto_stories_outlined, size: 40, color: tokens.glow),
               const SizedBox(height: 14),
-              const Text(
-                'Narrative Structure',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-              ),
+              const Text('Narrative Structure',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
               Text(
-                'The story shape this book follows will live here — the '
-                'structure (e.g. the Hero\'s Journey), its audience, and the '
-                'beats. Browse and choose one in Blueprints → Narrative '
-                'Structure. Linking it to your book arrives soon.',
+                'This book doesn\'t follow a narrative yet. Choose one in '
+                'Blueprints → Narrative Structure and tap "Use this Structure" '
+                'to attach it to this book — your Book Structure stays untouched.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 13, height: 1.5, color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                decoration: BoxDecoration(
-                  color: tokens.glow.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'Coming soon',
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      fontWeight: FontWeight.w700,
-                      color: tokens.glow),
-                ),
               ),
             ],
           ),

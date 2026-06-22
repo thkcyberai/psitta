@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
+import '../../data/providers/project_providers.dart';
+import '../../data/providers/providers.dart';
 import 'blueprint_screen_state.dart';
 import 'narrative_structures.dart';
 
@@ -754,12 +756,16 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                 label: const Text('Use this Structure'),
                 onPressed: count == 0
                     ? null
-                    : () => ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                                'Linking a narrative to your book is coming '
-                                'soon. It leaves your Book Structure untouched.'),
-                          ),
+                    : () => _attachNarrativeToProject(
+                          context,
+                          ref,
+                          s.name,
+                          s.key,
+                          variant.bestFor,
+                          [
+                            for (var i = 0; i < total; i++)
+                              if (_selected.contains(i)) components[i],
+                          ],
                         ),
               ),
             ],
@@ -954,4 +960,63 @@ class _StructureInfo extends StatelessWidget {
           ),
         ],
       );
+}
+
+// ── Attach the chosen narrative to a project ─────────────────────────────────
+
+/// Saves the writer's narrative pick (structure + Best-For + chosen beats) onto
+/// a project via PUT /projects/{id}/narrative. It never touches Book Structure.
+/// Auto-targets the only book, or asks which one when there are several.
+Future<void> _attachNarrativeToProject(
+  BuildContext context,
+  WidgetRef ref,
+  String structureName,
+  String structureKey,
+  String variant,
+  List<String> beats,
+) async {
+  final repo = ref.read(projectRepositoryProvider);
+  final projects =
+      ref.read(projectsProvider).valueOrNull ?? await repo.listProjects();
+  if (!context.mounted) return;
+  if (projects.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Create a project first, then attach a narrative to its book.')));
+    return;
+  }
+  final projectId = projects.length == 1
+      ? projects.first.id
+      : await showDialog<String>(
+          context: context,
+          builder: (ctx) => SimpleDialog(
+            title: const Text('Add this narrative to which book?'),
+            children: [
+              for (final p in projects)
+                SimpleDialogOption(
+                  onPressed: () => Navigator.of(ctx).pop(p.id),
+                  child: Text(p.name),
+                ),
+            ],
+          ),
+        );
+  if (projectId == null || !context.mounted) return;
+  try {
+    await repo.setProjectNarrative(
+      projectId,
+      structureKey: structureKey,
+      variant: variant,
+      beats: beats,
+    );
+    ref.invalidate(projectDetailProvider(projectId));
+    if (!context.mounted) return;
+    final pname = projects.firstWhere((p) => p.id == projectId).name;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('$structureName · $variant saved to "$pname".')));
+  } catch (_) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not save the narrative. Please try again.')));
+    }
+  }
 }
