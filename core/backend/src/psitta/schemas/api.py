@@ -632,6 +632,13 @@ class ActivityEvent(StrictSchema):
     resource_id: UUID | None = None
 
 
+class DocumentBeatUpdate(StrictSchema):
+    """Scene Mapper: set (or clear) which narrative beat a document covers.
+    ``beat`` is the beat label, or null to unassign."""
+
+    beat: str | None = Field(default=None, max_length=120)
+
+
 class ProjectPlacement(StrictSchema):
     """A document's placement within an adopted blueprint's part (Phase 5, read).
 

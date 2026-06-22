@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from psitta.dependencies import get_current_user_id, get_db_session
 from psitta.schemas.api import (
     ActivityEvent,
+    DocumentBeatUpdate,
     NarrativeCheckRequest,
     NarrativeCheckResponse,
     ProjectDetail,
@@ -327,6 +328,7 @@ _ACTIVITY_ACTIONS: list[str] = [
     "document.assign_project",
     "document.duplicate",
     "document.summarized",
+    "document.set_narrative_beat",
     "recording.create",
 ]
 
@@ -368,6 +370,11 @@ def _activity_entry(
         return ("document_edit", f"Edited {quoted}")
     if action == "document.summarized":
         return ("summary", f"Summarized {quoted}")
+    if action == "document.set_narrative_beat":
+        beat = details.get("beat") if isinstance(details, dict) else None
+        if beat:
+            return ("narrative", f"Mapped {quoted} to the {beat} beat")
+        return ("narrative", f"Unassigned {quoted} from its beat")
     if action == "document.delete":
         return ("document_remove", f"Moved {quoted} to Trash")
     if action == "document.archive":
@@ -487,7 +494,7 @@ async def list_project_documents(
         text("""
             SELECT id, title, source_type, status, page_count, word_count,
                    file_size_bytes, created_at, project_id,
-                   cover_type, cover_value
+                   cover_type, cover_value, narrative_beat
             FROM documents
             WHERE project_id = :pid
               AND status != 'deleted'
@@ -509,8 +516,58 @@ async def list_project_documents(
             "project_id": str(row["project_id"]) if row["project_id"] else None,
             "cover_type": row["cover_type"],
             "cover_value": row["cover_value"],
+            "narrative_beat": row["narrative_beat"],
         })
     return result
+
+
+@router.put("/{project_id}/documents/{document_id}/beat")
+async def set_document_narrative_beat(
+    project_id: str,
+    document_id: str,
+    data: DocumentBeatUpdate,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Scene Mapper: map a document to a narrative beat (or unassign with null).
+
+    Owner-guarded via the project (404 if absent/not-owned), and the document
+    must belong to this project (404 otherwise). Sets ``documents.narrative_beat``
+    to the chosen beat label and audit-logs ``document.set_narrative_beat`` so the
+    change surfaces in the project Activity feed.
+    """
+    await _get_project_or_404(project_id, str(user_id), db)
+
+    # The document must belong to this project (and not be deleted).
+    doc = await db.execute(
+        text(
+            "SELECT id, title FROM documents "
+            "WHERE id = :did AND project_id = :pid AND status != 'deleted'"
+        ),
+        {"did": document_id, "pid": project_id},
+    )
+    row = doc.mappings().first()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    beat = (data.beat or "").strip() or None
+    await db.execute(
+        text("UPDATE documents SET narrative_beat = :beat WHERE id = :did"),
+        {"beat": beat, "did": document_id},
+    )
+    await db.commit()
+
+    await audit_service.log_event(
+        db,
+        action="document.set_narrative_beat",
+        resource_type="document",
+        user_id=str(user_id),
+        resource_id=document_id,
+        details={"beat": beat, "title": row["title"]},
+        ip_address=request.client.host if request.client else None,
+    )
+    return {"id": document_id, "narrative_beat": beat}
 
 
 @router.get("/{project_id}/placements", response_model=list[ProjectPlacement])
