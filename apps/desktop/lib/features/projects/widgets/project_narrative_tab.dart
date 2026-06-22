@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
+import '../../../data/models/document.dart';
 import '../../../data/providers/project_providers.dart';
 import '../../blueprints/narrative_structures.dart';
 import 'scene_map_dialog.dart';
@@ -124,38 +126,7 @@ class _NarrativeView extends StatelessWidget {
                 letterSpacing: 0.8,
                 color: scheme.onSurfaceVariant)),
         const SizedBox(height: 10),
-        for (var i = 0; i < beats.length; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: tokens.glow.withValues(alpha: 0.14),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text('${i + 1}',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                          color: tokens.glow)),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Text(beats[i],
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500)),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        _YourBeats(projectId: projectId, beats: beats),
         const SizedBox(height: 22),
         Divider(height: 1, color: tokens.divider),
         const SizedBox(height: 14),
@@ -218,6 +189,134 @@ class _MapScenesButton extends ConsumerWidget {
             Icon(Icons.arrow_forward, size: 16, color: tokens.glow),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The chosen beats as the readable "spine": each beat with the file(s) mapped
+/// to it underneath, clickable to open in the Writing Desk. Assigning happens in
+/// the Scene Map dialog; this is the at-a-glance view.
+class _YourBeats extends ConsumerWidget {
+  const _YourBeats({required this.projectId, required this.beats});
+
+  final String projectId;
+  final List<String> beats;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final docs =
+        ref.watch(projectDocumentsProvider(projectId)).valueOrNull ??
+            const <Document>[];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < beats.length; i++)
+          _BeatRow(
+            index: i,
+            beat: beats[i],
+            projectId: projectId,
+            files: [
+              for (final d in docs)
+                if (d.narrativeBeat == beats[i]) d,
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _BeatRow extends StatelessWidget {
+  const _BeatRow({
+    required this.index,
+    required this.beat,
+    required this.files,
+    required this.projectId,
+  });
+
+  final int index;
+  final String beat;
+  final List<Document> files;
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final hasFiles = files.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: hasFiles
+                      ? tokens.glow.withValues(alpha: 0.16)
+                      : scheme.onSurface.withValues(alpha: 0.07),
+                  shape: BoxShape.circle,
+                ),
+                child: Text('${index + 1}',
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color:
+                            hasFiles ? tokens.glow : scheme.onSurfaceVariant)),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(beat,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w500)),
+                ),
+              ),
+            ],
+          ),
+          for (final f in files)
+            Padding(
+              padding: const EdgeInsets.only(left: 36, top: 4),
+              child: Tooltip(
+                message: 'Open in the Writing Desk',
+                child: InkWell(
+                  onTap: () => context
+                      .go('/writing-desk/${f.id}?projectId=$projectId'),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2),
+                    child: Row(
+                      children: [
+                        Icon(Icons.description_outlined,
+                            size: 14, color: tokens.glow),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(f.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: tokens.glow)),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.north_east,
+                            size: 12,
+                            color: tokens.glow.withValues(alpha: 0.7)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/models/document.dart';
@@ -309,12 +308,6 @@ class _FileRow extends ConsumerWidget {
       }
     }
 
-    void openInDesk() {
-      final go = GoRouter.of(context);
-      Navigator.of(context).pop();
-      go.go('/writing-desk/${doc.id}?projectId=$projectId');
-    }
-
     return Padding(
       padding: const EdgeInsets.only(left: 32, top: 3, bottom: 3),
       child: Row(
@@ -323,21 +316,11 @@ class _FileRow extends ConsumerWidget {
               size: 15, color: scheme.onSurfaceVariant),
           const SizedBox(width: 8),
           Expanded(
-            child: Tooltip(
-              message: 'Open in the Writing Desk',
-              child: InkWell(
-                onTap: openInDesk,
-                borderRadius: BorderRadius.circular(4),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(doc.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w500)),
-                ),
-              ),
-            ),
+            child: Text(doc.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
           ),
           PopupMenuButton<String?>(
             tooltip: 'Move to beat',
