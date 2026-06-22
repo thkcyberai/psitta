@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/providers/project_providers.dart';
 import '../../blueprints/narrative_structures.dart';
+import 'scene_map_dialog.dart';
 
 /// Project → Narrative tab.
 ///
@@ -27,6 +28,7 @@ class ProjectNarrativeTab extends ConsumerWidget {
             p.narrativeVariant != null || p.narrativeStructureKey != null;
         if (!hasNarrative) return const _NarrativeEmpty();
         return _NarrativeView(
+          projectId: projectId,
           structureKey: p.narrativeStructureKey,
           variant: p.narrativeVariant,
           beats: p.narrativeBeats ?? const [],
@@ -52,11 +54,13 @@ String _structureDisplayName(String? key) {
 
 class _NarrativeView extends StatelessWidget {
   const _NarrativeView({
+    required this.projectId,
     required this.structureKey,
     required this.variant,
     required this.beats,
   });
 
+  final String projectId;
   final String? structureKey;
   final String? variant;
   final List<String> beats;
@@ -152,20 +156,69 @@ class _NarrativeView extends StatelessWidget {
               ],
             ),
           ),
-        const SizedBox(height: 18),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-          decoration: BoxDecoration(
-            color: tokens.glow.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Text('AI coaching · coming soon',
-              style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w700,
-                  color: tokens.glow)),
-        ),
+        const SizedBox(height: 22),
+        Divider(height: 1, color: tokens.divider),
+        const SizedBox(height: 14),
+        _MapScenesButton(projectId: projectId, beats: beats),
       ],
+    );
+  }
+}
+
+/// Compact entry to the Scene Map dialog (the grouped "story spine"). Replaces
+/// the per-file dropdown list so the beats aren't repeated on every row.
+class _MapScenesButton extends ConsumerWidget {
+  const _MapScenesButton({required this.projectId, required this.beats});
+
+  final String projectId;
+  final List<String> beats;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = PsittaTokens.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final docs = ref.watch(projectDocumentsProvider(projectId)).valueOrNull;
+    final covered = docs == null
+        ? null
+        : beats.where((b) => docs.any((d) => d.narrativeBeat == b)).length;
+
+    return InkWell(
+      onTap: () => showSceneMap(context, projectId: projectId),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: tokens.surface2,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: tokens.border),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.hub_outlined, size: 20, color: tokens.glow),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Scene Map',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(
+                    covered == null
+                        ? 'Map each file to the beat it covers.'
+                        : '$covered of ${beats.length} beats covered · '
+                            'tap to map your scenes',
+                    style:
+                        TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward, size: 16, color: tokens.glow),
+          ],
+        ),
+      ),
     );
   }
 }

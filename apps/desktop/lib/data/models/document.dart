@@ -13,6 +13,7 @@ class Document {
     this.projectId,
     this.coverType,
     this.coverValue,
+    this.narrativeBeat,
     required this.createdAt,
     this.updatedAt,
   });
@@ -27,6 +28,7 @@ class Document {
         projectId: json['project_id'] as String?,
         coverType: json['cover_type'] as String?,
         coverValue: json['cover_value'] as String?,
+        narrativeBeat: json['narrative_beat'] as String?,
         createdAt: DateTime.parse(json['created_at'] as String),
         updatedAt: json['updated_at'] != null
             ? DateTime.parse(json['updated_at'] as String)
@@ -42,6 +44,9 @@ class Document {
   final String? projectId;
   final String? coverType;
   final String? coverValue;
+
+  /// Scene Mapper: the narrative beat label this document covers (null = none).
+  final String? narrativeBeat;
   final DateTime createdAt;
   final DateTime? updatedAt;
 }

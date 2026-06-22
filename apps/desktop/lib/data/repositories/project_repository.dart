@@ -91,6 +91,32 @@ class ProjectRepository {
     return ProjectDetail.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Curated, reverse-chronological Activity feed for a project
+  /// (`GET /projects/{id}/activity`).
+  Future<List<ActivityEvent>> getProjectActivity(String id,
+      {int limit = 50}) async {
+    final response = await _api.dio.get(
+      '/projects/$id/activity',
+      queryParameters: {'limit': limit},
+    );
+    return (response.data as List)
+        .map((e) => ActivityEvent.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Scene Mapper: set (or clear with null) which narrative beat a document
+  /// covers (`PUT /projects/{id}/documents/{docId}/beat`).
+  Future<void> setDocumentNarrativeBeat(
+    String projectId,
+    String documentId, {
+    required String? beat,
+  }) async {
+    await _api.dio.put(
+      '/projects/$projectId/documents/$documentId/beat',
+      data: {'beat': beat},
+    );
+  }
+
   /// Document→blueprint/part placements for a project
   /// (`GET /projects/{id}/placements`).
   Future<List<ProjectPlacement>> getProjectPlacements(String id) async {
