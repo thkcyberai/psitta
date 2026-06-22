@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart';
-import 'blueprint_screen_state.dart';
 import 'interactive_guide_dialog.dart';
 import 'narrative_structures.dart';
 
