@@ -17,6 +17,31 @@ import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart';
 import '../../data/providers/document_actions.dart';
 import '../projects/widgets/adopt_blueprint_dialog.dart';
+import '../blueprints/narrative_structures.dart' show kNarrativeStructures;
+
+/// Format a project's chosen narrative for the PLACED IN card:
+/// "Hero's Journey · Adventure", or just the structure name when no variant,
+/// or "Not set" when the project has no narrative attached. Maps the stored
+/// slug back to its display name (falls back to a prettified slug).
+String _narrativeLabel(String? key, String? variant) {
+  if (key == null || key.isEmpty) return 'Not set';
+  var name = key;
+  for (final s in kNarrativeStructures) {
+    if (s.key == key) {
+      name = s.name;
+      break;
+    }
+  }
+  if (name == key) {
+    name = key
+        .split('_')
+        .where((w) => w.isNotEmpty)
+        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .join(' ');
+  }
+  final v = (variant ?? '').trim();
+  return v.isEmpty ? name : '$name · $v';
+}
 
 /// Right-rail context pane for the Writing Desk.
 ///
@@ -164,8 +189,11 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final placement = widget.placement;
-    final projectName =
-        ref.watch(projectDetailProvider(widget.projectId)).valueOrNull?.name;
+    final detail =
+        ref.watch(projectDetailProvider(widget.projectId)).valueOrNull;
+    final projectName = detail?.name;
+    final narrative =
+        _narrativeLabel(detail?.narrativeStructureKey, detail?.narrativeVariant);
 
     return _RailCard(
       key: const ValueKey('desk-placement-card'),
@@ -204,6 +232,13 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
                       '?projectName=${Uri.encodeComponent(pn)}'
                   : '/projects/${widget.projectId}');
             },
+          ),
+          const SizedBox(height: 10),
+          _PlacedRow(
+            concept: DeskConcept.narrative,
+            value: narrative,
+            valueKey: const ValueKey('desk-placement-narrative'),
+            onTap: () => context.go('/projects/${widget.projectId}'),
           ),
           const SizedBox(height: 10),
           _PlacedRow(
@@ -253,9 +288,9 @@ class _UnplacedContextCard extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
     final pid = projectId;
     final inProject = pid != null;
-    final projectName = inProject
-        ? ref.watch(projectDetailProvider(pid)).valueOrNull?.name
-        : null;
+    final detail =
+        inProject ? ref.watch(projectDetailProvider(pid)).valueOrNull : null;
+    final projectName = detail?.name;
     // Adopted blueprint(s) + sections drive the guidance and the action.
     final overview = overviewAsync?.valueOrNull;
     final blueprintNames =
@@ -317,6 +352,15 @@ class _UnplacedContextCard extends ConsumerWidget {
                         : '/projects/$pid');
                   }
                 : null,
+          ),
+          const SizedBox(height: 10),
+          _PlacedRow(
+            concept: DeskConcept.narrative,
+            value: inProject
+                ? _narrativeLabel(
+                    detail?.narrativeStructureKey, detail?.narrativeVariant)
+                : 'Not in a project',
+            onTap: inProject ? () => context.go('/projects/$pid') : null,
           ),
           const SizedBox(height: 10),
           // This file is not placed in any blueprint, so its Blueprint link is
