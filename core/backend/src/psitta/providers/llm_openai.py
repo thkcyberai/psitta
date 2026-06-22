@@ -42,8 +42,10 @@ _COACH_SYSTEM_PROMPT = (
     "Respond with ONLY a JSON object, no prose, no code fences, with exactly "
     "these keys:\n"
     '  "aligned": boolean,\n'
-    '  "suspected_beat": string — the beat this passage reads most like (from '
-    "the provided list), or a short label if none fit,\n"
+    '  "suspected_beat": string — the EXACT name of the beat from the provided '
+    'list that this passage reads most like. Return an empty string "" if the '
+    "passage matches no beat; do NOT invent a label like 'none' or "
+    "'unrelated',\n"
     '  "message": string — ONE short, kind sentence. If aligned, a light '
     "affirmation. If not, name the drift plainly and offer a gentle question, "
     "never a command. Address the writer as 'you'."
