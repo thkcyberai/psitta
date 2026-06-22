@@ -88,14 +88,14 @@ Future<void> pickProjectAndShowProgress(
   if (projects.isEmpty) {
     await showDialog<void>(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         title: const Text('No projects yet'),
         content: const Text(
             'Create a project and attach a narrative to track your progress '
             'through the beats.'),
         actions: [
           TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: () => Navigator.of(ctx).pop(),
               child: const Text('OK')),
         ],
       ),
@@ -106,12 +106,12 @@ Future<void> pickProjectAndShowProgress(
   String? chosen = projects.length == 1 ? projects.first.id as String : null;
   chosen ??= await showDialog<String>(
     context: context,
-    builder: (_) => SimpleDialog(
+    builder: (ctx) => SimpleDialog(
       title: const Text('Track progress for which book?'),
       children: [
         for (final p in projects)
           SimpleDialogOption(
-            onPressed: () => Navigator.of(context).pop(p.id as String),
+            onPressed: () => Navigator.of(ctx).pop(p.id as String),
             child: Text(p.name as String),
           ),
       ],
