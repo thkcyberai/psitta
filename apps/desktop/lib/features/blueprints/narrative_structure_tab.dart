@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart';
 import '../../data/providers/providers.dart';
+import '../projects/widgets/progress_tracker.dart';
+import '../projects/widgets/scene_map_dialog.dart';
 import 'interactive_guide_dialog.dart';
 import 'narrative_structures.dart';
 
@@ -97,13 +99,13 @@ class _BottomTools extends ConsumerWidget {
         Icons.hub_outlined,
         'Scene Mapper',
         'Map your chapters to the structure.',
-        null,
+        () => pickProjectAndShowSceneMap(context, ref),
       ),
       (
         Icons.track_changes_outlined,
         'Progress Tracker',
         'Track your progress through the journey.',
-        null,
+        () => pickProjectAndShowProgress(context, ref),
       ),
     ];
     return Padding(

@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/models/document.dart';
 import '../../../data/providers/project_providers.dart';
-import '../../../data/providers/providers.dart' show projectRepositoryProvider;
+import '../../../data/providers/providers.dart'
+    show projectRepositoryProvider, projectsProvider;
 import '../../blueprints/narrative_structures.dart' show kNarrativeStructures;
 
 /// Opens the Scene Map for a project — the "story spine": each beat with the
@@ -15,6 +16,56 @@ Future<void> showSceneMap(BuildContext context, {required String projectId}) {
     context: context,
     builder: (_) => _SceneMapDialog(projectId: projectId),
   );
+}
+
+/// Entry point from a project-agnostic surface (the Blueprints gallery): pick a
+/// book, then open its Scene Map. Auto-opens when there's exactly one project.
+Future<void> pickProjectAndShowSceneMap(
+    BuildContext context, WidgetRef ref) async {
+  final dynamic projects;
+  try {
+    projects = await ref.read(projectsProvider.future);
+  } catch (_) {
+    return;
+  }
+  if (!context.mounted) return;
+
+  if (projects.isEmpty) {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('No projects yet'),
+        content: const Text(
+            'Create a project and attach a narrative, then you can map its '
+            'scenes here.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK')),
+        ],
+      ),
+    );
+    return;
+  }
+
+  String? chosen = projects.length == 1 ? projects.first.id as String : null;
+  chosen ??= await showDialog<String>(
+    context: context,
+    builder: (_) => SimpleDialog(
+      title: const Text('Map scenes for which book?'),
+      children: [
+        for (final p in projects)
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(context).pop(p.id as String),
+            child: Text(p.name as String),
+          ),
+      ],
+    ),
+  );
+
+  if (chosen != null && context.mounted) {
+    await showSceneMap(context, projectId: chosen);
+  }
 }
 
 String _structureName(String? key) {

@@ -6,6 +6,7 @@ import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/models/document.dart';
 import '../../../data/providers/project_providers.dart';
 import '../../blueprints/narrative_structures.dart';
+import 'progress_tracker.dart';
 import 'scene_map_dialog.dart';
 
 /// Project → Narrative tab.
@@ -116,6 +117,8 @@ class _NarrativeView extends StatelessWidget {
           'Structure.',
           style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
         ),
+        const SizedBox(height: 14),
+        ProgressTrackerBar(projectId: projectId, beats: beats),
         const SizedBox(height: 18),
         Divider(height: 1, color: tokens.divider),
         const SizedBox(height: 14),
