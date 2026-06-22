@@ -680,9 +680,21 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     if (result.aligned || result.message.trim().isEmpty) return;
     setState(() {
       _coachMessage = result.message.trim();
-      final beat = result.suspectedBeat.trim();
-      _coachBeat = beat.isEmpty ? null : beat;
+      _coachBeat = _normalizeBeat(result.suspectedBeat);
     });
+  }
+
+  // The "Reads like:" beat is shown only when the model named a real beat.
+  // An empty value (its no-match signal) — or a stray "none"/"n/a"/"unrelated"
+  // label if it ignores that instruction — collapses to null so the line hides.
+  String? _normalizeBeat(String raw) {
+    final beat = raw.trim();
+    if (beat.isEmpty) return null;
+    final noMatch = RegExp(
+      r'^(none|n/?a|unknown|unrelated|no (clear|match|beat))',
+      caseSensitive: false,
+    ).hasMatch(beat);
+    return noMatch ? null : beat;
   }
 
   Widget _buildEditPaper(BuildContext context) {
