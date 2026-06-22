@@ -616,6 +616,22 @@ class NarrativeCheckResponse(StrictSchema):
     tokens_limit_period: int = Field(ge=0)
 
 
+class ActivityEvent(StrictSchema):
+    """One curated, user-facing entry in a project's Activity feed.
+
+    Derived read-only from ``audit_log`` (project- and document-scoped events
+    only). ``kind`` is a coarse category for the client's icon choice;
+    ``summary`` is a safe, human-readable sentence (no raw audit details).
+    """
+
+    id: UUID
+    kind: str
+    summary: str
+    created_at: datetime
+    resource_type: str
+    resource_id: UUID | None = None
+
+
 class ProjectPlacement(StrictSchema):
     """A document's placement within an adopted blueprint's part (Phase 5, read).
 

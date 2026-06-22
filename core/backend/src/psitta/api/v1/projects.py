@@ -5,11 +5,12 @@ from uuid import UUID
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.dependencies import get_current_user_id, get_db_session
 from psitta.schemas.api import (
+    ActivityEvent,
     NarrativeCheckRequest,
     NarrativeCheckResponse,
     ProjectDetail,
@@ -306,6 +307,142 @@ async def check_project_narrative(
         beat_index=data.beat_index,
     )
     return NarrativeCheckResponse(**result)
+
+
+# ── Activity feed ───────────────────────────────────────────────────────────
+
+# Curated allowlist of audit actions surfaced in the project Activity feed.
+# Deliberately excludes read/noise events (*.fetched, *.streamed, per-chunk
+# saves, billing, auth) so the feed stays a meaningful project timeline.
+_ACTIVITY_ACTIONS: list[str] = [
+    "project.create",
+    "project.update",
+    "project.set_narrative",
+    "document.create_blank",
+    "document.upload",
+    "document.update",
+    "document.delete",
+    "document.restore",
+    "document.archive",
+    "document.assign_project",
+    "document.duplicate",
+    "document.summarized",
+    "recording.create",
+]
+
+
+def _activity_entry(
+    action: str,
+    doc_title: str | None,
+    details: dict,
+    project_name: str,
+) -> tuple[str, str]:
+    """Map a raw audit row to a (kind, human-summary) pair. Surfaces only safe,
+    curated text — never raw audit details."""
+    title = doc_title or (details.get("title") if isinstance(details, dict) else None)
+    title = title or "a file"
+    quoted = f'“{title}”'
+
+    if action == "project.create":
+        return ("project", f'Created the project “{project_name}”')
+    if action == "project.update":
+        fields = details.get("fields") if isinstance(details, dict) else None
+        if isinstance(fields, list) and "name" in fields:
+            return ("project", "Renamed the project")
+        return ("project", "Updated the project")
+    if action == "project.set_narrative":
+        variant = details.get("variant") if isinstance(details, dict) else None
+        suffix = f" · {variant}" if variant else ""
+        return ("narrative", f"Set the narrative structure{suffix}")
+    if action == "document.create_blank":
+        return ("document_add", f"Started {quoted}")
+    if action == "document.upload":
+        return ("document_add", f"Uploaded {quoted}")
+    if action == "document.duplicate":
+        return ("document_add", f"Duplicated {quoted}")
+    if action == "document.assign_project":
+        return ("document_add", f"Added {quoted} to the project")
+    if action == "recording.create":
+        return ("document_add", "Added a recording")
+    if action == "document.update":
+        return ("document_edit", f"Edited {quoted}")
+    if action == "document.summarized":
+        return ("summary", f"Summarized {quoted}")
+    if action == "document.delete":
+        return ("document_remove", f"Moved {quoted} to Trash")
+    if action == "document.archive":
+        return ("document_remove", f"Archived {quoted}")
+    if action == "document.restore":
+        return ("document_restore", f"Restored {quoted}")
+    return ("event", action)
+
+
+@router.get("/{project_id}/activity", response_model=list[ActivityEvent])
+async def list_project_activity(
+    project_id: str,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> list[ActivityEvent]:
+    """Curated, reverse-chronological Activity feed for an owned project.
+
+    Read-only over ``audit_log`` (SELECT is permitted under the append-only
+    tamper rules). Owner-guarded (404 if absent/not-owned). Scopes events to the
+    project two ways — ``resource_type='project'`` on this id, and
+    ``resource_type='document'`` for documents currently in the project — and
+    always filters to the owner. Only the curated action allowlist is surfaced,
+    mapped to safe human summaries (never raw audit details).
+    """
+    project = await _get_project_or_404(project_id, str(user_id), db)
+    project_name = project.get("name") or "this project"
+
+    stmt = text(
+        """
+        SELECT al.id, al.action, al.resource_type, al.resource_id,
+               al.details_json, al.created_at, d.title AS doc_title
+        FROM audit_log al
+        LEFT JOIN documents d ON d.id = al.resource_id
+        WHERE al.user_id = :uid
+          AND al.action IN :actions
+          AND (
+            (al.resource_type = 'project' AND al.resource_id = :pid)
+            OR (al.resource_type = 'document' AND al.resource_id IN (
+                  SELECT id FROM documents WHERE project_id = :pid))
+          )
+        ORDER BY al.created_at DESC
+        LIMIT :limit
+        """
+    ).bindparams(bindparam("actions", expanding=True))
+
+    rows = await db.execute(
+        stmt,
+        {
+            "uid": str(user_id),
+            "pid": project_id,
+            "actions": _ACTIVITY_ACTIONS,
+            "limit": limit,
+        },
+    )
+
+    events: list[ActivityEvent] = []
+    for row in rows.mappings():
+        details = row["details_json"]
+        if not isinstance(details, dict):
+            details = {}
+        kind, summary = _activity_entry(
+            row["action"], row["doc_title"], details, project_name
+        )
+        events.append(
+            ActivityEvent(
+                id=row["id"],
+                kind=kind,
+                summary=summary,
+                created_at=row["created_at"],
+                resource_type=row["resource_type"],
+                resource_id=row["resource_id"],
+            )
+        )
+    return events
 
 
 @router.delete("/{project_id}", status_code=204)
