@@ -240,6 +240,10 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
             valueKey: const ValueKey('desk-placement-narrative'),
             onTap: () => context.go('/projects/${widget.projectId}'),
           ),
+          _BeatRow(
+            projectId: widget.projectId,
+            documentId: widget.documentId,
+          ),
           const SizedBox(height: 10),
           _PlacedRow(
             concept: DeskConcept.blueprint,
@@ -362,6 +366,8 @@ class _UnplacedContextCard extends ConsumerWidget {
                 : 'Not in a project',
             onTap: inProject ? () => context.go('/projects/$pid') : null,
           ),
+          if (pid != null)
+            _BeatRow(projectId: pid, documentId: documentId),
           const SizedBox(height: 10),
           // This file is not placed in any blueprint, so its Blueprint link is
           // "Not assigned" — even when the PROJECT has adopted blueprints
@@ -872,6 +878,87 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
       out.add(n);
       _flattenPartsQ(n.children, out);
     }
+  }
+}
+
+// ── Beat row (per-file Scene Mapper) ──────────────────────────────────────────
+
+/// The narrative beat THIS file covers — read and set in-context from the
+/// Writing Desk (the per-file companion to the Scene Map). Hidden when the
+/// project has no narrative attached. Writes the same `documents.narrative_beat`
+/// the Scene Map uses, so both stay in sync and the change logs to Activity.
+class _BeatRow extends ConsumerWidget {
+  const _BeatRow({required this.projectId, required this.documentId});
+
+  final String projectId;
+  final String documentId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final beats = ref
+            .watch(projectDetailProvider(projectId))
+            .valueOrNull
+            ?.narrativeBeats ??
+        const <String>[];
+    if (beats.isEmpty) return const SizedBox.shrink();
+
+    final docs =
+        ref.watch(projectDocumentsProvider(projectId)).valueOrNull ?? const [];
+    String? current;
+    for (final d in docs) {
+      if (d.id == documentId) {
+        current = d.narrativeBeat;
+        break;
+      }
+    }
+    if (current != null && !beats.contains(current)) current = null;
+
+    return Column(
+      children: [
+        const SizedBox(height: 10),
+        _PlacedRow(
+          concept: DeskConcept.beat,
+          value: current ?? 'Unassigned',
+          valueKey: const ValueKey('desk-placed-beat'),
+          onTap: () => _pickBeat(context, ref, beats, current),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _pickBeat(BuildContext context, WidgetRef ref,
+      List<String> beats, String? current) async {
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dctx) => SimpleDialog(
+        title: const Text('Which beat does this file cover?'),
+        children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.of(dctx).pop(''),
+            child: Text('Unassigned',
+                style: TextStyle(
+                    fontWeight:
+                        current == null ? FontWeight.w700 : FontWeight.w400)),
+          ),
+          for (final b in beats)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(dctx).pop(b),
+              child: Text(b,
+                  style: TextStyle(
+                      fontWeight:
+                          b == current ? FontWeight.w700 : FontWeight.w400)),
+            ),
+        ],
+      ),
+    );
+    if (result == null) return; // dismissed
+    final beat = result.isEmpty ? null : result;
+    if (beat == current) return; // no change
+    await ref
+        .read(projectRepositoryProvider)
+        .setDocumentNarrativeBeat(projectId, documentId, beat: beat);
+    ref.invalidate(projectDocumentsProvider(projectId));
+    ref.invalidate(projectActivityProvider(projectId));
   }
 }
 
