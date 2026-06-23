@@ -365,6 +365,14 @@ class _ActivityOutput extends ConsumerWidget {
     return Column(
       children: [
         _Card(
+          icon: Icons.show_chart_outlined,
+          title: 'Weekly words trend',
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+            child: _WeeklyTrend(weekly: stats.weeklyWords()),
+          ),
+        ),
+        _Card(
           icon: Icons.local_fire_department_outlined,
           title: 'Writing activity',
           child: Padding(
@@ -425,14 +433,6 @@ class _ActivityOutput extends ConsumerWidget {
                     label: 'Tracked total'),
               ],
             ),
-          ),
-        ),
-        _Card(
-          icon: Icons.show_chart_outlined,
-          title: 'Weekly words trend',
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
-            child: _WeeklyTrend(weekly: stats.weeklyWords()),
           ),
         ),
       ],
