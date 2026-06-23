@@ -6,6 +6,7 @@ import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/providers/project_providers.dart';
 import '../../../data/providers/providers.dart';
 import '../project_cover_picker_dialog.dart';
+import 'project_activity_feed.dart';
 
 /// Project screen right rail: About, Project Actions, and an honest Activity
 /// "Coming soon" card. Project actions reuse the existing dialogs/repository and
@@ -30,9 +31,9 @@ class ProjectRightRail extends StatelessWidget {
         const SizedBox(height: 16),
         _ProjectActions(projectId: projectId, projectName: projectName),
         const SizedBox(height: 16),
-        const _RailCard(
+        _RailCard(
           title: 'Activity',
-          child: ProjectActivityComingSoon(),
+          child: ProjectActivityFeed(projectId: projectId, compact: true),
         ),
       ],
     );

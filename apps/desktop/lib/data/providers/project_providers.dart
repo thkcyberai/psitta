@@ -31,3 +31,10 @@ final projectPlacementsProvider = FutureProvider.autoDispose
   final repo = ref.watch(projectRepositoryProvider);
   return repo.getProjectPlacements(projectId);
 });
+
+/// Curated Activity feed for a project (`GET /projects/{id}/activity`).
+final projectActivityProvider = FutureProvider.autoDispose
+    .family<List<ActivityEvent>, String>((ref, projectId) async {
+  final repo = ref.watch(projectRepositoryProvider);
+  return repo.getProjectActivity(projectId);
+});
