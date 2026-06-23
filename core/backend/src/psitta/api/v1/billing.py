@@ -52,6 +52,8 @@ router = APIRouter()
 VALID_LOOKUP_KEYS: frozenset[str] = frozenset({
     "reading_nook_pro_monthly",
     "reading_nook_pro_annual",
+    "writing_nook_pro_monthly",
+    "writing_nook_pro_annual",
     "creativity_nook_pro_monthly",
     "creativity_nook_pro_annual",
 })
