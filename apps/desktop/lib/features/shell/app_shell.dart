@@ -30,6 +30,7 @@ import '../../data/providers/providers.dart'
         displayNameFromProfile;
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
+import '../library/floating_scribbles.dart';
 import '../../features/writing_desk/desk_providers.dart'
     show deskDocumentProvider;
 import '../../widgets/document_cover.dart';
@@ -96,53 +97,62 @@ class AppShell extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Container(
-        decoration: BoxDecoration(gradient: tokens.backgroundGradient),
-        child: Column(
-          children: [
-            Expanded(
-              child: Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeInOut,
-                    width: sidebarWidth,
-                    child: isWritingShell
-                        ? WritingNav(isCollapsed: isSidebarCollapsed)
-                        : SidebarNav(isCollapsed: isSidebarCollapsed),
-                  ),
-                  VerticalDivider(width: 1, color: tokens.divider),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        _ContextHeader(tokens: tokens, isWritingShell: isWritingShell),
-                        Divider(height: 1, color: tokens.divider),
-                        Expanded(child: content),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Container(
+            decoration: BoxDecoration(gradient: tokens.backgroundGradient),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Row(
+                    children: [
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        curve: Curves.easeInOut,
+                        width: sidebarWidth,
+                        child: isWritingShell
+                            ? WritingNav(isCollapsed: isSidebarCollapsed)
+                            : SidebarNav(isCollapsed: isSidebarCollapsed),
+                      ),
+                      VerticalDivider(width: 1, color: tokens.divider),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            _ContextHeader(
+                                tokens: tokens, isWritingShell: isWritingShell),
+                            Divider(height: 1, color: tokens.divider),
+                            Expanded(child: content),
+                          ],
+                        ),
+                      ),
+                      if (effectiveRightPanel != null) ...[
+                        VerticalDivider(width: 1, color: tokens.divider),
+                        SizedBox(
+                          width: AppConstants.detailPanelMinWidth,
+                          child: effectiveRightPanel,
+                        ),
                       ],
-                    ),
+                    ],
                   ),
-                  if (effectiveRightPanel != null) ...[
-                    VerticalDivider(width: 1, color: tokens.divider),
-                    SizedBox(
-                      width: AppConstants.detailPanelMinWidth,
-                      child: effectiveRightPanel,
-                    ),
-                  ],
+                ),
+                if (showPlayerBar) ...[
+                  Divider(height: 1, color: tokens.divider),
+                  const SizedBox(
+                    height: AppConstants.playerBarHeight,
+                    child: PlayerBar(),
+                  ),
+                ] else if (isWritingShell) ...[
+                  Divider(height: 1, color: tokens.divider),
+                  _WritingStatusBar(tokens: tokens),
                 ],
-              ),
+              ],
             ),
-            if (showPlayerBar) ...[
-              Divider(height: 1, color: tokens.divider),
-              const SizedBox(
-                height: AppConstants.playerBarHeight,
-                child: PlayerBar(),
-              ),
-            ] else if (isWritingShell) ...[
-              Divider(height: 1, color: tokens.divider),
-              _WritingStatusBar(tokens: tokens),
-            ],
-          ],
-        ),
+          ),
+          // Pinned scribbles float over every screen. Pass-through: empty
+          // space stays click-through, only the note cards are interactive.
+          const Positioned.fill(child: FloatingScribblesLayer()),
+        ],
       ),
     );
   }

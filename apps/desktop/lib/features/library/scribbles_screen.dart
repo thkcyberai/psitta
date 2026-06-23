@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
 import '../../widgets/library_breadcrumb.dart';
+import 'floating_scribbles.dart';
 
 /// Pastel sticky-note colors, keyed by the backend color tag.
 const Map<String, Color> _kNoteColors = {
@@ -99,6 +100,12 @@ class ScribblesScreen extends ConsumerWidget {
       } else {
         await api.dio.patch('/notes/${note['id']}',
             data: {'content': result.content, 'color': result.color});
+        // Keep a floating copy of this note in sync with the edit.
+        ref.read(floatingScribblesProvider.notifier).update(
+              note['id'].toString(),
+              content: result.content,
+              color: result.color,
+            );
       }
       ref.invalidate(notesProvider);
     } catch (_) {
@@ -127,6 +134,8 @@ class ScribblesScreen extends ConsumerWidget {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final async = ref.watch(notesProvider);
+    final pinnedIds =
+        ref.watch(floatingScribblesProvider).map((n) => n.id).toSet();
 
     return Container(
       color: tokens.surface,
@@ -184,7 +193,9 @@ class ScribblesScreen extends ConsumerWidget {
                     spacing: 14,
                     runSpacing: 14,
                     children: [
-                      for (final note in notes) _noteCard(context, ref, note),
+                      for (final note in notes)
+                        _noteCard(context, ref, note,
+                            pinnedIds.contains(note['id'].toString())),
                     ],
                   ),
                 );
@@ -196,8 +207,8 @@ class ScribblesScreen extends ConsumerWidget {
     );
   }
 
-  Widget _noteCard(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> note) {
+  Widget _noteCard(BuildContext context, WidgetRef ref,
+      Map<String, dynamic> note, bool isPinned) {
     final color = _kNoteColors[note['color']] ?? _kNoteColors['yellow']!;
     final content = (note['content'] as String?)?.trim() ?? '';
     return GestureDetector(
@@ -238,16 +249,30 @@ class ScribblesScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              Align(
-                alignment: Alignment.bottomRight,
-                child: IconButton(
-                  tooltip: 'Delete',
-                  visualDensity: VisualDensity.compact,
-                  iconSize: 18,
-                  onPressed: () => _delete(context, ref, note),
-                  icon: Icon(Icons.delete_outline,
-                      color: _kNoteInk.withOpacity(0.6)),
-                ),
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: isPinned ? 'Unstick from top' : 'Stick on top',
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    onPressed: () => ref
+                        .read(floatingScribblesProvider.notifier)
+                        .toggle(note),
+                    icon: Icon(
+                      isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                      color: _kNoteInk.withOpacity(isPinned ? 0.85 : 0.55),
+                    ),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    tooltip: 'Delete',
+                    visualDensity: VisualDensity.compact,
+                    iconSize: 18,
+                    onPressed: () => _delete(context, ref, note),
+                    icon: Icon(Icons.delete_outline,
+                        color: _kNoteInk.withOpacity(0.6)),
+                  ),
+                ],
               ),
             ],
           ),
