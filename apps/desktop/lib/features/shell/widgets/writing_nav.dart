@@ -56,8 +56,8 @@ class WritingNav extends StatelessWidget {
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Creative Nook',
-                  icon: Icons.auto_awesome_outlined,
+                  label: 'Plans',
+                  icon: Icons.workspace_premium_outlined,
                   route: '/plan',
                   badge: 'Upgrade',
                   isCollapsed: isCollapsed,
