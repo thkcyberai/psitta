@@ -280,6 +280,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           _SettingsCard(
+            icon: Icons.support_agent,
+            title: 'Help guide',
+            children: [
+              SwitchListTile(
+                title: const Text('Show the Writing Nook guide'),
+                subtitle: const Text(
+                  'A quick-help chat in the Library corner',
+                  style: TextStyle(fontSize: 11),
+                ),
+                value: ref.watch(guideChatEnabledProvider),
+                onChanged: (v) =>
+                    ref.read(guideChatEnabledProvider.notifier).setEnabled(v),
+              ),
+            ],
+          ),
+          _SettingsCard(
             icon: Icons.sd_storage_outlined,
             title: 'Storage',
             children: [

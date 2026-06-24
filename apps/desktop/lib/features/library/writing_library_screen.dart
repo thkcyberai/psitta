@@ -22,7 +22,9 @@ import '../../data/providers/document_actions.dart';
 import '../../data/providers/blueprint_providers.dart';
 import '../../data/repositories/project_repository.dart';
 import '../../data/services/pdf_text_extractor.dart';
+import '../../data/services/preferences_service.dart';
 import '../../widgets/document_cover.dart';
+import '../guide/guide_chat.dart';
 import 'cover_picker_dialog.dart';
 import 'library_screen.dart' show LibraryScreen, librarySearchFocusProvider;
 
@@ -1638,6 +1640,10 @@ class _RightRail extends ConsumerWidget {
               scribblesSub, () => context.go('/scribbles')),
           _quickRow(context, Icons.mic_none_outlined, 'Whispers',
               whispersSub, () => context.go('/whispers')),
+          if (ref.watch(guideChatEnabledProvider)) ...[
+            const SizedBox(height: 18),
+            const GuideRailCard(),
+          ],
           const SizedBox(height: 16),
         ],
       ),

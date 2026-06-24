@@ -468,6 +468,45 @@ final storyCoachEnabledProvider =
   return StoryCoachPreferenceNotifier(userId: userId);
 });
 
+// ── Writing Nook guide chat ───────────────────────────────────────────
+
+const bool kDefaultGuideChatEnabled = true;
+const String _kBaseGuideChatKey = 'guide_chat_enabled';
+
+/// Global on/off for the Library guide-chat launcher, scoped by user_id.
+/// Dismissing the launcher sets this false; the Settings toggle turns it
+/// back on. Default on. New key — nothing to migrate.
+class GuideChatPreferenceNotifier extends StateNotifier<bool> {
+  GuideChatPreferenceNotifier({required this.userId})
+      : super(kDefaultGuideChatEnabled) {
+    if (userId != null) _load();
+  }
+
+  final String? userId;
+
+  Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getBool(_userKey(uid, _kBaseGuideChatKey));
+    if (saved != null) state = saved;
+  }
+
+  Future<void> setEnabled(bool value) async {
+    state = value;
+    final uid = userId;
+    if (uid == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_userKey(uid, _kBaseGuideChatKey), value);
+  }
+}
+
+final guideChatEnabledProvider =
+    StateNotifierProvider<GuideChatPreferenceNotifier, bool>((ref) {
+  final userId = ref.watch(currentUserIdProvider);
+  return GuideChatPreferenceNotifier(userId: userId);
+});
+
 /// Per-document opt-out set for the Story-Coach, scoped by user_id. A document
 /// whose id is in this set is never checked (the writer muted it for this file).
 class StoryCoachMutedDocsNotifier extends StateNotifier<Set<String>> {
