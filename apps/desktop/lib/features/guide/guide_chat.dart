@@ -41,10 +41,10 @@ class _GuideRailCardState extends ConsumerState<GuideRailCard> {
             children: [
               Expanded(
                 child: Text(
-                  "WRITER'S GUIDE",
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        letterSpacing: 0.8,
+                  "Writer's Guide",
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: scheme.onSurface,
+                        fontWeight: FontWeight.w700,
                       ),
                 ),
               ),
