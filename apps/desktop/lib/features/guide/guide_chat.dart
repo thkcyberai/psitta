@@ -41,7 +41,7 @@ class _GuideRailCardState extends ConsumerState<GuideRailCard> {
             children: [
               Expanded(
                 child: Text(
-                  'ASK PSITTA',
+                  "WRITER'S GUIDE",
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                         letterSpacing: 0.8,
@@ -55,7 +55,7 @@ class _GuideRailCardState extends ConsumerState<GuideRailCard> {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Guide',
+                  'Writing Nook',
                   style: Theme.of(context)
                       .textTheme
                       .labelSmall
