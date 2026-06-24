@@ -1627,25 +1627,63 @@ class _RightRail extends ConsumerWidget {
         color: tokens.surface.withOpacity(0.4),
         border: Border(left: BorderSide(color: tokens.border)),
       ),
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
-        children: [
-          _profileCard(context, ref, scheme),
-          const SizedBox(height: 18),
-          _sectionLabel('Quick Access', scheme),
-          const SizedBox(height: 8),
-          _quickRow(context, Icons.inventory_2_outlined, 'Archive',
-              archiveSub, () => context.go('/archive')),
-          _quickRow(context, Icons.sticky_note_2_outlined, 'Scribbles',
-              scribblesSub, () => context.go('/scribbles')),
-          _quickRow(context, Icons.mic_none_outlined, 'Whispers',
-              whispersSub, () => context.go('/whispers')),
-          if (ref.watch(guideChatEnabledProvider)) ...[
-            const SizedBox(height: 18),
-            const GuideRailCard(),
-          ],
-          const SizedBox(height: 16),
-        ],
+      child: Builder(
+        builder: (context) {
+          final guideOn = ref.watch(guideChatEnabledProvider);
+          // At the root step the guide stays tucked below Quick Access; once the
+          // writer drills into a topic it expands over the Quick Access area
+          // (Refresh returns to root, and leaving Library resets to default).
+          final guideAtRoot = ref.watch(guideAtRootProvider);
+          final showQuickAccess = !guideOn || guideAtRoot;
+          return Column(
+            children: [
+              // Profile stays visible at all times.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+                child: _profileCard(context, ref, scheme),
+              ),
+              const SizedBox(height: 18),
+              if (showQuickAccess)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _sectionLabel('Quick Access', scheme),
+                      const SizedBox(height: 8),
+                      _quickRow(context, Icons.inventory_2_outlined, 'Archive',
+                          archiveSub, () => context.go('/archive')),
+                      _quickRow(
+                          context,
+                          Icons.sticky_note_2_outlined,
+                          'Scribbles',
+                          scribblesSub,
+                          () => context.go('/scribbles')),
+                      _quickRow(context, Icons.mic_none_outlined, 'Whispers',
+                          whispersSub, () => context.go('/whispers')),
+                    ],
+                  ),
+                ),
+              if (guideOn)
+                // Root: hug the leftover below Quick Access. Drilled in: fill the
+                // rail (over Quick Access) so the whole topic shows; options
+                // scroll inside the card either way.
+                (guideAtRoot
+                    ? Flexible(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+                          child: const GuideRailCard(),
+                        ),
+                      )
+                    : Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                          child: const GuideRailCard(),
+                        ),
+                      )),
+            ],
+          );
+        },
       ),
     );
   }
