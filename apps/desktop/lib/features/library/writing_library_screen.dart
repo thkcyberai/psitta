@@ -1655,6 +1655,7 @@ class _RightRail extends ConsumerWidget {
     final profile = ref.watch(userProfileProvider).valueOrNull;
     final avatarKey = profile?['avatar_url'] as String?;
     final quote = (profile?['quote'] as String?)?.trim() ?? '';
+    final name = displayNameFromProfile(profile);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1689,11 +1690,31 @@ class _RightRail extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Text('Your Profile',
-              style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface)),
+          InkWell(
+            borderRadius: BorderRadius.circular(6),
+            onTap: () => _editName(ref, context, name),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      name.isEmpty ? 'Your Profile' : name,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: scheme.onSurface),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(Icons.edit_outlined,
+                      size: 12, color: scheme.onSurfaceVariant),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 4),
           Container(
             padding:
@@ -1815,6 +1836,48 @@ class _RightRail extends ConsumerWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Couldn’t save your quote.')));
+      }
+    }
+  }
+
+  Future<void> _editName(
+      WidgetRef ref, BuildContext context, String current) async {
+    final ctrl = TextEditingController(text: current);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Your name'),
+        content: TextField(
+          controller: ctrl,
+          maxLength: 100,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            hintText: 'How your name appears in Psitta',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (_) => Navigator.pop(ctx, ctrl.text.trim()),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              child: const Text('Save')),
+        ],
+      ),
+    );
+    if (result == null || result.isEmpty) return;
+    try {
+      final api = ref.read(apiClientProvider);
+      await api.dio
+          .patch('/users/me', queryParameters: {'display_name': result});
+      ref.invalidate(userProfileProvider);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Couldn’t save your name.')));
       }
     }
   }
