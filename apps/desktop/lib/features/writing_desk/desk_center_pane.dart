@@ -1605,12 +1605,67 @@ class _DeskEditorBody extends StatelessWidget {
         }
       }
     }
-    // Not on a misspelled word — show the editor's normal Copy/Cut/Paste menu.
-    return AdaptiveTextSelectionToolbar.buttonItems(
-      anchors: rawEditorState.contextMenuAnchors,
-      buttonItems: rawEditorState.contextMenuButtonItems,
-    );
+    // The desktop selection toolbar's Paste button does not reliably invoke its
+    // callback on this build (Cut/Copy/Paste all rendered but clicking Paste did
+    // nothing). So mirror the spell-suggestions popup, which works reliably
+    // here: suppress the default toolbar and show our own menu post-frame,
+    // running the chosen action AFTER it closes.
+    final anchor = rawEditorState.contextMenuAnchors.primaryAnchor;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      rawEditorState.hideToolbar();
+      _showEditMenu(context, rawEditorState, anchor);
+    });
+    return const SizedBox.shrink();
   }
+
+  // Cut / Copy / Paste / Select all as a real popup menu. Tapping the desktop
+  // selection toolbar's own buttons didn't fire on this build; showMenu does.
+  // The action runs after the menu closes — the same post-close timing the
+  // spell-replace relies on.
+  Future<void> _showEditMenu(
+    BuildContext context,
+    quill.QuillRawEditorState raw,
+    Offset anchorGlobal,
+  ) async {
+    final sel = raw.controller.selection;
+    final hasSelection = sel.isValid && !sel.isCollapsed;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (overlay == null) return;
+    final localAnchor = overlay.globalToLocal(anchorGlobal);
+    final position = RelativeRect.fromRect(
+      localAnchor & const Size(1, 1),
+      Offset.zero & overlay.size,
+    );
+    final choice = await showMenu<String>(
+      context: context,
+      position: position,
+      items: [
+        if (hasSelection)
+          const PopupMenuItem<String>(value: 'cut', child: Text('Cut')),
+        if (hasSelection)
+          const PopupMenuItem<String>(value: 'copy', child: Text('Copy')),
+        const PopupMenuItem<String>(value: 'paste', child: Text('Paste')),
+        const PopupMenuItem<String>(
+            value: 'selectAll', child: Text('Select all')),
+      ],
+    );
+    switch (choice) {
+      case 'cut':
+        raw.cutSelection(SelectionChangedCause.toolbar);
+        break;
+      case 'copy':
+        raw.copySelection(SelectionChangedCause.toolbar);
+        break;
+      case 'paste':
+        raw.pasteText(SelectionChangedCause.toolbar);
+        break;
+      case 'selectAll':
+        raw.selectAll(SelectionChangedCause.toolbar);
+        break;
+    }
+  }
+
 
   // Modal suggestions popup, then a clean replace after it closes.
   Future<void> _showSpellPopup(
