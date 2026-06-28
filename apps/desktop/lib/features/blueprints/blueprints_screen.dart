@@ -258,12 +258,18 @@ String _coverForGenre(String genreWire) {
       return 'assets/covers/non_fiction.png';
     case 'Biography':
       return 'assets/covers/biography.png';
+    case 'Research Paper':
+      return 'assets/covers/research_book.png';
     case "Children's Picture Book":
       return 'assets/covers/childrens_book.png';
+    case 'Screenplay':
+      return 'assets/covers/screenplay.png';
     case 'Workbook/How-To':
-      return 'assets/covers/writing_nook.jpg';
+      return 'assets/covers/workbook_how_to.png';
     case 'Business Book':
-      return 'assets/covers/code_desk.jpg';
+      return 'assets/covers/business_book.png';
+    case 'Short Story Collection':
+      return 'assets/covers/short_story_collection.png';
     default:
       return 'assets/covers/my_first_book.png';
   }
