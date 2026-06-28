@@ -1627,8 +1627,10 @@ class _DeskEditorBody extends StatelessWidget {
     quill.QuillRawEditorState raw,
     Offset anchorGlobal,
   ) async {
-    final sel = raw.controller.selection;
+    final ctrl = raw.controller;
+    final sel = ctrl.selection;
     final hasSelection = sel.isValid && !sel.isCollapsed;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
@@ -1637,20 +1639,49 @@ class _DeskEditorBody extends StatelessWidget {
       localAnchor & const Size(1, 1),
       Offset.zero & overlay.size,
     );
+
+    // label + right-aligned keyboard hint; greyed when [enabled] is false.
+    PopupMenuItem<String> item(
+      String value,
+      String label,
+      String shortcut, {
+      bool enabled = true,
+    }) {
+      return PopupMenuItem<String>(
+        value: value,
+        enabled: enabled,
+        height: 38,
+        child: Row(
+          children: [
+            Expanded(child: Text(label)),
+            const SizedBox(width: 28),
+            Text(shortcut, style: TextStyle(fontSize: 12, color: muted)),
+          ],
+        ),
+      );
+    }
+
     final choice = await showMenu<String>(
       context: context,
       position: position,
       items: [
-        if (hasSelection)
-          const PopupMenuItem<String>(value: 'cut', child: Text('Cut')),
-        if (hasSelection)
-          const PopupMenuItem<String>(value: 'copy', child: Text('Copy')),
-        const PopupMenuItem<String>(value: 'paste', child: Text('Paste')),
-        const PopupMenuItem<String>(
-            value: 'selectAll', child: Text('Select all')),
+        item('undo', 'Undo', 'Ctrl+Z'),
+        item('redo', 'Redo', 'Ctrl+Shift+Z'),
+        const PopupMenuDivider(),
+        item('cut', 'Cut', 'Ctrl+X', enabled: hasSelection),
+        item('copy', 'Copy', 'Ctrl+C', enabled: hasSelection),
+        item('paste', 'Paste', 'Ctrl+V'),
+        const PopupMenuDivider(),
+        item('selectAll', 'Select all', 'Ctrl+A'),
       ],
     );
     switch (choice) {
+      case 'undo':
+        ctrl.undo();
+        break;
+      case 'redo':
+        ctrl.redo();
+        break;
       case 'cut':
         raw.cutSelection(SelectionChangedCause.toolbar);
         break;
