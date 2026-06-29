@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +39,11 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
   Duration _elapsed = Duration.zero;
   Timer? _timer;
   String? _activeRecordingPath;
+
+  /// Cached amplitude profiles per recording id (normalized 0..1 per bar),
+  /// computed from the WAV the first time a whisper is played. Idle rows fall
+  /// back to a light placeholder until then.
+  final Map<String, List<double>> _peaks = {};
 
   @override
   void dispose() {
@@ -79,6 +85,14 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
         '${isWav ? '.wav' : '.m4a'}',
       ));
       await tmp.writeAsBytes(bytes);
+      // Decode the real amplitude profile so the row shows this recording's
+      // actual shape (legacy m4a returns empty → keeps the placeholder).
+      if (isWav) {
+        final pk = _computePeaks(Uint8List.fromList(bytes));
+        if (pk.isNotEmpty && mounted) {
+          setState(() => _peaks[doc.id] = pk);
+        }
+      }
       await _player.setFilePath(tmp.path);
       setState(() => _playingId = doc.id);
       await _player.play();
@@ -261,6 +275,67 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
       return input; // never fail a save over a normalization hiccup
     }
   }
+
+  /// Returns a normalized (0..1) amplitude profile for a 16-bit PCM WAV by
+  /// RMS-bucketing the samples into [buckets] bars — the real shape of the
+  /// recording. Returns an empty list if the bytes can't be parsed (e.g. a
+  /// legacy m4a), in which case the row keeps its placeholder.
+  static List<double> _computePeaks(Uint8List wav, {int buckets = 360}) {
+    try {
+      final view = ByteData.sublistView(wav);
+      int dataStart = -1, dataLen = 0, pos = 12;
+      while (pos + 8 <= wav.length) {
+        final id = String.fromCharCodes(wav, pos, pos + 4);
+        final size = view.getUint32(pos + 4, Endian.little);
+        if (id == 'data') {
+          dataStart = pos + 8;
+          dataLen = size;
+          break;
+        }
+        pos += 8 + size + (size & 1);
+      }
+      if (dataStart < 0) return const [];
+      final end =
+          (dataStart + dataLen) > wav.length ? wav.length : dataStart + dataLen;
+      final totalSamples = (end - dataStart) ~/ 2;
+      if (totalSamples <= 0) return const [];
+      final per = (totalSamples / buckets).ceil();
+      final out = <double>[];
+      double globalMax = 1.0;
+      int idx = dataStart;
+      for (int b = 0; b < buckets; b++) {
+        double sumSq = 0;
+        int count = 0;
+        for (int j = 0; j < per && idx + 1 < end; j++, idx += 2) {
+          final s = view.getInt16(idx, Endian.little).toDouble();
+          sumSq += s * s;
+          count++;
+        }
+        final rms = count > 0 ? math.sqrt(sumSq / count) : 0.0;
+        out.add(rms);
+        if (rms > globalMax) globalMax = rms;
+      }
+      // Normalize to the loudest bucket, with a gentle gamma so quiet detail
+      // stays visible.
+      for (int i = 0; i < out.length; i++) {
+        out[i] =
+            math.pow(out[i] / globalMax, 0.7).toDouble().clamp(0.0, 1.0).toDouble();
+      }
+      return out;
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// A stable, recording-specific placeholder profile for rows whose audio
+  /// hasn't been decoded yet. Seeded by the id so it doesn't flicker on rebuild.
+  static List<double> _placeholderPeaks(String id, {int buckets = 180}) {
+    final rnd = math.Random(id.hashCode);
+    return List<double>.generate(buckets, (_) => 0.22 + rnd.nextDouble() * 0.5);
+  }
+
+  List<double> _peaksFor(Document doc) =>
+      _peaks[doc.id] ?? _placeholderPeaks(doc.id);
 
   Future<void> _stopAndSave() async {
     _timer?.cancel();
@@ -524,13 +599,52 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
                             color: tokens.glow,
                           ),
                           const SizedBox(width: 4),
-                          Expanded(
+                          SizedBox(
+                            width: 196,
                             child: Text(doc.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w600)),
                           ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SizedBox(
+                              height: 30,
+                              child: playing
+                                  ? StreamBuilder<Duration>(
+                                      stream: _player.positionStream,
+                                      builder: (_, snap) {
+                                        final dur =
+                                            _player.duration ?? Duration.zero;
+                                        final posn = snap.data ?? Duration.zero;
+                                        final prog = dur.inMilliseconds == 0
+                                            ? 0.0
+                                            : (posn.inMilliseconds /
+                                                    dur.inMilliseconds)
+                                                .clamp(0.0, 1.0)
+                                                .toDouble();
+                                        return _WaveformBars(
+                                          peaks: _peaksFor(doc),
+                                          progress: prog,
+                                          durationMs: dur.inMilliseconds,
+                                          playedColor: tokens.glow,
+                                          baseColor: scheme.onSurfaceVariant
+                                              .withOpacity(0.30),
+                                        );
+                                      },
+                                    )
+                                  : _WaveformBars(
+                                      peaks: _peaksFor(doc),
+                                      progress: 0,
+                                      durationMs: null,
+                                      playedColor: tokens.glow,
+                                      baseColor: scheme.onSurfaceVariant
+                                          .withOpacity(0.30),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           IconButton(
                             tooltip: 'Delete',
                             onPressed: () => _delete(doc),
@@ -629,4 +743,128 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
       child: Row(children: children),
     );
   }
+}
+
+/// Voice-note style waveform: amplitude bars that span the full available
+/// width with a playback progress sweep. The bar count scales with the clip's
+/// duration (longer audio → more, thinner bars) but always fills the space, so
+/// the sweep travels edge-to-edge over the exact length of the audio. [peaks]
+/// are normalized 0..1; bars left of [progress] render in [playedColor], the
+/// rest in [baseColor].
+class _WaveformBars extends StatelessWidget {
+  const _WaveformBars({
+    required this.peaks,
+    required this.progress,
+    required this.playedColor,
+    required this.baseColor,
+    this.durationMs,
+  });
+
+  final List<double> peaks;
+  final double progress;
+  final Color playedColor;
+  final Color baseColor;
+  final int? durationMs;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : 320.0;
+        const gap = 1.5;
+        const minBarW = 2.0;
+        const maxBarW = 3.5;
+        const barsPerSecond = 16.0;
+        // Bar count that always fills the width: between maxBarW-wide bars
+        // (fewest) and minBarW-wide bars (most). Duration nudges within that
+        // range so longer clips render more, thinner bars.
+        final maxN = math.max(1, ((width + gap) / (minBarW + gap)).floor());
+        final minN =
+            math.max(1, math.min(maxN, ((width + gap) / (maxBarW + gap)).ceil()));
+        final desired = (durationMs != null && durationMs! > 0)
+            ? (durationMs! / 1000.0 * barsPerSecond).round()
+            : minN;
+        final n = desired.clamp(minN, maxN).toInt();
+        final bars = _resampleWave(peaks, n);
+        return CustomPaint(
+          size: Size(width, 30),
+          painter: _WaveformPainter(
+            peaks: bars,
+            progress: progress,
+            playedColor: playedColor,
+            baseColor: baseColor,
+            gap: gap,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Linearly resamples [src] to exactly [n] values so the bar count can match
+/// the available width / duration without losing the overall shape.
+List<double> _resampleWave(List<double> src, int n) {
+  if (src.isEmpty || n <= 0) return const [];
+  if (src.length == n) return src;
+  if (n == 1) return [src.reduce((a, b) => a > b ? a : b)];
+  final out = List<double>.filled(n, 0.0);
+  final lastSrc = src.length - 1;
+  for (int i = 0; i < n; i++) {
+    final t = i * lastSrc / (n - 1);
+    final lo = t.floor();
+    final hi = lo + 1 <= lastSrc ? lo + 1 : lastSrc;
+    final f = t - lo;
+    out[i] = src[lo] * (1 - f) + src[hi] * f;
+  }
+  return out;
+}
+
+class _WaveformPainter extends CustomPainter {
+  _WaveformPainter({
+    required this.peaks,
+    required this.progress,
+    required this.playedColor,
+    required this.baseColor,
+    this.gap = 1.5,
+  });
+
+  final List<double> peaks;
+  final double progress;
+  final Color playedColor;
+  final Color baseColor;
+  final double gap;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (peaks.isEmpty || size.width <= 0) return;
+    final n = peaks.length;
+    final stride = size.width / n;
+    final barW = math.max(1.0, stride - gap);
+    final midY = size.height / 2;
+    final progressX = size.width * progress.clamp(0.0, 1.0).toDouble();
+    final played = Paint()
+      ..color = playedColor
+      ..style = PaintingStyle.fill;
+    final base = Paint()
+      ..color = baseColor
+      ..style = PaintingStyle.fill;
+    for (int i = 0; i < n; i++) {
+      final x = i * stride;
+      double barH = (peaks[i].clamp(0.0, 1.0) * size.height).toDouble();
+      if (barH < 2.0) barH = 2.0;
+      final rect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, midY - barH / 2, barW, barH),
+        const Radius.circular(1.2),
+      );
+      canvas.drawRRect(rect, (x + barW) <= progressX ? played : base);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_WaveformPainter old) =>
+      old.progress != progress ||
+      old.peaks != peaks ||
+      old.playedColor != playedColor ||
+      old.baseColor != baseColor;
 }
