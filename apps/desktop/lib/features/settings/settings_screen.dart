@@ -95,6 +95,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final selectedTheme = ref.watch(selectedThemeNameProvider);
     final swhMode = ref.watch(selectedSwhModeProvider);
     final isPro = ref.watch(isProUserProvider);
+    // Writing-Nook-only settings (Story-Coach, Writing Nook guide) are gated on
+    // this so they never appear in the Reading/Free experience (1.0.9.0 parity).
+    final isWritingNook =
+        ref.watch(planStatusProvider).plan == 'writing_nook_pro';
     final maxSpeed = isPro ? kProMaxSpeed : kFreeMaxSpeed;
     final availableSpeeds =
         SpeedPreferenceNotifier.speeds.where((s) => s <= maxSpeed).toList();
@@ -263,38 +267,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          _SettingsCard(
-            icon: Icons.auto_stories_outlined,
-            title: 'Story-Coach',
-            children: [
-              SwitchListTile(
-                title: const Text('AI Story-Coaching'),
-                subtitle: const Text(
-                  "Nudge me when my writing drifts from my book's narrative",
-                  style: TextStyle(fontSize: 11),
+          // Writing-Nook-only — hidden entirely for Reading/Free (1.0.9.0 parity).
+          if (isWritingNook) ...[
+            _SettingsCard(
+              icon: Icons.auto_stories_outlined,
+              title: 'Story-Coach',
+              children: [
+                SwitchListTile(
+                  title: const Text('AI Story-Coaching'),
+                  subtitle: const Text(
+                    "Nudge me when my writing drifts from my book's narrative",
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: ref.watch(storyCoachEnabledProvider),
+                  onChanged: (v) => ref
+                      .read(storyCoachEnabledProvider.notifier)
+                      .setEnabled(v),
                 ),
-                value: ref.watch(storyCoachEnabledProvider),
-                onChanged: (v) =>
-                    ref.read(storyCoachEnabledProvider.notifier).setEnabled(v),
-              ),
-            ],
-          ),
-          _SettingsCard(
-            icon: Icons.support_agent,
-            title: 'Help guide',
-            children: [
-              SwitchListTile(
-                title: const Text('Show the Writing Nook guide'),
-                subtitle: const Text(
-                  'A quick-help chat in the Library corner',
-                  style: TextStyle(fontSize: 11),
+              ],
+            ),
+            _SettingsCard(
+              icon: Icons.support_agent,
+              title: 'Help guide',
+              children: [
+                SwitchListTile(
+                  title: const Text('Show the Writing Nook guide'),
+                  subtitle: const Text(
+                    'A quick-help chat in the Library corner',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: ref.watch(guideChatEnabledProvider),
+                  onChanged: (v) =>
+                      ref.read(guideChatEnabledProvider.notifier).setEnabled(v),
                 ),
-                value: ref.watch(guideChatEnabledProvider),
-                onChanged: (v) =>
-                    ref.read(guideChatEnabledProvider.notifier).setEnabled(v),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
           _SettingsCard(
             icon: Icons.sd_storage_outlined,
             title: 'Storage',
@@ -339,7 +347,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.only(top: 8, bottom: 16),
             child: Center(
               child: Text(
-                _appVersion.isEmpty ? 'Psitta' : 'Psitta v$_appVersion',
+                // Tier-aware label: Writing shows the real build version;
+                // Free/Reading pin to v1.1.0 (kept on the Reading line).
+                isWritingNook
+                    ? (_appVersion.isEmpty ? 'Psitta' : 'Psitta v$_appVersion')
+                    : 'Psitta v1.1.0',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
