@@ -456,7 +456,7 @@ export default function Product() {
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 items-start">
-            <div className="space-y-6 order-last lg:order-1">
+            <div className="space-y-6 order-last lg:order-2">
               {creativeFeatures.map((feature) => (
                 <FeatureCard
                   key={feature.title}
@@ -465,7 +465,7 @@ export default function Product() {
                 />
               ))}
             </div>
-            <div className="flex justify-center order-first lg:order-2">
+            <div className="flex justify-center order-first lg:order-1">
               <img
                 src="/brand/creative-nook-illustration_blended.png"
                 alt="Creative Nook — parrot on a creative workspace with documents and tools"
