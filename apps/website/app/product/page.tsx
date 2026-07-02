@@ -25,7 +25,7 @@ const softwareApplicationSchema = {
       name: "Reading Nook Free",
       price: "0",
       priceCurrency: "USD",
-      description: "Free tier with 3 documents per month and Edge TTS voices",
+      description: "Free tier with 10 documents per month and Edge TTS voices",
     },
     {
       "@type": "Offer",
@@ -33,14 +33,44 @@ const softwareApplicationSchema = {
       price: "14.99",
       priceCurrency: "USD",
       description:
-        "Unlimited documents, premium voices, word-level highlighting",
+        "Premium voices, word-level highlighting, and 50 documents per month",
     },
     {
       "@type": "Offer",
       name: "Reading Nook Pro (annual)",
-      price: "99",
+      price: "152",
       priceCurrency: "USD",
-      description: "Annual subscription, saves ~44% vs monthly",
+      description: "Annual Reading Nook Pro — saves ~15% vs monthly",
+    },
+    {
+      "@type": "Offer",
+      name: "Writing Nook Pro (monthly)",
+      price: "17.99",
+      priceCurrency: "USD",
+      description:
+        "Everything in Reading Nook plus the full Writing Desk, Blueprints, Story-Coach, and writing analytics",
+    },
+    {
+      "@type": "Offer",
+      name: "Writing Nook Pro (annual)",
+      price: "183",
+      priceCurrency: "USD",
+      description: "Annual Writing Nook Pro — saves ~15% vs monthly",
+    },
+    {
+      "@type": "Offer",
+      name: "Creative Nook Pro (monthly)",
+      price: "29.99",
+      priceCurrency: "USD",
+      description:
+        "Everything in Writing Nook plus the Creative Studio (coming soon)",
+    },
+    {
+      "@type": "Offer",
+      name: "Creative Nook Pro (annual)",
+      price: "305",
+      priceCurrency: "USD",
+      description: "Annual Creative Nook Pro — coming soon",
     },
   ],
   publisher: {
@@ -146,6 +176,83 @@ const readingFeatures: Feature[] = [
   },
 ];
 
+const writingFeatures: Feature[] = [
+  {
+    title: "Full Writing Desk",
+    description:
+      "A focused, distraction-free editor for drafting and revising your book — with Psitta reading every line back to you as you write.",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M12 20h9" />
+        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+      </svg>
+    ),
+  },
+  {
+    title: "Blueprints & 25+ narrative structures",
+    description:
+      "Structure your book with Blueprints and 25+ proven frameworks — Three-Act, Save the Cat, Seven-Point, Snowflake and more — each with an interactive, step-by-step guide.",
+    icon: (
+      <svg {...iconProps}>
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
+    title: "Scene mapping & progress tracking",
+    description:
+      "Map scenes onto your outline and watch your manuscript's progress build automatically as you write toward the finish.",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M9 3 4 5v16l5-2 6 2 5-2V3l-5 2-6-2z" />
+        <path d="M9 3v16" />
+        <path d="M15 5v16" />
+      </svg>
+    ),
+  },
+  {
+    title: "Story-Coach — live drift nudges",
+    description:
+      "An always-on coach that flags when a scene drifts from your outline or intent, so you can course-correct in the moment instead of on the rewrite.",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <path d="M12 7v4" />
+        <path d="M12 14h.01" />
+      </svg>
+    ),
+  },
+  {
+    title: "Structure Analyzer",
+    description:
+      "Analyze your draft against your chosen structure and get concrete, section-by-section feedback on pacing, gaps, and beats.",
+    icon: (
+      <svg {...iconProps}>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m21 21-4.3-4.3" />
+        <path d="M11 8v6" />
+        <path d="M8 11h6" />
+      </svg>
+    ),
+  },
+  {
+    title: "Writing analytics",
+    description:
+      "Lifetime words, streaks, sessions and weekly word-trends build automatically as you write in the Desk — so you can see momentum, not guess at it.",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M3 3v18h18" />
+        <rect x="7" y="12" width="3" height="6" />
+        <rect x="12" y="8" width="3" height="10" />
+        <rect x="17" y="5" width="3" height="13" />
+      </svg>
+    ),
+  },
+];
+
 const creativeFeatures: Feature[] = [
   {
     title: "Creative workspaces",
@@ -173,9 +280,9 @@ const creativeFeatures: Feature[] = [
     ),
   },
   {
-    title: "All Reading Nook Pro features included",
+    title: "Everything in Writing Nook included",
     description:
-      "Everything in Reading Nook Pro — premium voices, word-by-word highlighting, branded DOCX export, archives, priority support — plus the creative workflow tools below. One subscription, both modes.",
+      "All Writing Nook features — premium voices, word-by-word highlighting, the full Writing Desk, Blueprints, Story-Coach, and analytics — plus the creative workflow tools below. One subscription.",
     icon: (
       <svg {...iconProps}>
         <circle cx="12" cy="12" r="9" />
@@ -235,6 +342,8 @@ function FeatureCard({
 export default function Product() {
   const readingIconClass =
     "shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-psitta-50 text-psitta-600";
+  const writingIconClass =
+    "shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-psitta-50 text-psitta-600";
   const creativeIconClass =
     "shrink-0 flex h-11 w-11 items-center justify-center rounded-xl bg-gray-100 text-ink-muted";
 
@@ -284,6 +393,32 @@ export default function Product() {
         <div className="mt-20 border-t border-edge-subtle pt-16">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl font-bold text-ink-primary">
+              Writing Nook
+            </h2>
+            <span className="rounded-full bg-psitta-600 px-3 py-0.5 text-xs font-semibold text-white">
+              Most popular
+            </span>
+          </div>
+          <p className="mt-2 text-ink-body leading-relaxed max-w-xl">
+            Everything in Reading Nook, plus a full writing platform — structure
+            your book, write with Psitta reading every line back to you, and
+            finish with an AI coach that keeps you on track.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 mt-12">
+            {writingFeatures.map((feature) => (
+              <FeatureCard
+                key={feature.title}
+                feature={feature}
+                iconContainerClass={writingIconClass}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-20 border-t border-edge-subtle pt-16">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold text-ink-primary">
               Creative Nook
             </h2>
             <span className="rounded-full bg-ink-muted px-3 py-0.5 text-xs font-semibold text-white">
@@ -291,8 +426,8 @@ export default function Product() {
             </span>
           </div>
           <p className="mt-2 text-ink-body leading-relaxed max-w-xl">
-            Expand beyond reading into structured content creation.
-            Available as an add-on to Reading Nook Pro.
+            Expand beyond writing into a full Creative Studio. Builds on
+            everything in Writing Nook.
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 items-start">
