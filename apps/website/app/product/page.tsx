@@ -405,14 +405,25 @@ export default function Product() {
             finish with an AI coach that keeps you on track.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6 mt-12">
-            {writingFeatures.map((feature) => (
-              <FeatureCard
-                key={feature.title}
-                feature={feature}
-                iconContainerClass={writingIconClass}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 items-center">
+            <div className="flex justify-center">
+              <img
+                src="/brand/writing-nook-illustration_blended.png"
+                alt="Writing Nook — parrot writing a book with AI writing tools, story analyzer, and writing insights"
+                width={480}
+                height={320}
+                className="w-72 sm:w-80 lg:w-96 h-auto rounded-3xl bg-[#FAFAF7] mix-blend-multiply"
               />
-            ))}
+            </div>
+            <div className="space-y-6">
+              {writingFeatures.map((feature) => (
+                <FeatureCard
+                  key={feature.title}
+                  feature={feature}
+                  iconContainerClass={writingIconClass}
+                />
+              ))}
+            </div>
           </div>
         </div>
 
