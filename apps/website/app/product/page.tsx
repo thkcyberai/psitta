@@ -5,9 +5,9 @@ import JsonLd from "@/components/seo/JsonLd";
 import CreativityWaitlistForm from "@/components/waitlist/CreativityWaitlistForm";
 
 export const metadata: Metadata = {
-  title: "Features",
+  title: "Features — Read, Listen & Write",
   description:
-    "Import a PDF or Word document, hear it read aloud with sentence and word highlighting synced to the audio, and edit your draft while listening.",
+    "Psitta reads your PDFs, Word docs, e-books and more aloud with synced word-level highlighting — then gives writers a full platform with Blueprints, Story-Coach, and writing analytics to finish their book. Free tier, Windows.",
 };
 
 const softwareApplicationSchema = {
@@ -15,7 +15,7 @@ const softwareApplicationSchema = {
   "@type": "SoftwareApplication",
   name: "Psitta",
   description:
-    "Psitta reads your documents aloud — PDFs and Word documents — with sentence-level and word-level highlighting synchronized to the audio. Built for writers and editors who want to hear their own writing.",
+    "Psitta reads your documents aloud — PDF, DOCX, HTML, TXT, MD, and EPUB — with word-level highlighting synced to the audio, plus a full writing platform (Writing Desk, Blueprints, Story-Coach, analytics) to structure, draft, and finish a book. Built for writers and editors.",
   url: "https://psitta.ai",
   applicationCategory: "ProductivityApplication",
   operatingSystem: "Windows 10, Windows 11",
@@ -177,6 +177,19 @@ const readingFeatures: Feature[] = [
 ];
 
 const writingFeatures: Feature[] = [
+  {
+    title: "PDF, DOCX, HTML, TXT, MD and e-books support",
+    description:
+      "Upload any PDF, Word (DOCX), HTML page, plain-text (TXT), Markdown (MD), or EPUB e-book. Psitta extracts the text, preserves structure and reading order, and makes every format instantly ready to read, listen to, and edit — all in one place.",
+    icon: (
+      <svg {...iconProps}>
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M14 3v5h5" />
+        <path d="M9 13h6" />
+        <path d="M9 17h6" />
+      </svg>
+    ),
+  },
   {
     title: "Full Writing Desk",
     description:
@@ -352,11 +365,12 @@ export default function Product() {
       <JsonLd data={softwareApplicationSchema} />
       <Container className="max-w-4xl">
         <h1 className="text-ink-primary text-center">
-          Everything Psitta does
+          Hear your words. Finish your book.
         </h1>
         <p className="lead mt-4 text-center text-ink-muted max-w-2xl mx-auto">
-          A desktop app that reads your documents aloud — so you can hear what
-          you actually wrote.
+          Psitta reads any document aloud so you can hear what you actually
+          wrote — then gives you a full writing platform to structure, draft,
+          and finish your book.
         </p>
 
         <div className="mt-16">
@@ -406,7 +420,7 @@ export default function Product() {
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 items-center">
-            <div className="flex justify-center">
+            <div className="flex justify-center lg:order-2">
               <img
                 src="/brand/writing-nook-illustration_blended.png"
                 alt="Writing Nook — parrot writing a book with AI writing tools, story analyzer, and writing insights"
@@ -415,7 +429,7 @@ export default function Product() {
                 className="w-72 sm:w-80 lg:w-96 h-auto rounded-3xl bg-[#FAFAF7] mix-blend-multiply"
               />
             </div>
-            <div className="space-y-6">
+            <div className="space-y-6 lg:order-1">
               {writingFeatures.map((feature) => (
                 <FeatureCard
                   key={feature.title}
