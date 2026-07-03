@@ -136,7 +136,7 @@ export default function Home() {
       <JsonLd data={softwareApplicationSchema} />
 
       {/* Hero — Writing Nook forward */}
-      <section className="pt-4 pb-section">
+      <section className="pt-4 pb-12">
         <Container className="text-center">
           <div className="flex justify-center mb-2">
             <Logo variant="bird" size="2xl" priority />
@@ -185,7 +185,7 @@ export default function Home() {
       </section>
 
       {/* Writing Nook highlights */}
-      <section className="py-section bg-paper-surface">
+      <section className="pt-12 pb-section bg-paper-surface">
         <Container>
           <div className="max-w-2xl mx-auto text-center">
             <p className="text-xs font-semibold uppercase tracking-wider text-psitta-600">
