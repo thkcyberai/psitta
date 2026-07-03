@@ -139,7 +139,7 @@ export default function Home() {
       <section className="pt-4 pb-section">
         <Container className="text-center">
           <div className="flex justify-center mb-2">
-            <Logo variant="bird" size="3xl" priority />
+            <Logo variant="bird" size="2xl" priority />
           </div>
 
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-psitta-600">
