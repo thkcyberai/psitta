@@ -183,12 +183,10 @@ export default function Home() {
           </p>
 
           <div className="mt-10 overflow-hidden rounded-2xl border border-edge-subtle bg-paper-surface shadow-sm">
-            {/* 16:9 slot — drop /brand/maya-writing-nook.mp4 into public/brand to go live */}
             <video
               className="aspect-video w-full h-full object-cover bg-paper-subtle"
               controls
-              preload="metadata"
-              poster="/brand/writing-nook-illustration_blended.png"
+              preload="auto"
             >
               <source src="/brand/maya-writing-nook.mp4" type="video/mp4" />
               Your browser doesn&apos;t support embedded video.{" "}
