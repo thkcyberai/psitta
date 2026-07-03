@@ -136,9 +136,9 @@ export default function Home() {
       <JsonLd data={softwareApplicationSchema} />
 
       {/* Hero — Writing Nook forward */}
-      <section className="pt-section pb-section">
+      <section className="pt-4 pb-section">
         <Container className="text-center">
-          <div className="flex justify-center mb-8">
+          <div className="flex justify-center mb-2">
             <Logo variant="bird" size="3xl" priority />
           </div>
 
