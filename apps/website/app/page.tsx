@@ -152,37 +152,12 @@ export default function Home() {
             <span className="text-gradient-soft">Finish your book.</span>
           </h1>
 
-          <p className="lead mt-8 max-w-2xl mx-auto">
-            Psitta is where writers finish. Outline your book with Blueprints,
-            draft in a distraction-free Writing Desk, and hear every line read
-            back to you — so you catch the clumsy sentence before your readers do.
-          </p>
-
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
-            <Button href="/download" variant="primary" size="lg">
-              Download for Windows
-            </Button>
-            <Button href="/pricing" variant="secondary" size="lg">
-              See pricing
-            </Button>
-          </div>
-
-          <p className="mt-8 text-sm text-ink-muted">
-            Free tier available · No credit card required to start
-          </p>
-        </Container>
-      </section>
-
-      {/* Maya video — the centerpiece (16:9) */}
-      <section className="pb-section-lg">
-        <Container className="max-w-4xl text-center">
-          <h2 className="text-ink-primary">See the Writing Nook in action</h2>
-          <p className="lead mt-4 max-w-2xl mx-auto text-ink-muted">
-            Meet Maya — she&apos;ll walk you through how Psitta helps you
+          <p className="mt-6 max-w-2xl mx-auto text-ink-muted">
+            Meet Maya — she&apos;ll let you know more about how Psitta helps you
             structure, draft, and finish your book.
           </p>
 
-          <div className="mt-10 overflow-hidden rounded-2xl border border-edge-subtle bg-paper-surface shadow-sm">
+          <div className="mt-6 mx-auto max-w-4xl overflow-hidden rounded-2xl border border-edge-subtle bg-paper-surface shadow-sm">
             <video
               className="aspect-video w-full h-full object-cover bg-paper-subtle"
               controls
@@ -194,11 +169,18 @@ export default function Home() {
             </video>
           </div>
 
-          <div className="mt-10">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Button href="/download" variant="primary" size="lg">
               Start writing with Psitta
             </Button>
+            <Button href="/pricing" variant="secondary" size="lg">
+              See pricing
+            </Button>
           </div>
+
+          <p className="mt-6 text-sm text-ink-muted">
+            Free tier available · No credit card required to start
+          </p>
         </Container>
       </section>
 
