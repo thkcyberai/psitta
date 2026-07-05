@@ -39,6 +39,7 @@ async def check_narrative_with_quota(
     passage: str,
     beat_index: int | None = None,
     provider: LlmOpenAIProvider | None = None,
+    language: str | None = None,
 ) -> dict:
     """Judge whether a passage fits the project's committed narrative.
 
@@ -154,6 +155,7 @@ async def check_narrative_with_quota(
             variant=variant,
             beats=beats,
             beat_index=beat_index,
+            language=language,
         )
     except LlmProviderError as exc:
         logger.error(

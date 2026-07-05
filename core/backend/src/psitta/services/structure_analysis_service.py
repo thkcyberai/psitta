@@ -38,6 +38,7 @@ async def analyze_structure_with_quota(
     user_id: UUID,
     project_id: UUID,
     provider: LlmOpenAIProvider | None = None,
+    language: str | None = None,
 ) -> dict:
     """Analyze a project's whole manuscript against its narrative beats.
 
@@ -163,6 +164,7 @@ async def analyze_structure_with_quota(
             variant=variant,
             beats=beats,
             manuscript=manuscript,
+            language=language,
         )
     except LlmProviderError as exc:
         logger.error(

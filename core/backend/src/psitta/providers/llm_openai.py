@@ -72,6 +72,32 @@ _ANALYZE_SYSTEM_PROMPT = (
 )
 
 
+def _language_directive(language: str | None, *, json_mode: bool) -> str:
+    """Extra system-prompt text that forces the reply language.
+
+    Returns an empty string when ``language`` is falsy, so English callers are
+    byte-for-byte unchanged. ``language`` is a human-readable name such as
+    ``"Brazilian Portuguese"`` or ``"French"`` (see WorkingLanguage on the
+    client). In JSON-structured features the model must keep the machine-facing
+    parts (keys, status enums, provided beat labels) intact and only translate
+    the human-readable string values.
+    """
+    if not language:
+        return ""
+    directive = (
+        f"\n\nWRITER'S LANGUAGE: {language}. Write your entire response in "
+        f"{language}, regardless of the language of the input text."
+    )
+    if json_mode:
+        directive += (
+            f" Put every human-readable string value (messages, notes, "
+            f"summaries) in {language}, but keep all JSON keys, status/enum "
+            f"values (e.g. present/thin/missing, aligned true/false), and any "
+            f"provided beat labels EXACTLY as given — do not translate those."
+        )
+    return directive
+
+
 class LlmProviderError(Exception):
     """Raised when the LLM provider call fails."""
 
@@ -92,12 +118,16 @@ class LlmOpenAIProvider:
         self,
         text: str,
         doc_title: str,
+        language: str | None = None,
     ) -> tuple[str, int, int]:
         """Summarize text via OpenAI chat completions.
 
         Args:
             text: Plain text of the document to summarize.
             doc_title: Document title included in the user prompt for context.
+            language: Human-readable writer language (e.g. ``"French"``). When
+                set, the summary is written in that language; ``None`` keeps the
+                original English behavior.
 
         Returns:
             (summary_text, prompt_tokens, completion_tokens)
@@ -108,7 +138,11 @@ class LlmOpenAIProvider:
         payload = {
             "model": self._model,
             "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT},
+                {
+                    "role": "system",
+                    "content": _SYSTEM_PROMPT
+                    + _language_directive(language, json_mode=False),
+                },
                 {
                     "role": "user",
                     "content": (
@@ -170,6 +204,7 @@ class LlmOpenAIProvider:
         variant: str | None,
         beats: list[str],
         beat_index: int | None = None,
+        language: str | None = None,
     ) -> tuple[dict, int, int]:
         """Judge whether a drafted passage fits the writer's chosen narrative.
 
@@ -209,7 +244,11 @@ class LlmOpenAIProvider:
         payload = {
             "model": self._model,
             "messages": [
-                {"role": "system", "content": _COACH_SYSTEM_PROMPT},
+                {
+                    "role": "system",
+                    "content": _COACH_SYSTEM_PROMPT
+                    + _language_directive(language, json_mode=True),
+                },
                 {"role": "user", "content": user_content},
             ],
             "max_tokens": 220,
@@ -277,6 +316,7 @@ class LlmOpenAIProvider:
         variant: str | None,
         beats: list[str],
         manuscript: str,
+        language: str | None = None,
     ) -> tuple[dict, int, int]:
         """Assess a whole manuscript against its narrative beats.
 
@@ -301,7 +341,11 @@ class LlmOpenAIProvider:
         payload = {
             "model": self._model,
             "messages": [
-                {"role": "system", "content": _ANALYZE_SYSTEM_PROMPT},
+                {
+                    "role": "system",
+                    "content": _ANALYZE_SYSTEM_PROMPT
+                    + _language_directive(language, json_mode=True),
+                },
                 {"role": "user", "content": user_content},
             ],
             "max_tokens": 1100,
