@@ -89,8 +89,16 @@ async def get_mp3(chunk_id: str, voice_id: str) -> str | None:
 
 
 async def put_mp3(chunk_id: str, voice_id: str, audio_bytes: bytes) -> str:
-    """Save mp3 to local + S3. Returns local path."""
+    """Save mp3 to local + S3. Returns local path.
+
+    Audio is loudness-normalized (EBU R128) before persisting so every voice —
+    any provider, any language — replays at a consistent perceived volume.
+    Fail-safe: normalization errors leave the bytes unchanged.
+    """
+    from psitta.providers.audio_loudness import normalize_mp3
+
     _ensure_dir()
+    audio_bytes = await normalize_mp3(audio_bytes)
     local = _local_mp3(chunk_id, voice_id)
     with open(local, "wb") as f:
         f.write(audio_bytes)
