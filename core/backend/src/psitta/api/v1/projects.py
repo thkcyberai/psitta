@@ -4,7 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -285,6 +285,7 @@ async def check_project_narrative(
     data: NarrativeCheckRequest,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
+    x_psitta_language: str | None = Header(default=None, alias="X-Psitta-Language"),
 ) -> NarrativeCheckResponse:
     """AI Story-Coach — judge whether a drafted passage fits this project's
     committed narrative (Writing Nook Pro / Creative Nook Pro).
@@ -307,6 +308,7 @@ async def check_project_narrative(
         pid,
         passage=data.passage,
         beat_index=data.beat_index,
+        language=x_psitta_language,
     )
     return NarrativeCheckResponse(**result)
 
@@ -317,6 +319,7 @@ async def analyze_project_structure(
     project_id: str,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
+    x_psitta_language: str | None = Header(default=None, alias="X-Psitta-Language"),
 ) -> StructureAnalysisResponse:
     """Structure Analyzer — assess the whole manuscript against this project's
     narrative beats (Writing Nook Pro / Creative Nook Pro).
@@ -335,7 +338,9 @@ async def analyze_project_structure(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Project not found") from exc
 
-    result = await analyze_structure_with_quota(db, user_id, pid)
+    result = await analyze_structure_with_quota(
+        db, user_id, pid, language=x_psitta_language
+    )
     return StructureAnalysisResponse(**result)
 
 

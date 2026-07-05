@@ -27,6 +27,7 @@ async def summarize_with_quota(
     user_id: UUID,
     document_id: UUID,
     provider: LlmOpenAIProvider | None = None,
+    language: str | None = None,
 ) -> dict:
     """Summarize a document with LLM quota pre-check and post-increment.
 
@@ -127,6 +128,7 @@ async def summarize_with_quota(
         summary, prompt_tokens, completion_tokens = await provider.summarize(
             text=text_for_prompt,
             doc_title=doc_title,
+            language=language,
         )
     except LlmProviderError as exc:
         logger.error(

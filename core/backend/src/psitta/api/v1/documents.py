@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 import pysbd
 import structlog
 from pathlib import Path
-from fastapi import APIRouter, BackgroundTasks, Depends, Form, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, Header, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
@@ -2864,6 +2864,7 @@ async def summarize_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
+    x_psitta_language: str | None = Header(default=None, alias="X-Psitta-Language"),
 ) -> dict:
     """Summarize a document using LLM (Writing Nook Pro / Creative Nook Pro).
 
@@ -2875,7 +2876,9 @@ async def summarize_document(
     """
     from psitta.services.llm_service import summarize_with_quota
 
-    return await summarize_with_quota(db, user_id, document_id)
+    return await summarize_with_quota(
+        db, user_id, document_id, language=x_psitta_language
+    )
 
 
 class DocumentUpdateRequest(BaseModel):
