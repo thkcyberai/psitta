@@ -1,0 +1,20 @@
+{
+  "@@locale": "es",
+  "appTitle": "Psitta",
+  "navLibrary": "Biblioteca",
+  "navPlayer": "Reproductor",
+  "navWritingDesk": "Escritorio de escritura",
+  "navProjects": "Proyectos",
+  "navBlueprints": "Blueprints",
+  "navPlans": "Planes",
+  "navVoices": "Voces",
+  "navAnalytics": "Analíticas",
+  "navSettings": "Configuración",
+  "navHelp": "Ayuda",
+  "settingsLanguage": "Idioma",
+  "languageSystem": "Predeterminado del sistema",
+  "languageEnglish": "Inglés",
+  "languagePortuguese": "Portugués",
+  "languageSpanish": "Español",
+  "languageFrench": "Francés"
+}

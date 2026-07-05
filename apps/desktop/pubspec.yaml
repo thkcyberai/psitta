@@ -10,6 +10,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
 
   # State management
   flutter_riverpod: ^2.5.0
@@ -53,6 +56,9 @@ dependencies:
 
   # SVG rendering
   flutter_svg: ^2.0.10
+
+  # Country flags (SVG-based — renders on Windows, unlike emoji flags)
+  country_flags: ^4.0.0
 
   # Crypto (PKCE code challenge)
   crypto: ^3.0.0
@@ -101,6 +107,7 @@ msix_config:
   install_certificate: false
 
 flutter:
+  generate: true
   uses-material-design: true
   assets:
     - assets/branding/psitta-bird.png

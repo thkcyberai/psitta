@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
+import '../../core/i18n/working_language.dart';
 import '../models/document.dart';
 import '../models/voice.dart';
 import '../repositories/document_repository.dart';
@@ -7,6 +8,7 @@ import '../repositories/voice_repository.dart';
 import '../repositories/playback_repository.dart';
 import '../repositories/project_repository.dart';
 import '../services/auth_service.dart';
+import '../services/preferences_service.dart';
 
 // ── Core ───────────────────────────────────────────────────────
 
@@ -25,6 +27,9 @@ ApiClient _buildApiClient(Ref ref) {
   return ApiClient(
     authService: ref.watch(authServiceProvider),
     onUnauthorized: () => _invalidateAuthProviders(ref),
+    currentLanguage: () =>
+        WorkingLanguage.fromLocale(ref.read(selectedLocaleProvider))
+            ?.aiLanguageName,
   );
 }
 

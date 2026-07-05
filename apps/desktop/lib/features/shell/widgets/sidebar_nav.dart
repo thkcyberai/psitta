@@ -5,6 +5,7 @@ import 'player_bar.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../shared/widgets/psitta_logo.dart';
+import '../../../l10n/app_localizations.dart';
 
 class SidebarNav extends StatelessWidget {
   const SidebarNav({super.key, required this.isCollapsed});
@@ -14,6 +15,7 @@ class SidebarNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
 
     return Container(
       // Sidebar surface only. No special logo container styling.
@@ -25,25 +27,25 @@ class SidebarNav extends StatelessWidget {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              children: const [
+              children: [
                 _NavItem(
-                    label: 'Library',
+                    label: loc.navLibrary,
                     icon: Icons.article_outlined,
                     route: '/library'),
                 _NavItem(
-                    label: 'Player',
+                    label: loc.navPlayer,
                     icon: Icons.play_circle_outline,
                     route: '/player'),
                 _NavItem(
-                    label: 'Projects',
+                    label: loc.navProjects,
                     icon: Icons.folder_outlined,
                     route: '/projects'),
                 _NavItem(
-                    label: 'Voices',
+                    label: loc.navVoices,
                     icon: Icons.record_voice_over_outlined,
                     route: '/voices'),
                 _NavItem(
-                    label: 'Settings',
+                    label: loc.navSettings,
                     icon: Icons.tune_outlined,
                     route: '/settings'),
               ],

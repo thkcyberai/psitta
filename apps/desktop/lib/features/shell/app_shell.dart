@@ -5,11 +5,13 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:country_flags/country_flags.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
+import '../../core/i18n/working_language.dart';
 import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart'
@@ -501,7 +503,9 @@ class _ContextHeader extends ConsumerWidget {
               ),
               const SizedBox(width: 10),
             ],
-            // Always present: refresh, help, settings, avatar
+            // Always present: language, refresh, help, settings, avatar
+            const _LanguageFlagBar(),
+            const SizedBox(width: 10),
             IconButton(
               tooltip: 'Refresh',
               onPressed: () => _refreshAllData(ref),
@@ -603,6 +607,8 @@ class _ContextHeader extends ConsumerWidget {
             ),
           ],
           const SizedBox(width: 10),
+          const _LanguageFlagBar(),
+          const SizedBox(width: 10),
           IconButton(
             tooltip: 'Refresh',
             onPressed: () => _refreshAllData(ref),
@@ -640,6 +646,88 @@ class _ContextHeader extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Working-language flag bar ─────────────────────────────────────────────────
+
+/// The 5-flag working-language selector shown in the top bar.
+///
+/// Picking a flag sets the writer's working language: it switches the UI
+/// locale AND resets the narration voice to that language's default, so the
+/// whole product turns to the chosen language in one click. `pt-BR` and
+/// `pt-PT` are separate flags that share the same `pt` UI strings but carry
+/// different default voices.
+class _LanguageFlagBar extends ConsumerWidget {
+  const _LanguageFlagBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current =
+        WorkingLanguage.fromLocale(ref.watch(selectedLocaleProvider));
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final lang in WorkingLanguage.bar)
+          _FlagButton(
+            lang: lang,
+            selected: lang == current,
+            onTap: () {
+              ref.read(selectedLocaleProvider.notifier).setLocale(lang.locale);
+              ref
+                  .read(selectedVoiceIdProvider.notifier)
+                  .select(lang.defaultVoiceId);
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _FlagButton extends StatelessWidget {
+  const _FlagButton({
+    required this.lang,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final WorkingLanguage lang;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: lang.label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: selected ? 1.0 : 0.42,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selected ? scheme.primary : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+            child: SizedBox(
+              width: 22,
+              height: 16,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: CountryFlag.fromCountryCode(lang.countryCode),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
