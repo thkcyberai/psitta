@@ -33,13 +33,25 @@ class AppLocalizationsFr extends AppLocalizations {
   String get navVoices => 'Voix';
 
   @override
-  String get navAnalytics => 'Analyses';
+  String get navAnalytics => 'Statistiques';
 
   @override
   String get navSettings => 'Paramètres';
 
   @override
   String get navHelp => 'Aide';
+
+  @override
+  String get navUpgrade => 'Améliorer';
+
+  @override
+  String get comingSoon => 'Bientôt disponible';
+
+  @override
+  String get sidebarExpand => 'Développer le menu';
+
+  @override
+  String get sidebarCollapse => 'Réduire le menu';
 
   @override
   String get settingsLanguage => 'Langue';
@@ -58,4 +70,153 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get languageFrench => 'Français';
+
+  @override
+  String get libraryTitle => 'Bibliothèque';
+
+  @override
+  String get librarySubtitle =>
+      'Tous vos documents, notes et ressources d\'écriture au même endroit.';
+
+  @override
+  String get newFileTooltip => 'Nouveau fichier';
+
+  @override
+  String get newBlankFile => 'Nouveau fichier vierge (DOCX)';
+
+  @override
+  String get uploadFromDevice => 'Importer depuis l\'appareil';
+
+  @override
+  String get newFile => 'Nouveau fichier';
+
+  @override
+  String get searchHint => 'Rechercher des documents, dossiers ou tags...';
+
+  @override
+  String get sortBy => 'Trier par';
+
+  @override
+  String get tabAll => 'Tous';
+
+  @override
+  String get tabDocuments => 'Documents';
+
+  @override
+  String get tabNotes => 'Notes';
+
+  @override
+  String get tabPdfs => 'PDF';
+
+  @override
+  String get tabBooks => 'Livres';
+
+  @override
+  String get tabOther => 'Autres';
+
+  @override
+  String get sortLastEdited => 'Dernière modification';
+
+  @override
+  String get sortName => 'Nom';
+
+  @override
+  String get sortDateAdded => 'Date d\'ajout';
+
+  @override
+  String get statDocuments => 'Documents';
+
+  @override
+  String get statProjects => 'Projets';
+
+  @override
+  String get statProjectsSub => 'Organisez votre travail';
+
+  @override
+  String get statBookStructures => 'Structures de livre';
+
+  @override
+  String get statBookStructuresSub => 'Vos plans';
+
+  @override
+  String get statTrash => 'Corbeille';
+
+  @override
+  String get statTrashSub => 'Restaurer les supprimés';
+
+  @override
+  String get statStorage => 'Stockage';
+
+  @override
+  String get statStorageUsed => 'Utilisé';
+
+  @override
+  String statThisWeek(int count) {
+    return '+$count cette semaine';
+  }
+
+  @override
+  String storageDocs(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count documents',
+      one: '1 document',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String libraryOfUser(String name) {
+    return 'Bibliothèque de $name';
+  }
+
+  @override
+  String get statusSearch => 'Rechercher';
+
+  @override
+  String get statusShortcuts => 'Raccourcis';
+
+  @override
+  String get proPlan => 'Formule Pro';
+
+  @override
+  String get freePlan => 'Formule Gratuite';
+
+  @override
+  String get quickAccess => 'Accès rapide';
+
+  @override
+  String get archive => 'Archives';
+
+  @override
+  String get archivedDocuments => 'Documents archivés';
+
+  @override
+  String get quickNotes => 'Notes rapides';
+
+  @override
+  String get voiceNotes => 'Notes vocales';
+
+  @override
+  String notesCountLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count notes',
+      one: '1 note',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String whispersCountLabel(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count notes vocales',
+      one: '1 note vocale',
+    );
+    return '$_temp0';
+  }
 }

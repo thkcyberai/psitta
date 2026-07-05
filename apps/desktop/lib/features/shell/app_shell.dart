@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
 import '../../core/i18n/working_language.dart';
+import '../../l10n/app_localizations.dart';
 import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart'
@@ -172,6 +173,7 @@ class _WritingStatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final muted = scheme.onSurfaceVariant.withOpacity(0.85);
+    final loc = AppLocalizations.of(context);
     return Container(
       height: 34,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -187,9 +189,9 @@ class _WritingStatusBar extends StatelessWidget {
                 fontSize: 11.5, color: muted, fontWeight: FontWeight.w500),
           ),
           const Spacer(),
-          _hint(context, 'Ctrl F', 'Search', muted),
+          _hint(context, 'Ctrl F', loc.statusSearch, muted),
           const SizedBox(width: 16),
-          _hint(context, 'Ctrl /', 'Shortcuts', muted),
+          _hint(context, 'Ctrl /', loc.statusShortcuts, muted),
         ],
       ),
     );
@@ -354,8 +356,9 @@ class _ContextHeader extends ConsumerWidget {
                   if (first == 'library') {
                     final name = displayNameFromProfile(
                         ref.watch(userProfileProvider).valueOrNull);
+                    final loc = AppLocalizations.of(context);
                     return Text(
-                      name.isEmpty ? 'Library' : "$name's Library",
+                      name.isEmpty ? loc.libraryTitle : loc.libraryOfUser(name),
                       style: theme.textTheme.titleLarge
                           ?.copyWith(fontWeight: FontWeight.w500),
                       maxLines: 1,

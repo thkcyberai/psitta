@@ -168,6 +168,30 @@ abstract class AppLocalizations {
   /// **'Help'**
   String get navHelp;
 
+  /// No description provided for @navUpgrade.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade'**
+  String get navUpgrade;
+
+  /// No description provided for @comingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Coming soon'**
+  String get comingSoon;
+
+  /// No description provided for @sidebarExpand.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand sidebar'**
+  String get sidebarExpand;
+
+  /// No description provided for @sidebarCollapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Collapse sidebar'**
+  String get sidebarCollapse;
+
   /// No description provided for @settingsLanguage.
   ///
   /// In en, this message translates to:
@@ -203,6 +227,246 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'French'**
   String get languageFrench;
+
+  /// No description provided for @libraryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Library'**
+  String get libraryTitle;
+
+  /// No description provided for @librarySubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'All your documents, notes, and writing resources in one place.'**
+  String get librarySubtitle;
+
+  /// No description provided for @newFileTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'New file'**
+  String get newFileTooltip;
+
+  /// No description provided for @newBlankFile.
+  ///
+  /// In en, this message translates to:
+  /// **'New blank file (DOCX)'**
+  String get newBlankFile;
+
+  /// No description provided for @uploadFromDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload from device'**
+  String get uploadFromDevice;
+
+  /// No description provided for @newFile.
+  ///
+  /// In en, this message translates to:
+  /// **'New File'**
+  String get newFile;
+
+  /// No description provided for @searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search documents, folders, or tags...'**
+  String get searchHint;
+
+  /// No description provided for @sortBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort by'**
+  String get sortBy;
+
+  /// No description provided for @tabAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get tabAll;
+
+  /// No description provided for @tabDocuments.
+  ///
+  /// In en, this message translates to:
+  /// **'Documents'**
+  String get tabDocuments;
+
+  /// No description provided for @tabNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Notes'**
+  String get tabNotes;
+
+  /// No description provided for @tabPdfs.
+  ///
+  /// In en, this message translates to:
+  /// **'PDFs'**
+  String get tabPdfs;
+
+  /// No description provided for @tabBooks.
+  ///
+  /// In en, this message translates to:
+  /// **'Books'**
+  String get tabBooks;
+
+  /// No description provided for @tabOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get tabOther;
+
+  /// No description provided for @sortLastEdited.
+  ///
+  /// In en, this message translates to:
+  /// **'Last edited'**
+  String get sortLastEdited;
+
+  /// No description provided for @sortName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get sortName;
+
+  /// No description provided for @sortDateAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'Date added'**
+  String get sortDateAdded;
+
+  /// No description provided for @statDocuments.
+  ///
+  /// In en, this message translates to:
+  /// **'Documents'**
+  String get statDocuments;
+
+  /// No description provided for @statProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects'**
+  String get statProjects;
+
+  /// No description provided for @statProjectsSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Organize your work'**
+  String get statProjectsSub;
+
+  /// No description provided for @statBookStructures.
+  ///
+  /// In en, this message translates to:
+  /// **'Book Structures'**
+  String get statBookStructures;
+
+  /// No description provided for @statBookStructuresSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Your outlines'**
+  String get statBookStructuresSub;
+
+  /// No description provided for @statTrash.
+  ///
+  /// In en, this message translates to:
+  /// **'Trash'**
+  String get statTrash;
+
+  /// No description provided for @statTrashSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore deleted'**
+  String get statTrashSub;
+
+  /// No description provided for @statStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get statStorage;
+
+  /// No description provided for @statStorageUsed.
+  ///
+  /// In en, this message translates to:
+  /// **'Used'**
+  String get statStorageUsed;
+
+  /// No description provided for @statThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'+{count} this week'**
+  String statThisWeek(int count);
+
+  /// No description provided for @storageDocs.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 document} other{{count} documents}}'**
+  String storageDocs(int count);
+
+  /// No description provided for @libraryOfUser.
+  ///
+  /// In en, this message translates to:
+  /// **'{name}\'s Library'**
+  String libraryOfUser(String name);
+
+  /// No description provided for @statusSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Search'**
+  String get statusSearch;
+
+  /// No description provided for @statusShortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'Shortcuts'**
+  String get statusShortcuts;
+
+  /// No description provided for @proPlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Pro Plan'**
+  String get proPlan;
+
+  /// No description provided for @freePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Free Plan'**
+  String get freePlan;
+
+  /// No description provided for @quickAccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Access'**
+  String get quickAccess;
+
+  /// No description provided for @archive.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get archive;
+
+  /// No description provided for @archivedDocuments.
+  ///
+  /// In en, this message translates to:
+  /// **'Archived documents'**
+  String get archivedDocuments;
+
+  /// No description provided for @quickNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick notes'**
+  String get quickNotes;
+
+  /// No description provided for @voiceNotes.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice notes'**
+  String get voiceNotes;
+
+  /// No description provided for @notesCountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 note} other{{count} notes}}'**
+  String notesCountLabel(int count);
+
+  /// No description provided for @whispersCountLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 voice note} other{{count} voice notes}}'**
+  String whispersCountLabel(int count);
 }
 
 class _AppLocalizationsDelegate

@@ -16,6 +16,7 @@ import '../../core/constants.dart';
 import '../../core/plan_gate.dart';
 import '../../core/quota_gate.dart';
 import '../../core/theme/psitta_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/providers.dart';
 import '../../data/providers/document_actions.dart';
@@ -465,6 +466,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   // ── Header ──────────────────────────────────────────────────────────────────
   Widget _header(BuildContext context, PsittaTokens tokens) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     final titleBlock = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -475,7 +477,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
             Icon(Icons.local_library_outlined, color: tokens.glow, size: 26),
             const SizedBox(width: 10),
             Flexible(
-              child: Text('Library',
+              child: Text(loc.libraryTitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -487,7 +489,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         ),
         const SizedBox(height: 4),
         Text(
-          'All your documents, notes, and writing resources in one place.',
+          loc.librarySubtitle,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
@@ -496,16 +498,16 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     );
 
     final newDoc = PopupMenuButton<String>(
-      tooltip: 'New file',
+      tooltip: loc.newFileTooltip,
       position: PopupMenuPosition.under,
       offset: const Offset(0, 6),
       onSelected: (v) {
         if (v == 'blank') _newBlank();
         if (v == 'upload') _handleFilePick();
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'blank', child: Text('New blank file (DOCX)')),
-        PopupMenuItem(value: 'upload', child: Text('Upload from device')),
+      itemBuilder: (_) => [
+        PopupMenuItem(value: 'blank', child: Text(loc.newBlankFile)),
+        PopupMenuItem(value: 'upload', child: Text(loc.uploadFromDevice)),
       ],
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -513,18 +515,18 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
           color: tokens.glow,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.add, size: 16, color: Colors.white),
-            SizedBox(width: 6),
-            Text('New File',
-                style: TextStyle(
+            const Icon(Icons.add, size: 16, color: Colors.white),
+            const SizedBox(width: 6),
+            Text(loc.newFile,
+                style: const TextStyle(
                     fontSize: 12,
                     color: Colors.white,
                     fontWeight: FontWeight.w600)),
-            SizedBox(width: 2),
-            Icon(Icons.arrow_drop_down, size: 18, color: Colors.white),
+            const SizedBox(width: 2),
+            const Icon(Icons.arrow_drop_down, size: 18, color: Colors.white),
           ],
         ),
       ),
@@ -566,6 +568,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
 
   Widget _searchField(PsittaTokens tokens) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return TextField(
       controller: _searchController,
       focusNode: ref.read(librarySearchFocusProvider),
@@ -573,7 +576,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       style: TextStyle(fontSize: 13, color: scheme.onSurface),
       decoration: InputDecoration(
         isDense: true,
-        hintText: 'Search documents, folders, or tags...',
+        hintText: loc.searchHint,
         hintStyle:
             TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
         prefixIcon: Icon(Icons.search, size: 18, color: scheme.onSurfaceVariant),
@@ -608,12 +611,13 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   // ── Stat cards ──────────────────────────────────────────────────────────────
   Widget _statRow(PsittaTokens tokens, List<Document> docs) {
     final week = _thisWeek(docs);
+    final loc = AppLocalizations.of(context);
     final storage = ref.watch(storageUsageProvider);
     final storageValue = storage.maybeWhen(
         data: (s) => _formatBytes(s.usedBytes), orElse: () => '—');
     final storageSub = storage.maybeWhen(
-        data: (s) => '${s.docCount} document${s.docCount == 1 ? '' : 's'}',
-        orElse: () => 'Used');
+        data: (s) => loc.storageDocs(s.docCount),
+        orElse: () => loc.statStorageUsed);
     final trashCount = ref.watch(trashedDocumentsProvider).maybeWhen(
         data: (l) => '${l.length}', orElse: () => '—');
     final projectCount = ref.watch(projectsProvider).maybeWhen(
@@ -627,16 +631,16 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         tokens: tokens,
         icon: Icons.description_outlined,
         value: '${docs.where((d) => d.status != 'archived').length}',
-        label: 'Documents',
-        sub: week > 0 ? '+$week this week' : null,
+        label: loc.statDocuments,
+        sub: week > 0 ? loc.statThisWeek(week) : null,
         accent: tokens.glow,
       ),
       _StatCard(
         tokens: tokens,
         icon: Icons.folder_outlined,
         value: projectCount,
-        label: 'Projects',
-        sub: 'Organize your work',
+        label: loc.statProjects,
+        sub: loc.statProjectsSub,
         accent: const Color(0xFF4F8DF5),
         onTap: () => context.go('/projects'),
       ),
@@ -644,8 +648,8 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         tokens: tokens,
         icon: Icons.account_tree_outlined,
         value: structureCount,
-        label: 'Book Structures',
-        sub: 'Your outlines',
+        label: loc.statBookStructures,
+        sub: loc.statBookStructuresSub,
         accent: const Color(0xFF34C77B),
         onTap: () => context.go('/blueprints'),
       ),
@@ -653,8 +657,8 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         tokens: tokens,
         icon: Icons.delete_outline,
         value: trashCount,
-        label: 'Trash',
-        sub: 'Restore deleted',
+        label: loc.statTrash,
+        sub: loc.statTrashSub,
         accent: const Color(0xFFE0A03A),
         onTap: () => context.go('/trash'),
       ),
@@ -662,7 +666,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         tokens: tokens,
         icon: Icons.cloud_outlined,
         value: storageValue,
-        label: 'Storage',
+        label: loc.statStorage,
         sub: storageSub,
         accent: const Color(0xFF8A7CFF),
       ),
@@ -689,9 +693,27 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     );
   }
 
+  String _tabLabel(AppLocalizations loc, String value) {
+    switch (value) {
+      case 'Documents':
+        return loc.tabDocuments;
+      case 'Notes':
+        return loc.tabNotes;
+      case 'PDFs':
+        return loc.tabPdfs;
+      case 'Books':
+        return loc.tabBooks;
+      case 'Other':
+        return loc.tabOther;
+      default:
+        return loc.tabAll;
+    }
+  }
+
   // ── Filter chips + sort + view toggle ───────────────────────────────────────
   Widget _filterRow(PsittaTokens tokens) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
@@ -702,7 +724,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
               for (final c in _kTypeChips)
                 _Chip(
                   tokens: tokens,
-                  label: c,
+                  label: _tabLabel(loc, c),
                   selected: _typeFilter == c,
                   onTap: () => setState(() => _typeFilter = c),
                 ),
@@ -710,7 +732,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
           ),
         ),
         const SizedBox(width: 12),
-        Text('Sort by',
+        Text(loc.sortBy,
             style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
         const SizedBox(width: 8),
         _sortDropdown(tokens),
@@ -722,6 +744,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
 
   Widget _sortDropdown(PsittaTokens tokens) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -735,10 +758,10 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
           isDense: true,
           dropdownColor: tokens.surface,
           style: TextStyle(fontSize: 12, color: scheme.onSurface),
-          items: const [
-            DropdownMenuItem(value: 'Last edited', child: Text('Last edited')),
-            DropdownMenuItem(value: 'Name', child: Text('Name')),
-            DropdownMenuItem(value: 'Date added', child: Text('Date added')),
+          items: [
+            DropdownMenuItem(value: 'Last edited', child: Text(loc.sortLastEdited)),
+            DropdownMenuItem(value: 'Name', child: Text(loc.sortName)),
+            DropdownMenuItem(value: 'Date added', child: Text(loc.sortDateAdded)),
           ],
           onChanged: (v) => setState(() => _sort = v ?? 'Last edited'),
         ),
@@ -1606,21 +1629,21 @@ class _RightRail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final archivedCount = ref.watch(archivedDocumentsProvider).maybeWhen(
         data: (l) => l.length, orElse: () => 0);
     final archiveSub = archivedCount > 0
-        ? '$archivedCount document${archivedCount == 1 ? '' : 's'}'
-        : 'Archived documents';
+        ? loc.storageDocs(archivedCount)
+        : loc.archivedDocuments;
     final notesCount = ref.watch(notesProvider).maybeWhen(
         data: (l) => l.length, orElse: () => 0);
-    final scribblesSub = notesCount > 0
-        ? '$notesCount note${notesCount == 1 ? '' : 's'}'
-        : 'Quick notes';
+    final scribblesSub =
+        notesCount > 0 ? loc.notesCountLabel(notesCount) : loc.quickNotes;
     final whispersCount = ref.watch(recordingsProvider).maybeWhen(
         data: (l) => l.length, orElse: () => 0);
     final whispersSub = whispersCount > 0
-        ? '$whispersCount whisper${whispersCount == 1 ? '' : 's'}'
-        : 'Voice notes';
+        ? loc.whispersCountLabel(whispersCount)
+        : loc.voiceNotes;
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -1649,9 +1672,9 @@ class _RightRail extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _sectionLabel('Quick Access', scheme),
+                      _sectionLabel(loc.quickAccess, scheme),
                       const SizedBox(height: 8),
-                      _quickRow(context, Icons.inventory_2_outlined, 'Archive',
+                      _quickRow(context, Icons.inventory_2_outlined, loc.archive,
                           archiveSub, () => context.go('/archive')),
                       _quickRow(
                           context,
@@ -1690,6 +1713,7 @@ class _RightRail extends ConsumerWidget {
 
   Widget _profileCard(
       BuildContext context, WidgetRef ref, ColorScheme scheme) {
+    final loc = AppLocalizations.of(context);
     final profile = ref.watch(userProfileProvider).valueOrNull;
     final avatarKey = profile?['avatar_url'] as String?;
     final quote = (profile?['quote'] as String?)?.trim() ?? '';
@@ -1761,7 +1785,7 @@ class _RightRail extends ConsumerWidget {
               color: tokens.glow.withOpacity(0.16),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text(isPro ? 'Pro Plan' : 'Free Plan',
+            child: Text(isPro ? loc.proPlan : loc.freePlan,
                 style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,

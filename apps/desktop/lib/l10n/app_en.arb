@@ -11,10 +11,89 @@
   "navAnalytics": "Analytics",
   "navSettings": "Settings",
   "navHelp": "Help",
+  "navUpgrade": "Upgrade",
+  "comingSoon": "Coming soon",
+  "sidebarExpand": "Expand sidebar",
+  "sidebarCollapse": "Collapse sidebar",
   "settingsLanguage": "Language",
   "languageSystem": "System default",
   "languageEnglish": "English",
   "languagePortuguese": "Portuguese",
   "languageSpanish": "Spanish",
-  "languageFrench": "French"
+  "languageFrench": "French",
+  "libraryTitle": "Library",
+  "librarySubtitle": "All your documents, notes, and writing resources in one place.",
+  "newFileTooltip": "New file",
+  "newBlankFile": "New blank file (DOCX)",
+  "uploadFromDevice": "Upload from device",
+  "newFile": "New File",
+  "searchHint": "Search documents, folders, or tags...",
+  "sortBy": "Sort by",
+  "tabAll": "All",
+  "tabDocuments": "Documents",
+  "tabNotes": "Notes",
+  "tabPdfs": "PDFs",
+  "tabBooks": "Books",
+  "tabOther": "Other",
+  "sortLastEdited": "Last edited",
+  "sortName": "Name",
+  "sortDateAdded": "Date added",
+  "statDocuments": "Documents",
+  "statProjects": "Projects",
+  "statProjectsSub": "Organize your work",
+  "statBookStructures": "Book Structures",
+  "statBookStructuresSub": "Your outlines",
+  "statTrash": "Trash",
+  "statTrashSub": "Restore deleted",
+  "statStorage": "Storage",
+  "statStorageUsed": "Used",
+  "statThisWeek": "+{count} this week",
+  "@statThisWeek": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storageDocs": "{count, plural, =1{1 document} other{{count} documents}}",
+  "@storageDocs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libraryOfUser": "{name}'s Library",
+  "@libraryOfUser": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusSearch": "Search",
+  "statusShortcuts": "Shortcuts",
+  "proPlan": "Pro Plan",
+  "freePlan": "Free Plan",
+  "quickAccess": "Quick Access",
+  "archive": "Archive",
+  "archivedDocuments": "Archived documents",
+  "quickNotes": "Quick notes",
+  "voiceNotes": "Voice notes",
+  "notesCountLabel": "{count, plural, =1{1 note} other{{count} notes}}",
+  "@notesCountLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "whispersCountLabel": "{count, plural, =1{1 voice note} other{{count} voice notes}}",
+  "@whispersCountLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }
