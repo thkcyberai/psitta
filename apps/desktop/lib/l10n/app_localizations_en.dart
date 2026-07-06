@@ -219,4 +219,19 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get guideTitle => 'Writer\'s Guide';
+
+  @override
+  String get guideStartOver => 'Start over';
+
+  @override
+  String get guideHide => 'Hide (turn back on in Settings)';
+
+  @override
+  String get scribblesTitle => 'Scribbles';
+
+  @override
+  String get whispersTitle => 'Whispers';
 }

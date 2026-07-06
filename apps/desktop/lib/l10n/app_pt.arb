@@ -5,7 +5,7 @@
   "navPlayer": "Reprodutor",
   "navWritingDesk": "Escrivaninha",
   "navProjects": "Projetos",
-  "navBlueprints": "Blueprints",
+  "navBlueprints": "Estruturas",
   "navPlans": "Planos",
   "navVoices": "Vozes",
   "navAnalytics": "Análises",
@@ -60,5 +60,10 @@
   "quickNotes": "Notas rápidas",
   "voiceNotes": "Notas de voz",
   "notesCountLabel": "{count, plural, =1{1 nota} other{{count} notas}}",
-  "whispersCountLabel": "{count, plural, =1{1 nota de voz} other{{count} notas de voz}}"
+  "whispersCountLabel": "{count, plural, =1{1 nota de voz} other{{count} notas de voz}}",
+  "guideTitle": "Guia do Escritor",
+  "guideStartOver": "Recomeçar",
+  "guideHide": "Ocultar (reative em Configurações)",
+  "scribblesTitle": "Rabiscos",
+  "whispersTitle": "Sussurros"
 }

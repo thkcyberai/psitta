@@ -95,5 +95,10 @@
         "type": "int"
       }
     }
-  }
+  },
+  "guideTitle": "Writer's Guide",
+  "guideStartOver": "Start over",
+  "guideHide": "Hide (turn back on in Settings)",
+  "scribblesTitle": "Scribbles",
+  "whispersTitle": "Whispers"
 }

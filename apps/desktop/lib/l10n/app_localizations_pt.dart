@@ -24,7 +24,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get navProjects => 'Projetos';
 
   @override
-  String get navBlueprints => 'Blueprints';
+  String get navBlueprints => 'Estruturas';
 
   @override
   String get navPlans => 'Planos';
@@ -219,4 +219,19 @@ class AppLocalizationsPt extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get guideTitle => 'Guia do Escritor';
+
+  @override
+  String get guideStartOver => 'Recomeçar';
+
+  @override
+  String get guideHide => 'Ocultar (reative em Configurações)';
+
+  @override
+  String get scribblesTitle => 'Rabiscos';
+
+  @override
+  String get whispersTitle => 'Sussurros';
 }

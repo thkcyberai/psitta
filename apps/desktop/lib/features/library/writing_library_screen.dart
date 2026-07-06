@@ -1679,10 +1679,10 @@ class _RightRail extends ConsumerWidget {
                       _quickRow(
                           context,
                           Icons.sticky_note_2_outlined,
-                          'Scribbles',
+                          loc.scribblesTitle,
                           scribblesSub,
                           () => context.go('/scribbles')),
-                      _quickRow(context, Icons.mic_none_outlined, 'Whispers',
+                      _quickRow(context, Icons.mic_none_outlined, loc.whispersTitle,
                           whispersSub, () => context.go('/whispers')),
                     ],
                   ),

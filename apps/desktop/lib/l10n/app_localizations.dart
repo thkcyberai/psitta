@@ -467,6 +467,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 voice note} other{{count} voice notes}}'**
   String whispersCountLabel(int count);
+
+  /// No description provided for @guideTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Writer\'s Guide'**
+  String get guideTitle;
+
+  /// No description provided for @guideStartOver.
+  ///
+  /// In en, this message translates to:
+  /// **'Start over'**
+  String get guideStartOver;
+
+  /// No description provided for @guideHide.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide (turn back on in Settings)'**
+  String get guideHide;
+
+  /// No description provided for @scribblesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scribbles'**
+  String get scribblesTitle;
+
+  /// No description provided for @whispersTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Whispers'**
+  String get whispersTitle;
 }
 
 class _AppLocalizationsDelegate
