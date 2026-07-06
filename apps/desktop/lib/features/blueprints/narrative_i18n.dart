@@ -305,3 +305,42 @@ const Map<String, List<String>> _beatTr = {
   'Results': ['Resultados', 'Resultados', 'Résultats'],
   'Future state': ['Estado futuro', 'Estado futuro', 'État futur'],
 };
+
+/// Display-only translation of narrative-structure NAMES. English stays the
+/// committed/canonical value (attach + key lookups); this renders the native
+/// name a local writer uses. Branded method names are rendered natively per
+/// the product's working-language principle.
+String structureNameLabel(BuildContext context, String en) {
+  final i = _li(Localizations.localeOf(context).languageCode);
+  if (i < 0) return en;
+  final v = _structureTr[en];
+  return v != null ? v[i] : en;
+}
+
+const Map<String, List<String>> _structureTr = {
+  "Hero's Journey": ['A Jornada do Herói', 'El Viaje del Héroe', 'Le Voyage du Héros'],
+  'Three Act Structure': ['Estrutura em Três Atos', 'Estructura en Tres Actos', 'Structure en trois actes'],
+  'Save the Cat': ['Salve o Gato!', '¡Salva al gato!', 'Sauvez le chat !'],
+  'Seven Point Story Structure': ['Estrutura de História em Sete Pontos', 'Estructura de Historia en Siete Puntos', 'Structure de récit en sept points'],
+  'Snowflake Method': ['Método Floco de Neve', 'Método Copo de Nieve', 'Méthode du Flocon'],
+  'Freytag Pyramid': ['Pirâmide de Freytag', 'Pirámide de Freytag', 'Pyramide de Freytag'],
+  'Fichtean Curve': ['Curva Fichtiana', 'Curva Fichteana', 'Courbe fichtéenne'],
+  "Dan Harmon's Story Circle": ['Círculo Narrativo de Dan Harmon', 'Círculo de Historia de Dan Harmon', 'Cercle narratif de Dan Harmon'],
+  'Mystery Structure': ['Estrutura de Mistério', 'Estructura de Misterio', 'Structure de mystère'],
+  'Thriller Structure': ['Estrutura de Thriller', 'Estructura de Thriller', 'Structure de thriller'],
+  'Romance Structure': ['Estrutura de Romance', 'Estructura Romántica', 'Structure romantique'],
+  'Romantic Comedy': ['Comédia Romântica', 'Comedia Romántica', 'Comédie romantique'],
+  'Tragedy': ['Tragédia', 'Tragedia', 'Tragédie'],
+  'Coming of Age': ['Amadurecimento', 'Iniciación', "Passage à l'âge adulte"],
+  'Quest Structure': ['Estrutura de Busca', 'Estructura de Búsqueda', 'Structure de quête'],
+  'Epic Structure': ['Estrutura Épica', 'Estructura Épica', 'Structure épique'],
+  'Horror Structure': ['Estrutura de Terror', 'Estructura de Terror', "Structure d'horreur"],
+  "Children's Story": ['História Infantil', 'Cuento Infantil', 'Histoire pour enfants'],
+  'Picture Book Structure': ['Estrutura de Livro Ilustrado', 'Estructura de Álbum Ilustrado', "Structure d'album illustré"],
+  'Memoir Structure': ['Estrutura de Memórias', 'Estructura de Memorias', 'Structure de mémoires'],
+  'Biography Structure': ['Estrutura de Biografia', 'Estructura de Biografía', 'Structure de biographie'],
+  'Business Book Structure': ['Estrutura de Livro de Negócios', 'Estructura de Libro de Negocios', "Structure de livre d'affaires"],
+  'Self-Help Structure': ['Estrutura de Autoajuda', 'Estructura de Autoayuda', 'Structure de développement personnel'],
+  'Educational Book Structure': ['Estrutura de Livro Educacional', 'Estructura de Libro Educativo', 'Structure de livre éducatif'],
+  'Authority Book Structure': ['Estrutura de Livro de Autoridade', 'Estructura de Libro de Autoridad', "Structure de livre d'autorité"],
+};

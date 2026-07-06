@@ -711,7 +711,7 @@ class _StructureListCard extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          structure.name,
+                          structureNameLabel(context, structure.name),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
@@ -811,7 +811,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(s.name,
+                    Text(structureNameLabel(context, s.name),
                         style: const TextStyle(
                             fontSize: 18, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 1),
@@ -964,7 +964,7 @@ class _StructureInfo extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          Text(structure.name,
+          Text(structureNameLabel(context, structure.name),
               style:
                   const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 20),

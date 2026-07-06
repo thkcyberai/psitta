@@ -85,7 +85,7 @@ class _InteractiveGuideDialog extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 3),
-                        Text(structure.name,
+                        Text(structureNameLabel(context, structure.name),
                             style: const TextStyle(
                                 fontSize: 20, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 2),
