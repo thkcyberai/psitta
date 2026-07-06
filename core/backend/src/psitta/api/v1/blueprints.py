@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +35,11 @@ from psitta.schemas.api import (
     PartUpdate,
 )
 from psitta.services import blueprint_service
+from psitta.i18n.blueprint_i18n import (
+    lang_code,
+    translate_part,
+    translate_summary,
+)
 
 router = APIRouter(prefix="/blueprints", tags=["blueprints"])
 
@@ -84,9 +89,16 @@ async def _get_owned_part_or_error(
 async def list_blueprints(
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
+    x_psitta_language: str | None = Header(default=None, alias="X-Psitta-Language"),
 ):
     """List blueprints visible to the caller (system templates + own)."""
-    return await blueprint_service.list_blueprints(db, user_id)
+    rows = await blueprint_service.list_blueprints(db, user_id)
+    code = lang_code(x_psitta_language)
+    if code == "en":
+        return rows
+    return [
+        translate_summary(BlueprintSummary.model_validate(b), code) for b in rows
+    ]
 
 
 @router.get("/{blueprint_id}", response_model=BlueprintDetail)
@@ -94,13 +106,18 @@ async def get_blueprint(
     blueprint_id: UUID,
     db: AsyncSession = Depends(get_db_session),
     user_id: UUID = Depends(get_current_user_id),
+    x_psitta_language: str | None = Header(default=None, alias="X-Psitta-Language"),
 ):
     """Return one visible blueprint with its nested parts tree, else 404."""
     result = await blueprint_service.get_blueprint(db, user_id, blueprint_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Blueprint not found")
     blueprint, parts_tree = result
-    summary = BlueprintSummary.model_validate(blueprint)
+    code = lang_code(x_psitta_language)
+    summary = translate_summary(
+        BlueprintSummary.model_validate(blueprint), code
+    )
+    parts_tree = [translate_part(p, code) for p in parts_tree]
     return BlueprintDetail(**summary.model_dump(), parts=parts_tree)
 
 
