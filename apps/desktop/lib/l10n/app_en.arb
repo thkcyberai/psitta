@@ -352,17 +352,118 @@
   },
   "popularStructures": "POPULAR STRUCTURES",
   "nSteps": "{count, plural, =1{1 step} other{{count} steps}}",
-  "@nSteps": { "placeholders": { "count": { "type": "int" } } },
+  "@nSteps": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nAudiences": "{count, plural, =1{1 audience} other{{count} audiences}}",
-  "@nAudiences": { "placeholders": { "count": { "type": "int" } } },
+  "@nAudiences": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "nSections": "{count, plural, =1{1 section} other{{count} sections}}",
-  "@nSections": { "placeholders": { "count": { "type": "int" } } },
+  "@nSections": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "ringStepsSelected": "{selected} of {total}\nsteps selected",
-  "@ringStepsSelected": { "placeholders": { "selected": { "type": "int" }, "total": { "type": "int" } } },
+  "@ringStepsSelected": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "interactiveGuideLabel": "Interactive Guide",
   "guideStepsCaption": "{count, plural, =1{1 step · tap through your arc} other{{count} steps · tap through your arc}}",
-  "@guideStepsCaption": { "placeholders": { "count": { "type": "int" } } },
+  "@guideStepsCaption": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "generalCraftGuidance": "General craft guidance — your story may bend these on purpose.",
   "tipLabel": "Tip",
-  "actionClose": "Close"
+  "actionClose": "Close",
+  "actionOk": "OK",
+  "actionTryAgain": "Try again",
+  "actionMove": "Move",
+  "couldNotLoadProject": "Could not load the project.",
+  "analyzerCreateProjectBody": "Create a project and attach a narrative to analyze its structure.",
+  "analyzeWhichBook": "Analyze which book?",
+  "analyzerCouldNotAnalyze": "Could not analyze right now. Please try again.",
+  "analyzerReading": "Reading your manuscript and weighing each beat…",
+  "analyzerIntro": "Analyze your whole manuscript against your chosen beats. Each beat comes back as Present, Thin, or Missing, with a short note and an overall read.",
+  "analyzerTokensNote": "This uses AI tokens from your monthly Writing Nook allowance.",
+  "analyzerRun": "Run analysis",
+  "analyzerReanalyze": "Re-analyze",
+  "beatStatusPresent": "Present",
+  "beatStatusThin": "Thin",
+  "beatStatusMissing": "Missing",
+  "sceneMapTitle": "Scene Map",
+  "sceneMapCreateProjectBody": "Create a project and attach a narrative, then you can map its scenes here.",
+  "mapScenesWhichBook": "Map scenes for which book?",
+  "sceneMapNoNarrative": "This book has no narrative yet. Attach one in Blueprints → Narrative Structure, then map your scenes here.",
+  "sceneUnassigned": "Unassigned",
+  "noFileYet": "No file yet",
+  "sceneMapSaveFailed": "Couldn't save — check your connection and try again.",
+  "moveToBeat": "Move to beat",
+  "structureFallbackNarrative": "Narrative",
+  "progressCreateProjectBody": "Create a project and attach a narrative to track your progress through the beats.",
+  "trackProgressWhichBook": "Track progress for which book?",
+  "progressNoNarrative": "This book has no narrative yet. Attach one in Blueprints → Narrative Structure to track progress.",
+  "statusCovered": "Covered",
+  "statusEmpty": "Empty",
+  "beatsCovered": "{covered} of {total} beats covered",
+  "@beatsCovered": {
+    "placeholders": {
+      "covered": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "progressBeatsMapped": "{covered} of {total} beats covered · {pct}% mapped",
+  "@progressBeatsMapped": {
+    "placeholders": {
+      "covered": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
+  "progressBeatsArc": "{covered} of {total} beats covered · {pct}% through your arc",
+  "@progressBeatsArc": {
+    "placeholders": {
+      "covered": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "pct": {
+        "type": "int"
+      }
+    }
+  }
 }

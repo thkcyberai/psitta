@@ -1601,6 +1601,198 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Close'**
   String get actionClose;
+
+  /// No description provided for @actionOk.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get actionOk;
+
+  /// No description provided for @actionTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get actionTryAgain;
+
+  /// No description provided for @actionMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move'**
+  String get actionMove;
+
+  /// No description provided for @couldNotLoadProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the project.'**
+  String get couldNotLoadProject;
+
+  /// No description provided for @analyzerCreateProjectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a project and attach a narrative to analyze its structure.'**
+  String get analyzerCreateProjectBody;
+
+  /// No description provided for @analyzeWhichBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyze which book?'**
+  String get analyzeWhichBook;
+
+  /// No description provided for @analyzerCouldNotAnalyze.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not analyze right now. Please try again.'**
+  String get analyzerCouldNotAnalyze;
+
+  /// No description provided for @analyzerReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Reading your manuscript and weighing each beat…'**
+  String get analyzerReading;
+
+  /// No description provided for @analyzerIntro.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyze your whole manuscript against your chosen beats. Each beat comes back as Present, Thin, or Missing, with a short note and an overall read.'**
+  String get analyzerIntro;
+
+  /// No description provided for @analyzerTokensNote.
+  ///
+  /// In en, this message translates to:
+  /// **'This uses AI tokens from your monthly Writing Nook allowance.'**
+  String get analyzerTokensNote;
+
+  /// No description provided for @analyzerRun.
+  ///
+  /// In en, this message translates to:
+  /// **'Run analysis'**
+  String get analyzerRun;
+
+  /// No description provided for @analyzerReanalyze.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-analyze'**
+  String get analyzerReanalyze;
+
+  /// No description provided for @beatStatusPresent.
+  ///
+  /// In en, this message translates to:
+  /// **'Present'**
+  String get beatStatusPresent;
+
+  /// No description provided for @beatStatusThin.
+  ///
+  /// In en, this message translates to:
+  /// **'Thin'**
+  String get beatStatusThin;
+
+  /// No description provided for @beatStatusMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Missing'**
+  String get beatStatusMissing;
+
+  /// No description provided for @sceneMapTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scene Map'**
+  String get sceneMapTitle;
+
+  /// No description provided for @sceneMapCreateProjectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a project and attach a narrative, then you can map its scenes here.'**
+  String get sceneMapCreateProjectBody;
+
+  /// No description provided for @mapScenesWhichBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Map scenes for which book?'**
+  String get mapScenesWhichBook;
+
+  /// No description provided for @sceneMapNoNarrative.
+  ///
+  /// In en, this message translates to:
+  /// **'This book has no narrative yet. Attach one in Blueprints → Narrative Structure, then map your scenes here.'**
+  String get sceneMapNoNarrative;
+
+  /// No description provided for @sceneUnassigned.
+  ///
+  /// In en, this message translates to:
+  /// **'Unassigned'**
+  String get sceneUnassigned;
+
+  /// No description provided for @noFileYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No file yet'**
+  String get noFileYet;
+
+  /// No description provided for @sceneMapSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save — check your connection and try again.'**
+  String get sceneMapSaveFailed;
+
+  /// No description provided for @moveToBeat.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to beat'**
+  String get moveToBeat;
+
+  /// No description provided for @structureFallbackNarrative.
+  ///
+  /// In en, this message translates to:
+  /// **'Narrative'**
+  String get structureFallbackNarrative;
+
+  /// No description provided for @progressCreateProjectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a project and attach a narrative to track your progress through the beats.'**
+  String get progressCreateProjectBody;
+
+  /// No description provided for @trackProgressWhichBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Track progress for which book?'**
+  String get trackProgressWhichBook;
+
+  /// No description provided for @progressNoNarrative.
+  ///
+  /// In en, this message translates to:
+  /// **'This book has no narrative yet. Attach one in Blueprints → Narrative Structure to track progress.'**
+  String get progressNoNarrative;
+
+  /// No description provided for @statusCovered.
+  ///
+  /// In en, this message translates to:
+  /// **'Covered'**
+  String get statusCovered;
+
+  /// No description provided for @statusEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty'**
+  String get statusEmpty;
+
+  /// No description provided for @beatsCovered.
+  ///
+  /// In en, this message translates to:
+  /// **'{covered} of {total} beats covered'**
+  String beatsCovered(int covered, int total);
+
+  /// No description provided for @progressBeatsMapped.
+  ///
+  /// In en, this message translates to:
+  /// **'{covered} of {total} beats covered · {pct}% mapped'**
+  String progressBeatsMapped(int covered, int total, int pct);
+
+  /// No description provided for @progressBeatsArc.
+  ///
+  /// In en, this message translates to:
+  /// **'{covered} of {total} beats covered · {pct}% through your arc'**
+  String progressBeatsArc(int covered, int total, int pct);
 }
 
 class _AppLocalizationsDelegate

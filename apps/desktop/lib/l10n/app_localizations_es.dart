@@ -875,4 +875,115 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get actionClose => 'Cerrar';
+
+  @override
+  String get actionOk => 'OK';
+
+  @override
+  String get actionTryAgain => 'Reintentar';
+
+  @override
+  String get actionMove => 'Mover';
+
+  @override
+  String get couldNotLoadProject => 'No se pudo cargar el proyecto.';
+
+  @override
+  String get analyzerCreateProjectBody =>
+      'Crea un proyecto y adjunta una narrativa para analizar su estructura.';
+
+  @override
+  String get analyzeWhichBook => '¿Qué libro analizar?';
+
+  @override
+  String get analyzerCouldNotAnalyze =>
+      'No se pudo analizar ahora. Inténtalo de nuevo.';
+
+  @override
+  String get analyzerReading => 'Leyendo tu manuscrito y sopesando cada paso…';
+
+  @override
+  String get analyzerIntro =>
+      'Analiza todo tu manuscrito frente a los pasos elegidos. Cada paso vuelve como Presente, Débil o Ausente, con una nota breve y una lectura general.';
+
+  @override
+  String get analyzerTokensNote =>
+      'Esto usa tokens de IA de tu cuota mensual del Writing Nook.';
+
+  @override
+  String get analyzerRun => 'Ejecutar análisis';
+
+  @override
+  String get analyzerReanalyze => 'Volver a analizar';
+
+  @override
+  String get beatStatusPresent => 'Presente';
+
+  @override
+  String get beatStatusThin => 'Débil';
+
+  @override
+  String get beatStatusMissing => 'Ausente';
+
+  @override
+  String get sceneMapTitle => 'Mapa de Escenas';
+
+  @override
+  String get sceneMapCreateProjectBody =>
+      'Crea un proyecto y adjunta una narrativa; luego podrás mapear sus escenas aquí.';
+
+  @override
+  String get mapScenesWhichBook => '¿Mapear escenas de qué libro?';
+
+  @override
+  String get sceneMapNoNarrative =>
+      'Este libro aún no tiene narrativa. Adjunta una en Blueprints → Estructura Narrativa y luego mapea tus escenas aquí.';
+
+  @override
+  String get sceneUnassigned => 'Sin asignar';
+
+  @override
+  String get noFileYet => 'Aún no hay archivo';
+
+  @override
+  String get sceneMapSaveFailed =>
+      'No se pudo guardar — revisa tu conexión e inténtalo de nuevo.';
+
+  @override
+  String get moveToBeat => 'Mover a paso';
+
+  @override
+  String get structureFallbackNarrative => 'Narrativa';
+
+  @override
+  String get progressCreateProjectBody =>
+      'Crea un proyecto y adjunta una narrativa para seguir tu progreso por los pasos.';
+
+  @override
+  String get trackProgressWhichBook => '¿Seguir el progreso de qué libro?';
+
+  @override
+  String get progressNoNarrative =>
+      'Este libro aún no tiene narrativa. Adjunta una en Blueprints → Estructura Narrativa para seguir el progreso.';
+
+  @override
+  String get statusCovered => 'Cubierto';
+
+  @override
+  String get statusEmpty => 'Vacío';
+
+  @override
+  String beatsCovered(int covered, int total) {
+    return '$covered de $total pasos cubiertos';
+  }
+
+  @override
+  String progressBeatsMapped(int covered, int total, int pct) {
+    return '$covered de $total pasos cubiertos · $pct% mapeado';
+  }
+
+  @override
+  String progressBeatsArc(int covered, int total, int pct) {
+    return '$covered de $total pasos cubiertos · $pct% de tu arco';
+  }
 }

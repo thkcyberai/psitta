@@ -5,6 +5,8 @@ import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/models/document.dart';
 import '../../../data/providers/project_providers.dart';
 import '../../../data/providers/providers.dart' show projectsProvider;
+import '../../blueprints/narrative_i18n.dart';
+import '../../../l10n/app_localizations.dart';
 
 bool _isCovered(List<Document> docs, String beat) =>
     docs.any((d) => d.narrativeBeat == beat);
@@ -32,6 +34,7 @@ class ProgressTrackerBar extends ConsumerWidget {
         const <Document>[];
     final covered = beats.where((b) => _isCovered(docs, b)).length;
     final pct = (covered * 100 / beats.length).round();
+    final loc = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -61,7 +64,7 @@ class ProgressTrackerBar extends ConsumerWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          '$covered of ${beats.length} beats covered · $pct% mapped',
+          loc.progressBeatsMapped(covered, beats.length, pct),
           style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
         ),
       ],
@@ -89,19 +92,18 @@ Future<void> pickProjectAndShowProgress(
     return;
   }
   if (!context.mounted) return;
+  final loc = AppLocalizations.of(context);
 
   if (projects.isEmpty) {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('No projects yet'),
-        content: const Text(
-            'Create a project and attach a narrative to track your progress '
-            'through the beats.'),
+        title: Text(loc.noProjectsYet),
+        content: Text(loc.progressCreateProjectBody),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK')),
+              child: Text(loc.actionOk)),
         ],
       ),
     );
@@ -112,7 +114,7 @@ Future<void> pickProjectAndShowProgress(
   chosen ??= await showDialog<String>(
     context: context,
     builder: (ctx) => SimpleDialog(
-      title: const Text('Track progress for which book?'),
+      title: Text(loc.trackProgressWhichBook),
       children: [
         for (final p in projects)
           SimpleDialogOption(
@@ -137,6 +139,7 @@ class _ProgressDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final detailAsync = ref.watch(projectDetailProvider(projectId));
 
     return Dialog(
@@ -150,7 +153,7 @@ class _ProgressDialog extends ConsumerWidget {
               height: 200, child: Center(child: CircularProgressIndicator())),
           error: (e, _) => Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('Could not load the project.',
+            child: Text(loc.couldNotLoadProject,
                 style: TextStyle(color: scheme.onSurfaceVariant)),
           ),
           data: (p) {
@@ -176,12 +179,11 @@ class _ProgressDialog extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Progress Tracker',
-                                style: TextStyle(
+                            Text(loc.featureProgressTracker,
+                                style: const TextStyle(
                                     fontSize: 19, fontWeight: FontWeight.w800)),
                             const SizedBox(height: 2),
-                            Text('$covered of ${beats.length} beats covered · '
-                                '$pct% through your arc',
+                            Text(loc.progressBeatsArc(covered, beats.length, pct),
                                 style: TextStyle(
                                     fontSize: 12.5,
                                     color: scheme.onSurfaceVariant)),
@@ -189,7 +191,7 @@ class _ProgressDialog extends ConsumerWidget {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'Close',
+                        tooltip: loc.actionClose,
                         icon: const Icon(Icons.close, size: 20),
                         onPressed: () => Navigator.of(context).pop(),
                       ),
@@ -201,8 +203,7 @@ class _ProgressDialog extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(
-                      'This book has no narrative yet. Attach one in '
-                      'Blueprints → Narrative Structure to track progress.',
+                      loc.progressNoNarrative,
                       style: TextStyle(
                           color: scheme.onSurfaceVariant, height: 1.45),
                     ),
@@ -247,6 +248,7 @@ class _BeatStatus extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -264,7 +266,7 @@ class _BeatStatus extends StatelessWidget {
                   color: scheme.onSurfaceVariant)),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(beat,
+            child: Text(beatLabel(context, beat),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
@@ -272,7 +274,7 @@ class _BeatStatus extends StatelessWidget {
                     fontWeight: FontWeight.w500,
                     color: done ? scheme.onSurface : scheme.onSurfaceVariant)),
           ),
-          Text(done ? 'Covered' : 'Empty',
+          Text(done ? loc.statusCovered : loc.statusEmpty,
               style: TextStyle(
                   fontSize: 11.5,
                   color: done ? tokens.glow : scheme.onSurfaceVariant)),
