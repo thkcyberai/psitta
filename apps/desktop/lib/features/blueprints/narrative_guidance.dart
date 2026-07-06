@@ -8,7 +8,10 @@
 library;
 
 class BeatGuide {
-  const BeatGuide({required this.purpose, required this.tip});
+  const BeatGuide({required this.purpose, required this.tip, this.id = ''});
+
+  /// Stable identity for the translation layer (matches the const name).
+  final String id;
 
   /// What this beat does for the story.
   final String purpose;
@@ -20,6 +23,7 @@ class BeatGuide {
 // ── Canonical Hero's Journey guides (shared across its variants) ──────────────
 
 const _ordinaryWorld = BeatGuide(
+  id: 'ordinaryWorld',
   purpose:
       "Establishes your hero's everyday life and what's missing from it, so the "
       'adventure to come has something to disrupt — and something to heal.',
@@ -29,6 +33,7 @@ const _ordinaryWorld = BeatGuide(
 );
 
 const _prophecy = BeatGuide(
+  id: 'prophecy',
   purpose:
       'Seeds the larger destiny or mythic stakes the hero will grow into, giving '
       'the story a sense of weight beyond the personal.',
@@ -38,6 +43,7 @@ const _prophecy = BeatGuide(
 );
 
 const _call = BeatGuide(
+  id: 'call',
   purpose:
       'The inciting event that breaks the normal world and presents the central '
       'problem, quest, or question of the story.',
@@ -47,6 +53,7 @@ const _call = BeatGuide(
 );
 
 const _refusal = BeatGuide(
+  id: 'refusal',
   purpose:
       'The hero hesitates or resists, revealing their fear and exactly what they '
       'stand to lose by leaving.',
@@ -56,6 +63,7 @@ const _refusal = BeatGuide(
 );
 
 const _mentor = BeatGuide(
+  id: 'mentor',
   purpose:
       'A guide gives the hero wisdom, a tool, or the confidence to cross into '
       'the unknown.',
@@ -65,6 +73,7 @@ const _mentor = BeatGuide(
 );
 
 const _threshold = BeatGuide(
+  id: 'threshold',
   purpose:
       'The hero commits and leaves the familiar world behind, entering the new '
       'and dangerous one for real.',
@@ -74,6 +83,7 @@ const _threshold = BeatGuide(
 );
 
 const _tests = BeatGuide(
+  id: 'tests',
   purpose:
       'The hero learns the rules of the new world, gathers allies and enemies, '
       'and faces rising challenges.',
@@ -83,6 +93,7 @@ const _tests = BeatGuide(
 );
 
 const _approach = BeatGuide(
+  id: 'approach',
   purpose:
       'The hero prepares for the central ordeal; the stakes and dread tighten '
       'before the worst moment.',
@@ -92,6 +103,7 @@ const _approach = BeatGuide(
 );
 
 const _ordeal = BeatGuide(
+  id: 'ordeal',
   purpose:
       'The hero faces their greatest fear or a brush with death — the emotional '
       'low point and true turning point of the story.',
@@ -101,6 +113,7 @@ const _ordeal = BeatGuide(
 );
 
 const _reward = BeatGuide(
+  id: 'reward',
   purpose:
       'Having survived, the hero seizes the prize — an object, a truth, a '
       'reconciliation — and is changed by it.',
@@ -110,6 +123,7 @@ const _reward = BeatGuide(
 );
 
 const _roadBack = BeatGuide(
+  id: 'roadBack',
   purpose:
       'The hero turns toward home, often pursued, as the stakes widen from the '
       'personal back out to the larger world.',
@@ -119,6 +133,7 @@ const _roadBack = BeatGuide(
 );
 
 const _resurrection = BeatGuide(
+  id: 'resurrection',
   purpose:
       'The final, hardest test, where the hero proves they have truly changed '
       "and the story's theme is settled.",
@@ -128,6 +143,7 @@ const _resurrection = BeatGuide(
 );
 
 const _return = BeatGuide(
+  id: 'return',
   purpose:
       'The hero comes home transformed, bringing back something that heals or '
       'renews the ordinary world they left.',
@@ -139,6 +155,7 @@ const _return = BeatGuide(
 // ── Three Act Structure guides ───────────────────────────────────────────────
 
 const _actISetup = BeatGuide(
+  id: 'actISetup',
   purpose:
       'Grounds the reader in the world, tone, and the protagonist’s normal '
       'before anything disrupts it.',
@@ -148,6 +165,7 @@ const _actISetup = BeatGuide(
 );
 
 const _mcIntroduced = BeatGuide(
+  id: 'mcIntroduced',
   purpose:
       'Introduces the protagonist with a clear want, voice, and flaw, so the '
       'reader has someone to follow and root for.',
@@ -157,6 +175,7 @@ const _mcIntroduced = BeatGuide(
 );
 
 const _everydayConflict = BeatGuide(
+  id: 'everydayConflict',
   purpose:
       "Shows the friction already in the hero's ordinary life — the small "
       'problem that hints at the bigger one to come.',
@@ -166,6 +185,7 @@ const _everydayConflict = BeatGuide(
 );
 
 const _incitingIncident = BeatGuide(
+  id: 'incitingIncident',
   purpose:
       'The event that disturbs the status quo and sets the story in motion '
       '— the moment the real problem arrives.',
@@ -175,6 +195,7 @@ const _incitingIncident = BeatGuide(
 );
 
 const _firstPlotPoint = BeatGuide(
+  id: 'firstPlotPoint',
   purpose:
       'The hero commits to the central conflict and crosses out of Act I — '
       'the point of no return into the main story.',
@@ -184,6 +205,7 @@ const _firstPlotPoint = BeatGuide(
 );
 
 const _actIIRising = BeatGuide(
+  id: 'actIIRising',
   purpose:
       'The long middle where the hero pursues the goal, the stakes climb, and '
       'obstacles grow harder.',
@@ -193,6 +215,7 @@ const _actIIRising = BeatGuide(
 );
 
 const _complications = BeatGuide(
+  id: 'complications',
   purpose:
       'New obstacles, reversals, and rising pressure that test the hero and '
       'deepen the conflict.',
@@ -202,6 +225,7 @@ const _complications = BeatGuide(
 );
 
 const _midpoint = BeatGuide(
+  id: 'midpoint',
   purpose:
       "A major shift at the story's center — a false victory or false "
       "defeat that changes the hero's understanding and raises the stakes.",
@@ -211,6 +235,7 @@ const _midpoint = BeatGuide(
 );
 
 const _crisis = BeatGuide(
+  id: 'crisis',
   purpose:
       "The lowest point, where the hero's plan collapses and everything seems "
       'lost before the final push.',
@@ -220,6 +245,7 @@ const _crisis = BeatGuide(
 );
 
 const _climax = BeatGuide(
+  id: 'climax',
   purpose:
       'The final confrontation where the central conflict is settled and the '
       'hero faces the problem head-on.',
@@ -229,6 +255,7 @@ const _climax = BeatGuide(
 );
 
 const _resolution = BeatGuide(
+  id: 'resolution',
   purpose:
       'The aftermath that shows how the hero and their world have changed, and '
       'ties off the emotional threads.',
@@ -240,6 +267,7 @@ const _resolution = BeatGuide(
 // ── Save the Cat guides (shared across Commercial / Screenwriting wordings) ───
 
 const _openingImage = BeatGuide(
+  id: 'openingImage',
   purpose:
       'A vivid first snapshot that sets the tone, mood, and the "before" '
       'version of the hero and their world.',
@@ -249,6 +277,7 @@ const _openingImage = BeatGuide(
 );
 
 const _themeStated = BeatGuide(
+  id: 'themeStated',
   purpose:
       "Someone states (often in passing) the story's thematic truth — the "
       'lesson the hero will resist and finally learn.',
@@ -258,6 +287,7 @@ const _themeStated = BeatGuide(
 );
 
 const _setupStc = BeatGuide(
+  id: 'setupStc',
   purpose:
       "Establishes the hero's world, flaws, and what's missing — every "
       'thing that will need to change by the end.',
@@ -267,6 +297,7 @@ const _setupStc = BeatGuide(
 );
 
 const _catalyst = BeatGuide(
+  id: 'catalyst',
   purpose:
       'The life-changing event that knocks the hero out of their routine and '
       "kicks off the story's real problem.",
@@ -276,6 +307,7 @@ const _catalyst = BeatGuide(
 );
 
 const _debate = BeatGuide(
+  id: 'debate',
   purpose:
       'The hero hesitates, weighing whether to act — the last stretch of '
       'doubt before committing to the journey.',
@@ -285,6 +317,7 @@ const _debate = BeatGuide(
 );
 
 const _breakIntoTwo = BeatGuide(
+  id: 'breakIntoTwo',
   purpose:
       'The hero makes a choice and steps into the new world of Act Two, '
       'leaving the old situation behind.',
@@ -294,6 +327,7 @@ const _breakIntoTwo = BeatGuide(
 );
 
 const _bStory = BeatGuide(
+  id: 'bStory',
   purpose:
       'A secondary thread — often a relationship — that carries the '
       'theme and gives the hero a place to grow.',
@@ -303,6 +337,7 @@ const _bStory = BeatGuide(
 );
 
 const _funAndGames = BeatGuide(
+  id: 'funAndGames',
   purpose:
       'The "promise of the premise" — the set-pieces and scenes the reader '
       "came for, exploring the story's hook.",
@@ -312,6 +347,7 @@ const _funAndGames = BeatGuide(
 );
 
 const _badGuysCloseIn = BeatGuide(
+  id: 'badGuysCloseIn',
   purpose:
       "External pressure and internal doubt tighten together as the hero's "
       'situation steadily worsens.',
@@ -321,6 +357,7 @@ const _badGuysCloseIn = BeatGuide(
 );
 
 const _allIsLost = BeatGuide(
+  id: 'allIsLost',
   purpose:
       'The rock bottom, where the hero loses what matters most and the goal '
       'looks impossible.',
@@ -330,6 +367,7 @@ const _allIsLost = BeatGuide(
 );
 
 const _darkNight = BeatGuide(
+  id: 'darkNight',
   purpose:
       "The hero's darkest moment of despair, sitting in the loss before "
       'finding a new way forward.',
@@ -339,6 +377,7 @@ const _darkNight = BeatGuide(
 );
 
 const _breakIntoThree = BeatGuide(
+  id: 'breakIntoThree',
   purpose:
       'The hero finds the answer — usually by fusing the A and B stories '
       '— and commits to the final act.',
@@ -348,6 +387,7 @@ const _breakIntoThree = BeatGuide(
 );
 
 const _finale = BeatGuide(
+  id: 'finale',
   purpose:
       "The hero executes the plan, proves they've changed, and resolves the "
       'central conflict for good.',
@@ -357,6 +397,7 @@ const _finale = BeatGuide(
 );
 
 const _finalImage = BeatGuide(
+  id: 'finalImage',
   purpose:
       'The closing snapshot that mirrors the Opening Image and shows how far '
       'the hero and their world have come.',
@@ -368,6 +409,7 @@ const _finalImage = BeatGuide(
 // ── Seven Point Story Structure guides ───────────────────────────────────────
 
 const _hook = BeatGuide(
+  id: 'hook',
   purpose:
       "The starting state — the hero's life and situation at the opposite "
       "end of where they'll finish.",
@@ -377,6 +419,7 @@ const _hook = BeatGuide(
 );
 
 const _plotTurn1 = BeatGuide(
+  id: 'plotTurn1',
   purpose:
       'The call to adventure that moves the hero from their starting world '
       'into the main conflict.',
@@ -386,6 +429,7 @@ const _plotTurn1 = BeatGuide(
 );
 
 const _pinch1 = BeatGuide(
+  id: 'pinch1',
   purpose:
       'Applies pressure by showing the force of the antagonist or central '
       'threat, pushing the hero to act.',
@@ -395,6 +439,7 @@ const _pinch1 = BeatGuide(
 );
 
 const _pinch2 = BeatGuide(
+  id: 'pinch2',
   purpose:
       'A harder squeeze — the antagonist gains the upper hand and the '
       "hero's support falls away.",
@@ -404,6 +449,7 @@ const _pinch2 = BeatGuide(
 );
 
 const _plotTurn2 = BeatGuide(
+  id: 'plotTurn2',
   purpose:
       'The hero moves from reaction to action, gaining the final piece needed '
       'to face the climax.',
@@ -415,6 +461,7 @@ const _plotTurn2 = BeatGuide(
 // ── Snowflake Method guides ──────────────────────────────────────────────────
 
 const _oneSentence = BeatGuide(
+  id: 'oneSentence',
   purpose:
       'A single sentence that captures the whole novel — the foundation '
       'the entire Snowflake plan expands from.',
@@ -424,6 +471,7 @@ const _oneSentence = BeatGuide(
 );
 
 const _oneParagraph = BeatGuide(
+  id: 'oneParagraph',
   purpose:
       'Expands the one-sentence summary into a paragraph covering the setup, '
       'major disasters, and ending.',
@@ -433,6 +481,7 @@ const _oneParagraph = BeatGuide(
 );
 
 const _charSummaries = BeatGuide(
+  id: 'charSummaries',
   purpose:
       'A short summary for each major character — their goal, motivation, '
       'conflict, and arc in one place.',
@@ -442,6 +491,7 @@ const _charSummaries = BeatGuide(
 );
 
 const _expandedSynopsis = BeatGuide(
+  id: 'expandedSynopsis',
   purpose:
       'Grows each sentence of the paragraph summary into a full paragraph, '
       'building a page-long story spine.',
@@ -451,6 +501,7 @@ const _expandedSynopsis = BeatGuide(
 );
 
 const _charArcs = BeatGuide(
+  id: 'charArcs',
   purpose:
       'Details how each character changes across the story — their '
       'internal journey alongside the external plot.',
@@ -460,6 +511,7 @@ const _charArcs = BeatGuide(
 );
 
 const _sceneList = BeatGuide(
+  id: 'sceneList',
   purpose:
       'A list of every scene — its POV character and what happens — '
       'turning the synopsis into a build plan.',
@@ -469,6 +521,7 @@ const _sceneList = BeatGuide(
 );
 
 const _firstDraft = BeatGuide(
+  id: 'firstDraft',
   purpose:
       'The drafting phase, where the detailed plan becomes actual prose — '
       'the payoff of all the planning steps.',
@@ -593,6 +646,7 @@ const Map<String, BeatGuide> _beatGuides = {
 };
 
 const _genericGuide = BeatGuide(
+  id: 'genericGuide',
   purpose:
       "A step in your story's arc — it should move the character or the stakes "
       'forward, not just mark time.',

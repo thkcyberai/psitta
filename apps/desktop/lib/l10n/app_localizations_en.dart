@@ -693,4 +693,185 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get deleteSection => 'Delete section';
+
+  @override
+  String get fieldName => 'Name';
+
+  @override
+  String get bookStructureNameHint => 'Book Structure name';
+
+  @override
+  String get fieldGenre => 'Genre';
+
+  @override
+  String get fieldStatus => 'Status';
+
+  @override
+  String get sectionNameHint => 'Section name';
+
+  @override
+  String get descriptionOptional => 'Description (optional)';
+
+  @override
+  String get nameYourBookStructure => 'Name your Book Structure';
+
+  @override
+  String get editBookStructure => 'Edit Book Structure';
+
+  @override
+  String get editSection => 'Edit Section';
+
+  @override
+  String get addSubsectionTitle => 'Add Subsection';
+
+  @override
+  String get btnAdd => 'Add';
+
+  @override
+  String get featureInteractiveGuide => 'Interactive Guide';
+
+  @override
+  String get guideDesc => 'Learn each step with examples and tips.';
+
+  @override
+  String get featureStructureAnalyzer => 'Structure Analyzer';
+
+  @override
+  String get analyzerDesc => 'Analyze your manuscript against this structure.';
+
+  @override
+  String get featureSceneMapper => 'Scene Mapper';
+
+  @override
+  String get sceneMapperDesc => 'Map your chapters to the structure.';
+
+  @override
+  String get featureProgressTracker => 'Progress Tracker';
+
+  @override
+  String get progressDesc => 'Track your progress through the journey.';
+
+  @override
+  String get openGuide => 'Open guide';
+
+  @override
+  String get useThisStructure => 'Use this Structure';
+
+  @override
+  String get labelBestFor => 'BEST FOR';
+
+  @override
+  String get pickSections => 'Pick the sections you want:';
+
+  @override
+  String get selectAll => 'Select all';
+
+  @override
+  String get clearSelection => 'Clear';
+
+  @override
+  String get labelIncludes => 'INCLUDES';
+
+  @override
+  String get editableInDesk => 'Editable in the Writing Desk';
+
+  @override
+  String get placeDocsInSection => 'Place your documents into each section';
+
+  @override
+  String get createProjectFirstNarrative =>
+      'Create a project first, then attach a narrative to its book.';
+
+  @override
+  String get addNarrativeToBook => 'Add this narrative to which book?';
+
+  @override
+  String get narrativeSaveFailed =>
+      'Could not save the narrative. Please try again.';
+
+  @override
+  String narrativeSavedMsg(String structure, String variant, String book) {
+    return '$structure · $variant saved to \"$book\".';
+  }
+
+  @override
+  String sectionsSelected(int count, int total) {
+    return '$count of $total sections selected';
+  }
+
+  @override
+  String sectionsForBestFor(int count, String bestFor) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sections ($bestFor)',
+      one: '1 section ($bestFor)',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get popularStructures => 'POPULAR STRUCTURES';
+
+  @override
+  String nSteps(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count steps',
+      one: '1 step',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String nAudiences(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count audiences',
+      one: '1 audience',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String nSections(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sections',
+      one: '1 section',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ringStepsSelected(int selected, int total) {
+    return '$selected of $total\nsteps selected';
+  }
+
+  @override
+  String get interactiveGuideLabel => 'Interactive Guide';
+
+  @override
+  String guideStepsCaption(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count steps · tap through your arc',
+      one: '1 step · tap through your arc',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get generalCraftGuidance =>
+      'General craft guidance — your story may bend these on purpose.';
+
+  @override
+  String get tipLabel => 'Tip';
+
+  @override
+  String get actionClose => 'Close';
 }

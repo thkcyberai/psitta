@@ -11,6 +11,8 @@ import '../projects/widgets/scene_map_dialog.dart';
 import '../projects/widgets/structure_analyzer_dialog.dart';
 import 'interactive_guide_dialog.dart';
 import 'narrative_structures.dart';
+import 'narrative_i18n.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Index of the selected narrative structure within [kNarrativeStructures].
 final selectedStructureIndexProvider = StateProvider<int>((ref) => 0);
@@ -82,30 +84,31 @@ class _BottomTools extends ConsumerWidget {
         .clamp(0, structure.variants.length - 1);
 
     // Interactive Guide is live; the other three remain "Coming soon" (onTap null).
+    final loc = AppLocalizations.of(context);
     final tools = <(IconData, String, String, VoidCallback?)>[
       (
         Icons.menu_book_outlined,
-        'Interactive Guide',
-        'Learn each step with examples and tips.',
+        loc.featureInteractiveGuide,
+        loc.guideDesc,
         () => showInteractiveGuide(context,
             structure: structure, variantIndex: vIndex),
       ),
       (
         Icons.insights_outlined,
-        'Structure Analyzer',
-        'Analyze your manuscript against this structure.',
+        loc.featureStructureAnalyzer,
+        loc.analyzerDesc,
         () => pickProjectAndShowAnalyzer(context, ref),
       ),
       (
         Icons.hub_outlined,
-        'Scene Mapper',
-        'Map your chapters to the structure.',
+        loc.featureSceneMapper,
+        loc.sceneMapperDesc,
         () => pickProjectAndShowSceneMap(context, ref),
       ),
       (
         Icons.track_changes_outlined,
-        'Progress Tracker',
-        'Track your progress through the journey.',
+        loc.featureProgressTracker,
+        loc.progressDesc,
         () => pickProjectAndShowProgress(context, ref),
       ),
     ];
@@ -152,6 +155,7 @@ class _ToolCard extends StatelessWidget {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final active = onTap != null;
+    final loc = AppLocalizations.of(context);
 
     final card = Container(
       padding: const EdgeInsets.all(14),
@@ -189,7 +193,7 @@ class _ToolCard extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Open guide',
+                Text(loc.openGuide,
                     style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -205,7 +209,7 @@ class _ToolCard extends StatelessWidget {
                 color: tokens.glow.withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text('Coming soon',
+              child: Text(loc.comingSoon,
                   style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
@@ -296,7 +300,8 @@ class _StructureCircle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final steps = components;
+    final loc = AppLocalizations.of(context);
+    final steps = [for (final c in components) beatLabel(context, c)];
     final n = steps.length;
 
     return LayoutBuilder(
@@ -351,7 +356,7 @@ class _StructureCircle extends StatelessWidget {
             width: 140,
             child: IgnorePointer(
               child: Text(
-                '${selected.length} of $n\nsteps selected',
+                loc.ringStepsSelected(selected.length, n),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 12,
@@ -526,6 +531,7 @@ class _BestForCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
     final cards = <Widget>[];
     for (var i = 0; i < structure.variants.length; i++) {
       final v = structure.variants[i];
@@ -565,7 +571,7 @@ class _BestForCards extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          v.bestFor,
+                          bestForLabel(context, v.bestFor),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -574,7 +580,7 @@ class _BestForCards extends StatelessWidget {
                             color: isSel ? color : scheme.onSurface,
                           ),
                         ),
-                        Text('${v.components.length} steps',
+                        Text(loc.nSteps(v.components.length),
                             style: TextStyle(
                                 fontSize: 10.5,
                                 color: scheme.onSurfaceVariant)),
@@ -608,6 +614,7 @@ class _StructureList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 10, 12),
       child: ListView.builder(
@@ -617,7 +624,7 @@ class _StructureList extends ConsumerWidget {
             return Padding(
               padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
               child: Text(
-                'POPULAR STRUCTURES',
+                loc.popularStructures,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
@@ -658,6 +665,7 @@ class _StructureListCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -711,7 +719,9 @@ class _StructureListCard extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          structure.bestFor,
+                          structure.variants
+                              .map((v) => bestForLabel(context, v.bestFor))
+                              .join(', '),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -720,8 +730,8 @@ class _StructureListCard extends StatelessWidget {
                         const SizedBox(height: 3),
                         Text(
                           structure.hasVariants
-                              ? '${structure.variants.length} audiences'
-                              : '${structure.components.length} sections',
+                              ? loc.nAudiences(structure.variants.length)
+                              : loc.nSections(structure.components.length),
                           style: TextStyle(
                               fontSize: 10.5,
                               fontWeight: FontWeight.w700,
@@ -782,6 +792,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final s = widget.structure;
     final variant = s.variants[widget.variantIndex];
     final components = _components;
@@ -805,7 +816,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                             fontSize: 18, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 1),
                     Text(
-                      '${variant.bestFor}  ·  $count of $total sections selected',
+                      '${bestForLabel(context, variant.bestFor)}  ·  ${loc.sectionsSelected(count, total)}',
                       style: TextStyle(
                           fontSize: 11.5, color: scheme.onSurfaceVariant),
                     ),
@@ -821,7 +832,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
                       fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 icon: const Icon(Icons.auto_awesome, size: 16),
-                label: const Text('Use this Structure'),
+                label: Text(loc.useThisStructure),
                 onPressed: count == 0
                     ? null
                     : () => _attachNarrativeToProject(
@@ -842,7 +853,7 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
           // Best-For selector — pick the audience, the circle redraws.
           Row(
             children: [
-              Text('BEST FOR',
+              Text(loc.labelBestFor,
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w800,
@@ -860,17 +871,17 @@ class _StructureDetailState extends ConsumerState<_StructureDetail> {
           const SizedBox(height: 10),
           Row(
             children: [
-              Text('Pick the sections you want:',
+              Text(loc.pickSections,
                   style:
                       TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
               const Spacer(),
               TextButton(
                 onPressed: () => setState(_selectAll),
-                child: const Text('Select all'),
+                child: Text(loc.selectAll),
               ),
               TextButton(
                 onPressed: () => setState(() => _selected = {}),
-                child: const Text('Clear'),
+                child: Text(loc.clearSelection),
               ),
             ],
           ),
@@ -928,6 +939,7 @@ class _StructureInfo extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final variants = structure.variants;
     final selected = variants[variantIndex];
+    final loc = AppLocalizations.of(context);
 
     return Container(
       color: tokens.surface,
@@ -956,7 +968,7 @@ class _StructureInfo extends StatelessWidget {
               style:
                   const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
           const SizedBox(height: 20),
-          _label(context, 'BEST FOR'),
+          _label(context, loc.labelBestFor),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -972,7 +984,7 @@ class _StructureInfo extends StatelessWidget {
                         : tokens.glow.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: Text(variants[i].bestFor,
+                  child: Text(bestForLabel(context, variants[i].bestFor),
                       style: TextStyle(
                           fontSize: 11.5,
                           fontWeight: FontWeight.w600,
@@ -983,16 +995,16 @@ class _StructureInfo extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 22),
-          _label(context, 'INCLUDES'),
+          _label(context, loc.labelIncludes),
           const SizedBox(height: 8),
           _infoRow(scheme, Icons.check_circle_outline,
-              '${selected.components.length} sections (${selected.bestFor})'),
+              loc.sectionsForBestFor(selected.components.length, bestForLabel(context, selected.bestFor))),
           const SizedBox(height: 8),
           _infoRow(scheme, Icons.check_circle_outline,
-              'Editable in the Writing Desk'),
+              loc.editableInDesk),
           const SizedBox(height: 8),
           _infoRow(scheme, Icons.check_circle_outline,
-              'Place your documents into each section'),
+              loc.placeDocsInSection),
         ],
       ),
     );
@@ -1035,14 +1047,14 @@ Future<void> _attachNarrativeToProject(
   String variant,
   List<String> beats,
 ) async {
+  final loc = AppLocalizations.of(context);
   final repo = ref.read(projectRepositoryProvider);
   final projects =
       ref.read(projectsProvider).valueOrNull ?? await repo.listProjects();
   if (!context.mounted) return;
   if (projects.isEmpty) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-            'Create a project first, then attach a narrative to its book.')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(loc.createProjectFirstNarrative)));
     return;
   }
   final projectId = projects.length == 1
@@ -1050,7 +1062,7 @@ Future<void> _attachNarrativeToProject(
       : await showDialog<String>(
           context: context,
           builder: (ctx) => SimpleDialog(
-            title: const Text('Add this narrative to which book?'),
+            title: Text(loc.addNarrativeToBook),
             children: [
               for (final p in projects)
                 SimpleDialogOption(
@@ -1072,11 +1084,11 @@ Future<void> _attachNarrativeToProject(
     if (!context.mounted) return;
     final pname = projects.firstWhere((p) => p.id == projectId).name;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('$structureName · $variant saved to "$pname".')));
+        content: Text(loc.narrativeSavedMsg(structureName, variant, pname))));
   } catch (_) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Could not save the narrative. Please try again.')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(loc.narrativeSaveFailed)));
     }
   }
 }

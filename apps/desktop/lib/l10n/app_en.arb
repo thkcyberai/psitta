@@ -282,5 +282,87 @@
   "addDocument": "Add document",
   "renameEdit": "Rename / edit",
   "addSubsection": "Add subsection",
-  "deleteSection": "Delete section"
+  "deleteSection": "Delete section",
+  "fieldName": "Name",
+  "bookStructureNameHint": "Book Structure name",
+  "fieldGenre": "Genre",
+  "fieldStatus": "Status",
+  "sectionNameHint": "Section name",
+  "descriptionOptional": "Description (optional)",
+  "nameYourBookStructure": "Name your Book Structure",
+  "editBookStructure": "Edit Book Structure",
+  "editSection": "Edit Section",
+  "addSubsectionTitle": "Add Subsection",
+  "btnAdd": "Add",
+  "featureInteractiveGuide": "Interactive Guide",
+  "guideDesc": "Learn each step with examples and tips.",
+  "featureStructureAnalyzer": "Structure Analyzer",
+  "analyzerDesc": "Analyze your manuscript against this structure.",
+  "featureSceneMapper": "Scene Mapper",
+  "sceneMapperDesc": "Map your chapters to the structure.",
+  "featureProgressTracker": "Progress Tracker",
+  "progressDesc": "Track your progress through the journey.",
+  "openGuide": "Open guide",
+  "useThisStructure": "Use this Structure",
+  "labelBestFor": "BEST FOR",
+  "pickSections": "Pick the sections you want:",
+  "selectAll": "Select all",
+  "clearSelection": "Clear",
+  "labelIncludes": "INCLUDES",
+  "editableInDesk": "Editable in the Writing Desk",
+  "placeDocsInSection": "Place your documents into each section",
+  "createProjectFirstNarrative": "Create a project first, then attach a narrative to its book.",
+  "addNarrativeToBook": "Add this narrative to which book?",
+  "narrativeSaveFailed": "Could not save the narrative. Please try again.",
+  "narrativeSavedMsg": "{structure} · {variant} saved to \"{book}\".",
+  "@narrativeSavedMsg": {
+    "placeholders": {
+      "structure": {
+        "type": "String"
+      },
+      "variant": {
+        "type": "String"
+      },
+      "book": {
+        "type": "String"
+      }
+    }
+  },
+  "sectionsSelected": "{count} of {total} sections selected",
+  "@sectionsSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "sectionsForBestFor": "{count, plural, =1{1 section ({bestFor})} other{{count} sections ({bestFor})}}",
+  "@sectionsForBestFor": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "bestFor": {
+        "type": "String"
+      }
+    }
+  },
+  "popularStructures": "POPULAR STRUCTURES",
+  "nSteps": "{count, plural, =1{1 step} other{{count} steps}}",
+  "@nSteps": { "placeholders": { "count": { "type": "int" } } },
+  "nAudiences": "{count, plural, =1{1 audience} other{{count} audiences}}",
+  "@nAudiences": { "placeholders": { "count": { "type": "int" } } },
+  "nSections": "{count, plural, =1{1 section} other{{count} sections}}",
+  "@nSections": { "placeholders": { "count": { "type": "int" } } },
+  "ringStepsSelected": "{selected} of {total}\nsteps selected",
+  "@ringStepsSelected": { "placeholders": { "selected": { "type": "int" }, "total": { "type": "int" } } },
+  "interactiveGuideLabel": "Interactive Guide",
+  "guideStepsCaption": "{count, plural, =1{1 step · tap through your arc} other{{count} steps · tap through your arc}}",
+  "@guideStepsCaption": { "placeholders": { "count": { "type": "int" } } },
+  "generalCraftGuidance": "General craft guidance — your story may bend these on purpose.",
+  "tipLabel": "Tip",
+  "actionClose": "Close"
 }

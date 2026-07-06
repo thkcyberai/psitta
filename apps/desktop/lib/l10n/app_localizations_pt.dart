@@ -695,4 +695,186 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get deleteSection => 'Excluir seção';
+
+  @override
+  String get fieldName => 'Nome';
+
+  @override
+  String get bookStructureNameHint => 'Nome da Estrutura de livro';
+
+  @override
+  String get fieldGenre => 'Gênero';
+
+  @override
+  String get fieldStatus => 'Status';
+
+  @override
+  String get sectionNameHint => 'Nome da seção';
+
+  @override
+  String get descriptionOptional => 'Descrição (opcional)';
+
+  @override
+  String get nameYourBookStructure => 'Nomeie sua Estrutura de livro';
+
+  @override
+  String get editBookStructure => 'Editar Estrutura de livro';
+
+  @override
+  String get editSection => 'Editar seção';
+
+  @override
+  String get addSubsectionTitle => 'Adicionar subseção';
+
+  @override
+  String get btnAdd => 'Adicionar';
+
+  @override
+  String get featureInteractiveGuide => 'Guia Interativo';
+
+  @override
+  String get guideDesc => 'Aprenda cada passo com exemplos e dicas.';
+
+  @override
+  String get featureStructureAnalyzer => 'Analisador de Estrutura';
+
+  @override
+  String get analyzerDesc =>
+      'Analise seu manuscrito em relação a esta estrutura.';
+
+  @override
+  String get featureSceneMapper => 'Mapa de Cenas';
+
+  @override
+  String get sceneMapperDesc => 'Mapeie seus capítulos na estrutura.';
+
+  @override
+  String get featureProgressTracker => 'Acompanhamento de Progresso';
+
+  @override
+  String get progressDesc => 'Acompanhe seu progresso na jornada.';
+
+  @override
+  String get openGuide => 'Abrir guia';
+
+  @override
+  String get useThisStructure => 'Usar esta estrutura';
+
+  @override
+  String get labelBestFor => 'IDEAL PARA';
+
+  @override
+  String get pickSections => 'Escolha as seções que você quer:';
+
+  @override
+  String get selectAll => 'Selecionar tudo';
+
+  @override
+  String get clearSelection => 'Limpar';
+
+  @override
+  String get labelIncludes => 'INCLUI';
+
+  @override
+  String get editableInDesk => 'Editável na Escrivaninha';
+
+  @override
+  String get placeDocsInSection => 'Coloque seus documentos em cada seção';
+
+  @override
+  String get createProjectFirstNarrative =>
+      'Crie um projeto primeiro e depois anexe uma narrativa ao seu livro.';
+
+  @override
+  String get addNarrativeToBook => 'Adicionar esta narrativa a qual livro?';
+
+  @override
+  String get narrativeSaveFailed =>
+      'Não foi possível salvar a narrativa. Tente novamente.';
+
+  @override
+  String narrativeSavedMsg(String structure, String variant, String book) {
+    return '$structure · $variant salvo em \"$book\".';
+  }
+
+  @override
+  String sectionsSelected(int count, int total) {
+    return '$count de $total seções selecionadas';
+  }
+
+  @override
+  String sectionsForBestFor(int count, String bestFor) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count seções ($bestFor)',
+      one: '1 seção ($bestFor)',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get popularStructures => 'ESTRUTURAS POPULARES';
+
+  @override
+  String nSteps(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count etapas',
+      one: '1 etapa',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String nAudiences(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count públicos',
+      one: '1 público',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String nSections(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count seções',
+      one: '1 seção',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ringStepsSelected(int selected, int total) {
+    return '$selected de $total\netapas selecionadas';
+  }
+
+  @override
+  String get interactiveGuideLabel => 'Guia Interativo';
+
+  @override
+  String guideStepsCaption(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count etapas · percorra seu arco',
+      one: '1 etapa · percorra seu arco',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get generalCraftGuidance =>
+      'Orientação geral de ofício — sua história pode contrariá-las de propósito.';
+
+  @override
+  String get tipLabel => 'Dica';
+
+  @override
+  String get actionClose => 'Fechar';
 }

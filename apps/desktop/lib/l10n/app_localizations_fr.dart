@@ -697,4 +697,186 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get deleteSection => 'Supprimer la section';
+
+  @override
+  String get fieldName => 'Nom';
+
+  @override
+  String get bookStructureNameHint => 'Nom de la Structure de livre';
+
+  @override
+  String get fieldGenre => 'Genre';
+
+  @override
+  String get fieldStatus => 'Statut';
+
+  @override
+  String get sectionNameHint => 'Nom de la section';
+
+  @override
+  String get descriptionOptional => 'Description (facultatif)';
+
+  @override
+  String get nameYourBookStructure => 'Nommez votre Structure de livre';
+
+  @override
+  String get editBookStructure => 'Modifier la Structure de livre';
+
+  @override
+  String get editSection => 'Modifier la section';
+
+  @override
+  String get addSubsectionTitle => 'Ajouter une sous-section';
+
+  @override
+  String get btnAdd => 'Ajouter';
+
+  @override
+  String get featureInteractiveGuide => 'Guide Interactif';
+
+  @override
+  String get guideDesc => 'Apprenez chaque étape avec exemples et conseils.';
+
+  @override
+  String get featureStructureAnalyzer => 'Analyseur de Structure';
+
+  @override
+  String get analyzerDesc => 'Analysez votre manuscrit selon cette structure.';
+
+  @override
+  String get featureSceneMapper => 'Cartographe de Scènes';
+
+  @override
+  String get sceneMapperDesc => 'Reliez vos chapitres à la structure.';
+
+  @override
+  String get featureProgressTracker => 'Suivi de Progression';
+
+  @override
+  String get progressDesc =>
+      'Suivez votre progression tout au long du parcours.';
+
+  @override
+  String get openGuide => 'Ouvrir le guide';
+
+  @override
+  String get useThisStructure => 'Utiliser cette structure';
+
+  @override
+  String get labelBestFor => 'IDÉAL POUR';
+
+  @override
+  String get pickSections => 'Choisissez les sections voulues :';
+
+  @override
+  String get selectAll => 'Tout sélectionner';
+
+  @override
+  String get clearSelection => 'Effacer';
+
+  @override
+  String get labelIncludes => 'INCLUT';
+
+  @override
+  String get editableInDesk => 'Modifiable dans le Bureau d\'écriture';
+
+  @override
+  String get placeDocsInSection => 'Placez vos documents dans chaque section';
+
+  @override
+  String get createProjectFirstNarrative =>
+      'Créez d\'abord un projet, puis attachez une narration à son livre.';
+
+  @override
+  String get addNarrativeToBook => 'Ajouter cette narration à quel livre ?';
+
+  @override
+  String get narrativeSaveFailed =>
+      'Impossible d\'enregistrer la narration. Réessayez.';
+
+  @override
+  String narrativeSavedMsg(String structure, String variant, String book) {
+    return '$structure · $variant enregistré dans « $book ».';
+  }
+
+  @override
+  String sectionsSelected(int count, int total) {
+    return '$count sur $total sections sélectionnées';
+  }
+
+  @override
+  String sectionsForBestFor(int count, String bestFor) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sections ($bestFor)',
+      one: '1 section ($bestFor)',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get popularStructures => 'STRUCTURES POPULAIRES';
+
+  @override
+  String nSteps(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count étapes',
+      one: '1 étape',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String nAudiences(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count publics',
+      one: '1 public',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String nSections(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sections',
+      one: '1 section',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String ringStepsSelected(int selected, int total) {
+    return '$selected sur $total\nétapes sélectionnées';
+  }
+
+  @override
+  String get interactiveGuideLabel => 'Guide Interactif';
+
+  @override
+  String guideStepsCaption(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count étapes · parcourez votre arc',
+      one: '1 étape · parcourez votre arc',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get generalCraftGuidance =>
+      'Conseils généraux d\'écriture — votre histoire peut les enfreindre volontairement.';
+
+  @override
+  String get tipLabel => 'Astuce';
+
+  @override
+  String get actionClose => 'Fermer';
 }

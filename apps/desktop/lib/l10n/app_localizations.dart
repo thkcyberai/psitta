@@ -1337,6 +1337,270 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete section'**
   String get deleteSection;
+
+  /// No description provided for @fieldName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get fieldName;
+
+  /// No description provided for @bookStructureNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Book Structure name'**
+  String get bookStructureNameHint;
+
+  /// No description provided for @fieldGenre.
+  ///
+  /// In en, this message translates to:
+  /// **'Genre'**
+  String get fieldGenre;
+
+  /// No description provided for @fieldStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get fieldStatus;
+
+  /// No description provided for @sectionNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Section name'**
+  String get sectionNameHint;
+
+  /// No description provided for @descriptionOptional.
+  ///
+  /// In en, this message translates to:
+  /// **'Description (optional)'**
+  String get descriptionOptional;
+
+  /// No description provided for @nameYourBookStructure.
+  ///
+  /// In en, this message translates to:
+  /// **'Name your Book Structure'**
+  String get nameYourBookStructure;
+
+  /// No description provided for @editBookStructure.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Book Structure'**
+  String get editBookStructure;
+
+  /// No description provided for @editSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Section'**
+  String get editSection;
+
+  /// No description provided for @addSubsectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Subsection'**
+  String get addSubsectionTitle;
+
+  /// No description provided for @btnAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add'**
+  String get btnAdd;
+
+  /// No description provided for @featureInteractiveGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Interactive Guide'**
+  String get featureInteractiveGuide;
+
+  /// No description provided for @guideDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Learn each step with examples and tips.'**
+  String get guideDesc;
+
+  /// No description provided for @featureStructureAnalyzer.
+  ///
+  /// In en, this message translates to:
+  /// **'Structure Analyzer'**
+  String get featureStructureAnalyzer;
+
+  /// No description provided for @analyzerDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyze your manuscript against this structure.'**
+  String get analyzerDesc;
+
+  /// No description provided for @featureSceneMapper.
+  ///
+  /// In en, this message translates to:
+  /// **'Scene Mapper'**
+  String get featureSceneMapper;
+
+  /// No description provided for @sceneMapperDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Map your chapters to the structure.'**
+  String get sceneMapperDesc;
+
+  /// No description provided for @featureProgressTracker.
+  ///
+  /// In en, this message translates to:
+  /// **'Progress Tracker'**
+  String get featureProgressTracker;
+
+  /// No description provided for @progressDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Track your progress through the journey.'**
+  String get progressDesc;
+
+  /// No description provided for @openGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Open guide'**
+  String get openGuide;
+
+  /// No description provided for @useThisStructure.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this Structure'**
+  String get useThisStructure;
+
+  /// No description provided for @labelBestFor.
+  ///
+  /// In en, this message translates to:
+  /// **'BEST FOR'**
+  String get labelBestFor;
+
+  /// No description provided for @pickSections.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick the sections you want:'**
+  String get pickSections;
+
+  /// No description provided for @selectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get selectAll;
+
+  /// No description provided for @clearSelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get clearSelection;
+
+  /// No description provided for @labelIncludes.
+  ///
+  /// In en, this message translates to:
+  /// **'INCLUDES'**
+  String get labelIncludes;
+
+  /// No description provided for @editableInDesk.
+  ///
+  /// In en, this message translates to:
+  /// **'Editable in the Writing Desk'**
+  String get editableInDesk;
+
+  /// No description provided for @placeDocsInSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Place your documents into each section'**
+  String get placeDocsInSection;
+
+  /// No description provided for @createProjectFirstNarrative.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a project first, then attach a narrative to its book.'**
+  String get createProjectFirstNarrative;
+
+  /// No description provided for @addNarrativeToBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Add this narrative to which book?'**
+  String get addNarrativeToBook;
+
+  /// No description provided for @narrativeSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save the narrative. Please try again.'**
+  String get narrativeSaveFailed;
+
+  /// No description provided for @narrativeSavedMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'{structure} · {variant} saved to \"{book}\".'**
+  String narrativeSavedMsg(String structure, String variant, String book);
+
+  /// No description provided for @sectionsSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} of {total} sections selected'**
+  String sectionsSelected(int count, int total);
+
+  /// No description provided for @sectionsForBestFor.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 section ({bestFor})} other{{count} sections ({bestFor})}}'**
+  String sectionsForBestFor(int count, String bestFor);
+
+  /// No description provided for @popularStructures.
+  ///
+  /// In en, this message translates to:
+  /// **'POPULAR STRUCTURES'**
+  String get popularStructures;
+
+  /// No description provided for @nSteps.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 step} other{{count} steps}}'**
+  String nSteps(int count);
+
+  /// No description provided for @nAudiences.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 audience} other{{count} audiences}}'**
+  String nAudiences(int count);
+
+  /// No description provided for @nSections.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 section} other{{count} sections}}'**
+  String nSections(int count);
+
+  /// No description provided for @ringStepsSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{selected} of {total}\nsteps selected'**
+  String ringStepsSelected(int selected, int total);
+
+  /// No description provided for @interactiveGuideLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Interactive Guide'**
+  String get interactiveGuideLabel;
+
+  /// No description provided for @guideStepsCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 step · tap through your arc} other{{count} steps · tap through your arc}}'**
+  String guideStepsCaption(int count);
+
+  /// No description provided for @generalCraftGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'General craft guidance — your story may bend these on purpose.'**
+  String get generalCraftGuidance;
+
+  /// No description provided for @tipLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tip'**
+  String get tipLabel;
+
+  /// No description provided for @actionClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get actionClose;
 }
 
 class _AppLocalizationsDelegate
