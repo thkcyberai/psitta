@@ -7,6 +7,8 @@ import '../../../data/models/project_detail.dart'
     show StructureAnalysis, StructureBeatResult;
 import '../../../data/providers/providers.dart'
     show projectRepositoryProvider, projectsProvider;
+import '../../../l10n/app_localizations.dart';
+import '../../blueprints/narrative_i18n.dart';
 
 /// Opens the Structure Analyzer for a project — an on-demand, whole-manuscript
 /// AI assessment of how well the writing delivers each beat.
@@ -28,18 +30,18 @@ Future<void> pickProjectAndShowAnalyzer(
     return;
   }
   if (!context.mounted) return;
+  final loc = AppLocalizations.of(context);
 
   if (projects.isEmpty) {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('No projects yet'),
-        content: const Text(
-            'Create a project and attach a narrative to analyze its structure.'),
+        title: Text(loc.noProjectsYet),
+        content: Text(loc.analyzerCreateProjectBody),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK')),
+              child: Text(loc.actionOk)),
         ],
       ),
     );
@@ -50,7 +52,7 @@ Future<void> pickProjectAndShowAnalyzer(
   chosen ??= await showDialog<String>(
     context: context,
     builder: (ctx) => SimpleDialog(
-      title: const Text('Analyze which book?'),
+      title: Text(loc.analyzeWhichBook),
       children: [
         for (final p in projects)
           SimpleDialogOption(
@@ -115,13 +117,14 @@ class _StructureAnalyzerDialogState
         if (detail is String) return detail;
       }
     }
-    return 'Could not analyze right now. Please try again.';
+    return AppLocalizations.of(context).analyzerCouldNotAnalyze;
   }
 
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return Dialog(
       backgroundColor: tokens.surface,
@@ -138,13 +141,13 @@ class _StructureAnalyzerDialogState
                 children: [
                   Icon(Icons.insights_outlined, size: 22, color: tokens.glow),
                   const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text('Structure Analyzer',
-                        style: TextStyle(
+                  Expanded(
+                    child: Text(loc.featureStructureAnalyzer,
+                        style: const TextStyle(
                             fontSize: 19, fontWeight: FontWeight.w800)),
                   ),
                   IconButton(
-                    tooltip: 'Close',
+                    tooltip: loc.actionClose,
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -160,17 +163,18 @@ class _StructureAnalyzerDialogState
   }
 
   Widget _body(BuildContext context, PsittaTokens tokens, ColorScheme scheme) {
+    final loc = AppLocalizations.of(context);
     switch (_phase) {
       case _Phase.loading:
-        return const Padding(
-          padding: EdgeInsets.symmetric(vertical: 60),
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 60),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Reading your manuscript and weighing each beat…',
-                  style: TextStyle(fontSize: 13)),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              Text(loc.analyzerReading,
+                  style: const TextStyle(fontSize: 13)),
             ],
           ),
         );
@@ -192,7 +196,7 @@ class _StructureAnalyzerDialogState
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton(
-                    onPressed: _run, child: const Text('Try again')),
+                    onPressed: _run, child: Text(loc.actionTryAgain)),
               ),
             ],
           ),
@@ -207,15 +211,13 @@ class _StructureAnalyzerDialogState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Analyze your whole manuscript against your chosen beats. '
-                'Each beat comes back as Present, Thin, or Missing, with a '
-                'short note and an overall read.',
+                loc.analyzerIntro,
                 style: TextStyle(
                     fontSize: 13.5, height: 1.45, color: scheme.onSurface),
               ),
               const SizedBox(height: 10),
               Text(
-                'This uses AI tokens from your monthly Writing Nook allowance.',
+                loc.analyzerTokensNote,
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
               const SizedBox(height: 18),
@@ -224,7 +226,7 @@ class _StructureAnalyzerDialogState
                 child: FilledButton.icon(
                   onPressed: _run,
                   icon: const Icon(Icons.insights_outlined, size: 18),
-                  label: const Text('Run analysis'),
+                  label: Text(loc.analyzerRun),
                 ),
               ),
             ],
@@ -244,6 +246,7 @@ class _ResultView extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
       children: [
@@ -267,7 +270,7 @@ class _ResultView extends StatelessWidget {
           child: TextButton.icon(
             onPressed: onRerun,
             icon: const Icon(Icons.refresh, size: 16),
-            label: const Text('Re-analyze'),
+            label: Text(loc.analyzerReanalyze),
           ),
         ),
       ],
@@ -281,24 +284,25 @@ class _BeatResultRow extends StatelessWidget {
   final StructureBeatResult beat;
 
   ({Color color, IconData icon, String label}) _style(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     switch (beat.status) {
       case 'present':
         return (
           color: const Color(0xFF54C68A),
           icon: Icons.check_circle,
-          label: 'Present'
+          label: loc.beatStatusPresent
         );
       case 'thin':
         return (
           color: const Color(0xFFE0A24E),
           icon: Icons.error_outline,
-          label: 'Thin'
+          label: loc.beatStatusThin
         );
       case 'missing':
         return (
           color: const Color(0xFFE5709B),
           icon: Icons.cancel_outlined,
-          label: 'Missing'
+          label: loc.beatStatusMissing
         );
       default:
         return (
@@ -327,7 +331,7 @@ class _BeatResultRow extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(beat.beat,
+                      child: Text(beatLabel(context, beat.beat),
                           style: const TextStyle(
                               fontSize: 14, fontWeight: FontWeight.w700)),
                     ),

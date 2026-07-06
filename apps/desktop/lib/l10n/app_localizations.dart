@@ -1793,6 +1793,342 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{covered} of {total} beats covered · {pct}% through your arc'**
   String progressBeatsArc(int covered, int total, int pct);
+
+  /// No description provided for @diagramTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Understanding Blueprints'**
+  String get diagramTitle;
+
+  /// No description provided for @diagramSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Every great book combines structure and narrative.'**
+  String get diagramSubtitle;
+
+  /// No description provided for @diagramBook.
+  ///
+  /// In en, this message translates to:
+  /// **'BOOK'**
+  String get diagramBook;
+
+  /// No description provided for @diagramFrontMatter.
+  ///
+  /// In en, this message translates to:
+  /// **'Front Matter'**
+  String get diagramFrontMatter;
+
+  /// No description provided for @diagramPartI.
+  ///
+  /// In en, this message translates to:
+  /// **'Part I'**
+  String get diagramPartI;
+
+  /// No description provided for @diagramPartII.
+  ///
+  /// In en, this message translates to:
+  /// **'Part II'**
+  String get diagramPartII;
+
+  /// No description provided for @diagramPartIII.
+  ///
+  /// In en, this message translates to:
+  /// **'Part III'**
+  String get diagramPartIII;
+
+  /// No description provided for @diagramBackMatter.
+  ///
+  /// In en, this message translates to:
+  /// **'Back Matter'**
+  String get diagramBackMatter;
+
+  /// No description provided for @diagramBeginning.
+  ///
+  /// In en, this message translates to:
+  /// **'Beginning'**
+  String get diagramBeginning;
+
+  /// No description provided for @diagramConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Conflict'**
+  String get diagramConflict;
+
+  /// No description provided for @diagramChallenge.
+  ///
+  /// In en, this message translates to:
+  /// **'Challenge'**
+  String get diagramChallenge;
+
+  /// No description provided for @diagramClimax.
+  ///
+  /// In en, this message translates to:
+  /// **'Climax'**
+  String get diagramClimax;
+
+  /// No description provided for @diagramResolution.
+  ///
+  /// In en, this message translates to:
+  /// **'Resolution'**
+  String get diagramResolution;
+
+  /// No description provided for @diagramWhereContentLives.
+  ///
+  /// In en, this message translates to:
+  /// **'  =  Where content lives'**
+  String get diagramWhereContentLives;
+
+  /// No description provided for @diagramHowContentFlows.
+  ///
+  /// In en, this message translates to:
+  /// **'  =  How content flows'**
+  String get diagramHowContentFlows;
+
+  /// No description provided for @diagramChooseBookTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choosing your Book Structure'**
+  String get diagramChooseBookTitle;
+
+  /// No description provided for @diagramChooseBookRule.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick by format — how the manuscript is organized.'**
+  String get diagramChooseBookRule;
+
+  /// No description provided for @diagramBookEx1.
+  ///
+  /// In en, this message translates to:
+  /// **'Novel → Parts & Chapters'**
+  String get diagramBookEx1;
+
+  /// No description provided for @diagramBookEx2.
+  ///
+  /// In en, this message translates to:
+  /// **'Memoir → life phases'**
+  String get diagramBookEx2;
+
+  /// No description provided for @diagramBookEx3.
+  ///
+  /// In en, this message translates to:
+  /// **'Business → Problem ▸ Method'**
+  String get diagramBookEx3;
+
+  /// No description provided for @diagramChooseNarrativeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choosing your Narrative Structure'**
+  String get diagramChooseNarrativeTitle;
+
+  /// No description provided for @diagramChooseNarrativeRule.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick by journey — how the story unfolds.'**
+  String get diagramChooseNarrativeRule;
+
+  /// No description provided for @diagramNarrEx1.
+  ///
+  /// In en, this message translates to:
+  /// **'Hero\'s Journey → transformation'**
+  String get diagramNarrEx1;
+
+  /// No description provided for @diagramNarrEx2.
+  ///
+  /// In en, this message translates to:
+  /// **'Three Act → most fiction'**
+  String get diagramNarrEx2;
+
+  /// No description provided for @diagramNarrEx3.
+  ///
+  /// In en, this message translates to:
+  /// **'Save the Cat → screenplays'**
+  String get diagramNarrEx3;
+
+  /// No description provided for @diagramMapTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'How the Writing Nook fits together'**
+  String get diagramMapTitle;
+
+  /// No description provided for @diagramMapSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Every piece of your book — and how you move between them.'**
+  String get diagramMapSubtitle;
+
+  /// No description provided for @diagramSavedInDb.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved in the database'**
+  String get diagramSavedInDb;
+
+  /// No description provided for @diagramInAppOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'In-app only (not saved)'**
+  String get diagramInAppOnly;
+
+  /// No description provided for @diagramGlossaryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What each piece means'**
+  String get diagramGlossaryTitle;
+
+  /// No description provided for @diagramDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Document'**
+  String get diagramDocument;
+
+  /// No description provided for @diagramSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Section'**
+  String get diagramSection;
+
+  /// No description provided for @diagramGlossDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'your file — the centre of everything'**
+  String get diagramGlossDocument;
+
+  /// No description provided for @diagramGlossWritingDesk.
+  ///
+  /// In en, this message translates to:
+  /// **'where you write a file'**
+  String get diagramGlossWritingDesk;
+
+  /// No description provided for @diagramGlossProject.
+  ///
+  /// In en, this message translates to:
+  /// **'a folder that holds the book and its files'**
+  String get diagramGlossProject;
+
+  /// No description provided for @diagramGlossSection.
+  ///
+  /// In en, this message translates to:
+  /// **'a file\'s home in the outline — one file, one section'**
+  String get diagramGlossSection;
+
+  /// No description provided for @diagramGlossBookStructure.
+  ///
+  /// In en, this message translates to:
+  /// **'your reusable book outline and its sections (saved)'**
+  String get diagramGlossBookStructure;
+
+  /// No description provided for @diagramGlossNarrativeStructure.
+  ///
+  /// In en, this message translates to:
+  /// **'a menu of story models — picking one builds a Book Structure'**
+  String get diagramGlossNarrativeStructure;
+
+  /// No description provided for @diagramPathTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'The writer\'s path'**
+  String get diagramPathTitle;
+
+  /// No description provided for @diagramPath1.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a Project — the book you are working on.'**
+  String get diagramPath1;
+
+  /// No description provided for @diagramPath2.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a structure — it generates a Book Structure outline.'**
+  String get diagramPath2;
+
+  /// No description provided for @diagramPath3.
+  ///
+  /// In en, this message translates to:
+  /// **'Add or place each file into one Section of that outline.'**
+  String get diagramPath3;
+
+  /// No description provided for @diagramPath4.
+  ///
+  /// In en, this message translates to:
+  /// **'Write each file at the Writing Desk.'**
+  String get diagramPath4;
+
+  /// No description provided for @diagramSolidLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Solid line — a saved connection between pieces.'**
+  String get diagramSolidLine;
+
+  /// No description provided for @diagramDashedLine.
+  ///
+  /// In en, this message translates to:
+  /// **'Dashed line — an action you take from the Writing Desk.'**
+  String get diagramDashedLine;
+
+  /// No description provided for @diagramMapDeskSub.
+  ///
+  /// In en, this message translates to:
+  /// **'where you write it'**
+  String get diagramMapDeskSub;
+
+  /// No description provided for @diagramMapProjSub.
+  ///
+  /// In en, this message translates to:
+  /// **'a folder of files'**
+  String get diagramMapProjSub;
+
+  /// No description provided for @diagramMapSectionSub.
+  ///
+  /// In en, this message translates to:
+  /// **'its home in the outline'**
+  String get diagramMapSectionSub;
+
+  /// No description provided for @diagramMapBookSub.
+  ///
+  /// In en, this message translates to:
+  /// **'the outline of your book'**
+  String get diagramMapBookSub;
+
+  /// No description provided for @diagramMapNarrSub.
+  ///
+  /// In en, this message translates to:
+  /// **'story model (builds a Book Structure)'**
+  String get diagramMapNarrSub;
+
+  /// No description provided for @diagramLinkWrittenHere.
+  ///
+  /// In en, this message translates to:
+  /// **'written & edited here'**
+  String get diagramLinkWrittenHere;
+
+  /// No description provided for @diagramLinkFiledProject.
+  ///
+  /// In en, this message translates to:
+  /// **'filed in 1 project'**
+  String get diagramLinkFiledProject;
+
+  /// No description provided for @diagramLinkPlacedSection.
+  ///
+  /// In en, this message translates to:
+  /// **'placed in 1 section'**
+  String get diagramLinkPlacedSection;
+
+  /// No description provided for @diagramLinkSectionOf.
+  ///
+  /// In en, this message translates to:
+  /// **'section of'**
+  String get diagramLinkSectionOf;
+
+  /// No description provided for @diagramLinkProjectAdopts.
+  ///
+  /// In en, this message translates to:
+  /// **'project adopts it'**
+  String get diagramLinkProjectAdopts;
+
+  /// No description provided for @diagramLinkBuiltFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'built from'**
+  String get diagramLinkBuiltFrom;
 }
 
 class _AppLocalizationsDelegate

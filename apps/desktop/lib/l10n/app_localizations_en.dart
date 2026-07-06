@@ -986,4 +986,184 @@ class AppLocalizationsEn extends AppLocalizations {
   String progressBeatsArc(int covered, int total, int pct) {
     return '$covered of $total beats covered · $pct% through your arc';
   }
+
+  @override
+  String get diagramTitle => 'Understanding Blueprints';
+
+  @override
+  String get diagramSubtitle =>
+      'Every great book combines structure and narrative.';
+
+  @override
+  String get diagramBook => 'BOOK';
+
+  @override
+  String get diagramFrontMatter => 'Front Matter';
+
+  @override
+  String get diagramPartI => 'Part I';
+
+  @override
+  String get diagramPartII => 'Part II';
+
+  @override
+  String get diagramPartIII => 'Part III';
+
+  @override
+  String get diagramBackMatter => 'Back Matter';
+
+  @override
+  String get diagramBeginning => 'Beginning';
+
+  @override
+  String get diagramConflict => 'Conflict';
+
+  @override
+  String get diagramChallenge => 'Challenge';
+
+  @override
+  String get diagramClimax => 'Climax';
+
+  @override
+  String get diagramResolution => 'Resolution';
+
+  @override
+  String get diagramWhereContentLives => '  =  Where content lives';
+
+  @override
+  String get diagramHowContentFlows => '  =  How content flows';
+
+  @override
+  String get diagramChooseBookTitle => 'Choosing your Book Structure';
+
+  @override
+  String get diagramChooseBookRule =>
+      'Pick by format — how the manuscript is organized.';
+
+  @override
+  String get diagramBookEx1 => 'Novel → Parts & Chapters';
+
+  @override
+  String get diagramBookEx2 => 'Memoir → life phases';
+
+  @override
+  String get diagramBookEx3 => 'Business → Problem ▸ Method';
+
+  @override
+  String get diagramChooseNarrativeTitle => 'Choosing your Narrative Structure';
+
+  @override
+  String get diagramChooseNarrativeRule =>
+      'Pick by journey — how the story unfolds.';
+
+  @override
+  String get diagramNarrEx1 => 'Hero\'s Journey → transformation';
+
+  @override
+  String get diagramNarrEx2 => 'Three Act → most fiction';
+
+  @override
+  String get diagramNarrEx3 => 'Save the Cat → screenplays';
+
+  @override
+  String get diagramMapTitle => 'How the Writing Nook fits together';
+
+  @override
+  String get diagramMapSubtitle =>
+      'Every piece of your book — and how you move between them.';
+
+  @override
+  String get diagramSavedInDb => 'Saved in the database';
+
+  @override
+  String get diagramInAppOnly => 'In-app only (not saved)';
+
+  @override
+  String get diagramGlossaryTitle => 'What each piece means';
+
+  @override
+  String get diagramDocument => 'Document';
+
+  @override
+  String get diagramSection => 'Section';
+
+  @override
+  String get diagramGlossDocument => 'your file — the centre of everything';
+
+  @override
+  String get diagramGlossWritingDesk => 'where you write a file';
+
+  @override
+  String get diagramGlossProject =>
+      'a folder that holds the book and its files';
+
+  @override
+  String get diagramGlossSection =>
+      'a file\'s home in the outline — one file, one section';
+
+  @override
+  String get diagramGlossBookStructure =>
+      'your reusable book outline and its sections (saved)';
+
+  @override
+  String get diagramGlossNarrativeStructure =>
+      'a menu of story models — picking one builds a Book Structure';
+
+  @override
+  String get diagramPathTitle => 'The writer\'s path';
+
+  @override
+  String get diagramPath1 => 'Create a Project — the book you are working on.';
+
+  @override
+  String get diagramPath2 =>
+      'Choose a structure — it generates a Book Structure outline.';
+
+  @override
+  String get diagramPath3 =>
+      'Add or place each file into one Section of that outline.';
+
+  @override
+  String get diagramPath4 => 'Write each file at the Writing Desk.';
+
+  @override
+  String get diagramSolidLine =>
+      'Solid line — a saved connection between pieces.';
+
+  @override
+  String get diagramDashedLine =>
+      'Dashed line — an action you take from the Writing Desk.';
+
+  @override
+  String get diagramMapDeskSub => 'where you write it';
+
+  @override
+  String get diagramMapProjSub => 'a folder of files';
+
+  @override
+  String get diagramMapSectionSub => 'its home in the outline';
+
+  @override
+  String get diagramMapBookSub => 'the outline of your book';
+
+  @override
+  String get diagramMapNarrSub => 'story model (builds a Book Structure)';
+
+  @override
+  String get diagramLinkWrittenHere => 'written & edited here';
+
+  @override
+  String get diagramLinkFiledProject => 'filed in 1 project';
+
+  @override
+  String get diagramLinkPlacedSection => 'placed in 1 section';
+
+  @override
+  String get diagramLinkSectionOf => 'section of';
+
+  @override
+  String get diagramLinkProjectAdopts => 'project adopts it';
+
+  @override
+  String get diagramLinkBuiltFrom => 'built from';
 }

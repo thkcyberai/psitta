@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// The file-centric relationship map for the Blueprints "Diagram" tab. The
 /// DOCUMENT (the writer's file) sits at the centre; everything connects to it
@@ -28,27 +29,32 @@ class ArchitectureMap extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     final nodes = <_Node>[
-      _Node(_doc, 'DOCUMENT', 'your file — the centre of everything',
+      _Node(_doc, loc.diagramDocument.toUpperCase(), loc.diagramGlossDocument,
           saved: true, hub: true),
-      _Node(_desk, 'WRITING DESK', 'where you write it', saved: false),
-      _Node(_proj, 'PROJECT', 'a folder of files', saved: true),
-      _Node(_section, 'SECTION', 'its home in the outline', saved: true),
-      _Node(_bp, 'BOOK STRUCTURE', 'the outline of your book', saved: true),
-      _Node(_narr, 'NARRATIVE STRUCTURE', 'story model (builds a Book Structure)',
+      _Node(_desk, loc.navWritingDesk.toUpperCase(), loc.diagramMapDeskSub,
+          saved: false),
+      _Node(_proj, loc.conceptProject.toUpperCase(), loc.diagramMapProjSub,
+          saved: true),
+      _Node(_section, loc.diagramSection.toUpperCase(), loc.diagramMapSectionSub,
+          saved: true),
+      _Node(_bp, loc.tabBookStructure.toUpperCase(), loc.diagramMapBookSub,
+          saved: true),
+      _Node(_narr, loc.tabNarrativeStructure.toUpperCase(), loc.diagramMapNarrSub,
           saved: false),
     ];
 
     final links = <_Link>[
       // file ↔ everything (the hub spokes)
-      _link(_doc, _desk, 'written & edited here', bidi: true, dashed: true),
-      _link(_doc, _proj, 'filed in 1 project', bidi: true),
-      _link(_doc, _section, 'placed in 1 section', bidi: true),
+      _link(_doc, _desk, loc.diagramLinkWrittenHere, bidi: true, dashed: true),
+      _link(_doc, _proj, loc.diagramLinkFiledProject, bidi: true),
+      _link(_doc, _section, loc.diagramLinkPlacedSection, bidi: true),
       // how the structure extends out from the file's section
-      _link(_section, _bp, 'section of'),
-      _link(_proj, _bp, 'project adopts it'),
-      _link(_bp, _narr, 'built from'),
+      _link(_section, _bp, loc.diagramLinkSectionOf),
+      _link(_proj, _bp, loc.diagramLinkProjectAdopts),
+      _link(_bp, _narr, loc.diagramLinkBuiltFrom),
     ];
 
     return Stack(

@@ -991,4 +991,186 @@ class AppLocalizationsFr extends AppLocalizations {
   String progressBeatsArc(int covered, int total, int pct) {
     return '$covered sur $total étapes couvertes · $pct% de votre arc';
   }
+
+  @override
+  String get diagramTitle => 'Comprendre les Blueprints';
+
+  @override
+  String get diagramSubtitle =>
+      'Tout grand livre combine structure et narration.';
+
+  @override
+  String get diagramBook => 'LIVRE';
+
+  @override
+  String get diagramFrontMatter => 'Pages liminaires';
+
+  @override
+  String get diagramPartI => 'Partie I';
+
+  @override
+  String get diagramPartII => 'Partie II';
+
+  @override
+  String get diagramPartIII => 'Partie III';
+
+  @override
+  String get diagramBackMatter => 'Pages finales';
+
+  @override
+  String get diagramBeginning => 'Début';
+
+  @override
+  String get diagramConflict => 'Conflit';
+
+  @override
+  String get diagramChallenge => 'Épreuve';
+
+  @override
+  String get diagramClimax => 'Climax';
+
+  @override
+  String get diagramResolution => 'Résolution';
+
+  @override
+  String get diagramWhereContentLives => '  =  Où vit le contenu';
+
+  @override
+  String get diagramHowContentFlows => '  =  Comment le contenu circule';
+
+  @override
+  String get diagramChooseBookTitle => 'Choisir votre Structure de livre';
+
+  @override
+  String get diagramChooseBookRule =>
+      'Choisissez par format — comment le manuscrit est organisé.';
+
+  @override
+  String get diagramBookEx1 => 'Roman → Parties et Chapitres';
+
+  @override
+  String get diagramBookEx2 => 'Mémoires → étapes de la vie';
+
+  @override
+  String get diagramBookEx3 => 'Business → Problème ▸ Méthode';
+
+  @override
+  String get diagramChooseNarrativeTitle => 'Choisir votre Structure narrative';
+
+  @override
+  String get diagramChooseNarrativeRule =>
+      'Choisissez par le parcours — comment l\'histoire se déploie.';
+
+  @override
+  String get diagramNarrEx1 => 'Le Voyage du Héros → transformation';
+
+  @override
+  String get diagramNarrEx2 => 'Trois Actes → la plupart des fictions';
+
+  @override
+  String get diagramNarrEx3 => 'Sauvez le chat ! → scénarios';
+
+  @override
+  String get diagramMapTitle => 'Comment le Writing Nook s\'articule';
+
+  @override
+  String get diagramMapSubtitle =>
+      'Chaque élément de votre livre — et comment vous passez de l\'un à l\'autre.';
+
+  @override
+  String get diagramSavedInDb => 'Enregistré dans la base de données';
+
+  @override
+  String get diagramInAppOnly => 'Uniquement dans l\'app (non enregistré)';
+
+  @override
+  String get diagramGlossaryTitle => 'Ce que signifie chaque élément';
+
+  @override
+  String get diagramDocument => 'Document';
+
+  @override
+  String get diagramSection => 'Section';
+
+  @override
+  String get diagramGlossDocument => 'votre fichier — le centre de tout';
+
+  @override
+  String get diagramGlossWritingDesk => 'où vous écrivez un fichier';
+
+  @override
+  String get diagramGlossProject =>
+      'un dossier qui contient le livre et ses fichiers';
+
+  @override
+  String get diagramGlossSection =>
+      'la place d\'un fichier dans le plan — un fichier, une section';
+
+  @override
+  String get diagramGlossBookStructure =>
+      'votre plan de livre réutilisable et ses sections (enregistré)';
+
+  @override
+  String get diagramGlossNarrativeStructure =>
+      'un menu de modèles narratifs — en choisir un crée une Structure de livre';
+
+  @override
+  String get diagramPathTitle => 'Le parcours de l\'auteur';
+
+  @override
+  String get diagramPath1 =>
+      'Créez un Projet — le livre sur lequel vous travaillez.';
+
+  @override
+  String get diagramPath2 =>
+      'Choisissez une structure — elle génère un plan de Structure de livre.';
+
+  @override
+  String get diagramPath3 =>
+      'Ajoutez ou placez chaque fichier dans une Section de ce plan.';
+
+  @override
+  String get diagramPath4 => 'Rédigez chaque fichier au Bureau d\'écriture.';
+
+  @override
+  String get diagramSolidLine =>
+      'Trait plein — une connexion enregistrée entre les éléments.';
+
+  @override
+  String get diagramDashedLine =>
+      'Trait pointillé — une action que vous effectuez depuis le Bureau d\'écriture.';
+
+  @override
+  String get diagramMapDeskSub => 'où vous le rédigez';
+
+  @override
+  String get diagramMapProjSub => 'un dossier de fichiers';
+
+  @override
+  String get diagramMapSectionSub => 'sa place dans le plan';
+
+  @override
+  String get diagramMapBookSub => 'le plan de votre livre';
+
+  @override
+  String get diagramMapNarrSub =>
+      'modèle narratif (crée une Structure de livre)';
+
+  @override
+  String get diagramLinkWrittenHere => 'écrit et édité ici';
+
+  @override
+  String get diagramLinkFiledProject => 'classé dans 1 projet';
+
+  @override
+  String get diagramLinkPlacedSection => 'placé dans 1 section';
+
+  @override
+  String get diagramLinkSectionOf => 'section de';
+
+  @override
+  String get diagramLinkProjectAdopts => 'le projet l\'adopte';
+
+  @override
+  String get diagramLinkBuiltFrom => 'construit à partir de';
 }

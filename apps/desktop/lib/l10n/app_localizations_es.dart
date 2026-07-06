@@ -986,4 +986,185 @@ class AppLocalizationsEs extends AppLocalizations {
   String progressBeatsArc(int covered, int total, int pct) {
     return '$covered de $total pasos cubiertos · $pct% de tu arco';
   }
+
+  @override
+  String get diagramTitle => 'Entender los Blueprints';
+
+  @override
+  String get diagramSubtitle =>
+      'Todo gran libro combina estructura y narrativa.';
+
+  @override
+  String get diagramBook => 'LIBRO';
+
+  @override
+  String get diagramFrontMatter => 'Páginas preliminares';
+
+  @override
+  String get diagramPartI => 'Parte I';
+
+  @override
+  String get diagramPartII => 'Parte II';
+
+  @override
+  String get diagramPartIII => 'Parte III';
+
+  @override
+  String get diagramBackMatter => 'Páginas finales';
+
+  @override
+  String get diagramBeginning => 'Inicio';
+
+  @override
+  String get diagramConflict => 'Conflicto';
+
+  @override
+  String get diagramChallenge => 'Desafío';
+
+  @override
+  String get diagramClimax => 'Clímax';
+
+  @override
+  String get diagramResolution => 'Resolución';
+
+  @override
+  String get diagramWhereContentLives => '  =  Dónde vive el contenido';
+
+  @override
+  String get diagramHowContentFlows => '  =  Cómo fluye el contenido';
+
+  @override
+  String get diagramChooseBookTitle => 'Elegir tu Estructura de libro';
+
+  @override
+  String get diagramChooseBookRule =>
+      'Elige por formato — cómo se organiza el manuscrito.';
+
+  @override
+  String get diagramBookEx1 => 'Novela → Partes y Capítulos';
+
+  @override
+  String get diagramBookEx2 => 'Memorias → etapas de la vida';
+
+  @override
+  String get diagramBookEx3 => 'Negocios → Problema ▸ Método';
+
+  @override
+  String get diagramChooseNarrativeTitle => 'Elegir tu Estructura narrativa';
+
+  @override
+  String get diagramChooseNarrativeRule =>
+      'Elige por el recorrido — cómo se despliega la historia.';
+
+  @override
+  String get diagramNarrEx1 => 'El Viaje del Héroe → transformación';
+
+  @override
+  String get diagramNarrEx2 => 'Tres Actos → la mayoría de la ficción';
+
+  @override
+  String get diagramNarrEx3 => '¡Salva al gato! → guiones';
+
+  @override
+  String get diagramMapTitle => 'Cómo encaja el Writing Nook';
+
+  @override
+  String get diagramMapSubtitle =>
+      'Cada pieza de tu libro — y cómo te mueves entre ellas.';
+
+  @override
+  String get diagramSavedInDb => 'Guardado en la base de datos';
+
+  @override
+  String get diagramInAppOnly => 'Solo en la app (no guardado)';
+
+  @override
+  String get diagramGlossaryTitle => 'Qué significa cada pieza';
+
+  @override
+  String get diagramDocument => 'Documento';
+
+  @override
+  String get diagramSection => 'Sección';
+
+  @override
+  String get diagramGlossDocument => 'tu archivo — el centro de todo';
+
+  @override
+  String get diagramGlossWritingDesk => 'donde escribes un archivo';
+
+  @override
+  String get diagramGlossProject =>
+      'una carpeta que guarda el libro y sus archivos';
+
+  @override
+  String get diagramGlossSection =>
+      'el hogar de un archivo en el esquema — un archivo, una sección';
+
+  @override
+  String get diagramGlossBookStructure =>
+      'tu esquema de libro reutilizable y sus secciones (guardado)';
+
+  @override
+  String get diagramGlossNarrativeStructure =>
+      'un menú de modelos de historia — elegir uno crea una Estructura de libro';
+
+  @override
+  String get diagramPathTitle => 'El camino del escritor';
+
+  @override
+  String get diagramPath1 => 'Crea un Proyecto — el libro en el que trabajas.';
+
+  @override
+  String get diagramPath2 =>
+      'Elige una estructura — genera un esquema de Estructura de libro.';
+
+  @override
+  String get diagramPath3 =>
+      'Añade o coloca cada archivo en una Sección de ese esquema.';
+
+  @override
+  String get diagramPath4 => 'Escribe cada archivo en el Escritorio.';
+
+  @override
+  String get diagramSolidLine =>
+      'Línea continua — una conexión guardada entre piezas.';
+
+  @override
+  String get diagramDashedLine =>
+      'Línea discontinua — una acción que realizas desde el Escritorio.';
+
+  @override
+  String get diagramMapDeskSub => 'donde lo escribes';
+
+  @override
+  String get diagramMapProjSub => 'una carpeta de archivos';
+
+  @override
+  String get diagramMapSectionSub => 'su hogar en el esquema';
+
+  @override
+  String get diagramMapBookSub => 'el esquema de tu libro';
+
+  @override
+  String get diagramMapNarrSub =>
+      'modelo de historia (crea una Estructura de libro)';
+
+  @override
+  String get diagramLinkWrittenHere => 'escrito y editado aquí';
+
+  @override
+  String get diagramLinkFiledProject => 'archivado en 1 proyecto';
+
+  @override
+  String get diagramLinkPlacedSection => 'colocado en 1 sección';
+
+  @override
+  String get diagramLinkSectionOf => 'sección de';
+
+  @override
+  String get diagramLinkProjectAdopts => 'el proyecto lo adopta';
+
+  @override
+  String get diagramLinkBuiltFrom => 'construido a partir de';
 }
