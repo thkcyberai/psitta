@@ -17,6 +17,8 @@ import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart'
     show projectDetailProvider, projectPlacementsProvider;
+import '../../data/providers/blueprint_providers.dart'
+    show blueprintsListProvider, blueprintDetailProvider;
 import '../../data/providers/providers.dart'
     show
         billingStatusProvider,
@@ -682,6 +684,10 @@ class _LanguageFlagBar extends ConsumerWidget {
               ref
                   .read(selectedVoiceIdProvider.notifier)
                   .select(lang.defaultVoiceId);
+              // Server data localized via translate-on-serve must re-fetch
+              // with the new X-Psitta-Language header on a language switch.
+              ref.invalidate(blueprintsListProvider);
+              ref.invalidate(blueprintDetailProvider);
             },
           ),
       ],
