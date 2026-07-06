@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -17,6 +18,7 @@ class ProjectsScreen extends ConsumerWidget {
     final projectsAsync = ref.watch(projectsProvider);
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return Container(
       color: tokens.surface,
@@ -24,27 +26,27 @@ class ProjectsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const LibraryBreadcrumb(current: 'Projects'),
+          LibraryBreadcrumb(current: loc.navProjects),
           const SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.folder_copy_outlined,
                   size: 26, color: scheme.onSurface),
               const SizedBox(width: 10),
-              Text('Projects',
+              Text(loc.navProjects,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800)),
               const Spacer(),
               FilledButton.icon(
                 icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-                label: const Text('New Project'),
+                label: Text(loc.newProject),
                 onPressed: () => _showCreateDialog(context, ref),
               ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Group your documents into projects.',
+            loc.projectsSubtitle,
             style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 18),
@@ -66,6 +68,7 @@ class ProjectsScreen extends ConsumerWidget {
   }
 
   Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -73,18 +76,18 @@ class ProjectsScreen extends ConsumerWidget {
           Icon(Icons.folder_open_outlined,
               size: 64, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 16),
-          Text('No projects yet',
+          Text(loc.noProjectsYet,
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            'Create a project to organize your documents.',
+            loc.createProjectHint,
             style:
                 TextStyle(color: Theme.of(context).colorScheme.outline),
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
             icon: const Icon(Icons.create_new_folder_outlined, size: 18),
-            label: const Text('Create Project'),
+            label: Text(loc.createProject),
             onPressed: () => _showCreateDialog(context, ref),
           ),
         ],

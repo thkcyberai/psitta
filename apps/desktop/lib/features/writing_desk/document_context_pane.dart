@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -188,6 +189,7 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final placement = widget.placement;
     final detail =
         ref.watch(projectDetailProvider(widget.projectId)).valueOrNull;
@@ -206,7 +208,7 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
             children: [
               Expanded(
                 child: Text(
-                  'PLACED IN',
+                  loc.placedIn,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                         letterSpacing: 0.8,
@@ -318,6 +320,7 @@ class _UnplacedContextCard extends ConsumerWidget {
     final bodyStyle = Theme.of(context).textTheme.bodySmall?.copyWith(
           color: scheme.onSurfaceVariant,
         );
+    final loc = AppLocalizations.of(context);
 
     return _RailCard(
       key: const ValueKey('desk-unplaced-card'),
@@ -329,7 +332,7 @@ class _UnplacedContextCard extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  'PLACED IN',
+                  loc.placedIn,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                         letterSpacing: 0.8,
@@ -347,7 +350,7 @@ class _UnplacedContextCard extends ConsumerWidget {
           const SizedBox(height: 6),
           _PlacedRow(
             concept: DeskConcept.project,
-            value: projectName ?? (inProject ? '—' : 'Not in a project'),
+            value: projectName ?? (inProject ? '—' : loc.notInProject),
             onTap: inProject
                 ? () {
                     final pn = projectName;
@@ -363,7 +366,7 @@ class _UnplacedContextCard extends ConsumerWidget {
             value: inProject
                 ? _narrativeLabel(
                     detail?.narrativeStructureKey, detail?.narrativeVariant)
-                : 'Not in a project',
+                : loc.notInProject,
             onTap: inProject ? () => context.go('/projects/$pid') : null,
           ),
           if (pid != null)
@@ -375,22 +378,22 @@ class _UnplacedContextCard extends ConsumerWidget {
           // blueprints still drive the placement guidance + action below.
           _PlacedRow(
             concept: DeskConcept.blueprint,
-            value: 'Not assigned',
+            value: loc.notAssigned,
           ),
           const SizedBox(height: 10),
           _PlacedRow(
             concept: DeskConcept.part,
-            value: 'Not assigned',
+            value: loc.notAssigned,
           ),
           const SizedBox(height: 10),
           _PlacedRow(
             concept: DeskConcept.role,
-            value: 'Not assigned',
+            value: loc.notAssigned,
           ),
           const SizedBox(height: 12),
           if (!inProject)
             Text(
-              'Not in a project yet. Add this file to a project to organize it.',
+              loc.notInProjectYet,
               style: bodyStyle,
             )
           else if (!hasSections) ...[
@@ -980,6 +983,7 @@ class _PlacedRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final row = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -990,7 +994,7 @@ class _PlacedRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                concept.label,
+                deskConceptLabel(loc, concept),
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                       letterSpacing: 0.4,

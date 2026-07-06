@@ -247,6 +247,7 @@ class _ContextHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final loc = AppLocalizations.of(context);
     final uri = GoRouterState.of(context).uri;
 
     // ── Writing Desk header ───────────────────────────────────────────────────
@@ -299,7 +300,7 @@ class _ContextHeader extends ConsumerWidget {
           // blueprints — that wrongly implied this file was placed in them.
         } else {
           // Opened from the Library (not in a project): show the return path.
-          crumbs.add(_Crumb('Library', '/library'));
+          crumbs.add(_Crumb(loc.navLibrary, '/library'));
         }
         final fileName = doc?.title;
         if (fileName != null && fileName.isNotEmpty) {
@@ -330,7 +331,7 @@ class _ContextHeader extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Writing Desk',
+                          loc.navWritingDesk,
                           style: theme.textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w500),
                           maxLines: 1,
@@ -356,7 +357,6 @@ class _ContextHeader extends ConsumerWidget {
                   if (first == 'library') {
                     final name = displayNameFromProfile(
                         ref.watch(userProfileProvider).valueOrNull);
-                    final loc = AppLocalizations.of(context);
                     return Text(
                       name.isEmpty ? loc.libraryTitle : loc.libraryOfUser(name),
                       style: theme.textTheme.titleLarge
@@ -394,8 +394,8 @@ class _ContextHeader extends ConsumerWidget {
               // Word count
               Text(
                 wordCount != null
-                    ? 'Word count $wordCount'
-                    : 'Word count —',
+                    ? '${loc.wordCount} $wordCount'
+                    : '${loc.wordCount} —',
                 style: theme.textTheme.labelSmall
                     ?.copyWith(color: scheme.onSurfaceVariant),
               ),
@@ -460,7 +460,7 @@ class _ContextHeader extends ConsumerWidget {
                   }
                 },
                 icon: const Icon(Icons.download, size: 16),
-                label: const Text('Export'),
+                label: Text(loc.btnExport),
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(
@@ -497,7 +497,7 @@ class _ContextHeader extends ConsumerWidget {
                   );
                 },
                 icon: const Icon(Icons.share_outlined, size: 16),
-                label: const Text('Share'),
+                label: Text(loc.btnShare),
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(
@@ -510,7 +510,7 @@ class _ContextHeader extends ConsumerWidget {
             const _LanguageFlagBar(),
             const SizedBox(width: 10),
             IconButton(
-              tooltip: 'Refresh',
+              tooltip: loc.tooltipRefresh,
               onPressed: () => _refreshAllData(ref),
               icon: Icon(
                 Icons.refresh,
@@ -520,7 +520,7 @@ class _ContextHeader extends ConsumerWidget {
             ),
             const SizedBox(width: 2),
             IconButton(
-              tooltip: 'Help & Guides',
+              tooltip: loc.tooltipHelp,
               onPressed: () => context.go('/help'),
               icon: Icon(
                 Icons.help_outline,
@@ -530,7 +530,7 @@ class _ContextHeader extends ConsumerWidget {
             ),
             const SizedBox(width: 2),
             IconButton(
-              tooltip: 'Settings',
+              tooltip: loc.navSettings,
               onPressed: () => context.go('/settings'),
               icon: Icon(
                 Icons.settings_outlined,
@@ -604,7 +604,7 @@ class _ContextHeader extends ConsumerWidget {
                       ? null
                       : () => context.go('/player/$activeDocId'),
                   icon: const Icon(Icons.play_arrow, size: 18),
-                  label: const Text('Resume'),
+                  label: Text(loc.btnResume),
                 );
               },
             ),
@@ -613,7 +613,7 @@ class _ContextHeader extends ConsumerWidget {
           const _LanguageFlagBar(),
           const SizedBox(width: 10),
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: loc.tooltipRefresh,
             onPressed: () => _refreshAllData(ref),
             icon: Icon(
               Icons.refresh,
@@ -623,7 +623,7 @@ class _ContextHeader extends ConsumerWidget {
           ),
           const SizedBox(width: 2),
           IconButton(
-            tooltip: 'Help & Guides',
+            tooltip: loc.tooltipHelp,
             onPressed: () => context.go('/help'),
             icon: Icon(
               Icons.help_outline,
@@ -633,7 +633,7 @@ class _ContextHeader extends ConsumerWidget {
           ),
           const SizedBox(width: 2),
           IconButton(
-            tooltip: 'Settings',
+            tooltip: loc.navSettings,
             onPressed: () => context.go('/settings'),
             icon: Icon(
               Icons.settings_outlined,
@@ -759,6 +759,7 @@ void _showWritingShareSheet(
   required String title,
   required String body,
 }) {
+  final loc = AppLocalizations.of(context);
   final full = body.trim().isEmpty ? title : '$title\n\n$body';
   String clip(int n) => full.length <= n ? full : '${full.substring(0, n)}…';
 
@@ -789,16 +790,16 @@ void _showWritingShareSheet(
   }
 
   final targets = <_ShareTarget>[
-    _ShareTarget('Copy text', Icons.content_copy, const Color(0xFF6B7280),
+    _ShareTarget(loc.shareCopyText, Icons.content_copy, const Color(0xFF6B7280),
         () async {
       await Clipboard.setData(ClipboardData(text: full));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Copied to clipboard.')),
+          SnackBar(content: Text(loc.shareCopied)),
         );
       }
     }),
-    _ShareTarget('Email', Icons.mail_outline, const Color(0xFF2563EB),
+    _ShareTarget(loc.shareEmail, Icons.mail_outline, const Color(0xFF2563EB),
         () => open('mailto:?subject=$encTitle&body=$enc')),
     _ShareTarget('WhatsApp', Icons.chat, const Color(0xFF25D366),
         () => open('https://wa.me/?text=$enc')),
@@ -817,7 +818,7 @@ void _showWritingShareSheet(
     _ShareTarget(
         'Instagram', Icons.camera_alt_outlined, const Color(0xFFE1306C),
         () => copyThenOpen('https://www.instagram.com/', 'Instagram')),
-    _ShareTarget('Save file', Icons.folder_open_outlined,
+    _ShareTarget(loc.shareSaveFile, Icons.folder_open_outlined,
         const Color(0xFF6B7280), () => _saveAndRevealDocx(context, ref, documentId)),
   ];
 
@@ -834,7 +835,7 @@ void _showWritingShareSheet(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Share "$title"',
+                loc.shareHeader(title),
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w600),
                 maxLines: 1,
@@ -842,8 +843,7 @@ void _showWritingShareSheet(
               ),
               const SizedBox(height: 4),
               Text(
-                'Posts open in your browser; for Instagram and Substack the '
-                'text is copied so you can paste it.',
+                loc.shareSubtitle,
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),

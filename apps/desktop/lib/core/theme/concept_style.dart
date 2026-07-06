@@ -1,3 +1,4 @@
+import '../../l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 
 /// Canonical icon + accent color for the Writing Desk structural concepts.
@@ -43,3 +44,16 @@ extension DeskConceptStyle on DeskConcept {
         DeskConcept.beat => 'Beat',
       };
 }
+
+
+/// Localized display label for a [DeskConcept] (Blueprint→Estrutura, Beat→Batida
+/// per the product glossary). The enum's `label` getter stays English for
+/// non-localized call sites.
+String deskConceptLabel(AppLocalizations loc, DeskConcept c) => switch (c) {
+      DeskConcept.project => loc.conceptProject,
+      DeskConcept.blueprint => loc.conceptBlueprint,
+      DeskConcept.part => loc.conceptPart,
+      DeskConcept.role => loc.conceptRole,
+      DeskConcept.narrative => loc.conceptNarrative,
+      DeskConcept.beat => loc.conceptBeat,
+    };

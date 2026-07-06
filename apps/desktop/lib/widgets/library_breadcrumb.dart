@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../l10n/app_localizations.dart';
+
 /// A "‹ Library › <current>" breadcrumb shown at the top of the screens reached
 /// from the Library's quick cards (Projects, Book Structures, Trash, …). The
 /// "Library" segment is tappable and returns to /library.
@@ -12,6 +14,7 @@ class LibraryBreadcrumb extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Row(
       children: [
         InkWell(
@@ -23,7 +26,7 @@ class LibraryBreadcrumb extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.chevron_left, size: 16, color: scheme.primary),
-                Text('Library',
+                Text(loc.navLibrary,
                     style: TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,

@@ -234,4 +234,464 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get whispersTitle => 'Susurros';
+
+  @override
+  String get btnExport => 'Exportar';
+
+  @override
+  String get btnShare => 'Compartir';
+
+  @override
+  String get btnResume => 'Reanudar';
+
+  @override
+  String get tooltipRefresh => 'Actualizar';
+
+  @override
+  String get tooltipHelp => 'Ayuda y guías';
+
+  @override
+  String get showPanel => 'Mostrar panel';
+
+  @override
+  String get hidePanel => 'Ocultar panel';
+
+  @override
+  String get btnSave => 'Guardar';
+
+  @override
+  String get deskReadOnly => 'Solo lectura';
+
+  @override
+  String get deskWrite => 'Escribir';
+
+  @override
+  String get deskRead => 'Leer';
+
+  @override
+  String get deskFindReplace => 'Buscar y reemplazar (Ctrl+F)';
+
+  @override
+  String get wordCount => 'Recuento de palabras';
+
+  @override
+  String get addThreeWays => 'Tres formas de agregar contenido a tu proyecto';
+
+  @override
+  String get addStartNewFile => 'Empezar nuevo archivo';
+
+  @override
+  String get addStartNewFileBody =>
+      'Crea un nuevo documento y elige dónde vive.';
+
+  @override
+  String get addFromLibrary => 'Agregar desde la Biblioteca';
+
+  @override
+  String get addFromLibraryBody =>
+      'Elige un documento existente de tu biblioteca.';
+
+  @override
+  String get btnBrowseLibrary => 'Explorar Biblioteca';
+
+  @override
+  String get addPutInProject => 'Poner en un Proyecto';
+
+  @override
+  String get addPutInProjectBody =>
+      'Crea un nuevo proyecto o agrega este archivo a uno que ya tengas.';
+
+  @override
+  String get btnChooseProject => 'Elegir un Proyecto';
+
+  @override
+  String get summarizeItTitle => 'RESUMIR';
+
+  @override
+  String get summarizeBtn => 'Resumir';
+
+  @override
+  String get lengthShort => 'corto';
+
+  @override
+  String get lengthMedium => 'medio';
+
+  @override
+  String get lengthLong => 'largo';
+
+  @override
+  String get docProcessing => 'El documento aún se está procesando';
+
+  @override
+  String get summarizeAllowance =>
+      'Cada resumen usa tokens de IA de tu cuota mensual del Writing Nook. Genera uno cuando quieras un resumen rápido de este archivo.';
+
+  @override
+  String summarizeAllowanceCount(int count) {
+    return 'Cada resumen usa tokens de IA de tu cuota mensual del Writing Nook — unos $count al mes. Genera uno cuando quieras un resumen rápido de este archivo.';
+  }
+
+  @override
+  String get conceptProject => 'Proyecto';
+
+  @override
+  String get conceptBlueprint => 'Estructura';
+
+  @override
+  String get conceptPart => 'Parte';
+
+  @override
+  String get conceptRole => 'Rol';
+
+  @override
+  String get conceptNarrative => 'Narrativa';
+
+  @override
+  String get conceptBeat => 'Tiempo';
+
+  @override
+  String get placedIn => 'UBICADO EN';
+
+  @override
+  String get notInProject => 'Sin proyecto';
+
+  @override
+  String get notAssigned => 'Sin asignar';
+
+  @override
+  String get notInProjectYet =>
+      'Aún no está en un proyecto. Agrega este archivo a un proyecto para organizarlo.';
+
+  @override
+  String get tabBook => 'Libro';
+
+  @override
+  String get tabFiles => 'Archivos';
+
+  @override
+  String get tabBookTooltip => 'Contenido del libro — secciones y páginas';
+
+  @override
+  String get addToProjectFirst => 'Agrega este documento a un proyecto primero';
+
+  @override
+  String get nameYourDocument => 'Nombra tu documento';
+
+  @override
+  String get titleLabel => 'Título';
+
+  @override
+  String get titleHint => 'p. ej. Capítulo Uno';
+
+  @override
+  String get btnCancel => 'Cancelar';
+
+  @override
+  String get btnCreate => 'Crear';
+
+  @override
+  String get putInProjectTitle => 'Poner este archivo en un Proyecto';
+
+  @override
+  String get putInProjectBody =>
+      'Crea un nuevo proyecto para él o agrégalo a un proyecto que ya tengas.';
+
+  @override
+  String get btnAddToExisting => 'Agregar a uno existente';
+
+  @override
+  String get btnCreateNew => 'Crear nuevo';
+
+  @override
+  String get flyoverNoProject => 'Este documento aún no está en un proyecto.';
+
+  @override
+  String get noBookStructure => 'Sin Estructura de libro.';
+
+  @override
+  String get addToProject => 'Agregar a un proyecto';
+
+  @override
+  String get createProjectFirst =>
+      'Crea un proyecto en la pestaña Proyectos primero.';
+
+  @override
+  String get exportOptions => 'Opciones de exportación';
+
+  @override
+  String get exportBrandedDocx => 'Exportar como archivo DOCX con la marca.';
+
+  @override
+  String get whatToExport => 'QUÉ EXPORTAR';
+
+  @override
+  String get exportThisFile => 'Este archivo';
+
+  @override
+  String get exportThisFileSub => 'Solo el documento abierto ahora';
+
+  @override
+  String get exportFullBook => 'Libro completo';
+
+  @override
+  String get exportFullBookSub =>
+      'Todos los archivos ensamblados en el orden de la Estructura';
+
+  @override
+  String get includeCover => 'Incluir portada';
+
+  @override
+  String get includeCoverSub => 'Página de título con nombre y fecha';
+
+  @override
+  String get includeFooter => 'Incluir pie de página Psitta';
+
+  @override
+  String get includeFooterSub => 'Marca y números de página en cada página';
+
+  @override
+  String get badgeSoon => 'Pronto';
+
+  @override
+  String get shareCopyText => 'Copiar texto';
+
+  @override
+  String get shareEmail => 'Correo';
+
+  @override
+  String get shareSaveFile => 'Guardar archivo';
+
+  @override
+  String shareHeader(String title) {
+    return 'Compartir \"$title\"';
+  }
+
+  @override
+  String get shareSubtitle =>
+      'Las publicaciones se abren en tu navegador; para Instagram y Substack el texto se copia para que lo pegues.';
+
+  @override
+  String get shareCopied => 'Copiado al portapapeles.';
+
+  @override
+  String get dragDropHere => 'Arrastra y suelta archivos aquí';
+
+  @override
+  String get orClickUpload => 'o haz clic para subir desde tu dispositivo';
+
+  @override
+  String get dropFilesToUpload => 'Suelta los archivos para subir';
+
+  @override
+  String get newProject => 'Nuevo Proyecto';
+
+  @override
+  String get projectsSubtitle => 'Agrupa tus documentos en proyectos.';
+
+  @override
+  String get noProjectsYet => 'Aún no hay proyectos';
+
+  @override
+  String get createProjectHint =>
+      'Crea un proyecto para organizar tus documentos.';
+
+  @override
+  String get createProject => 'Crear Proyecto';
+
+  @override
+  String get trashSubtitle =>
+      'Los documentos eliminados se guardan aquí. Restáuralos a tu Biblioteca o elimínalos permanentemente.';
+
+  @override
+  String get trashEmpty => 'La papelera está vacía';
+
+  @override
+  String emptyTrash(int count) {
+    return 'Vaciar papelera ($count)';
+  }
+
+  @override
+  String get btnRestore => 'Restaurar';
+
+  @override
+  String get archiveSubtitle =>
+      'Los documentos archivados se ocultan de tu Biblioteca pero se guardan a salvo. Desarchiva para recuperar uno.';
+
+  @override
+  String get nothingArchived => 'Nada archivado';
+
+  @override
+  String get btnUnarchive => 'Desarchivar';
+
+  @override
+  String get newScribble => 'Nuevo garabato';
+
+  @override
+  String get scribblesSubtitle =>
+      'Notas e ideas rápidas — apunta, colorea y guarda.';
+
+  @override
+  String get noScribblesYet => 'Aún no hay garabatos';
+
+  @override
+  String get whispersSubtitle =>
+      'Captura una idea por voz — escúchala cuando quieras.';
+
+  @override
+  String get tapRecord => 'Toca grabar para capturar una nota de voz.';
+
+  @override
+  String get btnRecord => 'Grabar';
+
+  @override
+  String get noWhispersYet => 'Aún no hay susurros';
+
+  @override
+  String get blueprintsSubtitle =>
+      'Diseña la estructura de tu libro y la estructura narrativa.';
+
+  @override
+  String get newBookStructure => 'Nueva Estructura de libro';
+
+  @override
+  String get tabBookStructure => 'Estructura de libro';
+
+  @override
+  String get tabNarrativeStructure => 'Estructura narrativa';
+
+  @override
+  String get tabDiagram => 'Diagrama';
+
+  @override
+  String get couldntLoadBlueprints => 'No se pudieron cargar las estructuras.';
+
+  @override
+  String get noBlueprintsYet => 'Aún no hay estructuras';
+
+  @override
+  String get blueprintsEmptyHint =>
+      'Las plantillas y tus propias estructuras aparecerán aquí.';
+
+  @override
+  String get groupTemplates => 'Plantillas';
+
+  @override
+  String get groupMyBooks => 'Mis libros';
+
+  @override
+  String get renameBookStructure => 'Renombrar Estructura de libro';
+
+  @override
+  String get deleteBookStructure => 'Eliminar Estructura de libro';
+
+  @override
+  String get deleteBookStructureQ => '¿Eliminar Estructura de libro?';
+
+  @override
+  String deleteBookStructureMsg(String name) {
+    return 'Eliminar \"$name\"? Sus secciones se eliminan permanentemente. Esto no elimina ningún documento.';
+  }
+
+  @override
+  String get btnDelete => 'Eliminar';
+
+  @override
+  String get genreNovel => 'Novela';
+
+  @override
+  String get genreMemoir => 'Memorias';
+
+  @override
+  String get genreNonFiction => 'No ficción';
+
+  @override
+  String get genreBiography => 'Biografía';
+
+  @override
+  String get genreResearchPaper => 'Artículo de investigación';
+
+  @override
+  String get genreChildrensPictureBook => 'Libro infantil ilustrado';
+
+  @override
+  String get genreScreenplay => 'Guion';
+
+  @override
+  String get genreWorkbookHowTo => 'Cuaderno práctico';
+
+  @override
+  String get genreBusinessBook => 'Libro de negocios';
+
+  @override
+  String get genreShortStoryCollection => 'Colección de cuentos';
+
+  @override
+  String get statusDraft => 'Borrador';
+
+  @override
+  String get statusCompleted => 'Completado';
+
+  @override
+  String get statusArchived => 'Archivado';
+
+  @override
+  String get useThisBookStructure => 'Usar esta Estructura de libro';
+
+  @override
+  String get noSectionsYet => 'Aún no hay secciones';
+
+  @override
+  String get addSection => 'Agregar sección';
+
+  @override
+  String sectionCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count secciones',
+      one: '1 sección',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get selectASection => 'Selecciona una sección';
+
+  @override
+  String get toSeeDetails => 'para ver sus detalles';
+
+  @override
+  String get labelDescription => 'DESCRIPCIÓN';
+
+  @override
+  String get noDescriptionYet => 'Sin descripción aún.';
+
+  @override
+  String get inThisBookStructure => 'EN ESTA ESTRUCTURA DE LIBRO';
+
+  @override
+  String subsectionCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count subsecciones',
+      one: '1 subsección',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get labelActions => 'ACCIONES';
+
+  @override
+  String get addDocument => 'Agregar documento';
+
+  @override
+  String get renameEdit => 'Renombrar / editar';
+
+  @override
+  String get addSubsection => 'Agregar subsección';
+
+  @override
+  String get deleteSection => 'Eliminar sección';
 }

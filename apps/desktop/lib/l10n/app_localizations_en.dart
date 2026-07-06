@@ -234,4 +234,463 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get whispersTitle => 'Whispers';
+
+  @override
+  String get btnExport => 'Export';
+
+  @override
+  String get btnShare => 'Share';
+
+  @override
+  String get btnResume => 'Resume';
+
+  @override
+  String get tooltipRefresh => 'Refresh';
+
+  @override
+  String get tooltipHelp => 'Help & Guides';
+
+  @override
+  String get showPanel => 'Show panel';
+
+  @override
+  String get hidePanel => 'Hide panel';
+
+  @override
+  String get btnSave => 'Save';
+
+  @override
+  String get deskReadOnly => 'Read only';
+
+  @override
+  String get deskWrite => 'Write';
+
+  @override
+  String get deskRead => 'Read';
+
+  @override
+  String get deskFindReplace => 'Find & Replace (Ctrl+F)';
+
+  @override
+  String get wordCount => 'Word count';
+
+  @override
+  String get addThreeWays => 'Three ways to add content to your project';
+
+  @override
+  String get addStartNewFile => 'Start New File';
+
+  @override
+  String get addStartNewFileBody =>
+      'Create a new document and choose where it lives.';
+
+  @override
+  String get addFromLibrary => 'Add from Library';
+
+  @override
+  String get addFromLibraryBody =>
+      'Choose an existing document from your library.';
+
+  @override
+  String get btnBrowseLibrary => 'Browse Library';
+
+  @override
+  String get addPutInProject => 'Put in a Project';
+
+  @override
+  String get addPutInProjectBody =>
+      'Create a new project, or add this file to one you already have.';
+
+  @override
+  String get btnChooseProject => 'Choose a Project';
+
+  @override
+  String get summarizeItTitle => 'SUMMARIZE IT';
+
+  @override
+  String get summarizeBtn => 'Summarize';
+
+  @override
+  String get lengthShort => 'short';
+
+  @override
+  String get lengthMedium => 'medium';
+
+  @override
+  String get lengthLong => 'long';
+
+  @override
+  String get docProcessing => 'Document is still processing';
+
+  @override
+  String get summarizeAllowance =>
+      'Each summary uses AI tokens from your monthly Writing Nook allowance. Generate one when you want a quick recap of this file.';
+
+  @override
+  String summarizeAllowanceCount(int count) {
+    return 'Each summary uses AI tokens from your monthly Writing Nook allowance — about $count per month. Generate one when you want a quick recap of this file.';
+  }
+
+  @override
+  String get conceptProject => 'Project';
+
+  @override
+  String get conceptBlueprint => 'Blueprint';
+
+  @override
+  String get conceptPart => 'Part';
+
+  @override
+  String get conceptRole => 'Role';
+
+  @override
+  String get conceptNarrative => 'Narrative';
+
+  @override
+  String get conceptBeat => 'Beat';
+
+  @override
+  String get placedIn => 'PLACED IN';
+
+  @override
+  String get notInProject => 'Not in a project';
+
+  @override
+  String get notAssigned => 'Not assigned';
+
+  @override
+  String get notInProjectYet =>
+      'Not in a project yet. Add this file to a project to organize it.';
+
+  @override
+  String get tabBook => 'Book';
+
+  @override
+  String get tabFiles => 'Files';
+
+  @override
+  String get tabBookTooltip => 'Book content — sections & pages';
+
+  @override
+  String get addToProjectFirst => 'Add this document to a project first';
+
+  @override
+  String get nameYourDocument => 'Name your document';
+
+  @override
+  String get titleLabel => 'Title';
+
+  @override
+  String get titleHint => 'e.g. Chapter One';
+
+  @override
+  String get btnCancel => 'Cancel';
+
+  @override
+  String get btnCreate => 'Create';
+
+  @override
+  String get putInProjectTitle => 'Put this file in a Project';
+
+  @override
+  String get putInProjectBody =>
+      'Create a new project for it, or add it to a project you already have.';
+
+  @override
+  String get btnAddToExisting => 'Add to existing';
+
+  @override
+  String get btnCreateNew => 'Create new';
+
+  @override
+  String get flyoverNoProject => 'This document isn\'t in a project yet.';
+
+  @override
+  String get noBookStructure => 'No Book Structure.';
+
+  @override
+  String get addToProject => 'Add to a project';
+
+  @override
+  String get createProjectFirst =>
+      'Create a project in the Projects tab first.';
+
+  @override
+  String get exportOptions => 'Export Options';
+
+  @override
+  String get exportBrandedDocx => 'Export as a branded DOCX file.';
+
+  @override
+  String get whatToExport => 'WHAT TO EXPORT';
+
+  @override
+  String get exportThisFile => 'This file';
+
+  @override
+  String get exportThisFileSub => 'Only the document open now';
+
+  @override
+  String get exportFullBook => 'Full book';
+
+  @override
+  String get exportFullBookSub => 'All files assembled in blueprint order';
+
+  @override
+  String get includeCover => 'Include cover page';
+
+  @override
+  String get includeCoverSub => 'Title page with name and date';
+
+  @override
+  String get includeFooter => 'Include Psitta footer';
+
+  @override
+  String get includeFooterSub => 'Branding and page numbers on every page';
+
+  @override
+  String get badgeSoon => 'Soon';
+
+  @override
+  String get shareCopyText => 'Copy text';
+
+  @override
+  String get shareEmail => 'Email';
+
+  @override
+  String get shareSaveFile => 'Save file';
+
+  @override
+  String shareHeader(String title) {
+    return 'Share \"$title\"';
+  }
+
+  @override
+  String get shareSubtitle =>
+      'Posts open in your browser; for Instagram and Substack the text is copied so you can paste it.';
+
+  @override
+  String get shareCopied => 'Copied to clipboard.';
+
+  @override
+  String get dragDropHere => 'Drag & drop files here';
+
+  @override
+  String get orClickUpload => 'or click to upload from your device';
+
+  @override
+  String get dropFilesToUpload => 'Drop files to upload';
+
+  @override
+  String get newProject => 'New Project';
+
+  @override
+  String get projectsSubtitle => 'Group your documents into projects.';
+
+  @override
+  String get noProjectsYet => 'No projects yet';
+
+  @override
+  String get createProjectHint =>
+      'Create a project to organize your documents.';
+
+  @override
+  String get createProject => 'Create Project';
+
+  @override
+  String get trashSubtitle =>
+      'Deleted documents are kept here. Restore them to your Library, or delete them permanently.';
+
+  @override
+  String get trashEmpty => 'Trash is empty';
+
+  @override
+  String emptyTrash(int count) {
+    return 'Empty Trash ($count)';
+  }
+
+  @override
+  String get btnRestore => 'Restore';
+
+  @override
+  String get archiveSubtitle =>
+      'Archived documents are hidden from your Library but kept safe. Unarchive to bring one back.';
+
+  @override
+  String get nothingArchived => 'Nothing archived';
+
+  @override
+  String get btnUnarchive => 'Unarchive';
+
+  @override
+  String get newScribble => 'New scribble';
+
+  @override
+  String get scribblesSubtitle =>
+      'Quick notes and ideas — jot, color, and keep.';
+
+  @override
+  String get noScribblesYet => 'No scribbles yet';
+
+  @override
+  String get whispersSubtitle =>
+      'Capture an idea by voice — listen back anytime.';
+
+  @override
+  String get tapRecord => 'Tap record to capture a voice note.';
+
+  @override
+  String get btnRecord => 'Record';
+
+  @override
+  String get noWhispersYet => 'No whispers yet';
+
+  @override
+  String get blueprintsSubtitle =>
+      'Design the structure of your book, and the narrative structure.';
+
+  @override
+  String get newBookStructure => 'New Book Structure';
+
+  @override
+  String get tabBookStructure => 'Book Structure';
+
+  @override
+  String get tabNarrativeStructure => 'Narrative Structure';
+
+  @override
+  String get tabDiagram => 'Diagram';
+
+  @override
+  String get couldntLoadBlueprints => 'Couldn’t load blueprints.';
+
+  @override
+  String get noBlueprintsYet => 'No blueprints yet';
+
+  @override
+  String get blueprintsEmptyHint =>
+      'Templates and your own blueprints will appear here.';
+
+  @override
+  String get groupTemplates => 'Templates';
+
+  @override
+  String get groupMyBooks => 'My Books';
+
+  @override
+  String get renameBookStructure => 'Rename Book Structure';
+
+  @override
+  String get deleteBookStructure => 'Delete Book Structure';
+
+  @override
+  String get deleteBookStructureQ => 'Delete Book Structure?';
+
+  @override
+  String deleteBookStructureMsg(String name) {
+    return 'Delete \"$name\"? Its sections are permanently removed. This does not delete any documents.';
+  }
+
+  @override
+  String get btnDelete => 'Delete';
+
+  @override
+  String get genreNovel => 'Novel';
+
+  @override
+  String get genreMemoir => 'Memoir';
+
+  @override
+  String get genreNonFiction => 'Non-Fiction';
+
+  @override
+  String get genreBiography => 'Biography';
+
+  @override
+  String get genreResearchPaper => 'Research Paper';
+
+  @override
+  String get genreChildrensPictureBook => 'Children\'s Picture Book';
+
+  @override
+  String get genreScreenplay => 'Screenplay';
+
+  @override
+  String get genreWorkbookHowTo => 'Workbook/How-To';
+
+  @override
+  String get genreBusinessBook => 'Business Book';
+
+  @override
+  String get genreShortStoryCollection => 'Short Story Collection';
+
+  @override
+  String get statusDraft => 'Draft';
+
+  @override
+  String get statusCompleted => 'Completed';
+
+  @override
+  String get statusArchived => 'Archived';
+
+  @override
+  String get useThisBookStructure => 'Use this Book Structure';
+
+  @override
+  String get noSectionsYet => 'No sections yet';
+
+  @override
+  String get addSection => 'Add Section';
+
+  @override
+  String sectionCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sections',
+      one: '1 section',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get selectASection => 'Select a section';
+
+  @override
+  String get toSeeDetails => 'to see its details';
+
+  @override
+  String get labelDescription => 'DESCRIPTION';
+
+  @override
+  String get noDescriptionYet => 'No description yet.';
+
+  @override
+  String get inThisBookStructure => 'IN THIS BOOK STRUCTURE';
+
+  @override
+  String subsectionCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count subsections',
+      one: '1 subsection',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get labelActions => 'ACTIONS';
+
+  @override
+  String get addDocument => 'Add document';
+
+  @override
+  String get renameEdit => 'Rename / edit';
+
+  @override
+  String get addSubsection => 'Add subsection';
+
+  @override
+  String get deleteSection => 'Delete section';
 }

@@ -413,6 +413,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
 
   Widget _buildMain(BuildContext context, PsittaTokens tokens,
       List<Document> docs, List<Project> projects) {
+    final loc = AppLocalizations.of(context);
     final visible = _visible(docs);
     return Stack(
       children: [
@@ -441,7 +442,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
               child: Container(
                 color: tokens.glow.withOpacity(0.10),
                 child: Center(
-                  child: Text('Drop files to upload',
+                  child: Text(loc.dropFilesToUpload,
                       style: TextStyle(
                           color: tokens.glow,
                           fontSize: 20,
@@ -1457,6 +1458,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   // ── Drag & drop upload zone ─────────────────────────────────────────────────
   Widget _uploadZone(PsittaTokens tokens) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return InkWell(
       onTap: _handleFilePick,
       borderRadius: BorderRadius.circular(tokens.radius),
@@ -1478,13 +1480,13 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
             Icon(Icons.cloud_upload_outlined,
                 size: 30, color: tokens.glow.withOpacity(0.8)),
             const SizedBox(height: 8),
-            Text('Drag & drop files here',
+            Text(loc.dragDropHere,
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: scheme.onSurface)),
             const SizedBox(height: 2),
-            Text('or click to upload from your device',
+            Text(loc.orClickUpload,
                 style: TextStyle(
                     fontSize: 11, color: scheme.onSurfaceVariant)),
             const SizedBox(height: 6),

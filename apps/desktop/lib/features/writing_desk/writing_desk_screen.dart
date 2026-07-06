@@ -16,6 +16,7 @@ import '../shell/widgets/player_bar.dart'
 import 'desk_center_pane.dart';
 import 'document_context_pane.dart';
 import 'project_navigator_pane.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Three-column Writing Desk surface.
 ///
@@ -273,6 +274,7 @@ class _ContextToggleRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Row(
       children: [
         VerticalDivider(width: 1, color: tokens.divider),
@@ -293,7 +295,7 @@ class _ContextToggleRail extends StatelessWidget {
                     width: 22,
                     height: 28,
                   ),
-                  tooltip: collapsed ? 'Show panel' : 'Hide panel',
+                  tooltip: collapsed ? loc.showPanel : loc.hidePanel,
                   icon: Icon(
                     collapsed ? Icons.chevron_left : Icons.chevron_right,
                     color: scheme.onSurfaceVariant,

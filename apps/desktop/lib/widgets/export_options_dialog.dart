@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/app_localizations.dart';
+
 /// Result of the export dialog. [fullBook] is only meaningful when the dialog
 /// was opened with `showScope: true` (Writing Nook).
 class ExportOptions {
@@ -56,8 +58,9 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Export Options'),
+      title: Text(loc.exportOptions),
       content: SizedBox(
         width: 360,
         child: Column(
@@ -74,7 +77,7 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Export as a branded DOCX file.',
+              loc.exportBrandedDocx,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -82,7 +85,7 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
             if (widget.showScope) ...[
               const SizedBox(height: 14),
               Text(
-                'WHAT TO EXPORT',
+                loc.whatToExport,
                 style: theme.textTheme.labelSmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                   letterSpacing: 0.8,
@@ -94,8 +97,8 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
                 value: false,
                 groupValue: _fullBook,
                 onChanged: (v) => setState(() => _fullBook = v ?? false),
-                title: const Text('This file'),
-                subtitle: const Text('Only the document open now'),
+                title: Text(loc.exportThisFile),
+                subtitle: Text(loc.exportThisFileSub),
               ),
               RadioListTile<bool>(
                 contentPadding: EdgeInsets.zero,
@@ -107,7 +110,7 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
                     : null,
                 title: Row(
                   children: [
-                    const Text('Full book'),
+                    Text(loc.exportFullBook),
                     if (!widget.fullBookEnabled) ...[
                       const SizedBox(width: 6),
                       const _SoonTag(),
@@ -115,23 +118,23 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
                   ],
                 ),
                 subtitle:
-                    const Text('All files assembled in blueprint order'),
+                    Text(loc.exportFullBookSub),
               ),
             ],
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Include cover page'),
-              subtitle: const Text('Title page with name and date'),
+              title: Text(loc.includeCover),
+              subtitle: Text(loc.includeCoverSub),
               value: _includeCover,
               onChanged: (v) => setState(() => _includeCover = v),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Include Psitta footer'),
-              subtitle: const Text('Branding and page numbers on every page'),
+              title: Text(loc.includeFooter),
+              subtitle: Text(loc.includeFooterSub),
               value: _includeFooter,
               onChanged: (v) => setState(() => _includeFooter = v),
             ),
@@ -141,11 +144,11 @@ class _ExportOptionsDialogState extends State<_ExportOptionsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(loc.btnCancel),
         ),
         FilledButton.icon(
           icon: const Icon(Icons.download, size: 18),
-          label: const Text('Export'),
+          label: Text(loc.btnExport),
           onPressed: () => Navigator.of(context).pop(
             ExportOptions(
               includeCover: _includeCover,
@@ -165,6 +168,7 @@ class _SoonTag extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
@@ -172,7 +176,7 @@ class _SoonTag extends StatelessWidget {
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
-        'Soon',
+        loc.badgeSoon,
         style: Theme.of(context).textTheme.labelSmall?.copyWith(
               color: scheme.secondary,
               fontSize: 10,

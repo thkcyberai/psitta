@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import '../../widgets/new_sheet_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -1275,6 +1276,7 @@ class _DeskCenterHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return SizedBox(
       height: 40,
       child: Padding(
@@ -1298,7 +1300,7 @@ class _DeskCenterHeader extends StatelessWidget {
             if (onFind != null)
               IconButton(
                 key: const ValueKey('desk-find-btn'),
-                tooltip: 'Find & Replace (Ctrl+F)',
+                tooltip: loc.deskFindReplace,
                 iconSize: 18,
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.search),
@@ -1323,7 +1325,7 @@ class _DeskCenterHeader extends StatelessWidget {
                 key: const ValueKey('desk-save'),
                 onPressed: canSave ? onSave : null,
                 icon: const Icon(Icons.save_outlined, size: 18),
-                label: const Text('Save'),
+                label: Text(loc.btnSave),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                 ),
@@ -1345,6 +1347,7 @@ class _ReadOnlyChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Container(
       height: 26,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1360,7 +1363,7 @@ class _ReadOnlyChip extends StatelessWidget {
               size: 14, color: scheme.onSurfaceVariant),
           const SizedBox(width: 6),
           Text(
-            'Read only',
+            loc.deskReadOnly,
             style: TextStyle(
               color: scheme.onSurfaceVariant,
               fontSize: 12,
@@ -1382,6 +1385,7 @@ class _ModeToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Container(
       height: 26,
       decoration: BoxDecoration(
@@ -1392,9 +1396,9 @@ class _ModeToggle extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _seg(context, label: 'Write', icon: Icons.edit_outlined,
+          _seg(context, label: loc.deskWrite, icon: Icons.edit_outlined,
               selected: !readMode, onTap: () => onChanged(false)),
-          _seg(context, label: 'Read', icon: Icons.headphones_outlined,
+          _seg(context, label: loc.deskRead, icon: Icons.headphones_outlined,
               selected: readMode, onTap: () => onChanged(true)),
         ],
       ),
@@ -2041,6 +2045,7 @@ class _ThreeWaysPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return ColoredBox(
       color: tokens.surface2,
       child: Padding(
@@ -2049,7 +2054,7 @@ class _ThreeWaysPanel extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Three ways to add content to your project',
+              loc.addThreeWays,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
@@ -2065,10 +2070,10 @@ class _ThreeWaysPanel extends ConsumerWidget {
                     child: _AddCard(
                       index: '1',
                       accent: _AddCardAccent.primary,
-                      title: 'Start New File',
+                      title: loc.addStartNewFile,
                       body:
-                          'Create a new document and choose where it lives.',
-                      cta: 'New File',
+                          loc.addStartNewFileBody,
+                      cta: loc.newFile,
                       buttonKey: 'desk-add-new-doc',
                       onPressed: () => _newDocument(context, ref),
                     ),
@@ -2078,10 +2083,10 @@ class _ThreeWaysPanel extends ConsumerWidget {
                     child: _AddCard(
                       index: '2',
                       accent: _AddCardAccent.secondary,
-                      title: 'Add from Library',
+                      title: loc.addFromLibrary,
                       body:
-                          'Choose an existing document from your library.',
-                      cta: 'Browse Library',
+                          loc.addFromLibraryBody,
+                      cta: loc.btnBrowseLibrary,
                       buttonKey: 'desk-add-from-library',
                       onPressed: () {
                         final pid = projectId;
@@ -2099,10 +2104,10 @@ class _ThreeWaysPanel extends ConsumerWidget {
                     child: _AddCard(
                       index: '3',
                       accent: _AddCardAccent.tertiary,
-                      title: 'Put in a Project',
+                      title: loc.addPutInProject,
                       body:
-                          'Create a new project, or add this file to one you already have.',
-                      cta: 'Choose a Project',
+                          loc.addPutInProjectBody,
+                      cta: loc.btnChooseProject,
                       buttonKey: 'desk-add-create-project',
                       onPressed: () => _chooseProjectAction(context, ref),
                     ),
@@ -2150,25 +2155,24 @@ class _ThreeWaysPanel extends ConsumerWidget {
   /// Let the writer create a new project for this file or add it to one they
   /// already have.
   Future<void> _chooseProjectAction(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Put this file in a Project'),
-        content: const Text(
-          'Create a new project for it, or add it to a project you already have.',
-        ),
+        title: Text(loc.putInProjectTitle),
+        content: Text(loc.putInProjectBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop('existing'),
-            child: const Text('Add to existing'),
+            child: Text(loc.btnAddToExisting),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop('create'),
-            child: const Text('Create new'),
+            child: Text(loc.btnCreateNew),
           ),
         ],
       ),

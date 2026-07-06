@@ -100,5 +100,187 @@
   "guideStartOver": "Start over",
   "guideHide": "Hide (turn back on in Settings)",
   "scribblesTitle": "Scribbles",
-  "whispersTitle": "Whispers"
+  "whispersTitle": "Whispers",
+  "btnExport": "Export",
+  "btnShare": "Share",
+  "btnResume": "Resume",
+  "tooltipRefresh": "Refresh",
+  "tooltipHelp": "Help & Guides",
+  "showPanel": "Show panel",
+  "hidePanel": "Hide panel",
+  "btnSave": "Save",
+  "deskReadOnly": "Read only",
+  "deskWrite": "Write",
+  "deskRead": "Read",
+  "deskFindReplace": "Find & Replace (Ctrl+F)",
+  "wordCount": "Word count",
+  "addThreeWays": "Three ways to add content to your project",
+  "addStartNewFile": "Start New File",
+  "addStartNewFileBody": "Create a new document and choose where it lives.",
+  "addFromLibrary": "Add from Library",
+  "addFromLibraryBody": "Choose an existing document from your library.",
+  "btnBrowseLibrary": "Browse Library",
+  "addPutInProject": "Put in a Project",
+  "addPutInProjectBody": "Create a new project, or add this file to one you already have.",
+  "btnChooseProject": "Choose a Project",
+  "summarizeItTitle": "SUMMARIZE IT",
+  "summarizeBtn": "Summarize",
+  "lengthShort": "short",
+  "lengthMedium": "medium",
+  "lengthLong": "long",
+  "docProcessing": "Document is still processing",
+  "summarizeAllowance": "Each summary uses AI tokens from your monthly Writing Nook allowance. Generate one when you want a quick recap of this file.",
+  "summarizeAllowanceCount": "Each summary uses AI tokens from your monthly Writing Nook allowance — about {count} per month. Generate one when you want a quick recap of this file.",
+  "@summarizeAllowanceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conceptProject": "Project",
+  "conceptBlueprint": "Blueprint",
+  "conceptPart": "Part",
+  "conceptRole": "Role",
+  "conceptNarrative": "Narrative",
+  "conceptBeat": "Beat",
+  "placedIn": "PLACED IN",
+  "notInProject": "Not in a project",
+  "notAssigned": "Not assigned",
+  "notInProjectYet": "Not in a project yet. Add this file to a project to organize it.",
+  "tabBook": "Book",
+  "tabFiles": "Files",
+  "tabBookTooltip": "Book content — sections & pages",
+  "addToProjectFirst": "Add this document to a project first",
+  "nameYourDocument": "Name your document",
+  "titleLabel": "Title",
+  "titleHint": "e.g. Chapter One",
+  "btnCancel": "Cancel",
+  "btnCreate": "Create",
+  "putInProjectTitle": "Put this file in a Project",
+  "putInProjectBody": "Create a new project for it, or add it to a project you already have.",
+  "btnAddToExisting": "Add to existing",
+  "btnCreateNew": "Create new",
+  "flyoverNoProject": "This document isn't in a project yet.",
+  "noBookStructure": "No Book Structure.",
+  "addToProject": "Add to a project",
+  "createProjectFirst": "Create a project in the Projects tab first.",
+  "exportOptions": "Export Options",
+  "exportBrandedDocx": "Export as a branded DOCX file.",
+  "whatToExport": "WHAT TO EXPORT",
+  "exportThisFile": "This file",
+  "exportThisFileSub": "Only the document open now",
+  "exportFullBook": "Full book",
+  "exportFullBookSub": "All files assembled in blueprint order",
+  "includeCover": "Include cover page",
+  "includeCoverSub": "Title page with name and date",
+  "includeFooter": "Include Psitta footer",
+  "includeFooterSub": "Branding and page numbers on every page",
+  "badgeSoon": "Soon",
+  "shareCopyText": "Copy text",
+  "shareEmail": "Email",
+  "shareSaveFile": "Save file",
+  "shareHeader": "Share \"{title}\"",
+  "@shareHeader": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "shareSubtitle": "Posts open in your browser; for Instagram and Substack the text is copied so you can paste it.",
+  "shareCopied": "Copied to clipboard.",
+  "dragDropHere": "Drag & drop files here",
+  "orClickUpload": "or click to upload from your device",
+  "dropFilesToUpload": "Drop files to upload",
+  "newProject": "New Project",
+  "projectsSubtitle": "Group your documents into projects.",
+  "noProjectsYet": "No projects yet",
+  "createProjectHint": "Create a project to organize your documents.",
+  "createProject": "Create Project",
+  "trashSubtitle": "Deleted documents are kept here. Restore them to your Library, or delete them permanently.",
+  "trashEmpty": "Trash is empty",
+  "emptyTrash": "Empty Trash ({count})",
+  "@emptyTrash": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "btnRestore": "Restore",
+  "archiveSubtitle": "Archived documents are hidden from your Library but kept safe. Unarchive to bring one back.",
+  "nothingArchived": "Nothing archived",
+  "btnUnarchive": "Unarchive",
+  "newScribble": "New scribble",
+  "scribblesSubtitle": "Quick notes and ideas — jot, color, and keep.",
+  "noScribblesYet": "No scribbles yet",
+  "whispersSubtitle": "Capture an idea by voice — listen back anytime.",
+  "tapRecord": "Tap record to capture a voice note.",
+  "btnRecord": "Record",
+  "noWhispersYet": "No whispers yet",
+  "blueprintsSubtitle": "Design the structure of your book, and the narrative structure.",
+  "newBookStructure": "New Book Structure",
+  "tabBookStructure": "Book Structure",
+  "tabNarrativeStructure": "Narrative Structure",
+  "tabDiagram": "Diagram",
+  "couldntLoadBlueprints": "Couldn’t load blueprints.",
+  "noBlueprintsYet": "No blueprints yet",
+  "blueprintsEmptyHint": "Templates and your own blueprints will appear here.",
+  "groupTemplates": "Templates",
+  "groupMyBooks": "My Books",
+  "renameBookStructure": "Rename Book Structure",
+  "deleteBookStructure": "Delete Book Structure",
+  "deleteBookStructureQ": "Delete Book Structure?",
+  "deleteBookStructureMsg": "Delete \"{name}\"? Its sections are permanently removed. This does not delete any documents.",
+  "@deleteBookStructureMsg": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "btnDelete": "Delete",
+  "genreNovel": "Novel",
+  "genreMemoir": "Memoir",
+  "genreNonFiction": "Non-Fiction",
+  "genreBiography": "Biography",
+  "genreResearchPaper": "Research Paper",
+  "genreChildrensPictureBook": "Children's Picture Book",
+  "genreScreenplay": "Screenplay",
+  "genreWorkbookHowTo": "Workbook/How-To",
+  "genreBusinessBook": "Business Book",
+  "genreShortStoryCollection": "Short Story Collection",
+  "statusDraft": "Draft",
+  "statusCompleted": "Completed",
+  "statusArchived": "Archived",
+  "useThisBookStructure": "Use this Book Structure",
+  "noSectionsYet": "No sections yet",
+  "addSection": "Add Section",
+  "sectionCount": "{count, plural, =1{1 section} other{{count} sections}}",
+  "@sectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "selectASection": "Select a section",
+  "toSeeDetails": "to see its details",
+  "labelDescription": "DESCRIPTION",
+  "noDescriptionYet": "No description yet.",
+  "inThisBookStructure": "IN THIS BOOK STRUCTURE",
+  "subsectionCount": "{count, plural, =1{1 subsection} other{{count} subsections}}",
+  "@subsectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "labelActions": "ACTIONS",
+  "addDocument": "Add document",
+  "renameEdit": "Rename / edit",
+  "addSubsection": "Add subsection",
+  "deleteSection": "Delete section"
 }

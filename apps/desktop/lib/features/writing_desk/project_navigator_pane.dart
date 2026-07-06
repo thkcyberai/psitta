@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/concept_style.dart';
@@ -111,6 +112,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
         final tokens = PsittaTokens.of(ctx);
         final scheme = Theme.of(ctx).colorScheme;
         final screenH = MediaQuery.of(ctx).size.height;
+        final loc = AppLocalizations.of(ctx);
 
         return Stack(
           children: [
@@ -154,13 +156,13 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'This document isn\'t in a project yet.',
+                              loc.flyoverNoProject,
                               style: Theme.of(ctx).textTheme.bodySmall
                                   ?.copyWith(color: scheme.onSurface),
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              'No Book Structure.',
+                              loc.noBookStructure,
                               style: Theme.of(ctx).textTheme.bodySmall
                                   ?.copyWith(color: scheme.onSurfaceVariant),
                             ),
@@ -171,7 +173,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                                 key: const ValueKey('desk-add-to-project'),
                                 onPressed: () =>
                                     _showAddToProjectDialog(),
-                                child: const Text('Add to a project'),
+                                child: Text(loc.addToProject),
                               ),
                             ),
                           ],
@@ -190,6 +192,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
   }
 
   Future<void> _showAddToProjectDialog() async {
+    final loc = AppLocalizations.of(context);
     final repo = ref.read(projectRepositoryProvider);
     List<Project> projects;
     try {
@@ -202,9 +205,9 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
     final chosen = await showDialog<Project>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add to a project'),
+        title: Text(loc.addToProject),
         content: projects.isEmpty
-            ? const Text('Create a project in the Projects tab first.')
+            ? Text(loc.createProjectFirst)
             : SizedBox(
                 width: 320,
                 child: ListView(
@@ -222,7 +225,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
         ],
       ),
@@ -242,6 +245,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return ColoredBox(
       color: tokens.surface2,
@@ -265,8 +269,8 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                       size: 18,
                       color: scheme.primary,
                     ),
-                    label: 'Book',
-                    tooltip: 'Book content — sections & pages',
+                    label: loc.tabBook,
+                    tooltip: loc.tabBookTooltip,
                     tokens: tokens,
                     scheme: scheme,
                   ),
@@ -275,7 +279,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                 // Unassigned tile — disabled until a project is assigned.
                 Expanded(
                   child: Tooltip(
-                    message: 'Add this document to a project first',
+                    message: loc.addToProjectFirst,
                     child: Opacity(
                       opacity: 0.45,
                       child: _NavTile(
@@ -289,7 +293,7 @@ class _NoProjectNavigatorState extends ConsumerState<_NoProjectNavigator> {
                           size: 18,
                           color: scheme.secondary,
                         ),
-                        label: 'Files',
+                        label: loc.tabFiles,
                         tokens: tokens,
                         scheme: scheme,
                       ),
@@ -388,6 +392,7 @@ class _ProjectNavigatorBodyState
   ) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     final placedDocIds = placements.map((p) => p.documentId).toSet();
     final unplacedDocs =
@@ -427,8 +432,8 @@ class _ProjectNavigatorBodyState
                       size: 18,
                       color: scheme.primary,
                     ),
-                    label: 'Book',
-                    tooltip: 'Book content — sections & pages',
+                    label: loc.tabBook,
+                    tooltip: loc.tabBookTooltip,
                     tokens: tokens,
                     scheme: scheme,
                   ),
@@ -444,7 +449,7 @@ class _ProjectNavigatorBodyState
                       size: 18,
                       color: scheme.secondary,
                     ),
-                    label: 'Files',
+                    label: loc.tabFiles,
                     tooltip: 'Files to place into a section',
                     badgeCount: unplacedDocs.length,
                     tokens: tokens,

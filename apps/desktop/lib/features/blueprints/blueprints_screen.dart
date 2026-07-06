@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
+import '../../data/models/blueprint_enum_labels.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
@@ -26,6 +28,7 @@ class BlueprintsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return DefaultTabController(
       length: 3,
@@ -34,11 +37,11 @@ class BlueprintsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(28, 6, 28, 0),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 6, 28, 0),
             child: Align(
               alignment: Alignment.centerLeft,
-              child: LibraryBreadcrumb(current: 'Blueprints'),
+              child: LibraryBreadcrumb(current: loc.navBlueprints),
             ),
           ),
           // ── Header
@@ -54,7 +57,7 @@ class BlueprintsScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.baseline,
                     textBaseline: TextBaseline.alphabetic,
                     children: [
-                      Text('Blueprints',
+                      Text(loc.navBlueprints,
                           style: Theme.of(context)
                               .textTheme
                               .headlineSmall
@@ -62,7 +65,7 @@ class BlueprintsScreen extends ConsumerWidget {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Design the structure of your book, and the narrative structure.',
+                          loc.blueprintsSubtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -76,20 +79,20 @@ class BlueprintsScreen extends ConsumerWidget {
                 FilledButton.icon(
                   key: const ValueKey('new-blueprint-button'),
                   icon: const Icon(Icons.add, size: 18),
-                  label: const Text('New Book Structure'),
+                  label: Text(loc.newBookStructure),
                   onPressed: () => _createBlueprint(context, ref),
                 ),
               ],
             ),
           ),
           // ── Tabs
-          const TabBar(
+          TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             tabs: [
-              Tab(text: 'Book Structure'),
-              Tab(text: 'Narrative Structure'),
-              Tab(text: 'Diagram'),
+              Tab(text: loc.tabBookStructure),
+              Tab(text: loc.tabNarrativeStructure),
+              Tab(text: loc.tabDiagram),
             ],
           ),
           Divider(height: 1, color: tokens.divider),
@@ -109,10 +112,11 @@ class BlueprintsScreen extends ConsumerWidget {
   }
 
   Future<void> _createBlueprint(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final result = await showBlueprintFormDialog(
       context,
-      title: 'New Book Structure',
-      submitLabel: 'Create',
+      title: loc.newBookStructure,
+      submitLabel: loc.btnCreate,
     );
     if (result == null) return;
     if (!context.mounted) return;
@@ -162,13 +166,14 @@ class _BlueprintListPane extends ConsumerWidget {
     final async = ref.watch(blueprintsListProvider);
     final selectedId = ref.watch(selectedBlueprintIdProvider);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 10, 12),
       child: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
-          child: Text('Couldn’t load blueprints.',
+          child: Text(loc.couldntLoadBlueprints,
               style: TextStyle(color: scheme.onSurfaceVariant)),
         ),
         data: (list) => list.isEmpty
@@ -180,6 +185,7 @@ class _BlueprintListPane extends ConsumerWidget {
 
   Widget _buildEmptyState(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -187,11 +193,11 @@ class _BlueprintListPane extends ConsumerWidget {
           Icon(Icons.account_tree_outlined,
               size: 52, color: scheme.onSurfaceVariant),
           const SizedBox(height: 14),
-          Text('No blueprints yet',
+          Text(loc.noBlueprintsYet,
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-            'Templates and your own blueprints will appear here.',
+            loc.blueprintsEmptyHint,
             textAlign: TextAlign.center,
             style: TextStyle(color: scheme.onSurfaceVariant),
           ),
@@ -206,6 +212,7 @@ class _BlueprintListPane extends ConsumerWidget {
     List<BlueprintSummary> list,
     String? selectedId,
   ) {
+    final loc = AppLocalizations.of(context);
     final templates = list.where((b) => b.isSystem).toList();
     final mine = list.where((b) => !b.isSystem).toList();
     // Display order = templates first, then the user's own. Auto-select the
@@ -225,7 +232,7 @@ class _BlueprintListPane extends ConsumerWidget {
       children: [
         const SizedBox(height: 4),
         if (templates.isNotEmpty) ...[
-          const _BlueprintGroupHeader(label: 'Templates'),
+          _BlueprintGroupHeader(label: loc.groupTemplates),
           for (final b in templates)
             _BlueprintListCard(
               blueprint: b,
@@ -234,7 +241,7 @@ class _BlueprintListPane extends ConsumerWidget {
         ],
         if (mine.isNotEmpty) ...[
           const SizedBox(height: 10),
-          const _BlueprintGroupHeader(label: 'My Books'),
+          _BlueprintGroupHeader(label: loc.groupMyBooks),
           for (final b in mine)
             _BlueprintListCard(
               blueprint: b,
@@ -307,6 +314,7 @@ class _BlueprintListCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
@@ -376,7 +384,7 @@ class _BlueprintListCard extends ConsumerWidget {
                               child: IconButton(
                                 padding: EdgeInsets.zero,
                                 iconSize: 16,
-                                tooltip: 'Rename Book Structure',
+                                tooltip: loc.renameBookStructure,
                                 icon: Icon(Icons.edit_outlined,
                                     color: scheme.onSurfaceVariant),
                                 onPressed: () => _rename(context, ref),
@@ -392,7 +400,7 @@ class _BlueprintListCard extends ConsumerWidget {
                               child: IconButton(
                                 padding: EdgeInsets.zero,
                                 iconSize: 16,
-                                tooltip: 'Delete Book Structure',
+                                tooltip: loc.deleteBookStructure,
                                 icon: Icon(Icons.delete_outline,
                                     color: scheme.error),
                                 onPressed: () => _delete(context, ref),
@@ -403,11 +411,11 @@ class _BlueprintListCard extends ConsumerWidget {
                       const SizedBox(height: 9),
                       Row(
                         children: [
-                          _GenreChip(label: blueprint.genre.wire),
+                          _GenreChip(label: genreLabel(loc, blueprint.genre)),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
-                              blueprint.status.wire,
+                              blueprintStatusLabel(loc, blueprint.status),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -430,10 +438,11 @@ class _BlueprintListCard extends ConsumerWidget {
   }
 
   Future<void> _rename(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final result = await showBlueprintFormDialog(
       context,
-      title: 'Rename Book Structure',
-      submitLabel: 'Save',
+      title: loc.renameBookStructure,
+      submitLabel: loc.btnSave,
       initialName: blueprint.name,
       initialGenre: blueprint.genre,
       initialStatus: blueprint.status,
@@ -456,13 +465,12 @@ class _BlueprintListCard extends ConsumerWidget {
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final ok = await confirmDeleteDialog(
       context,
-      title: 'Delete Book Structure?',
-      message:
-          'Delete "${blueprint.name}"? Its sections are permanently removed. '
-          'This does not delete any documents.',
-      confirmLabel: 'Delete',
+      title: loc.deleteBookStructureQ,
+      message: loc.deleteBookStructureMsg(blueprint.name),
+      confirmLabel: loc.btnDelete,
     );
     if (!ok || !context.mounted) return;
     try {

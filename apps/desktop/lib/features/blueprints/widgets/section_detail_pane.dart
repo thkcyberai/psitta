@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../widgets/new_sheet_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -43,6 +44,7 @@ class SectionDetailPane extends ConsumerWidget {
         ? null
         : _findNode(detail.parts, partId);
 
+    final loc = AppLocalizations.of(context);
     if (detail == null || node == null) {
       return Container(
         color: tokens.surface,
@@ -54,10 +56,10 @@ class SectionDetailPane extends ConsumerWidget {
             Icon(Icons.touch_app_outlined,
                 size: 40, color: scheme.onSurfaceVariant),
             const SizedBox(height: 12),
-            Text('Select a section',
+            Text(loc.selectASection,
                 style: TextStyle(color: scheme.onSurfaceVariant)),
             const SizedBox(height: 4),
-            Text('to see its details',
+            Text(loc.toSeeDetails,
                 style: TextStyle(
                     fontSize: 12, color: scheme.onSurfaceVariant)),
           ],
@@ -95,10 +97,10 @@ class SectionDetailPane extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 18),
-          _label(context, 'DESCRIPTION'),
+          _label(context, loc.labelDescription),
           const SizedBox(height: 6),
           Text(
-            hasDesc ? node.description! : 'No description yet.',
+            hasDesc ? node.description! : loc.noDescriptionYet,
             style: TextStyle(
               fontSize: 13,
               height: 1.4,
@@ -107,37 +109,37 @@ class SectionDetailPane extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 22),
-          _label(context, 'IN THIS BOOK STRUCTURE'),
+          _label(context, loc.inThisBookStructure),
           const SizedBox(height: 8),
           _infoRow(context, Icons.account_tree_outlined, detail.name),
           const SizedBox(height: 8),
           _infoRow(
             context,
             Icons.subdirectory_arrow_right,
-            '$subCount subsection${subCount == 1 ? '' : 's'}',
+            loc.subsectionCount(subCount),
           ),
           if (owned) ...[
             const SizedBox(height: 24),
-            _label(context, 'ACTIONS'),
+            _label(context, loc.labelActions),
             const SizedBox(height: 8),
             _ActionRow(
               icon: Icons.note_add_outlined,
-              label: 'Add document',
+              label: loc.addDocument,
               onTap: () => _addDocument(context, ref, detail.id, node),
             ),
             _ActionRow(
               icon: Icons.edit_outlined,
-              label: 'Rename / edit',
+              label: loc.renameEdit,
               onTap: () => _edit(context, ref, detail.id, node),
             ),
             _ActionRow(
               icon: Icons.add,
-              label: 'Add subsection',
+              label: loc.addSubsection,
               onTap: () => _addSub(context, ref, detail.id, node),
             ),
             _ActionRow(
               icon: Icons.delete_outline,
-              label: 'Delete section',
+              label: loc.deleteSection,
               danger: true,
               onTap: () => _delete(context, ref, detail.id, node),
             ),

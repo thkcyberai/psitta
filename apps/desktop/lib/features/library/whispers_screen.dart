@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path/path.dart' as p;
@@ -530,6 +531,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(recordingsProvider);
 
     return Container(
@@ -538,20 +540,20 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const LibraryBreadcrumb(current: 'Whispers'),
+          LibraryBreadcrumb(current: loc.whispersTitle),
           const SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.graphic_eq, size: 26, color: scheme.onSurface),
               const SizedBox(width: 10),
-              Text('Whispers',
+              Text(loc.whispersTitle,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800)),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Capture an idea by voice — listen back anytime.',
+            loc.whispersSubtitle,
             style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 18),
@@ -574,7 +576,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
                             size: 48,
                             color: scheme.onSurfaceVariant.withOpacity(0.5)),
                         const SizedBox(height: 12),
-                        Text('No whispers yet',
+                        Text(loc.noWhispersYet,
                             style: TextStyle(color: scheme.onSurfaceVariant)),
                       ],
                     ),
@@ -665,6 +667,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
   }
 
   Widget _recorderBar(ColorScheme scheme, PsittaTokens tokens) {
+    final loc = AppLocalizations.of(context);
     if (_isSaving) {
       return _bar(
         tokens,
@@ -719,13 +722,13 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
         Icon(Icons.mic_none_outlined, color: scheme.onSurfaceVariant, size: 20),
         const SizedBox(width: 10),
         Expanded(
-          child: Text('Tap record to capture a voice note.',
+          child: Text(loc.tapRecord,
               style: TextStyle(color: scheme.onSurfaceVariant)),
         ),
         FilledButton.icon(
           onPressed: _startRecording,
           icon: const Icon(Icons.mic, size: 18),
-          label: const Text('Record'),
+          label: Text(loc.btnRecord),
         ),
       ],
     );
