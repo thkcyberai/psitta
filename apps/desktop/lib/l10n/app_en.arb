@@ -713,5 +713,103 @@
       }
     }
   },
-  "analyticsThisWeek": "This week"
+  "analyticsThisWeek": "This week",
+  "setSecAccount": "Account",
+  "setSecSession": "Session",
+  "setSecUsage": "Usage",
+  "setSecAppearance": "Appearance",
+  "setSecPlayback": "Playback",
+  "setSecSwh": "Sync Word Highlight",
+  "setSecStoryCoach": "Story-Coach",
+  "setSecHelpGuide": "Help guide",
+  "setSecStorage": "Storage",
+  "setLoading": "Loading...",
+  "accountFallbackName": "User",
+  "accountFallbackEmail": "Unknown",
+  "accountLoadError": "Could not load profile",
+  "subTitle": "Subscription",
+  "subStatusUnavailable": "Plan status temporarily unavailable",
+  "subTapRetry": "Tap to retry",
+  "subUnknownDate": "unknown date",
+  "subNoActive": "No active subscription",
+  "subActive": "Active",
+  "usageUnavailable": "Usage temporarily unavailable — tap to retry",
+  "usageStandardFree": "Standard voices on Free plan",
+  "setChangePlan": "Change Plan",
+  "manageNoUrl": "Subscription portal returned no URL. Please try again.",
+  "manageBrowserMsg": "Manage your subscription in the browser. This page will refresh when you return.",
+  "manageNoSubscription": "No active subscription. Subscribe first to manage.",
+  "managePortalUnavailable": "Subscription portal temporarily unavailable. Please try again.",
+  "managePortalError": "Could not open subscription portal. Please try again.",
+  "manageTitle": "Manage Subscription",
+  "manageSubtitle": "Update payment, swap plan, or cancel — opens in your browser",
+  "staySignedIn": "Stay signed in",
+  "staySignedInSub": "Skip the login screen after signing out",
+  "setLogout": "Logout",
+  "setDefaultVoice": "Default Voice",
+  "setSelectAVoice": "Select a voice",
+  "setPlaybackSpeed": "Playback Speed",
+  "setSpeedFreeLimit": "Free plan limited to 2.0x. Upgrade for up to 4.0x.",
+  "setSwhProGate": "Available with Reading Nook Pro",
+  "setSwhReadWith": "Read with S.W.H",
+  "setSwhReadWithSub": "Highlights each word as it's spoken",
+  "setSwhReadWithout": "Read without S.W.H",
+  "setStoryCoachToggle": "AI Story-Coaching",
+  "setStoryCoachSub": "Nudge me when my writing drifts from my book's narrative",
+  "setHelpGuideToggle": "Show the Writing Nook guide",
+  "setHelpGuideSub": "A quick-help chat in the Library corner",
+  "setAutoDelete": "Auto-Delete Documents",
+  "setCacheSize": "Cache Size",
+  "setAutoDeleteNever": "Never",
+  "setTheme": "Theme",
+  "brandListen": "Listen to your documents.",
+  "brandImprove": "Improve your writing.",
+  "subAlphaTooltip": "Alpha tester access — paid plan features active until {date}",
+  "@subAlphaTooltip": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "subPlanAlphaTester": "Plan: {plan} · Alpha tester",
+  "@subPlanAlphaTester": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      }
+    }
+  },
+  "subActiveUntil": "Active until {date}",
+  "@subActiveUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "subPlanLabel": "Plan: {plan}",
+  "@subPlanLabel": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      }
+    }
+  },
+  "usageResets": "Resets {date}",
+  "@usageResets": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "setAutoDeleteAfter": "{days, plural, =1{After 1 day} other{After {days} days}}",
+  "@setAutoDeleteAfter": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  }
 }

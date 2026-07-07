@@ -1584,4 +1584,201 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get analyticsThisWeek => 'Esta semana';
+
+  @override
+  String get setSecAccount => 'Conta';
+
+  @override
+  String get setSecSession => 'Sessão';
+
+  @override
+  String get setSecUsage => 'Uso';
+
+  @override
+  String get setSecAppearance => 'Aparência';
+
+  @override
+  String get setSecPlayback => 'Reprodução';
+
+  @override
+  String get setSecSwh => 'Destaque sincronizado de palavras';
+
+  @override
+  String get setSecStoryCoach => 'Coach de Enredo';
+
+  @override
+  String get setSecHelpGuide => 'Guia de ajuda';
+
+  @override
+  String get setSecStorage => 'Armazenamento';
+
+  @override
+  String get setLoading => 'Carregando...';
+
+  @override
+  String get accountFallbackName => 'Usuário';
+
+  @override
+  String get accountFallbackEmail => 'Desconhecido';
+
+  @override
+  String get accountLoadError => 'Não foi possível carregar o perfil';
+
+  @override
+  String get subTitle => 'Assinatura';
+
+  @override
+  String get subStatusUnavailable =>
+      'Status do plano temporariamente indisponível';
+
+  @override
+  String get subTapRetry => 'Toque para tentar novamente';
+
+  @override
+  String get subUnknownDate => 'data desconhecida';
+
+  @override
+  String get subNoActive => 'Nenhuma assinatura ativa';
+
+  @override
+  String get subActive => 'Ativa';
+
+  @override
+  String get usageUnavailable =>
+      'Uso temporariamente indisponível — toque para tentar novamente';
+
+  @override
+  String get usageStandardFree => 'Vozes padrão no plano Free';
+
+  @override
+  String get setChangePlan => 'Mudar de plano';
+
+  @override
+  String get manageNoUrl =>
+      'O portal de assinatura não retornou uma URL. Tente novamente.';
+
+  @override
+  String get manageBrowserMsg =>
+      'Gerencie sua assinatura no navegador. Esta página será atualizada quando você voltar.';
+
+  @override
+  String get manageNoSubscription =>
+      'Nenhuma assinatura ativa. Assine primeiro para gerenciar.';
+
+  @override
+  String get managePortalUnavailable =>
+      'Portal de assinatura temporariamente indisponível. Tente novamente.';
+
+  @override
+  String get managePortalError =>
+      'Não foi possível abrir o portal de assinatura. Tente novamente.';
+
+  @override
+  String get manageTitle => 'Gerenciar assinatura';
+
+  @override
+  String get manageSubtitle =>
+      'Atualize o pagamento, troque de plano ou cancele — abre no navegador';
+
+  @override
+  String get staySignedIn => 'Manter conectado';
+
+  @override
+  String get staySignedInSub => 'Pule a tela de login após sair';
+
+  @override
+  String get setLogout => 'Sair';
+
+  @override
+  String get setDefaultVoice => 'Voz padrão';
+
+  @override
+  String get setSelectAVoice => 'Selecione uma voz';
+
+  @override
+  String get setPlaybackSpeed => 'Velocidade de reprodução';
+
+  @override
+  String get setSpeedFreeLimit =>
+      'Plano Free limitado a 2,0x. Faça upgrade para até 4,0x.';
+
+  @override
+  String get setSwhProGate => 'Disponível com o Reading Nook Pro';
+
+  @override
+  String get setSwhReadWith => 'Ler com S.W.H';
+
+  @override
+  String get setSwhReadWithSub => 'Destaca cada palavra à medida que é falada';
+
+  @override
+  String get setSwhReadWithout => 'Ler sem S.W.H';
+
+  @override
+  String get setStoryCoachToggle => 'Coach de Enredo com IA';
+
+  @override
+  String get setStoryCoachSub =>
+      'Me avise quando minha escrita se afastar da narrativa do meu livro';
+
+  @override
+  String get setHelpGuideToggle => 'Mostrar o guia do Writing Nook';
+
+  @override
+  String get setHelpGuideSub =>
+      'Um chat de ajuda rápida no canto da Biblioteca';
+
+  @override
+  String get setAutoDelete => 'Excluir documentos automaticamente';
+
+  @override
+  String get setCacheSize => 'Tamanho do cache';
+
+  @override
+  String get setAutoDeleteNever => 'Nunca';
+
+  @override
+  String get setTheme => 'Tema';
+
+  @override
+  String get brandListen => 'Ouça seus documentos.';
+
+  @override
+  String get brandImprove => 'Aprimore sua escrita.';
+
+  @override
+  String subAlphaTooltip(String date) {
+    return 'Acesso de testador alfa — recursos do plano pago ativos até $date';
+  }
+
+  @override
+  String subPlanAlphaTester(String plan) {
+    return 'Plano: $plan · Testador alfa';
+  }
+
+  @override
+  String subActiveUntil(String date) {
+    return 'Ativa até $date';
+  }
+
+  @override
+  String subPlanLabel(String plan) {
+    return 'Plano: $plan';
+  }
+
+  @override
+  String usageResets(String date) {
+    return 'Renova em $date';
+  }
+
+  @override
+  String setAutoDeleteAfter(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: 'Após $days dias',
+      one: 'Após 1 dia',
+    );
+    return '$_temp0';
+  }
 }

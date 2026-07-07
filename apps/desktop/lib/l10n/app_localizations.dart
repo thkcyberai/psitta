@@ -2843,6 +2843,342 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This week'**
   String get analyticsThisWeek;
+
+  /// No description provided for @setSecAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get setSecAccount;
+
+  /// No description provided for @setSecSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Session'**
+  String get setSecSession;
+
+  /// No description provided for @setSecUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage'**
+  String get setSecUsage;
+
+  /// No description provided for @setSecAppearance.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get setSecAppearance;
+
+  /// No description provided for @setSecPlayback.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback'**
+  String get setSecPlayback;
+
+  /// No description provided for @setSecSwh.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync Word Highlight'**
+  String get setSecSwh;
+
+  /// No description provided for @setSecStoryCoach.
+  ///
+  /// In en, this message translates to:
+  /// **'Story-Coach'**
+  String get setSecStoryCoach;
+
+  /// No description provided for @setSecHelpGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Help guide'**
+  String get setSecHelpGuide;
+
+  /// No description provided for @setSecStorage.
+  ///
+  /// In en, this message translates to:
+  /// **'Storage'**
+  String get setSecStorage;
+
+  /// No description provided for @setLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading...'**
+  String get setLoading;
+
+  /// No description provided for @accountFallbackName.
+  ///
+  /// In en, this message translates to:
+  /// **'User'**
+  String get accountFallbackName;
+
+  /// No description provided for @accountFallbackEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown'**
+  String get accountFallbackEmail;
+
+  /// No description provided for @accountLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load profile'**
+  String get accountLoadError;
+
+  /// No description provided for @subTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription'**
+  String get subTitle;
+
+  /// No description provided for @subStatusUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan status temporarily unavailable'**
+  String get subStatusUnavailable;
+
+  /// No description provided for @subTapRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to retry'**
+  String get subTapRetry;
+
+  /// No description provided for @subUnknownDate.
+  ///
+  /// In en, this message translates to:
+  /// **'unknown date'**
+  String get subUnknownDate;
+
+  /// No description provided for @subNoActive.
+  ///
+  /// In en, this message translates to:
+  /// **'No active subscription'**
+  String get subNoActive;
+
+  /// No description provided for @subActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get subActive;
+
+  /// No description provided for @usageUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Usage temporarily unavailable — tap to retry'**
+  String get usageUnavailable;
+
+  /// No description provided for @usageStandardFree.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard voices on Free plan'**
+  String get usageStandardFree;
+
+  /// No description provided for @setChangePlan.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Plan'**
+  String get setChangePlan;
+
+  /// No description provided for @manageNoUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription portal returned no URL. Please try again.'**
+  String get manageNoUrl;
+
+  /// No description provided for @manageBrowserMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage your subscription in the browser. This page will refresh when you return.'**
+  String get manageBrowserMsg;
+
+  /// No description provided for @manageNoSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'No active subscription. Subscribe first to manage.'**
+  String get manageNoSubscription;
+
+  /// No description provided for @managePortalUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription portal temporarily unavailable. Please try again.'**
+  String get managePortalUnavailable;
+
+  /// No description provided for @managePortalError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open subscription portal. Please try again.'**
+  String get managePortalError;
+
+  /// No description provided for @manageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage Subscription'**
+  String get manageTitle;
+
+  /// No description provided for @manageSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update payment, swap plan, or cancel — opens in your browser'**
+  String get manageSubtitle;
+
+  /// No description provided for @staySignedIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Stay signed in'**
+  String get staySignedIn;
+
+  /// No description provided for @staySignedInSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip the login screen after signing out'**
+  String get staySignedInSub;
+
+  /// No description provided for @setLogout.
+  ///
+  /// In en, this message translates to:
+  /// **'Logout'**
+  String get setLogout;
+
+  /// No description provided for @setDefaultVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Default Voice'**
+  String get setDefaultVoice;
+
+  /// No description provided for @setSelectAVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a voice'**
+  String get setSelectAVoice;
+
+  /// No description provided for @setPlaybackSpeed.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback Speed'**
+  String get setPlaybackSpeed;
+
+  /// No description provided for @setSpeedFreeLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Free plan limited to 2.0x. Upgrade for up to 4.0x.'**
+  String get setSpeedFreeLimit;
+
+  /// No description provided for @setSwhProGate.
+  ///
+  /// In en, this message translates to:
+  /// **'Available with Reading Nook Pro'**
+  String get setSwhProGate;
+
+  /// No description provided for @setSwhReadWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Read with S.W.H'**
+  String get setSwhReadWith;
+
+  /// No description provided for @setSwhReadWithSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Highlights each word as it\'s spoken'**
+  String get setSwhReadWithSub;
+
+  /// No description provided for @setSwhReadWithout.
+  ///
+  /// In en, this message translates to:
+  /// **'Read without S.W.H'**
+  String get setSwhReadWithout;
+
+  /// No description provided for @setStoryCoachToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'AI Story-Coaching'**
+  String get setStoryCoachToggle;
+
+  /// No description provided for @setStoryCoachSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Nudge me when my writing drifts from my book\'s narrative'**
+  String get setStoryCoachSub;
+
+  /// No description provided for @setHelpGuideToggle.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the Writing Nook guide'**
+  String get setHelpGuideToggle;
+
+  /// No description provided for @setHelpGuideSub.
+  ///
+  /// In en, this message translates to:
+  /// **'A quick-help chat in the Library corner'**
+  String get setHelpGuideSub;
+
+  /// No description provided for @setAutoDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto-Delete Documents'**
+  String get setAutoDelete;
+
+  /// No description provided for @setCacheSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Cache Size'**
+  String get setCacheSize;
+
+  /// No description provided for @setAutoDeleteNever.
+  ///
+  /// In en, this message translates to:
+  /// **'Never'**
+  String get setAutoDeleteNever;
+
+  /// No description provided for @setTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Theme'**
+  String get setTheme;
+
+  /// No description provided for @brandListen.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen to your documents.'**
+  String get brandListen;
+
+  /// No description provided for @brandImprove.
+  ///
+  /// In en, this message translates to:
+  /// **'Improve your writing.'**
+  String get brandImprove;
+
+  /// No description provided for @subAlphaTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Alpha tester access — paid plan features active until {date}'**
+  String subAlphaTooltip(String date);
+
+  /// No description provided for @subPlanAlphaTester.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan: {plan} · Alpha tester'**
+  String subPlanAlphaTester(String plan);
+
+  /// No description provided for @subActiveUntil.
+  ///
+  /// In en, this message translates to:
+  /// **'Active until {date}'**
+  String subActiveUntil(String date);
+
+  /// No description provided for @subPlanLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan: {plan}'**
+  String subPlanLabel(String plan);
+
+  /// No description provided for @usageResets.
+  ///
+  /// In en, this message translates to:
+  /// **'Resets {date}'**
+  String usageResets(String date);
+
+  /// No description provided for @setAutoDeleteAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'{days, plural, =1{After 1 day} other{After {days} days}}'**
+  String setAutoDeleteAfter(int days);
 }
 
 class _AppLocalizationsDelegate

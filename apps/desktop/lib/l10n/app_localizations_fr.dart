@@ -1591,4 +1591,203 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get analyticsThisWeek => 'Cette semaine';
+
+  @override
+  String get setSecAccount => 'Compte';
+
+  @override
+  String get setSecSession => 'Session';
+
+  @override
+  String get setSecUsage => 'Utilisation';
+
+  @override
+  String get setSecAppearance => 'Apparence';
+
+  @override
+  String get setSecPlayback => 'Lecture';
+
+  @override
+  String get setSecSwh => 'Surlignage synchronisé des mots';
+
+  @override
+  String get setSecStoryCoach => 'Coach d\'intrigue';
+
+  @override
+  String get setSecHelpGuide => 'Guide d\'aide';
+
+  @override
+  String get setSecStorage => 'Stockage';
+
+  @override
+  String get setLoading => 'Chargement...';
+
+  @override
+  String get accountFallbackName => 'Utilisateur';
+
+  @override
+  String get accountFallbackEmail => 'Inconnu';
+
+  @override
+  String get accountLoadError => 'Impossible de charger le profil';
+
+  @override
+  String get subTitle => 'Abonnement';
+
+  @override
+  String get subStatusUnavailable =>
+      'Statut du forfait temporairement indisponible';
+
+  @override
+  String get subTapRetry => 'Touchez pour réessayer';
+
+  @override
+  String get subUnknownDate => 'date inconnue';
+
+  @override
+  String get subNoActive => 'Aucun abonnement actif';
+
+  @override
+  String get subActive => 'Actif';
+
+  @override
+  String get usageUnavailable =>
+      'Utilisation temporairement indisponible — touchez pour réessayer';
+
+  @override
+  String get usageStandardFree => 'Voix standard sur le forfait Free';
+
+  @override
+  String get setChangePlan => 'Changer de forfait';
+
+  @override
+  String get manageNoUrl =>
+      'Le portail d\'abonnement n\'a renvoyé aucune URL. Réessayez.';
+
+  @override
+  String get manageBrowserMsg =>
+      'Gérez votre abonnement dans le navigateur. Cette page se rafraîchira à votre retour.';
+
+  @override
+  String get manageNoSubscription =>
+      'Aucun abonnement actif. Abonnez-vous d\'abord pour gérer.';
+
+  @override
+  String get managePortalUnavailable =>
+      'Portail d\'abonnement temporairement indisponible. Réessayez.';
+
+  @override
+  String get managePortalError =>
+      'Impossible d\'ouvrir le portail d\'abonnement. Réessayez.';
+
+  @override
+  String get manageTitle => 'Gérer l\'abonnement';
+
+  @override
+  String get manageSubtitle =>
+      'Modifiez le paiement, changez de forfait ou annulez — s\'ouvre dans le navigateur';
+
+  @override
+  String get staySignedIn => 'Rester connecté';
+
+  @override
+  String get staySignedInSub =>
+      'Ignorer l\'écran de connexion après la déconnexion';
+
+  @override
+  String get setLogout => 'Déconnexion';
+
+  @override
+  String get setDefaultVoice => 'Voix par défaut';
+
+  @override
+  String get setSelectAVoice => 'Sélectionnez une voix';
+
+  @override
+  String get setPlaybackSpeed => 'Vitesse de lecture';
+
+  @override
+  String get setSpeedFreeLimit =>
+      'Forfait Free limité à 2,0x. Passez à la version supérieure pour jusqu\'à 4,0x.';
+
+  @override
+  String get setSwhProGate => 'Disponible avec Reading Nook Pro';
+
+  @override
+  String get setSwhReadWith => 'Lire avec S.W.H';
+
+  @override
+  String get setSwhReadWithSub =>
+      'Surligne chaque mot à mesure qu\'il est prononcé';
+
+  @override
+  String get setSwhReadWithout => 'Lire sans S.W.H';
+
+  @override
+  String get setStoryCoachToggle => 'Coach d\'intrigue par IA';
+
+  @override
+  String get setStoryCoachSub =>
+      'Prévenez-moi quand mon écriture s\'écarte de la narration de mon livre';
+
+  @override
+  String get setHelpGuideToggle => 'Afficher le guide du Writing Nook';
+
+  @override
+  String get setHelpGuideSub =>
+      'Un chat d\'aide rapide dans le coin de la Bibliothèque';
+
+  @override
+  String get setAutoDelete => 'Supprimer les documents automatiquement';
+
+  @override
+  String get setCacheSize => 'Taille du cache';
+
+  @override
+  String get setAutoDeleteNever => 'Jamais';
+
+  @override
+  String get setTheme => 'Thème';
+
+  @override
+  String get brandListen => 'Écoutez vos documents.';
+
+  @override
+  String get brandImprove => 'Améliorez votre écriture.';
+
+  @override
+  String subAlphaTooltip(String date) {
+    return 'Accès testeur alpha — fonctionnalités du forfait payant actives jusqu\'au $date';
+  }
+
+  @override
+  String subPlanAlphaTester(String plan) {
+    return 'Forfait : $plan · Testeur alpha';
+  }
+
+  @override
+  String subActiveUntil(String date) {
+    return 'Actif jusqu\'au $date';
+  }
+
+  @override
+  String subPlanLabel(String plan) {
+    return 'Forfait : $plan';
+  }
+
+  @override
+  String usageResets(String date) {
+    return 'Réinitialisation le $date';
+  }
+
+  @override
+  String setAutoDeleteAfter(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: 'Après $days jours',
+      one: 'Après 1 jour',
+    );
+    return '$_temp0';
+  }
 }

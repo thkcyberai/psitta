@@ -1576,4 +1576,198 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get analyticsThisWeek => 'This week';
+
+  @override
+  String get setSecAccount => 'Account';
+
+  @override
+  String get setSecSession => 'Session';
+
+  @override
+  String get setSecUsage => 'Usage';
+
+  @override
+  String get setSecAppearance => 'Appearance';
+
+  @override
+  String get setSecPlayback => 'Playback';
+
+  @override
+  String get setSecSwh => 'Sync Word Highlight';
+
+  @override
+  String get setSecStoryCoach => 'Story-Coach';
+
+  @override
+  String get setSecHelpGuide => 'Help guide';
+
+  @override
+  String get setSecStorage => 'Storage';
+
+  @override
+  String get setLoading => 'Loading...';
+
+  @override
+  String get accountFallbackName => 'User';
+
+  @override
+  String get accountFallbackEmail => 'Unknown';
+
+  @override
+  String get accountLoadError => 'Could not load profile';
+
+  @override
+  String get subTitle => 'Subscription';
+
+  @override
+  String get subStatusUnavailable => 'Plan status temporarily unavailable';
+
+  @override
+  String get subTapRetry => 'Tap to retry';
+
+  @override
+  String get subUnknownDate => 'unknown date';
+
+  @override
+  String get subNoActive => 'No active subscription';
+
+  @override
+  String get subActive => 'Active';
+
+  @override
+  String get usageUnavailable => 'Usage temporarily unavailable — tap to retry';
+
+  @override
+  String get usageStandardFree => 'Standard voices on Free plan';
+
+  @override
+  String get setChangePlan => 'Change Plan';
+
+  @override
+  String get manageNoUrl =>
+      'Subscription portal returned no URL. Please try again.';
+
+  @override
+  String get manageBrowserMsg =>
+      'Manage your subscription in the browser. This page will refresh when you return.';
+
+  @override
+  String get manageNoSubscription =>
+      'No active subscription. Subscribe first to manage.';
+
+  @override
+  String get managePortalUnavailable =>
+      'Subscription portal temporarily unavailable. Please try again.';
+
+  @override
+  String get managePortalError =>
+      'Could not open subscription portal. Please try again.';
+
+  @override
+  String get manageTitle => 'Manage Subscription';
+
+  @override
+  String get manageSubtitle =>
+      'Update payment, swap plan, or cancel — opens in your browser';
+
+  @override
+  String get staySignedIn => 'Stay signed in';
+
+  @override
+  String get staySignedInSub => 'Skip the login screen after signing out';
+
+  @override
+  String get setLogout => 'Logout';
+
+  @override
+  String get setDefaultVoice => 'Default Voice';
+
+  @override
+  String get setSelectAVoice => 'Select a voice';
+
+  @override
+  String get setPlaybackSpeed => 'Playback Speed';
+
+  @override
+  String get setSpeedFreeLimit =>
+      'Free plan limited to 2.0x. Upgrade for up to 4.0x.';
+
+  @override
+  String get setSwhProGate => 'Available with Reading Nook Pro';
+
+  @override
+  String get setSwhReadWith => 'Read with S.W.H';
+
+  @override
+  String get setSwhReadWithSub => 'Highlights each word as it\'s spoken';
+
+  @override
+  String get setSwhReadWithout => 'Read without S.W.H';
+
+  @override
+  String get setStoryCoachToggle => 'AI Story-Coaching';
+
+  @override
+  String get setStoryCoachSub =>
+      'Nudge me when my writing drifts from my book\'s narrative';
+
+  @override
+  String get setHelpGuideToggle => 'Show the Writing Nook guide';
+
+  @override
+  String get setHelpGuideSub => 'A quick-help chat in the Library corner';
+
+  @override
+  String get setAutoDelete => 'Auto-Delete Documents';
+
+  @override
+  String get setCacheSize => 'Cache Size';
+
+  @override
+  String get setAutoDeleteNever => 'Never';
+
+  @override
+  String get setTheme => 'Theme';
+
+  @override
+  String get brandListen => 'Listen to your documents.';
+
+  @override
+  String get brandImprove => 'Improve your writing.';
+
+  @override
+  String subAlphaTooltip(String date) {
+    return 'Alpha tester access — paid plan features active until $date';
+  }
+
+  @override
+  String subPlanAlphaTester(String plan) {
+    return 'Plan: $plan · Alpha tester';
+  }
+
+  @override
+  String subActiveUntil(String date) {
+    return 'Active until $date';
+  }
+
+  @override
+  String subPlanLabel(String plan) {
+    return 'Plan: $plan';
+  }
+
+  @override
+  String usageResets(String date) {
+    return 'Resets $date';
+  }
+
+  @override
+  String setAutoDeleteAfter(int days) {
+    String _temp0 = intl.Intl.pluralLogic(
+      days,
+      locale: localeName,
+      other: 'After $days days',
+      one: 'After 1 day',
+    );
+    return '$_temp0';
+  }
 }
