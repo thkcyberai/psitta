@@ -1167,4 +1167,274 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get diagramLinkBuiltFrom => 'construido a partir de';
+
+  @override
+  String get planBackToSettings => 'Volver a Ajustes';
+
+  @override
+  String get planSubtitle => 'Elige cómo terminar tu libro.';
+
+  @override
+  String get planStatusError =>
+      'Estado del plan temporalmente no disponible. Tu plan actual no se puede mostrar ahora.';
+
+  @override
+  String get actionRetry => 'Reintentar';
+
+  @override
+  String get planLoading => 'Cargando tu plan…';
+
+  @override
+  String get billingMonthly => 'Mensual';
+
+  @override
+  String get billingAnnual => 'Anual';
+
+  @override
+  String get billingSave15 => 'Ahorra 15%';
+
+  @override
+  String get planCurrent => 'Plan Actual';
+
+  @override
+  String get planMostPopular => 'Más Popular';
+
+  @override
+  String get planComingSoon => 'Muy Pronto';
+
+  @override
+  String get planGetStarted => 'Empezar';
+
+  @override
+  String get planIncluded => 'Incluido';
+
+  @override
+  String get planChooseReading => 'Elegir Reading';
+
+  @override
+  String get planUpgradeFinish => 'Mejora tu plan — termina tu libro';
+
+  @override
+  String get planNotifyLaunch => 'Avísame cuando se lance';
+
+  @override
+  String get planOnWaitlist => 'En la lista de espera ✓';
+
+  @override
+  String get perMonth => '/mes';
+
+  @override
+  String get perYear => '/año';
+
+  @override
+  String get billedMonthly => 'Facturado mensualmente';
+
+  @override
+  String get launchingSoon => 'Muy pronto';
+
+  @override
+  String get planTaglineRead => 'Lee';
+
+  @override
+  String get planTaglineReadRefine => 'Lee. Refina.';
+
+  @override
+  String get planTaglineWrite => 'Escribe. Estructura. Termina.';
+
+  @override
+  String get planTaglineCreate => 'Crea. Refina. Investiga.';
+
+  @override
+  String get planNoCheckoutUrl =>
+      'El servicio de pago no devolvió una URL de pago.';
+
+  @override
+  String get planCouldNotOpenBrowser =>
+      'No se pudo abrir el navegador. Inténtalo de nuevo.';
+
+  @override
+  String get planCompletePayment =>
+      'Completa tu pago en el navegador. Esta página se actualizará automáticamente.';
+
+  @override
+  String get planNotAvailableYet =>
+      'Ese plan aún no está disponible. Inténtalo más tarde.';
+
+  @override
+  String get planAlreadySubscribed => 'Ya tienes una suscripción activa';
+
+  @override
+  String get planServiceUnavailable =>
+      'Servicio de pago temporalmente no disponible. Inténtalo de nuevo.';
+
+  @override
+  String get planConnectionError => 'Error de conexión. Revisa tu internet.';
+
+  @override
+  String get planServiceError =>
+      'Error del servicio de pago. Inténtalo de nuevo.';
+
+  @override
+  String get planCouldNotReadEmail =>
+      'No se pudo leer tu correo. Inténtalo más tarde.';
+
+  @override
+  String get planWaitlistJoined =>
+      'Estás en la lista de espera. Te enviaremos un correo cuando se lance Creative Nook.';
+
+  @override
+  String get planCouldNotSaveSpot =>
+      'No se pudo reservar tu lugar. Inténtalo de nuevo.';
+
+  @override
+  String get planPaymentProcessing =>
+      'Procesando el pago. Tu plan se actualizará en breve.';
+
+  @override
+  String get planActiveWelcome => 'Tu plan está activo. ¡Bienvenido!';
+
+  @override
+  String get featListen => 'Escucha tus documentos';
+
+  @override
+  String get featBasicVoices => 'Voces básicas';
+
+  @override
+  String get feat10Docs => '10 documentos al mes';
+
+  @override
+  String get featPremiumVoices => 'Voces premium';
+
+  @override
+  String get featWordByWord => 'Resaltado palabra por palabra';
+
+  @override
+  String get featDeskBlueprints => 'Escritorio y Blueprints';
+
+  @override
+  String get featStoryCoachTools => 'Coach de Trama y herramientas de IA';
+
+  @override
+  String get featHdrListening => 'Escucha y revisión';
+
+  @override
+  String get featPremiumNatural => 'Voces naturales premium';
+
+  @override
+  String get featWordSentence => 'Resaltado de palabras y frases';
+
+  @override
+  String get featPlayback4x => 'Velocidad de reproducción hasta 4×';
+
+  @override
+  String get featHdrDocuments => 'Documentos';
+
+  @override
+  String get featBrandedDocx => 'Edita y descarga DOCX con tu marca';
+
+  @override
+  String get feat50Docs => '50 documentos al mes';
+
+  @override
+  String get featArchive => 'Archiva documentos';
+
+  @override
+  String get feat150k => '150 mil caracteres de voz premium / mes';
+
+  @override
+  String get featPriority => 'Soporte prioritario';
+
+  @override
+  String get featWritingPlatform =>
+      'Plataforma de escritura y herramientas de IA';
+
+  @override
+  String get featHdrEverythingReading => 'Todo lo del Reading Nook, y más';
+
+  @override
+  String get featHdrWorkspace => 'Espacio de escritura';
+
+  @override
+  String get featFullDesk => 'Escritorio completo';
+
+  @override
+  String get featUnlimitedProjects => 'Proyectos ilimitados';
+
+  @override
+  String get featHdrBookDev => 'Desarrollo del libro';
+
+  @override
+  String get featBlueprints25 =>
+      'Blueprints y más de 25 Estructuras narrativas';
+
+  @override
+  String get featSceneProgress => 'Mapa de Escenas y Seguimiento del Progreso';
+
+  @override
+  String get featHdrAiIntel => 'Inteligencia de escritura con IA';
+
+  @override
+  String get featStoryCoachDrift => 'Coach de Trama — avisos de desvío en vivo';
+
+  @override
+  String get feat1MTokens => '1 millón de tokens de IA / mes';
+
+  @override
+  String get feat250k => '250 mil caracteres de voz premium / mes';
+
+  @override
+  String get featWritingAnalytics => 'Analíticas de escritura';
+
+  @override
+  String get featHdrEverythingWriting =>
+      'Todo lo del Writing Nook, más un Estudio Creativo';
+
+  @override
+  String get featInspoBoards =>
+      'Tableros de Inspiración, Personaje e Investigación';
+
+  @override
+  String get featStoryWorldMood => 'Tableros de Historia, Mundo y Ambiente';
+
+  @override
+  String get featAiBrainstorm =>
+      'Lluvia de ideas con IA y expansión de la historia';
+
+  @override
+  String get featCloneVoice => 'Clona tu propia voz';
+
+  @override
+  String get featCreativeAssets => 'Gestión de recursos creativos';
+
+  @override
+  String get feat400k => '400 mil caracteres de voz premium / mes';
+
+  @override
+  String get feat2MTokens => '2 millones de tokens de IA / mes';
+
+  @override
+  String billedAnnuallyAt(String amount) {
+    return '$amount facturado anualmente';
+  }
+
+  @override
+  String get voicesSubtitle =>
+      'Elige la voz predeterminada para la narración. Las voces premium se desbloquean con Pro.';
+
+  @override
+  String get voicesLoadError => 'No se pudieron cargar las voces.';
+
+  @override
+  String get voicesNone => 'No hay voces disponibles';
+
+  @override
+  String get genderFemale => 'Femenino';
+
+  @override
+  String get genderMale => 'Masculino';
+
+  @override
+  String voicesDefaultSet(String name) {
+    return 'Voz predeterminada establecida en $name';
+  }
 }

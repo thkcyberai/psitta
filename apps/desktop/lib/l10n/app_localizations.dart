@@ -2129,6 +2129,504 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'built from'**
   String get diagramLinkBuiltFrom;
+
+  /// No description provided for @planBackToSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to Settings'**
+  String get planBackToSettings;
+
+  /// No description provided for @planSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how you finish your book.'**
+  String get planSubtitle;
+
+  /// No description provided for @planStatusError.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan status temporarily unavailable. Your current plan cannot be shown right now.'**
+  String get planStatusError;
+
+  /// No description provided for @actionRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get actionRetry;
+
+  /// No description provided for @planLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading your plan…'**
+  String get planLoading;
+
+  /// No description provided for @billingMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly'**
+  String get billingMonthly;
+
+  /// No description provided for @billingAnnual.
+  ///
+  /// In en, this message translates to:
+  /// **'Annual'**
+  String get billingAnnual;
+
+  /// No description provided for @billingSave15.
+  ///
+  /// In en, this message translates to:
+  /// **'Save 15%'**
+  String get billingSave15;
+
+  /// No description provided for @planCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Plan'**
+  String get planCurrent;
+
+  /// No description provided for @planMostPopular.
+  ///
+  /// In en, this message translates to:
+  /// **'Most Popular'**
+  String get planMostPopular;
+
+  /// No description provided for @planComingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Coming Soon'**
+  String get planComingSoon;
+
+  /// No description provided for @planGetStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Get Started'**
+  String get planGetStarted;
+
+  /// No description provided for @planIncluded.
+  ///
+  /// In en, this message translates to:
+  /// **'Included'**
+  String get planIncluded;
+
+  /// No description provided for @planChooseReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose Reading'**
+  String get planChooseReading;
+
+  /// No description provided for @planUpgradeFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade — finish your book'**
+  String get planUpgradeFinish;
+
+  /// No description provided for @planNotifyLaunch.
+  ///
+  /// In en, this message translates to:
+  /// **'Notify me when it launches'**
+  String get planNotifyLaunch;
+
+  /// No description provided for @planOnWaitlist.
+  ///
+  /// In en, this message translates to:
+  /// **'On the waitlist ✓'**
+  String get planOnWaitlist;
+
+  /// No description provided for @perMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'/mo'**
+  String get perMonth;
+
+  /// No description provided for @perYear.
+  ///
+  /// In en, this message translates to:
+  /// **'/yr'**
+  String get perYear;
+
+  /// No description provided for @billedMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Billed monthly'**
+  String get billedMonthly;
+
+  /// No description provided for @launchingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Launching soon'**
+  String get launchingSoon;
+
+  /// No description provided for @planTaglineRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read'**
+  String get planTaglineRead;
+
+  /// No description provided for @planTaglineReadRefine.
+  ///
+  /// In en, this message translates to:
+  /// **'Read. Refine.'**
+  String get planTaglineReadRefine;
+
+  /// No description provided for @planTaglineWrite.
+  ///
+  /// In en, this message translates to:
+  /// **'Write. Structure. Finish.'**
+  String get planTaglineWrite;
+
+  /// No description provided for @planTaglineCreate.
+  ///
+  /// In en, this message translates to:
+  /// **'Create. Refine. Research.'**
+  String get planTaglineCreate;
+
+  /// No description provided for @planNoCheckoutUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment service returned no checkout URL.'**
+  String get planNoCheckoutUrl;
+
+  /// No description provided for @planCouldNotOpenBrowser.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open browser. Please try again.'**
+  String get planCouldNotOpenBrowser;
+
+  /// No description provided for @planCompletePayment.
+  ///
+  /// In en, this message translates to:
+  /// **'Complete your payment in the browser. This page will update automatically.'**
+  String get planCompletePayment;
+
+  /// No description provided for @planNotAvailableYet.
+  ///
+  /// In en, this message translates to:
+  /// **'That plan is not available yet. Please try again later.'**
+  String get planNotAvailableYet;
+
+  /// No description provided for @planAlreadySubscribed.
+  ///
+  /// In en, this message translates to:
+  /// **'You already have an active subscription'**
+  String get planAlreadySubscribed;
+
+  /// No description provided for @planServiceUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment service temporarily unavailable. Please try again.'**
+  String get planServiceUnavailable;
+
+  /// No description provided for @planConnectionError.
+  ///
+  /// In en, this message translates to:
+  /// **'Connection error. Please check your internet.'**
+  String get planConnectionError;
+
+  /// No description provided for @planServiceError.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment service error. Please try again.'**
+  String get planServiceError;
+
+  /// No description provided for @planCouldNotReadEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not read your email. Please try again later.'**
+  String get planCouldNotReadEmail;
+
+  /// No description provided for @planWaitlistJoined.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re on the waitlist. We\'ll email you when Creative Nook launches.'**
+  String get planWaitlistJoined;
+
+  /// No description provided for @planCouldNotSaveSpot.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save your spot. Please try again.'**
+  String get planCouldNotSaveSpot;
+
+  /// No description provided for @planPaymentProcessing.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment processing. Your plan will update shortly.'**
+  String get planPaymentProcessing;
+
+  /// No description provided for @planActiveWelcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Your plan is active. Welcome!'**
+  String get planActiveWelcome;
+
+  /// No description provided for @featListen.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen to your documents'**
+  String get featListen;
+
+  /// No description provided for @featBasicVoices.
+  ///
+  /// In en, this message translates to:
+  /// **'Basic voices'**
+  String get featBasicVoices;
+
+  /// No description provided for @feat10Docs.
+  ///
+  /// In en, this message translates to:
+  /// **'10 documents per month'**
+  String get feat10Docs;
+
+  /// No description provided for @featPremiumVoices.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium voices'**
+  String get featPremiumVoices;
+
+  /// No description provided for @featWordByWord.
+  ///
+  /// In en, this message translates to:
+  /// **'Word-by-word highlighting'**
+  String get featWordByWord;
+
+  /// No description provided for @featDeskBlueprints.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing Desk & Blueprints'**
+  String get featDeskBlueprints;
+
+  /// No description provided for @featStoryCoachTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Story-Coach & AI tools'**
+  String get featStoryCoachTools;
+
+  /// No description provided for @featHdrListening.
+  ///
+  /// In en, this message translates to:
+  /// **'Listening & revision'**
+  String get featHdrListening;
+
+  /// No description provided for @featPremiumNatural.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium natural voices'**
+  String get featPremiumNatural;
+
+  /// No description provided for @featWordSentence.
+  ///
+  /// In en, this message translates to:
+  /// **'Word & sentence highlighting'**
+  String get featWordSentence;
+
+  /// No description provided for @featPlayback4x.
+  ///
+  /// In en, this message translates to:
+  /// **'Playback speed up to 4×'**
+  String get featPlayback4x;
+
+  /// No description provided for @featHdrDocuments.
+  ///
+  /// In en, this message translates to:
+  /// **'Documents'**
+  String get featHdrDocuments;
+
+  /// No description provided for @featBrandedDocx.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit & download branded DOCX'**
+  String get featBrandedDocx;
+
+  /// No description provided for @feat50Docs.
+  ///
+  /// In en, this message translates to:
+  /// **'50 documents per month'**
+  String get feat50Docs;
+
+  /// No description provided for @featArchive.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive documents'**
+  String get featArchive;
+
+  /// No description provided for @feat150k.
+  ///
+  /// In en, this message translates to:
+  /// **'150k premium-voice characters / month'**
+  String get feat150k;
+
+  /// No description provided for @featPriority.
+  ///
+  /// In en, this message translates to:
+  /// **'Priority support'**
+  String get featPriority;
+
+  /// No description provided for @featWritingPlatform.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing platform & AI tools'**
+  String get featWritingPlatform;
+
+  /// No description provided for @featHdrEverythingReading.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything in Reading Nook, plus'**
+  String get featHdrEverythingReading;
+
+  /// No description provided for @featHdrWorkspace.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing workspace'**
+  String get featHdrWorkspace;
+
+  /// No description provided for @featFullDesk.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Writing Desk'**
+  String get featFullDesk;
+
+  /// No description provided for @featUnlimitedProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlimited projects'**
+  String get featUnlimitedProjects;
+
+  /// No description provided for @featHdrBookDev.
+  ///
+  /// In en, this message translates to:
+  /// **'Book development'**
+  String get featHdrBookDev;
+
+  /// No description provided for @featBlueprints25.
+  ///
+  /// In en, this message translates to:
+  /// **'Blueprints & 25+ Narrative Structures'**
+  String get featBlueprints25;
+
+  /// No description provided for @featSceneProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Scene Mapping & Progress Tracking'**
+  String get featSceneProgress;
+
+  /// No description provided for @featHdrAiIntel.
+  ///
+  /// In en, this message translates to:
+  /// **'AI writing intelligence'**
+  String get featHdrAiIntel;
+
+  /// No description provided for @featStoryCoachDrift.
+  ///
+  /// In en, this message translates to:
+  /// **'Story-Coach — live drift nudges'**
+  String get featStoryCoachDrift;
+
+  /// No description provided for @feat1MTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'1M AI tokens / month'**
+  String get feat1MTokens;
+
+  /// No description provided for @feat250k.
+  ///
+  /// In en, this message translates to:
+  /// **'250k premium-voice characters / month'**
+  String get feat250k;
+
+  /// No description provided for @featWritingAnalytics.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing analytics'**
+  String get featWritingAnalytics;
+
+  /// No description provided for @featHdrEverythingWriting.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything in Writing Nook, plus a Creative Studio'**
+  String get featHdrEverythingWriting;
+
+  /// No description provided for @featInspoBoards.
+  ///
+  /// In en, this message translates to:
+  /// **'Inspiration, Character & Research boards'**
+  String get featInspoBoards;
+
+  /// No description provided for @featStoryWorldMood.
+  ///
+  /// In en, this message translates to:
+  /// **'Story, World & Mood boards'**
+  String get featStoryWorldMood;
+
+  /// No description provided for @featAiBrainstorm.
+  ///
+  /// In en, this message translates to:
+  /// **'AI brainstorming & story expansion'**
+  String get featAiBrainstorm;
+
+  /// No description provided for @featCloneVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Clone your own voice'**
+  String get featCloneVoice;
+
+  /// No description provided for @featCreativeAssets.
+  ///
+  /// In en, this message translates to:
+  /// **'Creative asset management'**
+  String get featCreativeAssets;
+
+  /// No description provided for @feat400k.
+  ///
+  /// In en, this message translates to:
+  /// **'400k premium-voice characters / month'**
+  String get feat400k;
+
+  /// No description provided for @feat2MTokens.
+  ///
+  /// In en, this message translates to:
+  /// **'2M AI tokens / month'**
+  String get feat2MTokens;
+
+  /// No description provided for @billedAnnuallyAt.
+  ///
+  /// In en, this message translates to:
+  /// **'{amount} billed annually'**
+  String billedAnnuallyAt(String amount);
+
+  /// No description provided for @voicesSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose the default voice for narration. Premium voices unlock with Pro.'**
+  String get voicesSubtitle;
+
+  /// No description provided for @voicesLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load voices.'**
+  String get voicesLoadError;
+
+  /// No description provided for @voicesNone.
+  ///
+  /// In en, this message translates to:
+  /// **'No voices available'**
+  String get voicesNone;
+
+  /// No description provided for @genderFemale.
+  ///
+  /// In en, this message translates to:
+  /// **'Female'**
+  String get genderFemale;
+
+  /// No description provided for @genderMale.
+  ///
+  /// In en, this message translates to:
+  /// **'Male'**
+  String get genderMale;
+
+  /// No description provided for @voicesDefaultSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Default voice set to {name}'**
+  String voicesDefaultSet(String name);
 }
 
 class _AppLocalizationsDelegate

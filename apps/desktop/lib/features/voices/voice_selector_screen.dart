@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/plan_gate.dart';
+import '../../core/i18n/working_language.dart';
+import '../../l10n/app_localizations.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/preferences_service.dart';
@@ -17,9 +19,16 @@ class VoiceSelectorScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final voicesAsync = ref.watch(voicesProvider);
     final selectedId = ref.watch(selectedVoiceIdProvider);
     final isPro = ref.watch(isProUserProvider);
+    // Voices are language-locked: only the current working language's voices
+    // are offered, so a writer can never pick (or narrate with) a voice from
+    // another language. Exact BCP-47 match keeps pt-BR and pt-PT separate.
+    final workingLang =
+        WorkingLanguage.fromLocale(ref.watch(selectedLocaleProvider)) ??
+            WorkingLanguage.englishUS;
 
     return Container(
       color: tokens.surface,
@@ -32,14 +41,14 @@ class VoiceSelectorScreen extends ConsumerWidget {
               Icon(Icons.record_voice_over_outlined,
                   size: 26, color: scheme.onSurface),
               const SizedBox(width: 10),
-              Text('Voices',
+              Text(loc.navVoices,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800)),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Choose the default voice for narration. Premium voices unlock with Pro.',
+            loc.voicesSubtitle,
             style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 18),
@@ -47,13 +56,16 @@ class VoiceSelectorScreen extends ConsumerWidget {
             child: voicesAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Couldn’t load voices.',
+                child: Text(loc.voicesLoadError,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
               ),
-              data: (voices) {
+              data: (allVoices) {
+                final voices = allVoices
+                    .where((v) => v.language == workingLang.bcp47)
+                    .toList();
                 if (voices.isEmpty) {
                   return Center(
-                    child: Text('No voices available',
+                    child: Text(loc.voicesNone,
                         style: TextStyle(color: scheme.onSurfaceVariant)),
                   );
                 }
@@ -81,7 +93,7 @@ class VoiceSelectorScreen extends ConsumerWidget {
                         if (isLocked) {
                           showUpgradeSnackbar(
                             context,
-                            featureName: 'Premium voices',
+                            featureName: loc.featPremiumVoices,
                           );
                           return;
                         }
@@ -91,8 +103,7 @@ class VoiceSelectorScreen extends ConsumerWidget {
                         ScaffoldMessenger.of(context)
                           ..hideCurrentSnackBar()
                           ..showSnackBar(SnackBar(
-                            content:
-                                Text('Default voice set to ${v.displayName}'),
+                            content: Text(loc.voicesDefaultSet(v.displayName)),
                           ));
                       },
                     );
@@ -129,12 +140,24 @@ class _VoiceCard extends StatelessWidget {
   String _cap(String s) =>
       s.isEmpty ? s : '${s[0].toUpperCase()}${s.substring(1).toLowerCase()}';
 
+  String _genderLabel(AppLocalizations loc) {
+    switch (gender.toLowerCase()) {
+      case 'female':
+        return loc.genderFemale;
+      case 'male':
+        return loc.genderMale;
+      default:
+        return _cap(gender);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final sub = [
       language,
-      if (gender.isNotEmpty) _cap(gender),
+      if (gender.isNotEmpty) _genderLabel(loc),
     ].where((s) => s.isNotEmpty).join(' · ');
 
     final card = AnimatedContainer(
