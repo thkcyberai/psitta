@@ -1770,4 +1770,133 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get helpTitle => 'Help & Guides';
+
+  @override
+  String get helpSubtitle =>
+      'Learn the Writing Nook with short videos and step-by-step guides.';
+
+  @override
+  String get helpSecGettingStarted => 'Getting Started';
+
+  @override
+  String get helpGuideFirstBook => 'Your first book in 5 minutes';
+
+  @override
+  String get helpGuideFirstBookBody =>
+      'Create or upload a file, choose a Book Structure, place your files into sections, and listen as you write.';
+
+  @override
+  String get helpWatchGettingStarted => 'Watch: Getting Started';
+
+  @override
+  String get helpSecFourSystems => 'The Four Systems';
+
+  @override
+  String get helpGuideLibraryBody =>
+      'Every file you create or upload lives here. Visualize, take Notes and Whispers, and export.';
+
+  @override
+  String get helpGuideBlueprintsBody =>
+      'Your book\'s structure. Start from a Template, make it your own under My Books, and arrange the sections.';
+
+  @override
+  String get helpGuideProjectsBody =>
+      'A project is one book. It adopts a Book Structure and gathers the files that belong to it.';
+
+  @override
+  String get helpGuideDeskBody =>
+      'Where you write, edit, and listen, with your book\'s sections always one click away on the left.';
+
+  @override
+  String get helpWatchFourSystems => 'Watch: The Four Systems';
+
+  @override
+  String get helpSecFaq => 'Frequently Asked';
+
+  @override
+  String get helpFaqQ1 => 'How do I add a file to a section?';
+
+  @override
+  String get helpFaqA1 =>
+      'Open the file in the Writing Desk, click “Add to a Blueprint,” then choose a section, or drag the file onto a section in the Book pane.';
+
+  @override
+  String get helpFaqQ2 => 'Template vs. My Book — what is the difference?';
+
+  @override
+  String get helpFaqA2 =>
+      'Templates are built-in starting points. When you “Use this Book Structure,” you create your own titled copy under My Books.';
+
+  @override
+  String get helpFaqQ3 => 'Why is word-by-word highlighting off?';
+
+  @override
+  String get helpFaqA3 =>
+      'Sync Word Highlight is a Pro feature. Turn it on in Settings → Sync Word Highlight.';
+
+  @override
+  String get helpFaqQ4 => 'How do premium voices count against my plan?';
+
+  @override
+  String get helpFaqA4 =>
+      'Premium (ElevenLabs) voices use characters from your monthly allowance, shown in Settings → Usage. Standard voices are unlimited.';
+
+  @override
+  String get helpSecMore => 'More help';
+
+  @override
+  String get helpContactSupport => 'Contact support';
+
+  @override
+  String get helpViewShortcuts => 'View all shortcuts (Ctrl + /)';
+
+  @override
+  String get helpVideoComingSoon => 'Video coming soon';
+
+  @override
+  String get keyboardShortcuts => 'Keyboard shortcuts';
+
+  @override
+  String get scSecPlayback => 'PLAYBACK';
+
+  @override
+  String get scSecNavigation => 'NAVIGATION';
+
+  @override
+  String get scSecPlayer => 'PLAYER';
+
+  @override
+  String get scPlayPause => 'Play / Pause';
+
+  @override
+  String get scSkipForward => 'Skip Forward';
+
+  @override
+  String get scSkipBackward => 'Skip Backward';
+
+  @override
+  String get scToggleSidebar => 'Toggle Sidebar';
+
+  @override
+  String get scUploadDocument => 'Upload Document';
+
+  @override
+  String get scSearchLibrary => 'Search Library';
+
+  @override
+  String get scThisHelpPanel => 'This Help Panel';
+
+  @override
+  String get scListenFromHere => 'Listen from here (SWH mode)';
+
+  @override
+  String get scRightClick => 'Right-click';
+
+  @override
+  String helpVideoMinutes(int minutes) {
+    return '$minutes min · opens in your browser';
+  }
 }

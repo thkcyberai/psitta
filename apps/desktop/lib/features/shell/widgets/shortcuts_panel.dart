@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
+
 /// Modal dialog showing all keyboard shortcuts.
 class ShortcutsPanel extends StatelessWidget {
   const ShortcutsPanel({super.key});
@@ -7,6 +9,7 @@ class ShortcutsPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final mutedColor = isDark
         ? theme.colorScheme.onSurface.withOpacity(0.5)
@@ -31,7 +34,7 @@ class ShortcutsPanel extends StatelessWidget {
                       color: theme.colorScheme.primary),
                   const SizedBox(width: 10),
                   Text(
-                    'Keyboard Shortcuts',
+                    loc.keyboardShortcuts,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -41,35 +44,35 @@ class ShortcutsPanel extends StatelessWidget {
               const SizedBox(height: 20),
 
               // PLAYBACK
-              _SectionHeader(label: 'PLAYBACK', color: mutedColor),
+              _SectionHeader(label: loc.scSecPlayback, color: mutedColor),
               const SizedBox(height: 8),
-              _ShortcutRow(keys: const ['Space'], label: 'Play / Pause',
+              _ShortcutRow(keys: const ['Space'], label: loc.scPlayPause,
                   keyBg: keyBg, theme: theme),
-              _ShortcutRow(keys: const ['Ctrl', '\u2192'], label: 'Skip Forward',
+              _ShortcutRow(keys: const ['Ctrl', '\u2192'], label: loc.scSkipForward,
                   keyBg: keyBg, theme: theme),
-              _ShortcutRow(keys: const ['Ctrl', '\u2190'], label: 'Skip Backward',
+              _ShortcutRow(keys: const ['Ctrl', '\u2190'], label: loc.scSkipBackward,
                   keyBg: keyBg, theme: theme),
 
               const SizedBox(height: 16),
 
               // NAVIGATION
-              _SectionHeader(label: 'NAVIGATION', color: mutedColor),
+              _SectionHeader(label: loc.scSecNavigation, color: mutedColor),
               const SizedBox(height: 8),
-              _ShortcutRow(keys: const ['Ctrl', '\\'], label: 'Toggle Sidebar',
+              _ShortcutRow(keys: const ['Ctrl', '\\'], label: loc.scToggleSidebar,
                   keyBg: keyBg, theme: theme),
-              _ShortcutRow(keys: const ['Ctrl', 'O'], label: 'Upload Document',
+              _ShortcutRow(keys: const ['Ctrl', 'O'], label: loc.scUploadDocument,
                   keyBg: keyBg, theme: theme),
-              _ShortcutRow(keys: const ['Ctrl', 'F'], label: 'Search Library',
+              _ShortcutRow(keys: const ['Ctrl', 'F'], label: loc.scSearchLibrary,
                   keyBg: keyBg, theme: theme),
-              _ShortcutRow(keys: const ['Ctrl', '/'], label: 'This Help Panel',
+              _ShortcutRow(keys: const ['Ctrl', '/'], label: loc.scThisHelpPanel,
                   keyBg: keyBg, theme: theme),
 
               const SizedBox(height: 16),
 
               // PLAYER
-              _SectionHeader(label: 'PLAYER', color: mutedColor),
+              _SectionHeader(label: loc.scSecPlayer, color: mutedColor),
               const SizedBox(height: 8),
-              _ShortcutRow(keys: const ['Right-click'], label: 'Listen from here (SWH mode)',
+              _ShortcutRow(keys: [loc.scRightClick], label: loc.scListenFromHere,
                   keyBg: keyBg, theme: theme),
 
               const SizedBox(height: 24),
@@ -77,7 +80,7 @@ class ShortcutsPanel extends StatelessWidget {
                 alignment: Alignment.centerRight,
                 child: TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Close'),
+                  child: Text(loc.actionClose),
                 ),
               ),
             ],

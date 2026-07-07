@@ -1790,4 +1790,134 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get helpTitle => 'Aide et guides';
+
+  @override
+  String get helpSubtitle =>
+      'Découvrez le Writing Nook avec de courtes vidéos et des guides pas à pas.';
+
+  @override
+  String get helpSecGettingStarted => 'Premiers pas';
+
+  @override
+  String get helpGuideFirstBook => 'Votre premier livre en 5 minutes';
+
+  @override
+  String get helpGuideFirstBookBody =>
+      'Créez ou importez un fichier, choisissez une Structure de livre, placez vos fichiers dans des sections et écoutez en écrivant.';
+
+  @override
+  String get helpWatchGettingStarted => 'Regarder : Premiers pas';
+
+  @override
+  String get helpSecFourSystems => 'Les quatre systèmes';
+
+  @override
+  String get helpGuideLibraryBody =>
+      'Chaque fichier que vous créez ou importez se trouve ici. Visualisez, prenez des Notes et des Chuchotements, et exportez.';
+
+  @override
+  String get helpGuideBlueprintsBody =>
+      'La structure de votre livre. Partez d\'un Modèle, personnalisez-le dans Mes Livres et organisez les sections.';
+
+  @override
+  String get helpGuideProjectsBody =>
+      'Un projet est un livre. Il adopte une Structure de livre et rassemble les fichiers qui lui appartiennent.';
+
+  @override
+  String get helpGuideDeskBody =>
+      'Là où vous écrivez, modifiez et écoutez, avec les sections de votre livre toujours à un clic sur la gauche.';
+
+  @override
+  String get helpWatchFourSystems => 'Regarder : Les quatre systèmes';
+
+  @override
+  String get helpSecFaq => 'Questions fréquentes';
+
+  @override
+  String get helpFaqQ1 => 'Comment ajouter un fichier à une section ?';
+
+  @override
+  String get helpFaqA1 =>
+      'Ouvrez le fichier au Bureau d\'écriture, cliquez sur « Ajouter à un Blueprint », choisissez une section, ou glissez le fichier sur une section dans le volet Livre.';
+
+  @override
+  String get helpFaqQ2 => 'Modèle vs Mon Livre — quelle est la différence ?';
+
+  @override
+  String get helpFaqA2 =>
+      'Les Modèles sont des points de départ intégrés. Quand vous « Utilisez cette Structure de livre », vous créez votre propre copie titrée dans Mes Livres.';
+
+  @override
+  String get helpFaqQ3 => 'Pourquoi le surlignage mot à mot est-il désactivé ?';
+
+  @override
+  String get helpFaqA3 =>
+      'Le Surlignage synchronisé des mots est une fonctionnalité Pro. Activez-le dans Réglages → Surlignage synchronisé des mots.';
+
+  @override
+  String get helpFaqQ4 =>
+      'Comment les voix premium sont-elles décomptées de mon forfait ?';
+
+  @override
+  String get helpFaqA4 =>
+      'Les voix premium (ElevenLabs) consomment des caractères de votre quota mensuel, affiché dans Réglages → Utilisation. Les voix standard sont illimitées.';
+
+  @override
+  String get helpSecMore => 'Plus d\'aide';
+
+  @override
+  String get helpContactSupport => 'Contacter le support';
+
+  @override
+  String get helpViewShortcuts => 'Voir tous les raccourcis (Ctrl + /)';
+
+  @override
+  String get helpVideoComingSoon => 'Vidéo bientôt disponible';
+
+  @override
+  String get keyboardShortcuts => 'Raccourcis clavier';
+
+  @override
+  String get scSecPlayback => 'LECTURE';
+
+  @override
+  String get scSecNavigation => 'NAVIGATION';
+
+  @override
+  String get scSecPlayer => 'LECTEUR';
+
+  @override
+  String get scPlayPause => 'Lire / Pause';
+
+  @override
+  String get scSkipForward => 'Avancer';
+
+  @override
+  String get scSkipBackward => 'Reculer';
+
+  @override
+  String get scToggleSidebar => 'Basculer la barre latérale';
+
+  @override
+  String get scUploadDocument => 'Importer un document';
+
+  @override
+  String get scSearchLibrary => 'Rechercher dans la Bibliothèque';
+
+  @override
+  String get scThisHelpPanel => 'Ce panneau d\'aide';
+
+  @override
+  String get scListenFromHere => 'Écouter à partir d\'ici (mode SWH)';
+
+  @override
+  String get scRightClick => 'Clic droit';
+
+  @override
+  String helpVideoMinutes(int minutes) {
+    return '$minutes min · s\'ouvre dans le navigateur';
+  }
 }

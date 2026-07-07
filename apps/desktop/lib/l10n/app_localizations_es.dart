@@ -1781,4 +1781,134 @@ class AppLocalizationsEs extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get helpTitle => 'Ayuda y Guías';
+
+  @override
+  String get helpSubtitle =>
+      'Aprende el Writing Nook con videos cortos y guías paso a paso.';
+
+  @override
+  String get helpSecGettingStarted => 'Primeros pasos';
+
+  @override
+  String get helpGuideFirstBook => 'Tu primer libro en 5 minutos';
+
+  @override
+  String get helpGuideFirstBookBody =>
+      'Crea o sube un archivo, elige una Estructura de libro, coloca tus archivos en secciones y escucha mientras escribes.';
+
+  @override
+  String get helpWatchGettingStarted => 'Ver: Primeros pasos';
+
+  @override
+  String get helpSecFourSystems => 'Los Cuatro Sistemas';
+
+  @override
+  String get helpGuideLibraryBody =>
+      'Cada archivo que creas o subes vive aquí. Visualiza, toma Notas y Susurros, y exporta.';
+
+  @override
+  String get helpGuideBlueprintsBody =>
+      'La estructura de tu libro. Empieza desde una Plantilla, hazla tuya en Mis Libros y organiza las secciones.';
+
+  @override
+  String get helpGuideProjectsBody =>
+      'Un proyecto es un libro. Adopta una Estructura de libro y reúne los archivos que le pertenecen.';
+
+  @override
+  String get helpGuideDeskBody =>
+      'Donde escribes, editas y escuchas, con las secciones de tu libro siempre a un clic a la izquierda.';
+
+  @override
+  String get helpWatchFourSystems => 'Ver: Los Cuatro Sistemas';
+
+  @override
+  String get helpSecFaq => 'Preguntas frecuentes';
+
+  @override
+  String get helpFaqQ1 => '¿Cómo agrego un archivo a una sección?';
+
+  @override
+  String get helpFaqA1 =>
+      'Abre el archivo en el Escritorio, haz clic en “Agregar a un Blueprint”, elige una sección o arrastra el archivo a una sección en el panel del Libro.';
+
+  @override
+  String get helpFaqQ2 => 'Plantilla vs. Mi Libro — ¿cuál es la diferencia?';
+
+  @override
+  String get helpFaqA2 =>
+      'Las Plantillas son puntos de partida integrados. Cuando “Usas esta Estructura de libro”, creas tu propia copia con título en Mis Libros.';
+
+  @override
+  String get helpFaqQ3 =>
+      '¿Por qué está desactivado el resaltado palabra por palabra?';
+
+  @override
+  String get helpFaqA3 =>
+      'El Resaltado de palabras sincronizado es una función Pro. Actívalo en Ajustes → Resaltado de palabras sincronizado.';
+
+  @override
+  String get helpFaqQ4 => '¿Cómo cuentan las voces premium en mi plan?';
+
+  @override
+  String get helpFaqA4 =>
+      'Las voces premium (ElevenLabs) usan caracteres de tu cuota mensual, que se muestra en Ajustes → Uso. Las voces estándar son ilimitadas.';
+
+  @override
+  String get helpSecMore => 'Más ayuda';
+
+  @override
+  String get helpContactSupport => 'Contactar con soporte';
+
+  @override
+  String get helpViewShortcuts => 'Ver todos los atajos (Ctrl + /)';
+
+  @override
+  String get helpVideoComingSoon => 'Video muy pronto';
+
+  @override
+  String get keyboardShortcuts => 'Atajos de teclado';
+
+  @override
+  String get scSecPlayback => 'REPRODUCCIÓN';
+
+  @override
+  String get scSecNavigation => 'NAVEGACIÓN';
+
+  @override
+  String get scSecPlayer => 'REPRODUCTOR';
+
+  @override
+  String get scPlayPause => 'Reproducir / Pausar';
+
+  @override
+  String get scSkipForward => 'Avanzar';
+
+  @override
+  String get scSkipBackward => 'Retroceder';
+
+  @override
+  String get scToggleSidebar => 'Alternar barra lateral';
+
+  @override
+  String get scUploadDocument => 'Subir documento';
+
+  @override
+  String get scSearchLibrary => 'Buscar en la Biblioteca';
+
+  @override
+  String get scThisHelpPanel => 'Este panel de ayuda';
+
+  @override
+  String get scListenFromHere => 'Escuchar desde aquí (modo SWH)';
+
+  @override
+  String get scRightClick => 'Clic derecho';
+
+  @override
+  String helpVideoMinutes(int minutes) {
+    return '$minutes min · se abre en el navegador';
+  }
 }

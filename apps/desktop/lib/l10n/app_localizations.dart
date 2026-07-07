@@ -3179,6 +3179,240 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{days, plural, =1{After 1 day} other{After {days} days}}'**
   String setAutoDeleteAfter(int days);
+
+  /// No description provided for @helpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Help & Guides'**
+  String get helpTitle;
+
+  /// No description provided for @helpSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Learn the Writing Nook with short videos and step-by-step guides.'**
+  String get helpSubtitle;
+
+  /// No description provided for @helpSecGettingStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Getting Started'**
+  String get helpSecGettingStarted;
+
+  /// No description provided for @helpGuideFirstBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Your first book in 5 minutes'**
+  String get helpGuideFirstBook;
+
+  /// No description provided for @helpGuideFirstBookBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Create or upload a file, choose a Book Structure, place your files into sections, and listen as you write.'**
+  String get helpGuideFirstBookBody;
+
+  /// No description provided for @helpWatchGettingStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch: Getting Started'**
+  String get helpWatchGettingStarted;
+
+  /// No description provided for @helpSecFourSystems.
+  ///
+  /// In en, this message translates to:
+  /// **'The Four Systems'**
+  String get helpSecFourSystems;
+
+  /// No description provided for @helpGuideLibraryBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Every file you create or upload lives here. Visualize, take Notes and Whispers, and export.'**
+  String get helpGuideLibraryBody;
+
+  /// No description provided for @helpGuideBlueprintsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Your book\'s structure. Start from a Template, make it your own under My Books, and arrange the sections.'**
+  String get helpGuideBlueprintsBody;
+
+  /// No description provided for @helpGuideProjectsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'A project is one book. It adopts a Book Structure and gathers the files that belong to it.'**
+  String get helpGuideProjectsBody;
+
+  /// No description provided for @helpGuideDeskBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Where you write, edit, and listen, with your book\'s sections always one click away on the left.'**
+  String get helpGuideDeskBody;
+
+  /// No description provided for @helpWatchFourSystems.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch: The Four Systems'**
+  String get helpWatchFourSystems;
+
+  /// No description provided for @helpSecFaq.
+  ///
+  /// In en, this message translates to:
+  /// **'Frequently Asked'**
+  String get helpSecFaq;
+
+  /// No description provided for @helpFaqQ1.
+  ///
+  /// In en, this message translates to:
+  /// **'How do I add a file to a section?'**
+  String get helpFaqQ1;
+
+  /// No description provided for @helpFaqA1.
+  ///
+  /// In en, this message translates to:
+  /// **'Open the file in the Writing Desk, click “Add to a Blueprint,” then choose a section, or drag the file onto a section in the Book pane.'**
+  String get helpFaqA1;
+
+  /// No description provided for @helpFaqQ2.
+  ///
+  /// In en, this message translates to:
+  /// **'Template vs. My Book — what is the difference?'**
+  String get helpFaqQ2;
+
+  /// No description provided for @helpFaqA2.
+  ///
+  /// In en, this message translates to:
+  /// **'Templates are built-in starting points. When you “Use this Book Structure,” you create your own titled copy under My Books.'**
+  String get helpFaqA2;
+
+  /// No description provided for @helpFaqQ3.
+  ///
+  /// In en, this message translates to:
+  /// **'Why is word-by-word highlighting off?'**
+  String get helpFaqQ3;
+
+  /// No description provided for @helpFaqA3.
+  ///
+  /// In en, this message translates to:
+  /// **'Sync Word Highlight is a Pro feature. Turn it on in Settings → Sync Word Highlight.'**
+  String get helpFaqA3;
+
+  /// No description provided for @helpFaqQ4.
+  ///
+  /// In en, this message translates to:
+  /// **'How do premium voices count against my plan?'**
+  String get helpFaqQ4;
+
+  /// No description provided for @helpFaqA4.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium (ElevenLabs) voices use characters from your monthly allowance, shown in Settings → Usage. Standard voices are unlimited.'**
+  String get helpFaqA4;
+
+  /// No description provided for @helpSecMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More help'**
+  String get helpSecMore;
+
+  /// No description provided for @helpContactSupport.
+  ///
+  /// In en, this message translates to:
+  /// **'Contact support'**
+  String get helpContactSupport;
+
+  /// No description provided for @helpViewShortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'View all shortcuts (Ctrl + /)'**
+  String get helpViewShortcuts;
+
+  /// No description provided for @helpVideoComingSoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Video coming soon'**
+  String get helpVideoComingSoon;
+
+  /// No description provided for @keyboardShortcuts.
+  ///
+  /// In en, this message translates to:
+  /// **'Keyboard shortcuts'**
+  String get keyboardShortcuts;
+
+  /// No description provided for @scSecPlayback.
+  ///
+  /// In en, this message translates to:
+  /// **'PLAYBACK'**
+  String get scSecPlayback;
+
+  /// No description provided for @scSecNavigation.
+  ///
+  /// In en, this message translates to:
+  /// **'NAVIGATION'**
+  String get scSecNavigation;
+
+  /// No description provided for @scSecPlayer.
+  ///
+  /// In en, this message translates to:
+  /// **'PLAYER'**
+  String get scSecPlayer;
+
+  /// No description provided for @scPlayPause.
+  ///
+  /// In en, this message translates to:
+  /// **'Play / Pause'**
+  String get scPlayPause;
+
+  /// No description provided for @scSkipForward.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Forward'**
+  String get scSkipForward;
+
+  /// No description provided for @scSkipBackward.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip Backward'**
+  String get scSkipBackward;
+
+  /// No description provided for @scToggleSidebar.
+  ///
+  /// In en, this message translates to:
+  /// **'Toggle Sidebar'**
+  String get scToggleSidebar;
+
+  /// No description provided for @scUploadDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload Document'**
+  String get scUploadDocument;
+
+  /// No description provided for @scSearchLibrary.
+  ///
+  /// In en, this message translates to:
+  /// **'Search Library'**
+  String get scSearchLibrary;
+
+  /// No description provided for @scThisHelpPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'This Help Panel'**
+  String get scThisHelpPanel;
+
+  /// No description provided for @scListenFromHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen from here (SWH mode)'**
+  String get scListenFromHere;
+
+  /// No description provided for @scRightClick.
+  ///
+  /// In en, this message translates to:
+  /// **'Right-click'**
+  String get scRightClick;
+
+  /// No description provided for @helpVideoMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{minutes} min · opens in your browser'**
+  String helpVideoMinutes(int minutes);
 }
 
 class _AppLocalizationsDelegate

@@ -811,5 +811,51 @@
         "type": "int"
       }
     }
+  },
+  "helpTitle": "Help & Guides",
+  "helpSubtitle": "Learn the Writing Nook with short videos and step-by-step guides.",
+  "helpSecGettingStarted": "Getting Started",
+  "helpGuideFirstBook": "Your first book in 5 minutes",
+  "helpGuideFirstBookBody": "Create or upload a file, choose a Book Structure, place your files into sections, and listen as you write.",
+  "helpWatchGettingStarted": "Watch: Getting Started",
+  "helpSecFourSystems": "The Four Systems",
+  "helpGuideLibraryBody": "Every file you create or upload lives here. Visualize, take Notes and Whispers, and export.",
+  "helpGuideBlueprintsBody": "Your book's structure. Start from a Template, make it your own under My Books, and arrange the sections.",
+  "helpGuideProjectsBody": "A project is one book. It adopts a Book Structure and gathers the files that belong to it.",
+  "helpGuideDeskBody": "Where you write, edit, and listen, with your book's sections always one click away on the left.",
+  "helpWatchFourSystems": "Watch: The Four Systems",
+  "helpSecFaq": "Frequently Asked",
+  "helpFaqQ1": "How do I add a file to a section?",
+  "helpFaqA1": "Open the file in the Writing Desk, click “Add to a Blueprint,” then choose a section, or drag the file onto a section in the Book pane.",
+  "helpFaqQ2": "Template vs. My Book — what is the difference?",
+  "helpFaqA2": "Templates are built-in starting points. When you “Use this Book Structure,” you create your own titled copy under My Books.",
+  "helpFaqQ3": "Why is word-by-word highlighting off?",
+  "helpFaqA3": "Sync Word Highlight is a Pro feature. Turn it on in Settings → Sync Word Highlight.",
+  "helpFaqQ4": "How do premium voices count against my plan?",
+  "helpFaqA4": "Premium (ElevenLabs) voices use characters from your monthly allowance, shown in Settings → Usage. Standard voices are unlimited.",
+  "helpSecMore": "More help",
+  "helpContactSupport": "Contact support",
+  "helpViewShortcuts": "View all shortcuts (Ctrl + /)",
+  "helpVideoComingSoon": "Video coming soon",
+  "keyboardShortcuts": "Keyboard shortcuts",
+  "scSecPlayback": "PLAYBACK",
+  "scSecNavigation": "NAVIGATION",
+  "scSecPlayer": "PLAYER",
+  "scPlayPause": "Play / Pause",
+  "scSkipForward": "Skip Forward",
+  "scSkipBackward": "Skip Backward",
+  "scToggleSidebar": "Toggle Sidebar",
+  "scUploadDocument": "Upload Document",
+  "scSearchLibrary": "Search Library",
+  "scThisHelpPanel": "This Help Panel",
+  "scListenFromHere": "Listen from here (SWH mode)",
+  "scRightClick": "Right-click",
+  "helpVideoMinutes": "{minutes} min · opens in your browser",
+  "@helpVideoMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
   }
 }
