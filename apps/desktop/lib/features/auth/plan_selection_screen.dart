@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Plan selection screen — accessible from the sidebar "Plans" entry and
 /// Settings > Change Plan.
@@ -80,7 +81,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
       final data = response.data as Map<String, dynamic>;
       final checkoutUrl = data['checkout_url'] as String?;
       if (checkoutUrl == null) {
-        _showSnack('Payment service returned no checkout URL.');
+        _showSnack(AppLocalizations.of(context).planNoCheckoutUrl);
         return;
       }
       final launched = await launchUrl(
@@ -88,19 +89,18 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         mode: LaunchMode.externalApplication,
       );
       if (!launched) {
-        _showSnack('Could not open browser. Please try again.');
+        _showSnack(AppLocalizations.of(context).planCouldNotOpenBrowser);
         return;
       }
       _showSnack(
-        'Complete your payment in the browser. This page will update '
-        'automatically.',
+        AppLocalizations.of(context).planCompletePayment,
         durationSeconds: 6,
       );
       _beginStatusPolling();
     } on DioException catch (e) {
       _handleCheckoutError(e);
     } catch (e) {
-      _showSnack('Connection error. Please check your internet.');
+      _showSnack(AppLocalizations.of(context).planConnectionError);
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
@@ -110,19 +110,18 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
     final status = e.response?.statusCode;
     switch (status) {
       case 400:
-        _showSnack('That plan is not available yet. Please try again later.');
+        _showSnack(AppLocalizations.of(context).planNotAvailableYet);
       case 409:
-        _showSnack('You already have an active subscription');
+        _showSnack(AppLocalizations.of(context).planAlreadySubscribed);
       case 502:
-        _showSnack(
-            'Payment service temporarily unavailable. Please try again.');
+        _showSnack(AppLocalizations.of(context).planServiceUnavailable);
       default:
         if (e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout) {
-          _showSnack('Connection error. Please check your internet.');
+          _showSnack(AppLocalizations.of(context).planConnectionError);
         } else {
-          _showSnack('Payment service error. Please try again.');
+          _showSnack(AppLocalizations.of(context).planServiceError);
         }
     }
   }
@@ -145,7 +144,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         }
       }
       if (email == null || email.isEmpty) {
-        _showSnack('Could not read your email. Please try again later.');
+        _showSnack(AppLocalizations.of(context).planCouldNotReadEmail);
         return;
       }
       final api = ref.read(apiClientProvider);
@@ -156,23 +155,22 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
       if (response.statusCode == 200) {
         setState(() => _isOnWaitlist = true);
         _showSnack(
-          "You're on the waitlist. We'll email you when Creative Nook "
-          'launches.',
+          AppLocalizations.of(context).planWaitlistJoined,
           durationSeconds: 5,
         );
       } else {
-        _showSnack('Could not save your spot. Please try again.');
+        _showSnack(AppLocalizations.of(context).planCouldNotSaveSpot);
       }
     } on DioException catch (e) {
       if (e.type == DioExceptionType.connectionError ||
           e.type == DioExceptionType.connectionTimeout ||
           e.type == DioExceptionType.receiveTimeout) {
-        _showSnack('Connection error. Please check your internet.');
+        _showSnack(AppLocalizations.of(context).planConnectionError);
       } else {
-        _showSnack('Could not save your spot. Please try again.');
+        _showSnack(AppLocalizations.of(context).planCouldNotSaveSpot);
       }
     } catch (_) {
-      _showSnack('Could not save your spot. Please try again.');
+      _showSnack(AppLocalizations.of(context).planCouldNotSaveSpot);
     } finally {
       if (mounted) setState(() => _isWaitlistSubmitting = false);
     }
@@ -199,7 +197,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
             status == 'active') {
           timer.cancel();
           ref.invalidate(billingStatusProvider);
-          _showSnack('Your plan is active. Welcome!');
+          _showSnack(AppLocalizations.of(context).planActiveWelcome);
           return;
         }
       } catch (_) {
@@ -208,7 +206,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
       if (_pollAttempts >= _maxPollAttempts) {
         timer.cancel();
         _showSnack(
-          'Payment processing. Your plan will update shortly.',
+          AppLocalizations.of(context).planPaymentProcessing,
           durationSeconds: 6,
         );
         ref.invalidate(billingStatusProvider);
@@ -230,6 +228,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final loc = AppLocalizations.of(context);
     final statusAsync = ref.watch(billingStatusProvider);
 
     final statusHasError = statusAsync.hasError;
@@ -255,12 +254,12 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.arrow_back),
-                    tooltip: 'Back to Settings',
+                    tooltip: loc.planBackToSettings,
                     onPressed: () => context.go('/settings'),
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Plans',
+                    loc.navPlans,
                     style: theme.textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -269,7 +268,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Choose how you finish your book.',
+                loc.planSubtitle,
                 style: theme.textTheme.bodyLarge?.copyWith(
                   color: cs.onSurfaceVariant,
                 ),
@@ -291,8 +290,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                       const SizedBox(width: 12),
                       Flexible(
                         child: Text(
-                          'Plan status temporarily unavailable. '
-                          'Your current plan cannot be shown right now.',
+                          loc.planStatusError,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: cs.onErrorContainer,
                           ),
@@ -305,7 +303,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                         ),
                         onPressed: () =>
                             ref.invalidate(billingStatusProvider),
-                        child: const Text('Retry'),
+                        child: Text(loc.actionRetry),
                       ),
                     ],
                   ),
@@ -325,7 +323,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      'Loading your plan…',
+                      loc.planLoading,
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color: cs.onSurfaceVariant,
                       ),
@@ -366,23 +364,24 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
   // ── Cards ──────────────────────────────────────────────────────────────────
 
   Widget _freeCard(int currentRank) {
+    final loc = AppLocalizations.of(context);
     final isCurrent = currentRank == 0;
     return _PlanCard(
       tierName: 'Free',
-      title: 'Read',
+      title: loc.planTaglineRead,
       price: '\$0',
       priceSubtitle: '',
-      features: const [
-        _PlanFeature('Listen to your documents'),
-        _PlanFeature('Basic voices'),
-        _PlanFeature('10 documents per month'),
-        _PlanFeature('Premium voices', included: false),
-        _PlanFeature('Word-by-word highlighting', included: false),
-        _PlanFeature('Writing Desk & Blueprints', included: false),
-        _PlanFeature('Story-Coach & AI tools', included: false),
+      features: [
+        _PlanFeature(loc.featListen),
+        _PlanFeature(loc.featBasicVoices),
+        _PlanFeature(loc.feat10Docs),
+        _PlanFeature(loc.featPremiumVoices, included: false),
+        _PlanFeature(loc.featWordByWord, included: false),
+        _PlanFeature(loc.featDeskBlueprints, included: false),
+        _PlanFeature(loc.featStoryCoachTools, included: false),
       ],
       isCurrent: isCurrent,
-      buttonLabel: isCurrent ? 'Current Plan' : 'Get Started',
+      buttonLabel: isCurrent ? loc.planCurrent : loc.planGetStarted,
       isPrimary: false,
       isLoading: false,
       onPressed: null,
@@ -394,32 +393,34 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
     final isCurrent = currentRank == rank;
     final included = currentRank > rank; // already get it via a higher plan
     final canUpgrade = currentRank >= 0 && currentRank < rank;
+    final loc = AppLocalizations.of(context);
     return _PlanCard(
       tierName: 'Reading Nook',
-      title: 'Read. Refine.',
-      price: _isAnnual ? '\$152/yr' : '\$14.99/mo',
-      priceSubtitle:
-          _isAnnual ? '\$12.67/mo billed annually' : 'Billed monthly',
-      savingsLabel: _isAnnual ? 'Save 15%' : null,
-      features: const [
-        _PlanFeature.header('Listening & revision'),
-        _PlanFeature('Premium natural voices'),
-        _PlanFeature('Word & sentence highlighting'),
-        _PlanFeature('Playback speed up to 4×'),
-        _PlanFeature.header('Documents'),
-        _PlanFeature('Edit & download branded DOCX'),
-        _PlanFeature('50 documents per month'),
-        _PlanFeature('Archive documents'),
-        _PlanFeature('150k premium-voice characters / month'),
-        _PlanFeature('Priority support'),
-        _PlanFeature('Writing platform & AI tools', included: false),
+      title: loc.planTaglineReadRefine,
+      price: _isAnnual ? '\$152${loc.perYear}' : '\$14.99${loc.perMonth}',
+      priceSubtitle: _isAnnual
+          ? loc.billedAnnuallyAt('\$12.67${loc.perMonth}')
+          : loc.billedMonthly,
+      savingsLabel: _isAnnual ? loc.billingSave15 : null,
+      features: [
+        _PlanFeature.header(loc.featHdrListening),
+        _PlanFeature(loc.featPremiumNatural),
+        _PlanFeature(loc.featWordSentence),
+        _PlanFeature(loc.featPlayback4x),
+        _PlanFeature.header(loc.featHdrDocuments),
+        _PlanFeature(loc.featBrandedDocx),
+        _PlanFeature(loc.feat50Docs),
+        _PlanFeature(loc.featArchive),
+        _PlanFeature(loc.feat150k),
+        _PlanFeature(loc.featPriority),
+        _PlanFeature(loc.featWritingPlatform, included: false),
       ],
       isCurrent: isCurrent,
       buttonLabel: isCurrent
-          ? 'Current Plan'
+          ? loc.planCurrent
           : included
-              ? 'Included'
-              : 'Choose Reading',
+              ? loc.planIncluded
+              : loc.planChooseReading,
       isPrimary: false,
       isLoading: _isSubmitting && _checkoutBase == 'reading_nook_pro',
       onPressed: (canUpgrade && !_isSubmitting)
@@ -433,35 +434,37 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
     final isCurrent = currentRank == rank;
     final included = currentRank > rank;
     final canUpgrade = currentRank >= 0 && currentRank < rank;
+    final loc = AppLocalizations.of(context);
     return _PlanCard(
       tierName: 'Writing Nook',
-      title: 'Write. Structure. Finish.',
-      price: _isAnnual ? '\$183/yr' : '\$17.99/mo',
-      priceSubtitle:
-          _isAnnual ? '\$15.25/mo billed annually' : 'Billed monthly',
-      savingsLabel: _isAnnual ? 'Save 15%' : null,
+      title: loc.planTaglineWrite,
+      price: _isAnnual ? '\$183${loc.perYear}' : '\$17.99${loc.perMonth}',
+      priceSubtitle: _isAnnual
+          ? loc.billedAnnuallyAt('\$15.25${loc.perMonth}')
+          : loc.billedMonthly,
+      savingsLabel: _isAnnual ? loc.billingSave15 : null,
       popular: true,
-      features: const [
-        _PlanFeature.header('Everything in Reading Nook, plus'),
-        _PlanFeature.header('Writing workspace'),
-        _PlanFeature('Full Writing Desk'),
-        _PlanFeature('Unlimited projects'),
-        _PlanFeature.header('Book development'),
-        _PlanFeature('Blueprints & 25+ Narrative Structures'),
-        _PlanFeature('Scene Mapping & Progress Tracking'),
-        _PlanFeature.header('AI writing intelligence'),
-        _PlanFeature('Story-Coach — live drift nudges'),
-        _PlanFeature('Structure Analyzer'),
-        _PlanFeature('1M AI tokens / month'),
-        _PlanFeature('250k premium-voice characters / month'),
-        _PlanFeature('Writing analytics'),
+      features: [
+        _PlanFeature.header(loc.featHdrEverythingReading),
+        _PlanFeature.header(loc.featHdrWorkspace),
+        _PlanFeature(loc.featFullDesk),
+        _PlanFeature(loc.featUnlimitedProjects),
+        _PlanFeature.header(loc.featHdrBookDev),
+        _PlanFeature(loc.featBlueprints25),
+        _PlanFeature(loc.featSceneProgress),
+        _PlanFeature.header(loc.featHdrAiIntel),
+        _PlanFeature(loc.featStoryCoachDrift),
+        _PlanFeature(loc.featureStructureAnalyzer),
+        _PlanFeature(loc.feat1MTokens),
+        _PlanFeature(loc.feat250k),
+        _PlanFeature(loc.featWritingAnalytics),
       ],
       isCurrent: isCurrent,
       buttonLabel: isCurrent
-          ? 'Current Plan'
+          ? loc.planCurrent
           : included
-              ? 'Included'
-              : 'Upgrade — finish your book',
+              ? loc.planIncluded
+              : loc.planUpgradeFinish,
       isPrimary: true,
       isLoading: _isSubmitting && _checkoutBase == 'writing_nook_pro',
       onPressed: (canUpgrade && !_isSubmitting)
@@ -471,26 +474,28 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
   }
 
   Widget _creativeCard() {
+    final loc = AppLocalizations.of(context);
     return _PlanCard(
       tierName: 'Creative Nook',
-      title: 'Create. Refine. Research.',
-      price: _isAnnual ? '\$305/yr' : '\$29.99/mo',
-      priceSubtitle: _isAnnual ? '\$25.42/mo billed annually' : 'Launching soon',
+      title: loc.planTaglineCreate,
+      price: _isAnnual ? '\$305${loc.perYear}' : '\$29.99${loc.perMonth}',
+      priceSubtitle: _isAnnual
+          ? loc.billedAnnuallyAt('\$25.42${loc.perMonth}')
+          : loc.launchingSoon,
       comingSoon: true,
-      features: const [
-        _PlanFeature.header('Everything in Writing Nook, plus a Creative Studio'),
-        _PlanFeature('Inspiration, Character & Research boards',
-            comingSoon: true),
-        _PlanFeature('Story, World & Mood boards', comingSoon: true),
-        _PlanFeature('AI brainstorming & story expansion', comingSoon: true),
-        _PlanFeature('Clone your own voice', comingSoon: true),
-        _PlanFeature('Creative asset management', comingSoon: true),
-        _PlanFeature('400k premium-voice characters / month', comingSoon: true),
-        _PlanFeature('2M AI tokens / month', comingSoon: true),
+      features: [
+        _PlanFeature.header(loc.featHdrEverythingWriting),
+        _PlanFeature(loc.featInspoBoards, comingSoon: true),
+        _PlanFeature(loc.featStoryWorldMood, comingSoon: true),
+        _PlanFeature(loc.featAiBrainstorm, comingSoon: true),
+        _PlanFeature(loc.featCloneVoice, comingSoon: true),
+        _PlanFeature(loc.featCreativeAssets, comingSoon: true),
+        _PlanFeature(loc.feat400k, comingSoon: true),
+        _PlanFeature(loc.feat2MTokens, comingSoon: true),
       ],
       isCurrent: false,
       buttonLabel:
-          _isOnWaitlist ? 'On the waitlist ✓' : 'Notify me when it launches',
+          _isOnWaitlist ? loc.planOnWaitlist : loc.planNotifyLaunch,
       isPrimary: false,
       isLoading: _isWaitlistSubmitting,
       onPressed: (_isOnWaitlist || _isWaitlistSubmitting) ? null : _joinWaitlist,
@@ -511,6 +516,7 @@ class _BillingPeriodToggle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return Container(
       padding: const EdgeInsets.all(4),
@@ -522,13 +528,13 @@ class _BillingPeriodToggle extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _ToggleOption(
-            label: 'Monthly',
+            label: loc.billingMonthly,
             selected: !isAnnual,
             onTap: onChanged == null ? null : () => onChanged!(false),
           ),
           _ToggleOption(
-            label: 'Annual',
-            trailingBadge: 'Save 15%',
+            label: loc.billingAnnual,
+            trailingBadge: loc.billingSave15,
             selected: isAnnual,
             onTap: onChanged == null ? null : () => onChanged!(true),
           ),
@@ -639,6 +645,7 @@ class _PlanCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final loc = AppLocalizations.of(context);
     final highlight = isCurrent || popular;
 
     return Card(
@@ -669,7 +676,7 @@ class _PlanCard extends StatelessWidget {
                 ),
                 if (popular && !isCurrent)
                   _Pill(
-                    label: 'Most Popular',
+                    label: loc.planMostPopular,
                     background: cs.primary,
                     foreground: cs.onPrimary,
                   ),
@@ -689,13 +696,13 @@ class _PlanCard extends StatelessWidget {
                 ),
                 if (isCurrent)
                   _Pill(
-                    label: 'Current Plan',
+                    label: loc.planCurrent,
                     background: cs.primary,
                     foreground: cs.onPrimary,
                   )
                 else if (comingSoon)
                   _Pill(
-                    label: 'Coming Soon',
+                    label: loc.planComingSoon,
                     background: cs.surfaceContainerHighest,
                     foreground: cs.onSurfaceVariant,
                   ),

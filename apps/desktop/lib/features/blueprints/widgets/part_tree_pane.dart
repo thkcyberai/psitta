@@ -160,10 +160,11 @@ class PartTreePane extends ConsumerWidget {
     WidgetRef ref,
     BlueprintDetail detail,
   ) async {
+    final loc = AppLocalizations.of(context);
     final result = await showBlueprintFormDialog(
       context,
-      title: 'Name your Book Structure',
-      submitLabel: 'Create',
+      title: loc.nameYourBookStructure,
+      submitLabel: loc.btnCreate,
       initialName: detail.name,
       initialGenre: detail.genre,
     );
@@ -197,10 +198,11 @@ class PartTreePane extends ConsumerWidget {
     WidgetRef ref,
     BlueprintDetail detail,
   ) async {
+    final loc = AppLocalizations.of(context);
     final result = await showBlueprintFormDialog(
       context,
-      title: 'Edit Book Structure',
-      submitLabel: 'Save',
+      title: loc.editBookStructure,
+      submitLabel: loc.btnSave,
       initialName: detail.name,
       initialGenre: detail.genre,
       initialStatus: detail.status,
@@ -223,10 +225,11 @@ class PartTreePane extends ConsumerWidget {
     WidgetRef ref,
     BlueprintDetail detail,
   ) async {
+    final loc = AppLocalizations.of(context);
     final result = await showSectionFormDialog(
       context,
-      title: 'Add Section',
-      submitLabel: 'Add',
+      title: loc.addSection,
+      submitLabel: loc.btnAdd,
     );
     if (result == null) return;
     if (!context.mounted) return;
@@ -372,10 +375,11 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
   }
 
   Future<void> _addSubsection() async {
+    final loc = AppLocalizations.of(context);
     final result = await showSectionFormDialog(
       context,
-      title: 'Add Subsection',
-      submitLabel: 'Add',
+      title: loc.addSubsectionTitle,
+      submitLabel: loc.btnAdd,
     );
     if (result == null || !mounted) return;
     await runBlueprintMutation(
@@ -390,10 +394,11 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
   }
 
   Future<void> _editSection() async {
+    final loc = AppLocalizations.of(context);
     final result = await showSectionFormDialog(
       context,
-      title: 'Edit Section',
-      submitLabel: 'Save',
+      title: loc.editSection,
+      submitLabel: loc.btnSave,
       initialName: _node.name,
       initialDescription: _node.description,
     );
