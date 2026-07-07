@@ -2627,6 +2627,222 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Default voice set to {name}'**
   String voicesDefaultSet(String name);
+
+  /// No description provided for @analyticsSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Writer Growth Dashboard.'**
+  String get analyticsSubtitle;
+
+  /// No description provided for @analyticsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load analytics.'**
+  String get analyticsLoadError;
+
+  /// No description provided for @analyticsGlance.
+  ///
+  /// In en, this message translates to:
+  /// **'Your writing at a glance'**
+  String get analyticsGlance;
+
+  /// No description provided for @statLifetimeWords.
+  ///
+  /// In en, this message translates to:
+  /// **'Lifetime words'**
+  String get statLifetimeWords;
+
+  /// No description provided for @statNewThisMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'New this month'**
+  String get statNewThisMonth;
+
+  /// No description provided for @statWritingOnPsitta.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing on Psitta'**
+  String get statWritingOnPsitta;
+
+  /// No description provided for @analyticsProjectsInMotion.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects in motion'**
+  String get analyticsProjectsInMotion;
+
+  /// No description provided for @analyticsNoProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a project to start tracking your book progress.'**
+  String get analyticsNoProjects;
+
+  /// No description provided for @agoJustNow.
+  ///
+  /// In en, this message translates to:
+  /// **'just now'**
+  String get agoJustNow;
+
+  /// No description provided for @analyticsActivityStreaks.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing activity & streaks'**
+  String get analyticsActivityStreaks;
+
+  /// No description provided for @analyticsStreaksEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Your first saved writing will start your streak. Streaks, sessions, and word trends build automatically as you write in the Desk.'**
+  String get analyticsStreaksEmpty;
+
+  /// No description provided for @analyticsWeeklyTrend.
+  ///
+  /// In en, this message translates to:
+  /// **'Weekly words trend'**
+  String get analyticsWeeklyTrend;
+
+  /// No description provided for @analyticsWritingActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing activity'**
+  String get analyticsWritingActivity;
+
+  /// No description provided for @statDayStreak.
+  ///
+  /// In en, this message translates to:
+  /// **'Day streak'**
+  String get statDayStreak;
+
+  /// No description provided for @statLongestStreak.
+  ///
+  /// In en, this message translates to:
+  /// **'Longest streak'**
+  String get statLongestStreak;
+
+  /// No description provided for @statSessionsThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'Sessions this week'**
+  String get statSessionsThisWeek;
+
+  /// No description provided for @statAvgSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Avg session'**
+  String get statAvgSession;
+
+  /// No description provided for @statMostProductive.
+  ///
+  /// In en, this message translates to:
+  /// **'Most productive'**
+  String get statMostProductive;
+
+  /// No description provided for @statTypedVsPaste.
+  ///
+  /// In en, this message translates to:
+  /// **'Typed (vs paste)'**
+  String get statTypedVsPaste;
+
+  /// No description provided for @statKeystrokes.
+  ///
+  /// In en, this message translates to:
+  /// **'Keystrokes'**
+  String get statKeystrokes;
+
+  /// No description provided for @statCharsPasted.
+  ///
+  /// In en, this message translates to:
+  /// **'Chars pasted'**
+  String get statCharsPasted;
+
+  /// No description provided for @analyticsWritingDays.
+  ///
+  /// In en, this message translates to:
+  /// **'Writing days'**
+  String get analyticsWritingDays;
+
+  /// No description provided for @analyticsWordsWritten.
+  ///
+  /// In en, this message translates to:
+  /// **'Words written'**
+  String get analyticsWordsWritten;
+
+  /// No description provided for @statToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get statToday;
+
+  /// No description provided for @statThisMonth.
+  ///
+  /// In en, this message translates to:
+  /// **'This month'**
+  String get statThisMonth;
+
+  /// No description provided for @statTrackedTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Tracked total'**
+  String get statTrackedTotal;
+
+  /// No description provided for @analyticsTrendEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Your weekly word trend appears here once you have written across a few days. Keep saving in the Desk and the line will grow.'**
+  String get analyticsTrendEmpty;
+
+  /// No description provided for @analyticsSince.
+  ///
+  /// In en, this message translates to:
+  /// **'Since {year}'**
+  String analyticsSince(int year);
+
+  /// No description provided for @agoDays.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}d ago'**
+  String agoDays(int count);
+
+  /// No description provided for @agoHours.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}h ago'**
+  String agoHours(int count);
+
+  /// No description provided for @agoMinutes.
+  ///
+  /// In en, this message translates to:
+  /// **'{count}m ago'**
+  String agoMinutes(int count);
+
+  /// No description provided for @wordsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{{words} word} other{{words} words}}'**
+  String wordsCount(int count, String words);
+
+  /// No description provided for @filesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 file} other{{count} files}}'**
+  String filesCount(int count);
+
+  /// No description provided for @weeksAgo.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 week ago} other{{count} weeks ago}}'**
+  String weeksAgo(int count);
+
+  /// No description provided for @chartWordsThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'{words} words this week'**
+  String chartWordsThisWeek(String words);
+
+  /// No description provided for @analyticsThisWeek.
+  ///
+  /// In en, this message translates to:
+  /// **'This week'**
+  String get analyticsThisWeek;
 }
 
 class _AppLocalizationsDelegate

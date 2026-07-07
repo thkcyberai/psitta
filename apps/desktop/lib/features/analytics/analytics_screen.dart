@@ -6,6 +6,7 @@ import 'writing_session_tracking.dart';
 
 import '../../data/providers/blueprint_providers.dart';
 import '../../data/providers/providers.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Analytics — the Writer Growth Dashboard (Phase 1 MVP).
 ///
@@ -19,6 +20,7 @@ class AnalyticsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     final projectsAsync = ref.watch(projectsProvider);
     final docsAsync = ref.watch(documentsProvider);
 
@@ -27,11 +29,11 @@ class AnalyticsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Analytics',
+          Text(loc.navAnalytics,
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text('Your Writer Growth Dashboard.',
+          Text(loc.analyticsSubtitle,
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 20),
@@ -39,12 +41,12 @@ class AnalyticsScreen extends ConsumerWidget {
             child: projectsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) =>
-                  Center(child: Text('Could not load analytics: $e')),
+                  Center(child: Text(loc.analyticsLoadError)),
               data: (projects) => docsAsync.when(
                 loading: () =>
                     const Center(child: CircularProgressIndicator()),
                 error: (e, _) =>
-                    Center(child: Text('Could not load analytics: $e')),
+                    Center(child: Text(loc.analyticsLoadError)),
                 data: (docs) {
                   final lifetimeWords =
                       docs.fold<int>(0, (s, d) => s + (d.wordCount ?? 0));
@@ -145,6 +147,7 @@ class _Dashboard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 900),
@@ -152,33 +155,33 @@ class _Dashboard extends StatelessWidget {
           children: [
             _Card(
               icon: Icons.auto_graph_outlined,
-              title: 'Your writing at a glance',
+              title: loc.analyticsGlance,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                 child: Wrap(
                   spacing: 30,
                   runSpacing: 16,
                   children: [
-                    _Stat(value: fmt(lifetimeWords), label: 'Lifetime words'),
-                    _Stat(value: '$totalDocs', label: 'Documents'),
-                    _Stat(value: '$projectCount', label: 'Projects'),
-                    _Stat(value: '$docsThisMonth', label: 'New this month'),
+                    _Stat(value: fmt(lifetimeWords), label: loc.statLifetimeWords),
+                    _Stat(value: '$totalDocs', label: loc.statDocuments),
+                    _Stat(value: '$projectCount', label: loc.navProjects),
+                    _Stat(value: '$docsThisMonth', label: loc.statNewThisMonth),
                     if (sinceYear != null)
                       _Stat(
-                          value: 'Since $sinceYear',
-                          label: 'Writing on Psitta'),
+                          value: loc.analyticsSince(sinceYear!),
+                          label: loc.statWritingOnPsitta),
                   ],
                 ),
               ),
             ),
             _Card(
               icon: Icons.folder_outlined,
-              title: 'Projects in motion',
+              title: loc.analyticsProjectsInMotion,
               child: stats.isEmpty
                   ? Padding(
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                       child: Text(
-                        'Create a project to start tracking your book progress.',
+                        loc.analyticsNoProjects,
                         style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant),
                       ),
@@ -226,18 +229,19 @@ class _ProjectStatCard extends ConsumerWidget {
   const _ProjectStatCard({required this.stat});
   final _ProjectStat stat;
 
-  static String ago(DateTime t) {
+  static String ago(AppLocalizations loc, DateTime t) {
     final d = DateTime.now().difference(t);
-    if (d.inDays >= 1) return '${d.inDays}d ago';
-    if (d.inHours >= 1) return '${d.inHours}h ago';
-    if (d.inMinutes >= 1) return '${d.inMinutes}m ago';
-    return 'just now';
+    if (d.inDays >= 1) return loc.agoDays(d.inDays);
+    if (d.inHours >= 1) return loc.agoHours(d.inHours);
+    if (d.inMinutes >= 1) return loc.agoMinutes(d.inMinutes);
+    return loc.agoJustNow;
   }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final loc = AppLocalizations.of(context);
     final overview = ref.watch(projectBlueprintOverviewProvider(stat.id)).valueOrNull;
     double? ratio;
     final pr = overview?.progress;
@@ -245,8 +249,8 @@ class _ProjectStatCard extends ConsumerWidget {
       ratio = pr.ratio ?? pr.leavesWithContent / pr.totalLeaves;
     }
     final pct = ratio != null ? (ratio * 100).round() : null;
-    final files = stat.docs == 1 ? 'file' : 'files';
-    final last = stat.lastActivity != null ? ' · ${ago(stat.lastActivity!)}' : '';
+    final last =
+        stat.lastActivity != null ? ' · ${ago(loc, stat.lastActivity!)}' : '';
 
     return InkWell(
       onTap: () => context.go(
@@ -273,7 +277,7 @@ class _ProjectStatCard extends ConsumerWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '${_Dashboard.fmt(stat.words)} words · ${stat.docs} $files$last',
+              '${loc.wordsCount(stat.words, _Dashboard.fmt(stat.words))} · ${loc.filesCount(stat.docs)}$last',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: scheme.onSurfaceVariant),
             ),
@@ -345,16 +349,16 @@ class _ActivityOutput extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     final stats = ref.watch(writerStatsProvider).valueOrNull;
     if (stats == null || !stats.hasData) {
       return _Card(
         icon: Icons.local_fire_department_outlined,
-        title: 'Writing activity & streaks',
+        title: loc.analyticsActivityStreaks,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
           child: Text(
-            'Your first saved writing will start your streak. Streaks, sessions, '
-            'and word trends build automatically as you write in the Desk.',
+            loc.analyticsStreaksEmpty,
             style: theme.textTheme.bodySmall
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
@@ -366,7 +370,7 @@ class _ActivityOutput extends ConsumerWidget {
       children: [
         _Card(
           icon: Icons.show_chart_outlined,
-          title: 'Weekly words trend',
+          title: loc.analyticsWeeklyTrend,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
             child: _WeeklyTrend(weekly: stats.weeklyWords()),
@@ -374,31 +378,34 @@ class _ActivityOutput extends ConsumerWidget {
         ),
         _Card(
           icon: Icons.local_fire_department_outlined,
-          title: 'Writing activity',
+          title: loc.analyticsWritingActivity,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Wrap(
               spacing: 30,
               runSpacing: 16,
               children: [
-                _Stat(value: '${stats.currentStreak}', label: 'Day streak'),
-                _Stat(value: '${stats.longestStreak}', label: 'Longest streak'),
+                _Stat(value: '${stats.currentStreak}', label: loc.statDayStreak),
+                _Stat(
+                    value: '${stats.longestStreak}',
+                    label: loc.statLongestStreak),
                 _Stat(
                     value: '${stats.sessionsThisWeek}',
-                    label: 'Sessions this week'),
-                _Stat(value: '${stats.avgSessionMin}m', label: 'Avg session'),
-                if (hour != null) _Stat(value: hour, label: 'Most productive'),
+                    label: loc.statSessionsThisWeek),
+                _Stat(value: '${stats.avgSessionMin}m', label: loc.statAvgSession),
+                if (hour != null)
+                  _Stat(value: hour, label: loc.statMostProductive),
                 if (stats.typedPct != null)
                   _Stat(
                       value: '${stats.typedPct}%',
-                      label: 'Typed (vs paste)'),
+                      label: loc.statTypedVsPaste),
                 if (stats.typedChars > 0 || stats.pastedChars > 0) ...[
                   _Stat(
                       value: _Dashboard.fmt(stats.typedChars),
-                      label: 'Keystrokes'),
+                      label: loc.statKeystrokes),
                   _Stat(
                       value: _Dashboard.fmt(stats.pastedChars),
-                      label: 'Chars pasted'),
+                      label: loc.statCharsPasted),
                 ],
               ],
             ),
@@ -406,7 +413,7 @@ class _ActivityOutput extends ConsumerWidget {
         ),
         _Card(
           icon: Icons.calendar_month_outlined,
-          title: 'Writing days',
+          title: loc.analyticsWritingDays,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
             child: _Heatmap(dailyWords: stats.dailyWords),
@@ -414,23 +421,25 @@ class _ActivityOutput extends ConsumerWidget {
         ),
         _Card(
           icon: Icons.trending_up_outlined,
-          title: 'Words written',
+          title: loc.analyticsWordsWritten,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Wrap(
               spacing: 30,
               runSpacing: 16,
               children: [
-                _Stat(value: _Dashboard.fmt(stats.wordsToday), label: 'Today'),
+                _Stat(
+                    value: _Dashboard.fmt(stats.wordsToday),
+                    label: loc.statToday),
                 _Stat(
                     value: _Dashboard.fmt(stats.wordsThisWeek),
-                    label: 'This week'),
+                    label: loc.analyticsThisWeek),
                 _Stat(
                     value: _Dashboard.fmt(stats.wordsThisMonth),
-                    label: 'This month'),
+                    label: loc.statThisMonth),
                 _Stat(
                     value: _Dashboard.fmt(stats.wordsTracked),
-                    label: 'Tracked total'),
+                    label: loc.statTrackedTotal),
               ],
             ),
           ),
@@ -517,11 +526,11 @@ class _WeeklyTrend extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final loc = AppLocalizations.of(context);
     final maxV = weekly.fold<int>(0, (m, v) => v > m ? v : m);
     if (maxV <= 0) {
       return Text(
-        'Your weekly word trend appears here once you have written across a '
-        'few days. Keep saving in the Desk and the line will grow.',
+        loc.analyticsTrendEmpty,
         style: theme.textTheme.bodySmall
             ?.copyWith(color: scheme.onSurfaceVariant),
       );
@@ -545,10 +554,10 @@ class _WeeklyTrend extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('${weekly.length} weeks ago',
+            Text(loc.weeksAgo(weekly.length),
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: scheme.onSurfaceVariant)),
-            Text('${_Dashboard.fmt(weekly.last)} words this week',
+            Text(loc.chartWordsThisWeek(_Dashboard.fmt(weekly.last)),
                 style: theme.textTheme.bodySmall?.copyWith(
                     color: scheme.primary, fontWeight: FontWeight.w600)),
           ],

@@ -618,5 +618,100 @@
         "type": "String"
       }
     }
-  }
+  },
+  "analyticsSubtitle": "Your Writer Growth Dashboard.",
+  "analyticsLoadError": "Could not load analytics.",
+  "analyticsGlance": "Your writing at a glance",
+  "statLifetimeWords": "Lifetime words",
+  "statNewThisMonth": "New this month",
+  "statWritingOnPsitta": "Writing on Psitta",
+  "analyticsProjectsInMotion": "Projects in motion",
+  "analyticsNoProjects": "Create a project to start tracking your book progress.",
+  "agoJustNow": "just now",
+  "analyticsActivityStreaks": "Writing activity & streaks",
+  "analyticsStreaksEmpty": "Your first saved writing will start your streak. Streaks, sessions, and word trends build automatically as you write in the Desk.",
+  "analyticsWeeklyTrend": "Weekly words trend",
+  "analyticsWritingActivity": "Writing activity",
+  "statDayStreak": "Day streak",
+  "statLongestStreak": "Longest streak",
+  "statSessionsThisWeek": "Sessions this week",
+  "statAvgSession": "Avg session",
+  "statMostProductive": "Most productive",
+  "statTypedVsPaste": "Typed (vs paste)",
+  "statKeystrokes": "Keystrokes",
+  "statCharsPasted": "Chars pasted",
+  "analyticsWritingDays": "Writing days",
+  "analyticsWordsWritten": "Words written",
+  "statToday": "Today",
+  "statThisMonth": "This month",
+  "statTrackedTotal": "Tracked total",
+  "analyticsTrendEmpty": "Your weekly word trend appears here once you have written across a few days. Keep saving in the Desk and the line will grow.",
+  "analyticsSince": "Since {year}",
+  "@analyticsSince": {
+    "placeholders": {
+      "year": {
+        "type": "int"
+      }
+    }
+  },
+  "agoDays": "{count}d ago",
+  "@agoDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agoHours": "{count}h ago",
+  "@agoHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agoMinutes": "{count}m ago",
+  "@agoMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "wordsCount": "{count, plural, =1{{words} word} other{{words} words}}",
+  "@wordsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "words": {
+        "type": "String"
+      }
+    }
+  },
+  "filesCount": "{count, plural, =1{1 file} other{{count} files}}",
+  "@filesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "weeksAgo": "{count, plural, =1{1 week ago} other{{count} weeks ago}}",
+  "@weeksAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chartWordsThisWeek": "{words} words this week",
+  "@chartWordsThisWeek": {
+    "placeholders": {
+      "words": {
+        "type": "String"
+      }
+    }
+  },
+  "analyticsThisWeek": "This week"
 }

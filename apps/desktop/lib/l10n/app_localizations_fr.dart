@@ -1445,4 +1445,150 @@ class AppLocalizationsFr extends AppLocalizations {
   String voicesDefaultSet(String name) {
     return 'Voix par défaut définie sur $name';
   }
+
+  @override
+  String get analyticsSubtitle =>
+      'Votre tableau de bord de progression d\'auteur.';
+
+  @override
+  String get analyticsLoadError => 'Impossible de charger les statistiques.';
+
+  @override
+  String get analyticsGlance => 'Votre écriture en un coup d\'œil';
+
+  @override
+  String get statLifetimeWords => 'Mots au total';
+
+  @override
+  String get statNewThisMonth => 'Nouveaux ce mois-ci';
+
+  @override
+  String get statWritingOnPsitta => 'Écriture sur Psitta';
+
+  @override
+  String get analyticsProjectsInMotion => 'Projets en cours';
+
+  @override
+  String get analyticsNoProjects =>
+      'Créez un projet pour commencer à suivre la progression de votre livre.';
+
+  @override
+  String get agoJustNow => 'à l\'instant';
+
+  @override
+  String get analyticsActivityStreaks => 'Activité d\'écriture et séries';
+
+  @override
+  String get analyticsStreaksEmpty =>
+      'Votre premier texte enregistré lance votre série. Séries, sessions et tendances de mots se construisent automatiquement à mesure que vous écrivez au Bureau.';
+
+  @override
+  String get analyticsWeeklyTrend => 'Tendance hebdomadaire des mots';
+
+  @override
+  String get analyticsWritingActivity => 'Activité d\'écriture';
+
+  @override
+  String get statDayStreak => 'Série de jours';
+
+  @override
+  String get statLongestStreak => 'Plus longue série';
+
+  @override
+  String get statSessionsThisWeek => 'Sessions cette semaine';
+
+  @override
+  String get statAvgSession => 'Session moyenne';
+
+  @override
+  String get statMostProductive => 'Le plus productif';
+
+  @override
+  String get statTypedVsPaste => 'Saisi (vs collé)';
+
+  @override
+  String get statKeystrokes => 'Frappes';
+
+  @override
+  String get statCharsPasted => 'Caractères collés';
+
+  @override
+  String get analyticsWritingDays => 'Jours d\'écriture';
+
+  @override
+  String get analyticsWordsWritten => 'Mots écrits';
+
+  @override
+  String get statToday => 'Aujourd\'hui';
+
+  @override
+  String get statThisMonth => 'Ce mois-ci';
+
+  @override
+  String get statTrackedTotal => 'Total suivi';
+
+  @override
+  String get analyticsTrendEmpty =>
+      'Votre tendance hebdomadaire de mots apparaît ici une fois que vous aurez écrit sur plusieurs jours. Continuez à enregistrer au Bureau et la courbe grandira.';
+
+  @override
+  String analyticsSince(int year) {
+    return 'Depuis $year';
+  }
+
+  @override
+  String agoDays(int count) {
+    return 'il y a ${count}j';
+  }
+
+  @override
+  String agoHours(int count) {
+    return 'il y a ${count}h';
+  }
+
+  @override
+  String agoMinutes(int count) {
+    return 'il y a ${count}min';
+  }
+
+  @override
+  String wordsCount(int count, String words) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$words mots',
+      one: '$words mot',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String filesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count fichiers',
+      one: '1 fichier',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String weeksAgo(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'il y a $count semaines',
+      one: 'il y a 1 semaine',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String chartWordsThisWeek(String words) {
+    return '$words mots cette semaine';
+  }
+
+  @override
+  String get analyticsThisWeek => 'Cette semaine';
 }
