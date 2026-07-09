@@ -28,28 +28,28 @@ enum WorkingLanguage {
     label: 'Português (Brasil)',
     languageCode: 'pt',
     countryCode: 'BR',
-    defaultVoiceId: 'sXSV9RZ095VZyL64w3ap', // Alexa (ElevenLabs, pt-BR)
+    defaultVoiceId: 'pt-BR-FranciscaNeural', // Francisca (Azure, pt-BR — native)
     aiLanguageName: 'Brazilian Portuguese',
   ),
   portuguesePT(
     label: 'Português (Portugal)',
     languageCode: 'pt',
     countryCode: 'PT',
-    defaultVoiceId: 'nJ5NFqyKb8kn9JBPmo6i', // Joana (ElevenLabs, pt-PT)
+    defaultVoiceId: 'pt-PT-RaquelNeural', // Raquel (Azure, pt-PT — native)
     aiLanguageName: 'European Portuguese',
   ),
   spanishES(
     label: 'Español',
     languageCode: 'es',
     countryCode: 'ES',
-    defaultVoiceId: 'AxFLn9byyiDbMn5fmyqu', // Aitana (ElevenLabs, es-ES)
+    defaultVoiceId: 'es-ES-ElviraNeural', // Elvira (Azure, es-ES — native)
     aiLanguageName: 'Spanish',
   ),
   frenchFR(
     label: 'Français',
     languageCode: 'fr',
     countryCode: 'FR',
-    defaultVoiceId: 'cuo3D4C6LVenyV7b2Kpd', // Anna (ElevenLabs, fr-FR)
+    defaultVoiceId: 'fr-FR-DeniseNeural', // Denise (Azure, fr-FR — native)
     aiLanguageName: 'French',
   );
 

@@ -1,4 +1,4 @@
-"""Static voice catalog — ElevenLabs (12) + Azure Neural (6)."""
+"""Static voice catalog — ElevenLabs (20) + Azure Neural (12)."""
 
 VOICE_CATALOG = [
     # ── ElevenLabs ───────────────────────────────────────────────────────
@@ -21,4 +21,17 @@ VOICE_CATALOG = [
     {"id": "en-US-GuyNeural",      "name": "Guy",     "display_name": "Guy",     "language": "en-US", "gender": "male",   "provider": "azure",       "tier": "standard"},
     {"id": "en-US-DavisNeural",    "name": "Davis",   "display_name": "Davis",   "language": "en-US", "gender": "male",   "provider": "azure",       "tier": "standard"},
     {"id": "en-GB-RyanNeural",     "name": "Ryan",    "display_name": "Ryan",    "language": "en-GB", "gender": "male",   "provider": "azure",       "tier": "standard"},
+    # ── Azure Neural — native voices for Portuguese / Spanish / French ──
+    # NOTE: the non-English ElevenLabs voices were removed — in this account
+    # they render with the wrong accent (pt voices sound American) and/or play
+    # quiet. Azure Neural voices are genuine native-speaker recordings with
+    # consistent loudness, so every non-English language uses them.
+    {"id": "pt-BR-FranciscaNeural", "name": "Francisca", "display_name": "Francisca", "language": "pt-BR", "gender": "female", "provider": "azure", "tier": "standard"},
+    {"id": "pt-BR-AntonioNeural",   "name": "Antonio",   "display_name": "Ant\u00f4nio",   "language": "pt-BR", "gender": "male",   "provider": "azure", "tier": "standard"},
+    {"id": "pt-PT-RaquelNeural",    "name": "Raquel",    "display_name": "Raquel",    "language": "pt-PT", "gender": "female", "provider": "azure", "tier": "standard"},
+    {"id": "pt-PT-DuarteNeural",    "name": "Duarte",    "display_name": "Duarte",    "language": "pt-PT", "gender": "male",   "provider": "azure", "tier": "standard"},
+    {"id": "es-ES-ElviraNeural",    "name": "Elvira",    "display_name": "Elvira",    "language": "es-ES", "gender": "female", "provider": "azure", "tier": "standard"},
+    {"id": "es-ES-AlvaroNeural",    "name": "Alvaro",    "display_name": "\u00c1lvaro",    "language": "es-ES", "gender": "male",   "provider": "azure", "tier": "standard"},
+    {"id": "fr-FR-DeniseNeural",    "name": "Denise",    "display_name": "Denise",    "language": "fr-FR", "gender": "female", "provider": "azure", "tier": "standard"},
+    {"id": "fr-FR-HenriNeural",     "name": "Henri",     "display_name": "Henri",     "language": "fr-FR", "gender": "male",   "provider": "azure", "tier": "standard"},
 ]
