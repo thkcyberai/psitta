@@ -1899,4 +1899,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String helpVideoMinutes(int minutes) {
     return '$minutes min · opens in your browser';
   }
+
+  @override
+  String get playerNoChapters => 'No chapters';
+
+  @override
+  String get playerNoDocument => 'No document playing';
+
+  @override
+  String playerChapterOf(int current, int total) {
+    return 'Chapter $current of $total';
+  }
 }

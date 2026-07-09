@@ -1920,4 +1920,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String helpVideoMinutes(int minutes) {
     return '$minutes min · s\'ouvre dans le navigateur';
   }
+
+  @override
+  String get playerNoChapters => 'Aucun chapitre';
+
+  @override
+  String get playerNoDocument => 'Aucun document en lecture';
+
+  @override
+  String playerChapterOf(int current, int total) {
+    return 'Chapitre $current sur $total';
+  }
 }

@@ -857,5 +857,18 @@
         "type": "int"
       }
     }
+  },
+  "playerNoChapters": "No chapters",
+  "playerNoDocument": "No document playing",
+  "playerChapterOf": "Chapter {current} of {total}",
+  "@playerChapterOf": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
   }
 }

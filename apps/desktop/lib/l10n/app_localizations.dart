@@ -3413,6 +3413,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{minutes} min · opens in your browser'**
   String helpVideoMinutes(int minutes);
+
+  /// No description provided for @playerNoChapters.
+  ///
+  /// In en, this message translates to:
+  /// **'No chapters'**
+  String get playerNoChapters;
+
+  /// No description provided for @playerNoDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'No document playing'**
+  String get playerNoDocument;
+
+  /// No description provided for @playerChapterOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Chapter {current} of {total}'**
+  String playerChapterOf(int current, int total);
 }
 
 class _AppLocalizationsDelegate

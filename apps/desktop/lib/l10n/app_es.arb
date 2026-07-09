@@ -551,5 +551,8 @@
   "scThisHelpPanel": "Este panel de ayuda",
   "scListenFromHere": "Escuchar desde aquí (modo SWH)",
   "scRightClick": "Clic derecho",
-  "helpVideoMinutes": "{minutes} min · se abre en el navegador"
+  "helpVideoMinutes": "{minutes} min · se abre en el navegador",
+  "playerNoChapters": "Sin capítulos",
+  "playerNoDocument": "Ningún documento en reproducción",
+  "playerChapterOf": "Capítulo {current} de {total}"
 }
