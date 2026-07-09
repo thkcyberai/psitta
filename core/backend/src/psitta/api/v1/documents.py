@@ -1918,9 +1918,7 @@ async def get_chunk_audio_stream(
                 chunk_text, voice_id, allow_elevenlabs=allow_el
             ):
                 if ev.get("type") == "audio":
-                    data = ev["data"]
-                    buf.extend(data)
-                    yield data
+                    buf.extend(ev["data"])
                 elif ev.get("type") == "alignment":
                     alignment = ev.get("data")
                     provider = ev.get("provider")
@@ -1936,12 +1934,20 @@ async def get_chunk_audio_stream(
             logger.warning("audio.stream.empty", chunk_id=str(chunk_id))
             return
 
+        # Loudness-normalize the whole chunk BEFORE sending, so the first play
+        # (this streamed response) matches the normalized cached replay. Without
+        # this, streamed audio was raw and quieter voices (some pt/es/fr voices)
+        # played too soft on first listen. loudnorm is gain-only, so the SWH
+        # character timing stays valid.
+        from psitta.providers.audio_loudness import normalize_mp3
+        audio_bytes = await normalize_mp3(bytes(buf))
+        yield audio_bytes
+
         # Cache write-through + quota increment on a FRESH session — the
         # request-scoped session has been torn down by the time the generator
-        # finishes streaming.
+        # finishes streaming. Bytes are already normalized above.
         try:
-            audio_bytes = bytes(buf)
-            await put_mp3(str(chunk_id), voice_id, audio_bytes)
+            await put_mp3(str(chunk_id), voice_id, audio_bytes, normalize=False)
             if alignment is not None and provider in {"elevenlabs", "edge"}:
                 await put_alignment(
                     str(chunk_id),
