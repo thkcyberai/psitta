@@ -55,6 +55,8 @@ TextAlign _textAlignFor(String? alignment) {
 ///
 /// This widget replaces the chunk-scoped WordHighlightView for documents
 /// that have been assembled into the canonical model.
+final RegExp _kWordCharReDR = RegExp(r'[\p{L}\p{N}]', unicode: true);
+
 class DocumentReadingView extends ConsumerStatefulWidget {
   const DocumentReadingView({
     super.key,
@@ -863,12 +865,10 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     }
   }
 
-  bool _isWordChar(String ch) {
-    final c = ch.codeUnitAt(0);
-    final isAlphaNum =
-        (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
-    return isAlphaNum || ch == "'";
-  }
+  // Unicode-aware: accented letters (é, è, ç, ã, ñ, …) count as word chars so
+  // word-boundary expansion doesn't stop mid-word on an accent.
+  bool _isWordChar(String ch) =>
+      _kWordCharReDR.hasMatch(ch) || ch == "'" || ch == '\u2019';
 
   /// Snap-to-line CENTER y for the hovered sentence's FIRST visual line in
   /// block-local coordinates. Returns null when the sentence has no

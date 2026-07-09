@@ -4,6 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/colors.dart';
 import '../../../data/services/audio_service.dart';
 
+/// A word is a maximal run of Unicode letters/digits (plus apostrophes), so
+/// accented letters (é, è, ç, ã, ñ, …) stay INSIDE the word instead of
+/// splitting it ("journées" is one word, not "journ" + "es").
+final RegExp _kWordCharRe = RegExp(r'[\p{L}\p{N}]', unicode: true);
+
 class _WordSpan {
   const _WordSpan(this.start, this.end);
   final int start;
@@ -50,13 +55,8 @@ class _WordHighlightViewState extends ConsumerState<WordHighlightView> {
 
   List<_WordSpan> _computeWordSpans(String text) {
     final spans = <_WordSpan>[];
-    bool isWordChar(String ch) {
-      final c = ch.codeUnitAt(0);
-      final isAlphaNum = (c >= 48 && c <= 57) ||
-          (c >= 65 && c <= 90) ||
-          (c >= 97 && c <= 122);
-      return isAlphaNum || ch == "'";
-    }
+    bool isWordChar(String ch) =>
+        _kWordCharRe.hasMatch(ch) || ch == "'" || ch == '\u2019';
 
     int i = 0;
     while (i < text.length) {
