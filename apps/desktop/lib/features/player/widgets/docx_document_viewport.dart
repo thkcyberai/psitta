@@ -32,6 +32,8 @@ class DocxDocumentViewport extends StatelessWidget {
     this.textScale = 1.0,
     this.findMatchStart,
     this.findMatchEnd,
+    this.sentenceMode = false,
+    this.sentenceCharBase = 0,
   });
 
   final PsittaDocument document;
@@ -56,6 +58,12 @@ class DocxDocumentViewport extends StatelessWidget {
   // editor's native selection instead.
   final int? findMatchStart;
   final int? findMatchEnd;
+
+  /// Instant-highlight (sentence-playlist) mode: [alignmentPayload] carries only
+  /// the active sentence's alignment and [sentenceCharBase] shifts it into chunk
+  /// space. Forwarded straight to DocumentReadingView.
+  final bool sentenceMode;
+  final int sentenceCharBase;
 
   @override
   Widget build(BuildContext context) {
@@ -126,6 +134,8 @@ class DocxDocumentViewport extends StatelessWidget {
                         textScale: textScale,
                         findMatchStart: findMatchStart,
                         findMatchEnd: findMatchEnd,
+                        sentenceMode: sentenceMode,
+                        sentenceCharBase: sentenceCharBase,
                       ),
                       const SizedBox(height: 28),
                     ],
@@ -176,6 +186,8 @@ class _DocxPageSheet extends StatelessWidget {
     this.textScale = 1.0,
     this.findMatchStart,
     this.findMatchEnd,
+    this.sentenceMode = false,
+    this.sentenceCharBase = 0,
   });
 
   final DocxPageLayoutPage page;
@@ -192,6 +204,8 @@ class _DocxPageSheet extends StatelessWidget {
   final double textScale;
   final int? findMatchStart;
   final int? findMatchEnd;
+  final bool sentenceMode;
+  final int sentenceCharBase;
 
   @override
   Widget build(BuildContext context) {
@@ -224,6 +238,8 @@ class _DocxPageSheet extends StatelessWidget {
                   textScale: textScale,
                   findMatchStart: findMatchStart,
                   findMatchEnd: findMatchEnd,
+                  sentenceMode: sentenceMode,
+                  sentenceCharBase: sentenceCharBase,
                 ),
               ),
             ),

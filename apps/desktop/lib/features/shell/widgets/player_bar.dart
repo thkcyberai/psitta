@@ -39,10 +39,19 @@ class PlayerBar extends ConsumerWidget {
 
     // Audio streams
     final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ?? false;
-    final position =
-        ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero;
-    final duration = ref.watch(audioDurationProvider).valueOrNull ??
-        const Duration(minutes: 5);
+    // When a sentence playlist is active, just_audio's position/duration are
+    // relative to the current sentence clip. Source the scrubber from the
+    // chunk-level ("chapter") model instead so it reads as one timeline.
+    final sentencePlaylistActive =
+        ref.watch(sentencePlaylistActiveProvider).valueOrNull ?? false;
+    final position = sentencePlaylistActive
+        ? (ref.watch(chapterPositionProvider).valueOrNull ?? Duration.zero)
+        : (ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero);
+    final duration = sentencePlaylistActive
+        ? (ref.watch(chapterDurationProvider).valueOrNull ??
+            const Duration(minutes: 5))
+        : (ref.watch(audioDurationProvider).valueOrNull ??
+            const Duration(minutes: 5));
     final audioService = ref.watch(audioServiceProvider);
     final isSynthesizing =
         ref.watch(isSynthesizingProvider).valueOrNull ?? false;
@@ -290,8 +299,11 @@ class PlayerBar extends ConsumerWidget {
                               .toDouble()
                               .clamp(1, double.infinity),
                           onChanged: hasActiveSession
-                              ? (v) => audioService
-                                  .seek(Duration(milliseconds: v.toInt()))
+                              ? (v) => sentencePlaylistActive
+                                  ? audioService.seekChapter(
+                                      Duration(milliseconds: v.toInt()))
+                                  : audioService
+                                      .seek(Duration(milliseconds: v.toInt()))
                               : null,
                         ),
                       ),

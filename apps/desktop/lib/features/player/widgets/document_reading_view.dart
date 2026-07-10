@@ -76,6 +76,8 @@ class DocumentReadingView extends ConsumerStatefulWidget {
     this.textScale = 1.0,
     this.findMatchStart,
     this.findMatchEnd,
+    this.sentenceMode = false,
+    this.sentenceCharBase = 0,
   });
 
   final PsittaDocument document;
@@ -84,9 +86,19 @@ class DocumentReadingView extends ConsumerStatefulWidget {
   /// Which chunk is currently playing (index into chunkMap).
   final int activeChunkIndex;
 
-  /// Word-timing alignment from ElevenLabs (chunk-scoped).
+  /// Word-timing alignment (chunk-scoped by default). In [sentenceMode] this
+  /// carries only the CURRENTLY-PLAYING sentence's alignment, whose char times
+  /// are sentence-local; [sentenceCharBase] shifts them back into chunk space.
   final Map<String, dynamic> alignmentPayload;
   final int? focusedSentenceIndex;
+
+  /// Instant-highlight (sentence-playlist) mode. When true, [alignmentPayload]
+  /// is the active sentence's alignment and the char index it yields is offset
+  /// by [sentenceCharBase] (the sentence's start within the chunk) before being
+  /// mapped to a document offset. The whole-chunk duration-ratio fallback is
+  /// suppressed so a mid-load sentence never highlights the wrong word.
+  final bool sentenceMode;
+  final int sentenceCharBase;
 
   final void Function(GlobalKey blockKey)? onActiveSentenceChanged;
   final void Function(int wordIndex, int totalWords)? onActiveWordChanged;
@@ -210,10 +222,19 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     int? chunkCharOffset;
     final alignmentBlock = widget.alignmentPayload['alignment'];
     if (alignmentBlock is Map) {
-      chunkCharOffset = _charIndexAtMs(alignmentBlock, position.inMilliseconds);
+      final localIdx = _charIndexAtMs(alignmentBlock, position.inMilliseconds);
+      if (localIdx != null) {
+        // In sentence mode the char index is sentence-local — shift it into
+        // chunk space by the sentence's start offset.
+        chunkCharOffset = localIdx + (widget.sentenceMode ? widget.sentenceCharBase : 0);
+      }
     }
 
     if (chunkCharOffset == null) {
+      // Suppress the whole-chunk duration-ratio guess in sentence mode: the
+      // position is sentence-local, so a chunk-wide ratio would point at the
+      // wrong sentence. Simply don't highlight until the alignment arrives.
+      if (widget.sentenceMode) return null;
       if (total.inMilliseconds == 0) return null;
       final ratio =
           (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
@@ -221,7 +242,8 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
           (ratio * chunk.textLength).round().clamp(0, chunk.textLength - 1);
     }
 
-    final docOffset = chunk.textOffset + chunkCharOffset;
+    final docOffset = chunk.textOffset +
+        chunkCharOffset.clamp(0, chunk.textLength - 1);
 
     // Find which sentence contains this offset
     for (int i = 0; i < doc.sentences.length; i++) {
@@ -392,8 +414,11 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     final alignmentBlock = widget.alignmentPayload['alignment'];
 
     if (alignmentBlock is Map) {
-      final charIdx = _charIndexAtMs(alignmentBlock, position.inMilliseconds);
-      if (charIdx != null) {
+      final rawCharIdx = _charIndexAtMs(alignmentBlock, position.inMilliseconds);
+      if (rawCharIdx != null) {
+        // In sentence mode the index is sentence-local; shift into chunk space.
+        final charIdx =
+            rawCharIdx + (widget.sentenceMode ? widget.sentenceCharBase : 0);
         // charIdx is chunk-scoped. Convert to document offset.
         final chunkIdx =
             widget.activeChunkIndex.clamp(0, doc.chunkMap.length - 1);

@@ -345,3 +345,43 @@ final chunkAlignmentProvider = FutureProvider.autoDispose
     voiceId: key.voiceId,
   );
 });
+
+class SentenceAlignmentKey {
+  const SentenceAlignmentKey({
+    required this.documentId,
+    required this.chunkId,
+    required this.sentenceIndex,
+    required this.voiceId,
+  });
+
+  final String documentId;
+  final String chunkId;
+  final int sentenceIndex;
+  final String voiceId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is SentenceAlignmentKey &&
+        other.documentId == documentId &&
+        other.chunkId == chunkId &&
+        other.sentenceIndex == sentenceIndex &&
+        other.voiceId == voiceId;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(documentId, chunkId, sentenceIndex, voiceId);
+}
+
+/// Fetch alignment for ONE sentence of a chunk (instant-highlight path).
+/// Same payload shape as chunkAlignmentProvider; char times are sentence-local.
+final sentenceAlignmentProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, SentenceAlignmentKey>((ref, key) async {
+  final repo = ref.watch(documentRepositoryProvider);
+  return repo.getChunkSentenceAlignment(
+    documentId: key.documentId,
+    chunkId: key.chunkId,
+    sentenceIndex: key.sentenceIndex,
+    voiceId: key.voiceId,
+  );
+});
