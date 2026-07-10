@@ -147,7 +147,15 @@ def _normalize_plan_id(plan: str) -> str:
     how to handle unknowns).
     """
     cleaned = plan.strip().lower()
-    return _LEGACY_PLAN_ID_ALIASES.get(cleaned, cleaned)
+    # Explicit legacy aliases win (e.g. pro_monthly -> reading_nook_pro).
+    if cleaned in _LEGACY_PLAN_ID_ALIASES:
+        return _LEGACY_PLAN_ID_ALIASES[cleaned]
+    # Otherwise strip the Stripe billing-period suffix so period-suffixed
+    # lookup keys resolve to their canonical plan (writing_nook_pro_monthly
+    # -> writing_nook_pro). Without this, get_plan_limits() fell back to the
+    # free tier, capping every Stripe subscriber's document quota at 10.
+    base = cleaned.removesuffix("_monthly").removesuffix("_annual")
+    return _LEGACY_PLAN_ID_ALIASES.get(base, base)
 
 
 def get_plan_limits(plan: str) -> PlanLimits:
