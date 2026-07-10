@@ -2177,6 +2177,223 @@ async def get_chunk_alignment(
     return payload
 
 
+async def _load_chunk_sentence(
+    db: AsyncSession,
+    document_id: UUID,
+    chunk_id: UUID,
+    user_id: UUID,
+    sentence_index: int,
+) -> tuple[str, str]:
+    """Resolve the text of ONE sentence of a chunk.
+
+    Reconstructs text + sentence_boundaries EXACTLY as get_document_chunks
+    serves them (PDF → cleaned text rebuilt boundaries; otherwise stored meta
+    boundaries, falling back to a rebuild) so the sentence_index the client
+    holds slices the identical span here. Returns (sentence_text, source_type)
+    and raises HTTPException(404) if the chunk or sentence is missing/empty.
+    """
+    row_res = await db.execute(
+        text(
+            "SELECT c.text_content, c.page_number, c.metadata_json, d.source_type "
+            "FROM document_chunks c "
+            "JOIN documents d ON d.id = c.document_id "
+            "WHERE c.id = :cid AND c.document_id = :did "
+            "AND d.user_id = :uid AND d.status != 'deleted'"
+        ),
+        {"cid": chunk_id, "did": document_id, "uid": str(user_id)},
+    )
+    row = row_res.first()
+    if not row or not row.text_content:
+        raise HTTPException(status_code=404, detail="Chunk not found")
+
+    source_type = (getattr(row, "source_type", "") or "").lower()
+    meta = row.metadata_json if isinstance(row.metadata_json, dict) else {}
+    if source_type == "pdf":
+        chunk_text = _clean_pdf_chunk_text(row.text_content or "", row.page_number)
+        boundaries = _build_sentence_boundaries(chunk_text)
+    else:
+        chunk_text = row.text_content
+        boundaries = meta.get("sentence_boundaries") or _build_sentence_boundaries(chunk_text)
+
+    if not boundaries or sentence_index < 0 or sentence_index >= len(boundaries):
+        raise HTTPException(status_code=404, detail="Sentence not found")
+    start, end = boundaries[sentence_index][0], boundaries[sentence_index][1]
+    sentence_text = chunk_text[start:end]
+    if not sentence_text.strip():
+        raise HTTPException(status_code=404, detail="Empty sentence")
+    return sentence_text, source_type
+
+
+@router.get("/{document_id}/chunks/{chunk_id}/sentences/{sentence_index}/audio")
+async def get_chunk_sentence_audio(
+    document_id: UUID,
+    chunk_id: UUID,
+    sentence_index: int,
+    request: Request,
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> None:
+    """Audio for ONE sentence of a chunk.
+
+    This is the granularity that lets word highlighting start in ~1s instead
+    of waiting on a whole-chunk synthesis. Mirrors get_chunk_audio: a single
+    EL/Edge synthesis produces BOTH the mp3 and the alignment sidecar (cached
+    under the sentence key ``{chunk_id}_s{index}``), so the sibling /alignment
+    fetch is a zero-credit cache hit and the user is billed once. The
+    chunk-level /audio and /alignment endpoints are unchanged and remain the
+    fallback path. The sentence cache key shares the ``{chunk_id}_`` prefix so
+    _invalidate_chunk_audio_cache clears sentence audio on edit automatically.
+    """
+    from fastapi.responses import FileResponse
+
+    from psitta.services.audio_cache import get_mp3, put_alignment, put_mp3
+
+    sentence_text, source_type = await _load_chunk_sentence(
+        db, document_id, chunk_id, user_id, sentence_index,
+    )
+    seg_key = f"{chunk_id}_s{sentence_index}"
+
+    cached = await get_mp3(seg_key, voice_id)
+    if cached is not None:
+        logger.info(
+            "audio.sentence.cache_hit",
+            chunk_id=str(chunk_id),
+            sentence=sentence_index,
+            voice_id=voice_id,
+        )
+        return FileResponse(cached, media_type="audio/mpeg", filename=f"{seg_key}.mp3")
+
+    logger.info(
+        "audio.sentence.cache_miss",
+        chunk_id=str(chunk_id),
+        sentence=sentence_index,
+        voice_id=voice_id,
+    )
+    from psitta.providers.tts_router import TTSRouter
+
+    tts = TTSRouter()
+    try:
+        audio_bytes, alignment, provider = (
+            await tts.synthesize_with_alignment_and_quota(
+                sentence_text, voice_id, user_id=user_id, db=db,
+            )
+        )
+    except Exception as e:
+        logger.error("audio.sentence.synth_failed", error=str(e), voice_id=voice_id)
+        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {e}")
+
+    # One bill → mp3 + alignment sidecar, both keyed by the sentence. No
+    # audio_segments row is written for sentences: that table is keyed by
+    # (chunk_id, voice_id) and is only used by the chunk-level cache record;
+    # the file cache (local + S3) is sufficient to serve sentence audio.
+    local_path = await put_mp3(seg_key, voice_id, audio_bytes)
+    if alignment is not None and provider in {"elevenlabs", "edge"}:
+        await put_alignment(
+            seg_key,
+            voice_id,
+            {
+                "document_id": str(document_id),
+                "chunk_id": str(chunk_id),
+                "sentence_index": sentence_index,
+                "voice_id": voice_id,
+                "provider": provider,
+                "alignment": alignment,
+            },
+        )
+    # Persist the per-sentence EL char-quota increment applied inside
+    # synthesize_with_alignment_and_quota.
+    await db.commit()
+    logger.info(
+        "audio.sentence.synthesized",
+        chunk_id=str(chunk_id),
+        sentence=sentence_index,
+        voice_id=voice_id,
+        provider=provider,
+        size=len(audio_bytes),
+    )
+    return FileResponse(local_path, media_type="audio/mpeg", filename=f"{seg_key}.mp3")
+
+
+@router.get("/{document_id}/chunks/{chunk_id}/sentences/{sentence_index}/alignment")
+async def get_chunk_sentence_alignment(
+    document_id: UUID,
+    chunk_id: UUID,
+    sentence_index: int,
+    request: Request,
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM",
+    db: AsyncSession = Depends(get_db_session),
+    user_id: UUID = Depends(get_current_user_id),
+) -> dict:
+    """Word-timing alignment for ONE sentence.
+
+    Normally a cache hit written by the sibling /audio synthesis (so no extra
+    credit is spent). On a cold miss it synthesizes once — the same
+    single-bill contract as the chunk-level /alignment endpoint. Character
+    times are relative to the sentence text; the client offsets them by the
+    sentence's chunk-global start to highlight in place.
+    """
+    from psitta.services.audio_cache import get_alignment, put_alignment, put_mp3
+
+    seg_key = f"{chunk_id}_s{sentence_index}"
+
+    # Native English Azure voices cannot produce alignment — answer fast and
+    # do not synthesize (consistent with the chunk /alignment endpoint).
+    if voice_id.startswith("en-") and voice_id.endswith("Neural"):
+        return {
+            "document_id": str(document_id),
+            "chunk_id": str(chunk_id),
+            "sentence_index": sentence_index,
+            "voice_id": voice_id,
+            "provider": "azure",
+            "alignment": None,
+        }
+
+    cached = await get_alignment(seg_key, voice_id)
+    if cached is not None:
+        logger.info(
+            "audio.sentence.alignment_cache_hit",
+            chunk_id=str(chunk_id),
+            sentence=sentence_index,
+            voice_id=voice_id,
+        )
+        return cached
+
+    sentence_text, source_type = await _load_chunk_sentence(
+        db, document_id, chunk_id, user_id, sentence_index,
+    )
+    from psitta.providers.tts_router import TTSRouter
+
+    tts = TTSRouter()
+    try:
+        audio_bytes, alignment, provider = (
+            await tts.synthesize_with_alignment_and_quota(
+                sentence_text, voice_id, user_id=user_id, db=db,
+            )
+        )
+    except Exception as e:
+        logger.error(
+            "audio.sentence.alignment_failed", error=str(e), voice_id=voice_id
+        )
+        raise HTTPException(status_code=502, detail=f"TTS alignment failed: {e}")
+
+    # Only ElevenLabs/Edge alignment is valid for the audio returned.
+    if provider not in {"elevenlabs", "edge"} and alignment is not None:
+        alignment = None
+
+    await put_mp3(seg_key, voice_id, audio_bytes)
+    payload = {
+        "document_id": str(document_id),
+        "chunk_id": str(chunk_id),
+        "sentence_index": sentence_index,
+        "voice_id": voice_id,
+        "provider": provider,
+        "alignment": alignment,
+    }
+    await put_alignment(seg_key, voice_id, payload)
+    await db.commit()
+    return payload
+
 async def _invalidate_chunk_audio_cache(chunk_id: UUID, db: AsyncSession) -> None:
     """Delete all audio_segments rows for a chunk so next request re-synthesizes.
 
