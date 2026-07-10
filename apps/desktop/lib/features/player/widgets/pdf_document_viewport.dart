@@ -10,6 +10,8 @@ import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/providers/providers.dart';
 import '../../../data/services/audio_service.dart';
 
+final RegExp _kWordCharRePDF = RegExp(r'[\p{L}\p{N}]', unicode: true);
+
 class PdfReadingHighlight {
   const PdfReadingHighlight({
     required this.pageNumber,
@@ -1131,12 +1133,10 @@ class _PdfDocumentViewportState extends ConsumerState<PdfDocumentViewport> {
     return null;
   }
 
-  bool _isWordChar(String ch) {
-    final c = ch.codeUnitAt(0);
-    final isAlphaNum =
-        (c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
-    return isAlphaNum || ch == "'";
-  }
+  // Unicode-aware: accented letters (é, è, ç, ã, ñ, …) count as word chars so
+  // word-boundary expansion doesn't stop mid-word on an accent.
+  bool _isWordChar(String ch) =>
+      _kWordCharRePDF.hasMatch(ch) || ch == "'" || ch == '\u2019';
 
   void _resolveWordHighlight(Duration position) {
     final payload = widget.alignmentPayload;

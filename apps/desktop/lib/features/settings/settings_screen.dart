@@ -12,9 +12,10 @@ import '../../data/services/preferences_service.dart';
 import '../../shared/widgets/psitta_logo.dart';
 import '../../widgets/user_avatar.dart';
 import '../../widgets/voice_avatar.dart';
+import '../../l10n/app_localizations.dart';
 
-String _autoDeleteLabel(int? days) =>
-    days == null ? 'Never' : 'After $days days';
+String _autoDeleteLabel(AppLocalizations loc, int? days) =>
+    days == null ? loc.setAutoDeleteNever : loc.setAutoDeleteAfter(days);
 
 String _cacheSizeLabel(int mb) => mb >= 1024 ? '${mb ~/ 1024} GB' : '$mb MB';
 
@@ -57,6 +58,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
 
     return Padding(
       padding: const EdgeInsets.all(24),
@@ -64,7 +66,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Settings',
+            loc.navSettings,
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.w700,
             ),
@@ -92,9 +94,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Widget _buildSettingsList(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     final selectedTheme = ref.watch(selectedThemeNameProvider);
     final swhMode = ref.watch(selectedSwhModeProvider);
     final isPro = ref.watch(isProUserProvider);
+    // Writing-Nook-only settings (Story-Coach, Writing Nook guide) are gated on
+    // this so they never appear in the Reading/Free experience (1.0.9.0 parity).
+    final isWritingNook =
+        ref.watch(planStatusProvider).plan == 'writing_nook_pro';
     final maxSpeed = isPro ? kProMaxSpeed : kFreeMaxSpeed;
     final availableSpeeds =
         SpeedPreferenceNotifier.speeds.where((s) => s <= maxSpeed).toList();
@@ -108,9 +115,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       child: ListView(
         padding: const EdgeInsets.only(bottom: 28),
         children: [
-          const _SettingsCard(
+          _SettingsCard(
             icon: Icons.person_outline,
-            title: 'Account',
+            title: loc.setSecAccount,
             children: [
               _AccountTile(),
               _SubscriptionTile(),
@@ -121,20 +128,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           _SettingsCard(
             icon: Icons.logout,
-            title: 'Session',
+            title: loc.setSecSession,
             children: [_LogoutTile()],
           ),
-          const _SettingsCard(
+          _SettingsCard(
             icon: Icons.graphic_eq_outlined,
-            title: 'Usage',
+            title: loc.setSecUsage,
             children: [_PremiumVoicesUsageTile()],
           ),
           _SettingsCard(
             icon: Icons.palette_outlined,
-            title: 'Appearance',
+            title: loc.setSecAppearance,
             children: [
               ListTile(
-                title: const Text('Theme'),
+                title: Text(loc.setTheme),
                 subtitle: Text(selectedTheme),
                 trailing: SizedBox(
                   width: 220,
@@ -160,7 +167,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           _SettingsCard(
             icon: Icons.headphones_outlined,
-            title: 'Playback',
+            title: loc.setSecPlayback,
             children: [
               Builder(builder: (context) {
                 final voicesAsync = ref.watch(voicesProvider);
@@ -181,19 +188,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           size: 32,
                           variant: VoiceAvatarVariant.small,
                         ),
-                  title: const Text('Default Voice'),
-                  subtitle: Text(displayName ?? 'Select a voice'),
+                  title: Text(loc.setDefaultVoice),
+                  subtitle: Text(displayName ?? loc.setSelectAVoice),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => context.go('/voices'),
                 );
               }),
               ListTile(
-                title: const Text('Playback Speed'),
+                title: Text(loc.setPlaybackSpeed),
                 subtitle: isPro
                     ? null
-                    : const Text(
-                        'Free plan limited to 2.0x. Upgrade for up to 4.0x.',
-                        style: TextStyle(fontSize: 11),
+                    : Text(
+                        loc.setSpeedFreeLimit,
+                        style: const TextStyle(fontSize: 11),
                       ),
                 trailing: DropdownButton<double>(
                   value: displaySpeed,
@@ -214,7 +221,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           _SettingsCard(
             icon: Icons.subtitles_outlined,
-            title: 'Sync Word Highlight',
+            title: loc.setSecSwh,
             children: [
               if (!isPro)
                 Padding(
@@ -226,7 +233,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'Available with Reading Nook Pro',
+                          loc.setSwhProGate,
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -234,16 +241,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       TextButton(
                         onPressed: () => context.go('/plan'),
-                        child: const Text('Upgrade'),
+                        child: Text(loc.navUpgrade),
                       ),
                     ],
                   ),
                 ),
               RadioListTile<String>(
-                title: const Text('Read with S.W.H'),
-                subtitle: const Text(
-                  "Highlights each word as it's spoken",
-                  style: TextStyle(fontSize: 11),
+                title: Text(loc.setSwhReadWith),
+                subtitle: Text(
+                  loc.setSwhReadWithSub,
+                  style: const TextStyle(fontSize: 11),
                 ),
                 value: SwhMode.always,
                 groupValue: swhMode,
@@ -253,7 +260,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     : null,
               ),
               RadioListTile<String>(
-                title: const Text('Read without S.W.H'),
+                title: Text(loc.setSwhReadWithout),
                 value: SwhMode.never,
                 groupValue: swhMode,
                 onChanged: isPro
@@ -263,51 +270,55 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          _SettingsCard(
-            icon: Icons.auto_stories_outlined,
-            title: 'Story-Coach',
-            children: [
-              SwitchListTile(
-                title: const Text('AI Story-Coaching'),
-                subtitle: const Text(
-                  "Nudge me when my writing drifts from my book's narrative",
-                  style: TextStyle(fontSize: 11),
+          // Writing-Nook-only — hidden entirely for Reading/Free (1.0.9.0 parity).
+          if (isWritingNook) ...[
+            _SettingsCard(
+              icon: Icons.auto_stories_outlined,
+              title: loc.setSecStoryCoach,
+              children: [
+                SwitchListTile(
+                  title: Text(loc.setStoryCoachToggle),
+                  subtitle: Text(
+                    loc.setStoryCoachSub,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  value: ref.watch(storyCoachEnabledProvider),
+                  onChanged: (v) => ref
+                      .read(storyCoachEnabledProvider.notifier)
+                      .setEnabled(v),
                 ),
-                value: ref.watch(storyCoachEnabledProvider),
-                onChanged: (v) =>
-                    ref.read(storyCoachEnabledProvider.notifier).setEnabled(v),
-              ),
-            ],
-          ),
-          _SettingsCard(
-            icon: Icons.support_agent,
-            title: 'Help guide',
-            children: [
-              SwitchListTile(
-                title: const Text('Show the Writing Nook guide'),
-                subtitle: const Text(
-                  'A quick-help chat in the Library corner',
-                  style: TextStyle(fontSize: 11),
+              ],
+            ),
+            _SettingsCard(
+              icon: Icons.support_agent,
+              title: loc.setSecHelpGuide,
+              children: [
+                SwitchListTile(
+                  title: Text(loc.setHelpGuideToggle),
+                  subtitle: Text(
+                    loc.setHelpGuideSub,
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  value: ref.watch(guideChatEnabledProvider),
+                  onChanged: (v) =>
+                      ref.read(guideChatEnabledProvider.notifier).setEnabled(v),
                 ),
-                value: ref.watch(guideChatEnabledProvider),
-                onChanged: (v) =>
-                    ref.read(guideChatEnabledProvider.notifier).setEnabled(v),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
           _SettingsCard(
             icon: Icons.sd_storage_outlined,
-            title: 'Storage',
+            title: loc.setSecStorage,
             children: [
               ListTile(
-                title: const Text('Auto-Delete Documents'),
+                title: Text(loc.setAutoDelete),
                 trailing: DropdownButton<int?>(
                   value: ref.watch(selectedAutoDeleteProvider),
                   underline: const SizedBox(),
                   items: AutoDeletePreferenceNotifier.options
                       .map((d) => DropdownMenuItem<int?>(
                             value: d,
-                            child: Text(_autoDeleteLabel(d)),
+                            child: Text(_autoDeleteLabel(loc, d)),
                           ))
                       .toList(),
                   onChanged: (val) {
@@ -316,7 +327,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
               ListTile(
-                title: const Text('Cache Size'),
+                title: Text(loc.setCacheSize),
                 trailing: DropdownButton<int>(
                   value: ref.watch(selectedCacheSizeProvider),
                   underline: const SizedBox(),
@@ -339,7 +350,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.only(top: 8, bottom: 16),
             child: Center(
               child: Text(
-                _appVersion.isEmpty ? 'Psitta' : 'Psitta v$_appVersion',
+                // Tier-aware label: Writing shows the real build version;
+                // Free/Reading pin to v1.1.0 (kept on the Reading line).
+                isWritingNook
+                    ? (_appVersion.isEmpty ? 'Psitta' : 'Psitta v$_appVersion')
+                    : 'Psitta v1.1.0',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
@@ -414,6 +429,7 @@ class _SettingsBrandingPanel extends StatelessWidget {
     final isDark = theme.brightness == Brightness.dark;
     final primaryText = theme.colorScheme.onSurface;
     final mutedText = theme.colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
 
     return Center(
       child: ConstrainedBox(
@@ -434,7 +450,7 @@ class _SettingsBrandingPanel extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               Text(
-                'Listen to your documents.',
+                loc.brandListen,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -444,7 +460,7 @@ class _SettingsBrandingPanel extends StatelessWidget {
                 ),
               ),
               Text(
-                'Improve your writing.',
+                loc.brandImprove,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 16,
@@ -476,21 +492,22 @@ class _AccountTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final profileAsync = UserAvatarWidget.watchProfile(ref);
 
     return profileAsync.when(
-      loading: () => const ListTile(
-        leading: UserAvatarWidget(size: 40),
-        title: Text('Loading...'),
+      loading: () => ListTile(
+        leading: const UserAvatarWidget(size: 40),
+        title: Text(loc.setLoading),
       ),
-      error: (_, __) => const ListTile(
-        leading: UserAvatarWidget(size: 40),
-        title: Text('Account'),
-        subtitle: Text('Could not load profile'),
+      error: (_, __) => ListTile(
+        leading: const UserAvatarWidget(size: 40),
+        title: Text(loc.setSecAccount),
+        subtitle: Text(loc.accountLoadError),
       ),
       data: (profile) {
-        final name = profile.name ?? 'User';
-        final email = profile.email ?? 'Unknown';
+        final name = profile.name ?? loc.accountFallbackName;
+        final email = profile.email ?? loc.accountFallbackEmail;
         return ListTile(
           leading: const UserAvatarWidget(size: 40),
           title: Text(name),
@@ -511,20 +528,21 @@ class _SubscriptionTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final sub = ref.watch(billingStatusProvider);
     return sub.when(
-      loading: () => const ListTile(
-        leading: Icon(Icons.card_membership_outlined),
-        title: Text('Subscription'),
-        subtitle: Text('Loading...'),
+      loading: () => ListTile(
+        leading: const Icon(Icons.card_membership_outlined),
+        title: Text(loc.subTitle),
+        subtitle: Text(loc.setLoading),
       ),
       // The error branch is explicit about "temporarily unavailable"
       // (not "you're Free") and exposes a tap target to retry, so a
       // transient 401/network blip doesn't mislead a paying Pro user.
       error: (_, __) => ListTile(
         leading: const Icon(Icons.error_outline, color: Colors.orange),
-        title: const Text('Plan status temporarily unavailable'),
-        subtitle: const Text('Tap to retry'),
+        title: Text(loc.subStatusUnavailable),
+        subtitle: Text(loc.subTapRetry),
         onTap: () => ref.invalidate(billingStatusProvider),
       ),
       data: (data) {
@@ -539,26 +557,25 @@ class _SubscriptionTile extends ConsumerWidget {
           final periodEnd = planStatus.currentPeriodEnd;
           final dateText = periodEnd != null
               ? formatResetDate(periodEnd)
-              : 'unknown date';
+              : loc.subUnknownDate;
           return Tooltip(
-            message: 'Alpha tester access — paid plan features active '
-                'until $dateText',
+            message: loc.subAlphaTooltip(dateText),
             child: ListTile(
               leading: const Icon(Icons.card_membership_outlined),
-              title: Text('Plan: $planLabel · Alpha tester'),
-              subtitle: Text('Active until $dateText'),
+              title: Text(loc.subPlanAlphaTester(planLabel)),
+              subtitle: Text(loc.subActiveUntil(dateText)),
             ),
           );
         }
 
         final subtitle = planStatus.plan == 'free'
-            ? 'No active subscription'
+            ? loc.subNoActive
             : (planStatus.status == 'active'
-                ? 'Active'
+                ? loc.subActive
                 : planStatus.status);
         return ListTile(
           leading: const Icon(Icons.card_membership_outlined),
-          title: Text('Plan: $planLabel'),
+          title: Text(loc.subPlanLabel(planLabel)),
           subtitle: Text(subtitle),
         );
       },
@@ -575,35 +592,36 @@ class _PremiumVoicesUsageTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     final quotaAsync = ref.watch(quotaUsageProvider);
     return quotaAsync.when(
-      loading: () => const ListTile(
-        leading: Icon(Icons.graphic_eq_outlined),
-        title: Text('Premium voices'),
-        subtitle: Text('Loading...'),
+      loading: () => ListTile(
+        leading: const Icon(Icons.graphic_eq_outlined),
+        title: Text(loc.featPremiumVoices),
+        subtitle: Text(loc.setLoading),
       ),
       error: (_, __) => ListTile(
         leading: const Icon(Icons.error_outline, color: Colors.orange),
-        title: const Text('Premium voices'),
-        subtitle: const Text('Usage temporarily unavailable — tap to retry'),
+        title: Text(loc.featPremiumVoices),
+        subtitle: Text(loc.usageUnavailable),
         onTap: () => ref.invalidate(quotaUsageProvider),
       ),
       data: (info) {
         if (!info.hasElQuota) {
           return ListTile(
             leading: const Icon(Icons.graphic_eq_outlined),
-            title: const Text('Premium voices'),
-            subtitle: const Text('Standard voices on Free plan'),
+            title: Text(loc.featPremiumVoices),
+            subtitle: Text(loc.usageStandardFree),
             trailing: TextButton(
               onPressed: () => context.go('/plan'),
-              child: const Text('Upgrade'),
+              child: Text(loc.navUpgrade),
             ),
           );
         }
         final theme = Theme.of(context);
         final progressColor = elProgressColor(context, info);
         final resetText = info.elCharsResetAt != null
-            ? 'Resets ${formatResetDate(info.elCharsResetAt!)}'
+            ? loc.usageResets(formatResetDate(info.elCharsResetAt!))
             : '';
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -616,7 +634,7 @@ class _PremiumVoicesUsageTile extends ConsumerWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Premium voices',
+                      loc.featPremiumVoices,
                       style: theme.textTheme.bodyLarge,
                     ),
                   ),
@@ -662,9 +680,10 @@ class _ChangePlanTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return ListTile(
       leading: const Icon(Icons.swap_horiz_outlined),
-      title: const Text('Change Plan'),
+      title: Text(loc.setChangePlan),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => context.go('/plan'),
     );
@@ -710,7 +729,7 @@ class _ManageSubscriptionTileState
       final data = response.data as Map<String, dynamic>;
       final url = data['url'] as String?;
       if (url == null) {
-        _showSnack('Subscription portal returned no URL. Please try again.');
+        _showSnack(AppLocalizations.of(context).manageNoUrl);
         return;
       }
 
@@ -719,21 +738,20 @@ class _ManageSubscriptionTileState
         mode: LaunchMode.externalApplication,
       );
       if (!launched) {
-        _showSnack('Could not open browser. Please try again.');
+        _showSnack(AppLocalizations.of(context).planCouldNotOpenBrowser);
         return;
       }
 
       ref.invalidate(billingStatusProvider);
 
       _showSnack(
-        'Manage your subscription in the browser. '
-        'This page will refresh when you return.',
+        AppLocalizations.of(context).manageBrowserMsg,
         durationSeconds: 5,
       );
     } on DioException catch (e) {
       _handlePortalError(e);
     } catch (_) {
-      _showSnack('Connection error. Please check your internet.');
+      _showSnack(AppLocalizations.of(context).planConnectionError);
     } finally {
       if (mounted) setState(() => _isLaunching = false);
     }
@@ -743,18 +761,16 @@ class _ManageSubscriptionTileState
     final status = e.response?.statusCode;
     switch (status) {
       case 404:
-        _showSnack('No active subscription. Subscribe first to manage.');
+        _showSnack(AppLocalizations.of(context).manageNoSubscription);
       case 502:
-        _showSnack(
-          'Subscription portal temporarily unavailable. Please try again.',
-        );
+        _showSnack(AppLocalizations.of(context).managePortalUnavailable);
       default:
         if (e.type == DioExceptionType.connectionError ||
             e.type == DioExceptionType.connectionTimeout ||
             e.type == DioExceptionType.receiveTimeout) {
-          _showSnack('Connection error. Please check your internet.');
+          _showSnack(AppLocalizations.of(context).planConnectionError);
         } else {
-          _showSnack('Could not open subscription portal. Please try again.');
+          _showSnack(AppLocalizations.of(context).managePortalError);
         }
     }
   }
@@ -779,13 +795,14 @@ class _ManageSubscriptionTileState
     // _ChangePlanTile.
     final planStatus = ref.watch(planStatusProvider);
     if (!planStatus.isStripeSubscribed) return const SizedBox.shrink();
+    final loc = AppLocalizations.of(context);
 
     return ListTile(
       leading: const Icon(Icons.credit_card_outlined),
-      title: const Text('Manage Subscription'),
-      subtitle: const Text(
-        'Update payment, swap plan, or cancel — opens in your browser',
-        style: TextStyle(fontSize: 11),
+      title: Text(loc.manageTitle),
+      subtitle: Text(
+        loc.manageSubtitle,
+        style: const TextStyle(fontSize: 11),
       ),
       trailing: _isLaunching
           ? const SizedBox(
@@ -806,11 +823,12 @@ class _StaySignedInTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final staySignedIn = ref.watch(staySignedInProvider);
+    final loc = AppLocalizations.of(context);
     return SwitchListTile(
       secondary: const Icon(Icons.lock_open_outlined),
-      title: const Text('Stay signed in'),
-      subtitle: const Text(
-        'Skip the login screen after signing out',
+      title: Text(loc.staySignedIn),
+      subtitle: Text(
+        loc.staySignedInSub,
       ),
       value: staySignedIn,
       onChanged: (value) =>
@@ -822,9 +840,10 @@ class _StaySignedInTile extends ConsumerWidget {
 class _LogoutTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     return ListTile(
       leading: const Icon(Icons.logout, color: Colors.red),
-      title: const Text('Logout', style: TextStyle(color: Colors.red)),
+      title: Text(loc.setLogout, style: const TextStyle(color: Colors.red)),
       onTap: () async {
         await ref.read(authStateProvider.notifier).logout();
       },

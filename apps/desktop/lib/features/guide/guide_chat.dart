@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/services/preferences_service.dart';
 import 'guide_chat_script.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Current step of the Writing Nook guide. autoDispose so it resets to the root
 /// whenever the Library route is left and re-entered (all listeners are
@@ -42,7 +43,9 @@ class _GuideRailCardState extends ConsumerState<GuideRailCard> {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final nodeId = ref.watch(guideNodeProvider);
-    final node = kGuideScript[nodeId] ?? kGuideScript[kGuideRoot]!;
+    final loc = AppLocalizations.of(context);
+    final script = guideScriptFor(Localizations.localeOf(context).languageCode);
+    final node = script[nodeId] ?? script[kGuideRoot]!;
     final atRoot = nodeId == kGuideRoot;
 
     return Container(
@@ -61,7 +64,7 @@ class _GuideRailCardState extends ConsumerState<GuideRailCard> {
             children: [
               Expanded(
                 child: Text(
-                  "Writer's Guide",
+                  loc.guideTitle,
                   style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: scheme.onSurface,
                         fontWeight: FontWeight.w700,
@@ -85,13 +88,13 @@ class _GuideRailCardState extends ConsumerState<GuideRailCard> {
               if (!atRoot)
                 _miniIcon(
                     Icons.refresh,
-                    'Start over',
+                    loc.guideStartOver,
                     () => ref.read(guideNodeProvider.notifier).state =
                         kGuideRoot,
                     scheme),
               _miniIcon(
                 Icons.close,
-                'Hide (turn back on in Settings)',
+                loc.guideHide,
                 () =>
                     ref.read(guideChatEnabledProvider.notifier).setEnabled(false),
                 scheme,

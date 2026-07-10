@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/psitta_tokens.dart';
+import '../../l10n/app_localizations.dart';
 import 'narrative_guidance.dart';
+import 'narrative_guidance_i18n.dart';
 import 'narrative_structures.dart';
+import 'narrative_i18n.dart';
 
 /// Opens the Interactive Guide for [structure]'s [variantIndex] — a walkthrough
 /// of each beat with what it does and a craft tip. Read-only, no AI, no cost.
@@ -33,6 +36,7 @@ class _InteractiveGuideDialog extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final variant = structure.variants[variantIndex];
     final beats = variant.components;
+    final loc = AppLocalizations.of(context);
 
     return Dialog(
       backgroundColor: tokens.surface,
@@ -57,7 +61,7 @@ class _InteractiveGuideDialog extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Text('Interactive Guide',
+                            Text(loc.interactiveGuideLabel,
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w800,
@@ -72,7 +76,7 @@ class _InteractiveGuideDialog extends StatelessWidget {
                                 color: tokens.glow.withValues(alpha: 0.14),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: Text(variant.bestFor,
+                              child: Text(bestForLabel(context, variant.bestFor),
                                   style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
@@ -81,18 +85,18 @@ class _InteractiveGuideDialog extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 3),
-                        Text(structure.name,
+                        Text(structureNameLabel(context, structure.name),
                             style: const TextStyle(
                                 fontSize: 20, fontWeight: FontWeight.w800)),
                         const SizedBox(height: 2),
-                        Text('${beats.length} steps · tap through your arc',
+                        Text(loc.guideStepsCaption(beats.length),
                             style: TextStyle(
                                 fontSize: 12, color: scheme.onSurfaceVariant)),
                       ],
                     ),
                   ),
                   IconButton(
-                    tooltip: 'Close',
+                    tooltip: loc.actionClose,
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -106,11 +110,11 @@ class _InteractiveGuideDialog extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 18),
                 itemCount: beats.length,
                 separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (_, i) => _BeatCard(
+                itemBuilder: (context, i) => _BeatCard(
                   index: i,
                   total: beats.length,
-                  name: beats[i],
-                  guide: guideForBeat(beats[i]),
+                  name: beatLabel(context, beats[i]),
+                  guide: localizedGuideForBeat(context, beats[i]),
                 ),
               ),
             ),
@@ -118,7 +122,7 @@ class _InteractiveGuideDialog extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
               child: Text(
-                'General craft guidance — your story may bend these on purpose.',
+                loc.generalCraftGuidance,
                 style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
               ),
             ),
@@ -146,6 +150,7 @@ class _BeatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 13),
       decoration: BoxDecoration(
@@ -206,7 +211,7 @@ class _BeatCard extends StatelessWidget {
                           color: scheme.onSurface),
                       children: [
                         TextSpan(
-                            text: 'Tip  ',
+                            text: '${loc.tipLabel}  ',
                             style: TextStyle(
                                 fontWeight: FontWeight.w800,
                                 color: tokens.glow)),

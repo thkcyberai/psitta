@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
@@ -76,6 +77,7 @@ class ArchiveScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(archivedDocumentsProvider);
 
     return Container(
@@ -84,22 +86,21 @@ class ArchiveScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const LibraryBreadcrumb(current: 'Archive'),
+          LibraryBreadcrumb(current: loc.archive),
           const SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.inventory_2_outlined,
                   size: 26, color: scheme.onSurface),
               const SizedBox(width: 10),
-              Text('Archive',
+              Text(loc.archive,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800)),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Archived documents are hidden from your Library but kept safe. '
-            'Unarchive to bring one back.',
+            loc.archiveSubtitle,
             style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 18),
@@ -120,7 +121,7 @@ class ArchiveScreen extends ConsumerWidget {
                             size: 48,
                             color: scheme.onSurfaceVariant.withOpacity(0.5)),
                         const SizedBox(height: 12),
-                        Text('Nothing archived',
+                        Text(loc.nothingArchived,
                             style: TextStyle(color: scheme.onSurfaceVariant)),
                       ],
                     ),
@@ -159,7 +160,7 @@ class ArchiveScreen extends ConsumerWidget {
                             onPressed: () => _unarchive(ref, context, doc),
                             icon: const Icon(Icons.unarchive_outlined,
                                 size: 18),
-                            label: const Text('Unarchive'),
+                            label: Text(loc.btnUnarchive),
                           ),
                           const SizedBox(width: 4),
                           TextButton.icon(
@@ -167,7 +168,7 @@ class ArchiveScreen extends ConsumerWidget {
                             style: TextButton.styleFrom(
                                 foregroundColor: scheme.onSurfaceVariant),
                             icon: const Icon(Icons.delete_outline, size: 18),
-                            label: const Text('Trash'),
+                            label: Text(loc.statTrash),
                           ),
                         ],
                       ),

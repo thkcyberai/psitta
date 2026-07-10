@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
@@ -48,6 +49,7 @@ class PartTreePane extends ConsumerWidget {
 
   Widget _content(BuildContext context, WidgetRef ref, BlueprintDetail detail) {
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
     final owned = !detail.isSystem;
     final sectionCount = _countSections(detail.parts);
 
@@ -72,7 +74,7 @@ class PartTreePane extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '$sectionCount section${sectionCount == 1 ? '' : 's'}',
+                      loc.sectionCount(sectionCount),
                       style: TextStyle(
                         fontSize: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -88,7 +90,7 @@ class PartTreePane extends ConsumerWidget {
                 FilledButton.icon(
                   key: const ValueKey('use-template-button'),
                   icon: const Icon(Icons.auto_awesome, size: 18),
-                  label: const Text('Use this Book Structure'),
+                  label: Text(loc.useThisBookStructure),
                   onPressed: () => _useTemplate(context, ref, detail),
                 ),
             ],
@@ -98,9 +100,9 @@ class PartTreePane extends ConsumerWidget {
           const SizedBox(height: 8),
           Expanded(
             child: detail.parts.isEmpty
-                ? const _Placeholder(
+                ? _Placeholder(
                     icon: Icons.list_alt_outlined,
-                    message: 'No sections yet',
+                    message: loc.noSectionsYet,
                   )
                 : ListView(
                     children: [
@@ -128,11 +130,12 @@ class PartTreePane extends ConsumerWidget {
     WidgetRef ref,
     BlueprintDetail detail,
   ) {
+    final loc = AppLocalizations.of(context);
     return [
       OutlinedButton.icon(
         key: const ValueKey('add-root-section-button'),
         icon: const Icon(Icons.add, size: 18),
-        label: const Text('Add Section'),
+        label: Text(loc.addSection),
         onPressed: () => _addRootSection(context, ref, detail),
       ),
       const SizedBox(width: 8),
@@ -157,10 +160,11 @@ class PartTreePane extends ConsumerWidget {
     WidgetRef ref,
     BlueprintDetail detail,
   ) async {
+    final loc = AppLocalizations.of(context);
     final result = await showBlueprintFormDialog(
       context,
-      title: 'Name your Book Structure',
-      submitLabel: 'Create',
+      title: loc.nameYourBookStructure,
+      submitLabel: loc.btnCreate,
       initialName: detail.name,
       initialGenre: detail.genre,
     );
@@ -194,10 +198,11 @@ class PartTreePane extends ConsumerWidget {
     WidgetRef ref,
     BlueprintDetail detail,
   ) async {
+    final loc = AppLocalizations.of(context);
     final result = await showBlueprintFormDialog(
       context,
-      title: 'Edit Book Structure',
-      submitLabel: 'Save',
+      title: loc.editBookStructure,
+      submitLabel: loc.btnSave,
       initialName: detail.name,
       initialGenre: detail.genre,
       initialStatus: detail.status,
@@ -220,10 +225,11 @@ class PartTreePane extends ConsumerWidget {
     WidgetRef ref,
     BlueprintDetail detail,
   ) async {
+    final loc = AppLocalizations.of(context);
     final result = await showSectionFormDialog(
       context,
-      title: 'Add Section',
-      submitLabel: 'Add',
+      title: loc.addSection,
+      submitLabel: loc.btnAdd,
     );
     if (result == null) return;
     if (!context.mounted) return;
@@ -369,10 +375,11 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
   }
 
   Future<void> _addSubsection() async {
+    final loc = AppLocalizations.of(context);
     final result = await showSectionFormDialog(
       context,
-      title: 'Add Subsection',
-      submitLabel: 'Add',
+      title: loc.addSubsectionTitle,
+      submitLabel: loc.btnAdd,
     );
     if (result == null || !mounted) return;
     await runBlueprintMutation(
@@ -387,10 +394,11 @@ class _PartTreeNodeState extends ConsumerState<_PartTreeNode> {
   }
 
   Future<void> _editSection() async {
+    final loc = AppLocalizations.of(context);
     final result = await showSectionFormDialog(
       context,
-      title: 'Edit Section',
-      submitLabel: 'Save',
+      title: loc.editSection,
+      submitLabel: loc.btnSave,
       initialName: _node.name,
       initialDescription: _node.description,
     );

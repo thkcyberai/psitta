@@ -125,6 +125,19 @@ class AudioService {
     double speed = 1.0,
     double volume = 1.0,
   }) async {
+    // Dispatch to the gapless sentence playlist when enabled (instant
+    // highlighting). Keeps every existing caller unchanged.
+    if (_shouldUseSentencePlaylist(chunkId)) {
+      return playChunkSentences(
+        documentId: documentId,
+        chunkId: chunkId,
+        sentenceCount: _sentenceCountFor(chunkId),
+        voiceId: voiceId,
+        speed: speed,
+        volume: volume,
+      );
+    }
+    _sentenceActiveController.add(false);
     final token = _nextToken();
     final cacheKey = '${chunkId}_$voiceId';
 
@@ -276,6 +289,17 @@ class AudioService {
     double speed = 1.0,
     double volume = 1.0,
   }) async {
+    if (_shouldUseSentencePlaylist(chunkId)) {
+      return playChunkSentences(
+        documentId: documentId,
+        chunkId: chunkId,
+        sentenceCount: _sentenceCountFor(chunkId),
+        voiceId: voiceId,
+        speed: speed,
+        volume: volume,
+      );
+    }
+    _sentenceActiveController.add(false);
     final token = _nextToken();
     final cacheKey = '${chunkId}_$voiceId';
     final stopwatch = Stopwatch()..start();
@@ -401,6 +425,18 @@ class AudioService {
     double speed = 1.0,
     double volume = 1.0,
   }) async {
+    if (_shouldUseSentencePlaylist(chunkId)) {
+      return playChunkSentences(
+        documentId: documentId,
+        chunkId: chunkId,
+        sentenceCount: _sentenceCountFor(chunkId),
+        voiceId: voiceId,
+        speed: speed,
+        volume: volume,
+        autoplay: false,
+      );
+    }
+    _sentenceActiveController.add(false);
     final token = _nextToken();
     final cacheKey = '${chunkId}_$voiceId';
     final stopwatch = Stopwatch()..start();
@@ -498,6 +534,8 @@ class AudioService {
     await _player.stop();
     _synthesizingController.add(false);
     _clearLoadedSource();
+    await _teardownPlaylistSubs();
+    _clearPlaylistState();
   }
 
   /// Full reset — stops playback and clears player state.
@@ -510,6 +548,8 @@ class AudioService {
     } catch (_) {}
     _synthesizingController.add(false);
     _clearLoadedSource();
+    await _teardownPlaylistSubs();
+    _clearPlaylistState();
   }
 
   /// User-switch reset: stops playback, zeroes position, and wipes
@@ -525,6 +565,8 @@ class AudioService {
     } catch (_) {}
     _synthesizingController.add(false);
     _clearLoadedSource();
+    await _teardownPlaylistSubs();
+    _clearPlaylistState();
 
     _positionTimer?.cancel();
     _positionTimer = null;
@@ -656,7 +698,293 @@ class AudioService {
     });
   }
 
+  // ───────────────────────────────────────────────────────────────────────
+  // Sentence-playlist playback (instant word highlighting).
+  //
+  // Instead of one whole-chunk audio source, play the chunk as a gapless
+  // ConcatenatingAudioSource of per-sentence clips. Each clip's audio and its
+  // word timings come from ONE server-side synthesis (the /sentences/{i}/audio
+  // endpoint), so the first sentence — and therefore the first highlight —
+  // lands in ~1s while the rest of the chunk pipelines behind it.
+  //
+  // just_audio reports position/duration RELATIVE TO THE CURRENT ITEM for a
+  // ConcatenatingAudioSource, and the active item via currentIndexStream. The
+  // highlighter wants exactly that (sentence index + in-sentence ms). The
+  // toolbar/seek want a CHUNK-level timeline, so we maintain a cumulative
+  // per-sentence duration table and expose chapterPosition/chapterDuration on
+  // top of the playlist. Everything here is additive; the single-file
+  // playChunk / playChunkStreaming paths are untouched and remain the default.
+  // ───────────────────────────────────────────────────────────────────────
+
+  /// Known duration of each sentence clip in the active playlist, filled in as
+  /// just_audio prepares/plays each item. `Duration.zero` == not yet known.
+  List<Duration> _sentenceDurations = const [];
+  String? _playlistDocumentId;
+  String? _playlistChunkId;
+  String? _playlistVoiceId;
+
+  final StreamController<int> _sentenceIndexController =
+      StreamController<int>.broadcast();
+  final StreamController<Duration> _chapterPositionController =
+      StreamController<Duration>.broadcast();
+  final StreamController<Duration?> _chapterDurationController =
+      StreamController<Duration?>.broadcast();
+
+  StreamSubscription<int?>? _plIndexSub;
+  StreamSubscription<Duration>? _plPositionSub;
+  StreamSubscription<Duration?>? _plDurationSub;
+
+  /// Whether the sentence-playlist path is enabled, and the sentence count per
+  /// chunk id (from the chunk's sentence_boundaries). Set by the player screen
+  /// via [setSentencePlan] when the flag is on. When enabled, the ordinary
+  /// playChunk / playChunkStreaming / prepareChunk entry points transparently
+  /// dispatch to [playChunkSentences] — so every existing call site gets
+  /// instant highlighting without changing any of them.
+  bool _sentenceModeEnabled = false;
+  Map<String, int> _sentenceCounts = const {};
+
+  /// Emits true when a sentence playlist becomes the active source, false when
+  /// single-file playback is active or playback stops. The toolbar watches this
+  /// to switch its scrubber between the chapter model and the plain player.
+  final StreamController<bool> _sentenceActiveController =
+      StreamController<bool>.broadcast();
+  Stream<bool> get sentencePlaylistActiveStream =>
+      _sentenceActiveController.stream;
+
+  /// Configure the sentence-playlist dispatch. [counts] maps chunkId → number
+  /// of sentences (chunk.sentence_boundaries.length).
+  void setSentencePlan({required bool enabled, required Map<String, int> counts}) {
+    _sentenceModeEnabled = enabled;
+    _sentenceCounts = counts;
+  }
+
+  int _sentenceCountFor(String chunkId) => _sentenceCounts[chunkId] ?? 0;
+
+  bool _shouldUseSentencePlaylist(String chunkId) =>
+      _sentenceModeEnabled && _sentenceCountFor(chunkId) > 0;
+
+  /// Active sentence index within the current chunk playlist (0-based).
+  Stream<int> get sentenceIndexStream => _sentenceIndexController.stream;
+
+  /// Chunk-level ("chapter") playback position, summed across sentence clips,
+  /// so the toolbar scrubber reads as one continuous timeline.
+  Stream<Duration> get chapterPositionStream =>
+      _chapterPositionController.stream;
+
+  /// Chunk-level total duration (sum of known sentence-clip durations). Grows
+  /// as clips are prepared; becomes exact once every clip has been loaded.
+  Stream<Duration?> get chapterDurationStream =>
+      _chapterDurationController.stream;
+
+  bool get hasSentencePlaylist => _playlistChunkId != null;
+
+  int get currentSentenceIndex => _player.currentIndex ?? 0;
+
+  Duration _cumulativeBefore(int index) {
+    var total = Duration.zero;
+    final n = _sentenceDurations.length;
+    for (var i = 0; i < index && i < n; i++) {
+      total += _sentenceDurations[i];
+    }
+    return total;
+  }
+
+  Duration _knownChapterDuration() {
+    var total = Duration.zero;
+    for (final d in _sentenceDurations) {
+      total += d;
+    }
+    return total;
+  }
+
+  void _emitChapterPosition() {
+    final idx = _player.currentIndex ?? 0;
+    _chapterPositionController.add(_cumulativeBefore(idx) + _player.position);
+  }
+
+  String _sentenceAudioUrl(
+    String documentId,
+    String chunkId,
+    int sentenceIndex,
+    String voiceId,
+  ) {
+    final base = _api.dio.options.baseUrl;
+    return '$base/documents/$documentId/chunks/$chunkId'
+        '/sentences/$sentenceIndex/audio?voice_id=$voiceId';
+  }
+
+  Future<void> _teardownPlaylistSubs() async {
+    await _plIndexSub?.cancel();
+    await _plPositionSub?.cancel();
+    await _plDurationSub?.cancel();
+    _plIndexSub = null;
+    _plPositionSub = null;
+    _plDurationSub = null;
+  }
+
+  void _clearPlaylistState() {
+    _playlistDocumentId = null;
+    _playlistChunkId = null;
+    _playlistVoiceId = null;
+    _sentenceDurations = const [];
+    if (!_sentenceActiveController.isClosed) {
+      _sentenceActiveController.add(false);
+    }
+  }
+
+  /// Play a chunk as a gapless per-sentence playlist. Additive: callers opt in
+  /// (behind the sentence-highlight flag); the single-file paths are unchanged.
+  ///
+  /// [sentenceCount] is the number of entries in the chunk's
+  /// `sentence_boundaries` (already delivered by GET /chunks). The backend
+  /// slices sentence [i] from the identical boundaries, so index [i] here and
+  /// server-side refer to the same span.
+  Future<bool> playChunkSentences({
+    required String documentId,
+    required String chunkId,
+    required int sentenceCount,
+    String voiceId = '21m00Tcm4TlvDq8ikWAM',
+    double speed = 1.0,
+    double volume = 1.0,
+    int initialSentence = 0,
+    bool autoplay = true,
+  }) async {
+    if (sentenceCount <= 0) return false;
+    final token = _nextToken();
+    // ignore: avoid_print
+    print('[SSP] sentence playlist ENGAGED chunk=$chunkId '
+        'sentences=$sentenceCount voice=$voiceId');
+
+    try {
+      await _player.stop();
+    } catch (_) {}
+    await _teardownPlaylistSubs();
+
+    _synthesizingController.add(true);
+    try {
+      final auth = await _api.accessToken();
+      final headers = <String, String>{
+        if (auth != null && auth.isNotEmpty) 'Authorization': 'Bearer $auth',
+      };
+
+      final children = <AudioSource>[
+        for (var i = 0; i < sentenceCount; i++)
+          AudioSource.uri(
+            Uri.parse(_sentenceAudioUrl(documentId, chunkId, i, voiceId)),
+            headers: headers,
+          ),
+      ];
+
+      final playlist = ConcatenatingAudioSource(
+        // Lazy preparation: prepare items just-in-time so the first sentence
+        // starts fast instead of blocking on the whole chunk. just_audio
+        // preloads the upcoming item to keep transitions gapless.
+        useLazyPreparation: true,
+        children: children,
+      );
+
+      _sentenceDurations =
+          List<Duration>.filled(sentenceCount, Duration.zero, growable: false);
+      _playlistDocumentId = documentId;
+      _playlistChunkId = chunkId;
+      _playlistVoiceId = voiceId;
+
+      await _player.setAudioSource(
+        playlist,
+        initialIndex: initialSentence.clamp(0, sentenceCount - 1),
+        initialPosition: Duration.zero,
+      );
+      if (!_isLatest(token)) {
+        _synthesizingController.add(false);
+        return false;
+      }
+      await _player.setSpeed(speed);
+      await _player.setVolume(volume);
+
+      // Wire the chapter/sentence model. currentIndex → sentence index +
+      // recompute chapter position; per-item duration fills the table so the
+      // cumulative timeline sharpens as clips load; position → chapter position.
+      _plIndexSub = _player.currentIndexStream.listen((idx) {
+        if (idx == null) return;
+        _sentenceIndexController.add(idx);
+        _emitChapterPosition();
+      });
+      _plDurationSub = _player.durationStream.listen((d) {
+        final idx = _player.currentIndex ?? 0;
+        if (d != null && idx >= 0 && idx < _sentenceDurations.length) {
+          _sentenceDurations[idx] = d;
+          _chapterDurationController.add(_knownChapterDuration());
+        }
+      });
+      // Use just_audio's built-in (broadcast) positionStream here — the tuned
+      // _positionStream is single-subscription and already owned by
+      // audioPositionProvider. Coarser cadence is fine for the scrubber; the
+      // highlighter keeps the tuned stream for smooth in-sentence sync.
+      _plPositionSub = _player.positionStream.listen((_) => _emitChapterPosition());
+
+      _markLoadedSource(
+          documentId: documentId, chunkId: chunkId, voiceId: voiceId);
+      _sentenceIndexController.add(initialSentence);
+      _sentenceActiveController.add(true);
+      _synthesizingController.add(false);
+      if (autoplay) await _player.play();
+      return true;
+    } catch (e) {
+      debugPrint('[AudioService] sentence-playlist play failed: $e');
+      _synthesizingController.add(false);
+      _clearPlaylistState();
+      await _teardownPlaylistSubs();
+      return false;
+    }
+  }
+
+  /// Seek within the sentence playlist using a CHUNK-level position. Maps the
+  /// chapter ms onto the sentence clip that contains it (via the cumulative
+  /// duration table) and seeks to the in-sentence offset. Falls back to a plain
+  /// seek when no playlist is active.
+  Future<void> seekChapter(Duration chapterPosition) async {
+    if (!hasSentencePlaylist || _sentenceDurations.isEmpty) {
+      await _player.seek(chapterPosition);
+      return;
+    }
+    var remaining = chapterPosition;
+    for (var i = 0; i < _sentenceDurations.length; i++) {
+      final d = _sentenceDurations[i];
+      // Unknown (zero) durations can't bound a seek; stop here and land at the
+      // clip start rather than overshoot.
+      if (d == Duration.zero || remaining <= d) {
+        await _player.seek(remaining < Duration.zero ? Duration.zero : remaining,
+            index: i);
+        _emitChapterPosition();
+        return;
+      }
+      remaining -= d;
+    }
+    await _player.seek(Duration.zero,
+        index: _sentenceDurations.length - 1);
+    _emitChapterPosition();
+  }
+
+  /// Jump the active sentence playlist to a specific sentence (click-to-listen).
+  /// No-op when no playlist is active.
+  Future<void> seekToSentence(int index) async {
+    if (!hasSentencePlaylist) return;
+    final n = _sentenceDurations.length;
+    final i = n > 0 ? index.clamp(0, n - 1) : 0;
+    await _player.seek(Duration.zero, index: i);
+    _sentenceIndexController.add(i);
+    _emitChapterPosition();
+    if (!_player.playing) {
+      await _player.play();
+    }
+  }
+
   void dispose() {
+    _teardownPlaylistSubs();
+    _sentenceIndexController.close();
+    _chapterPositionController.close();
+    _chapterDurationController.close();
+    _sentenceActiveController.close();
     _player.dispose();
     _synthesizingController.close();
   }
@@ -711,4 +1039,32 @@ final audioPlayerStateProvider = StreamProvider<PlayerState>((ref) {
 final isSynthesizingProvider = StreamProvider<bool>((ref) {
   final service = ref.watch(audioServiceProvider);
   return service.synthesizingStream;
+});
+
+/// Active sentence index within the current chunk's sentence playlist.
+/// Only emits while a sentence playlist is active (instant-highlight path).
+final activeSentenceIndexProvider = StreamProvider<int>((ref) {
+  final service = ref.watch(audioServiceProvider);
+  return service.sentenceIndexStream;
+});
+
+/// Chunk-level ("chapter") position, summed across sentence clips, for the
+/// toolbar scrubber when the sentence playlist is active.
+final chapterPositionProvider = StreamProvider<Duration>((ref) {
+  final service = ref.watch(audioServiceProvider);
+  return service.chapterPositionStream;
+});
+
+/// Chunk-level total duration (grows as sentence clips load) for the toolbar.
+final chapterDurationProvider = StreamProvider<Duration?>((ref) {
+  final service = ref.watch(audioServiceProvider);
+  return service.chapterDurationStream;
+});
+
+/// True while a sentence playlist is the active audio source. The toolbar reads
+/// this to source its scrubber position/duration from the chapter model and to
+/// route seeks through [AudioService.seekChapter].
+final sentencePlaylistActiveProvider = StreamProvider<bool>((ref) {
+  final service = ref.watch(audioServiceProvider);
+  return service.sentencePlaylistActiveStream;
 });

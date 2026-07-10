@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import '../../widgets/new_sheet_dialog.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_quill/flutter_quill.dart' as quill;
@@ -19,7 +20,10 @@ import '../../data/providers/document_actions.dart';
 import '../projects/widgets/add_documents_dialog.dart';
 import '../analytics/writing_session_tracking.dart';
 import '../../data/services/audio_service.dart'
-    show audioServiceProvider, audioPlayingProvider;
+    show
+        audioServiceProvider,
+        audioPlayingProvider,
+        activeSentenceIndexProvider;
 import '../../data/services/preferences_service.dart'
     show
         selectedVoiceIdProvider,
@@ -1275,6 +1279,7 @@ class _DeskCenterHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return SizedBox(
       height: 40,
       child: Padding(
@@ -1298,7 +1303,7 @@ class _DeskCenterHeader extends StatelessWidget {
             if (onFind != null)
               IconButton(
                 key: const ValueKey('desk-find-btn'),
-                tooltip: 'Find & Replace (Ctrl+F)',
+                tooltip: loc.deskFindReplace,
                 iconSize: 18,
                 visualDensity: VisualDensity.compact,
                 icon: const Icon(Icons.search),
@@ -1323,7 +1328,7 @@ class _DeskCenterHeader extends StatelessWidget {
                 key: const ValueKey('desk-save'),
                 onPressed: canSave ? onSave : null,
                 icon: const Icon(Icons.save_outlined, size: 18),
-                label: const Text('Save'),
+                label: Text(loc.btnSave),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                 ),
@@ -1345,6 +1350,7 @@ class _ReadOnlyChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Container(
       height: 26,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -1360,7 +1366,7 @@ class _ReadOnlyChip extends StatelessWidget {
               size: 14, color: scheme.onSurfaceVariant),
           const SizedBox(width: 6),
           Text(
-            'Read only',
+            loc.deskReadOnly,
             style: TextStyle(
               color: scheme.onSurfaceVariant,
               fontSize: 12,
@@ -1382,6 +1388,7 @@ class _ModeToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Container(
       height: 26,
       decoration: BoxDecoration(
@@ -1392,9 +1399,9 @@ class _ModeToggle extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _seg(context, label: 'Write', icon: Icons.edit_outlined,
+          _seg(context, label: loc.deskWrite, icon: Icons.edit_outlined,
               selected: !readMode, onTap: () => onChanged(false)),
-          _seg(context, label: 'Read', icon: Icons.headphones_outlined,
+          _seg(context, label: loc.deskRead, icon: Icons.headphones_outlined,
               selected: readMode, onTap: () => onChanged(true)),
         ],
       ),
@@ -1872,6 +1879,51 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
     final volume = ref.read(selectedVolumeProvider);
     final audioService = ref.read(audioServiceProvider);
 
+    // ── Sentence mode: jump within the sentence playlist to the clicked line ──
+    final rawChunks = (ref
+                .read(chunksProvider(widget.documentId))
+                .valueOrNull?['chunks'] as List<dynamic>?) ??
+        const <dynamic>[];
+    List<dynamic>? clickBoundaries;
+    for (final c in rawChunks) {
+      if (((c as Map<String, dynamic>)['id'] ?? '').toString() == chunkId) {
+        clickBoundaries = c['sentence_boundaries'] as List<dynamic>?;
+        break;
+      }
+    }
+    if (clickBoundaries != null && clickBoundaries.isNotEmpty) {
+      final chunk = chunkMap[targetIdx];
+      final chunkCharOffset =
+          (docOffset - chunk.textOffset).clamp(0, chunk.textLength);
+      var sIdx = 0;
+      for (var i = 0; i < clickBoundaries.length; i++) {
+        final b = clickBoundaries[i] as List<dynamic>;
+        final start = (b[0] as num).toInt();
+        final end = (b[1] as num).toInt();
+        if (chunkCharOffset >= start && chunkCharOffset < end) {
+          sIdx = i;
+          break;
+        }
+        if (chunkCharOffset >= start) sIdx = i;
+      }
+      final currentIdx = ref.read(currentChunkIndexProvider);
+      if (currentIdx == targetIdx && audioService.hasSentencePlaylist) {
+        await audioService.seekToSentence(sIdx);
+      } else {
+        ref.read(currentChunkIndexProvider.notifier).state = targetIdx;
+        await audioService.playChunkSentences(
+          documentId: widget.documentId,
+          chunkId: chunkId,
+          sentenceCount: clickBoundaries.length,
+          voiceId: voiceId,
+          speed: speed,
+          volume: volume,
+          initialSentence: sIdx,
+        );
+      }
+      return;
+    }
+
     ref.read(currentChunkIndexProvider.notifier).state = targetIdx;
     await audioService.playChunk(
       documentId: widget.documentId,
@@ -1941,12 +1993,46 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
     final activeChunkId =
         (rawIndex >= 0 && rawIndex < chunkIds.length) ? chunkIds[rawIndex] : '';
 
-    // Alignment for the active chunk (matches the Player). It is fetched lazily;
-    // the first fetch may resolve empty because the audio (and its alignment
-    // sidecar) has not been synthesized yet — see the playing-listener below,
-    // which invalidates the provider once the chunk's audio is ready so word
-    // highlighting appears.
-    final alignmentAsync = activeChunkId.isEmpty
+    // ── Instant-highlight (sentence playlist) wiring ──────────────────────
+    // Raw chunks carry sentence_boundaries; use them to (a) enable the
+    // AudioService sentence-playlist dispatch (so Play routes to per-sentence
+    // audio) and (b) drive the per-sentence highlight. Default ON.
+    final rawChunks = (ref
+                .watch(chunksProvider(widget.documentId))
+                .valueOrNull?['chunks'] as List<dynamic>?) ??
+        const <dynamic>[];
+    final sentenceCounts = <String, int>{
+      for (final c in rawChunks)
+        (((c as Map<String, dynamic>)['id'] ?? '').toString()):
+            ((c['sentence_boundaries'] as List<dynamic>?)?.length ?? 0),
+    };
+    audioService.setSentencePlan(enabled: true, counts: sentenceCounts);
+
+    List<dynamic>? activeBoundaries;
+    for (final c in rawChunks) {
+      if (((c as Map<String, dynamic>)['id'] ?? '').toString() ==
+          activeChunkId) {
+        activeBoundaries = c['sentence_boundaries'] as List<dynamic>?;
+        break;
+      }
+    }
+    final useSentenceHighlight = activeBoundaries?.isNotEmpty ?? false;
+    final activeSentenceIdx = useSentenceHighlight
+        ? (ref.watch(activeSentenceIndexProvider).valueOrNull ?? 0)
+        : 0;
+
+    final sentenceAlignAsync = (useSentenceHighlight && activeChunkId.isNotEmpty)
+        ? ref.watch(sentenceAlignmentProvider(SentenceAlignmentKey(
+            documentId: widget.documentId,
+            chunkId: activeChunkId,
+            sentenceIndex: activeSentenceIdx,
+            voiceId: voiceId,
+          )))
+        : null;
+
+    // Old whole-chunk alignment — watched ONLY when NOT in sentence mode, so the
+    // fast path never triggers the slow full-chunk alignment synthesis.
+    final alignmentAsync = (useSentenceHighlight || activeChunkId.isEmpty)
         ? null
         : ref.watch(
             chunkAlignmentProvider(
@@ -1957,16 +2043,28 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
               ),
             ),
           );
-    final alignmentPayload =
-        alignmentAsync?.valueOrNull ?? const <String, dynamic>{};
-    final isFetchingAlignment = alignmentAsync?.isLoading ?? false;
+
+    int sentenceCharBase = 0;
+    if (useSentenceHighlight &&
+        activeBoundaries != null &&
+        activeSentenceIdx >= 0 &&
+        activeSentenceIdx < activeBoundaries.length) {
+      final b = activeBoundaries[activeSentenceIdx] as List<dynamic>;
+      if (b.isNotEmpty) sentenceCharBase = (b[0] as num).toInt();
+    }
+
+    final alignmentPayload = useSentenceHighlight
+        ? (sentenceAlignAsync?.valueOrNull ?? const <String, dynamic>{})
+        : (alignmentAsync?.valueOrNull ?? const <String, dynamic>{});
+    final isFetchingAlignment =
+        useSentenceHighlight ? false : (alignmentAsync?.isLoading ?? false);
     final hasAlignment = alignmentPayload['alignment'] != null;
     final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ?? false;
 
     // SWH on first play: keep polling the active chunk's alignment until it
     // lands (sidecar is written when the chunk finishes streaming). Stop once it
     // loads.
-    if (hasAlignment) {
+    if (useSentenceHighlight || hasAlignment) {
       _stopAlignmentPoll();
     } else if (activeChunkId.isNotEmpty && isPlaying) {
       _pollAlignment(activeChunkId, voiceId);
@@ -1974,7 +2072,10 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
 
     // Warm the active chunk + the next ahead of Play so audio AND alignment are
     // cached before listening (removes the first-listen highlight delay).
-    if (activeChunkId.isNotEmpty) {
+    // Skipped in sentence mode: warming hits the whole-chunk /audio (a full
+    // synthesis) which the sentence path doesn't use and which is exactly the
+    // slow work we're avoiding.
+    if (!useSentenceHighlight && activeChunkId.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         _warm(activeChunkId, voiceId);
@@ -1997,6 +2098,8 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
         activeChunkIndex: safeIndex,
         alignmentPayload: alignmentPayload,
         isFetchingAlignment: isFetchingAlignment,
+        sentenceMode: useSentenceHighlight,
+        sentenceCharBase: sentenceCharBase,
         onActiveSentenceChanged: _onActiveSentence,
         // Click a line (or its margin play icon) to jump the voice there.
         onSentenceTap: _seekToDocOffset,
@@ -2041,6 +2144,7 @@ class _ThreeWaysPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return ColoredBox(
       color: tokens.surface2,
       child: Padding(
@@ -2049,7 +2153,7 @@ class _ThreeWaysPanel extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Three ways to add content to your project',
+              loc.addThreeWays,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                     fontWeight: FontWeight.w600,
@@ -2065,10 +2169,10 @@ class _ThreeWaysPanel extends ConsumerWidget {
                     child: _AddCard(
                       index: '1',
                       accent: _AddCardAccent.primary,
-                      title: 'Start New File',
+                      title: loc.addStartNewFile,
                       body:
-                          'Create a new document and choose where it lives.',
-                      cta: 'New File',
+                          loc.addStartNewFileBody,
+                      cta: loc.newFile,
                       buttonKey: 'desk-add-new-doc',
                       onPressed: () => _newDocument(context, ref),
                     ),
@@ -2078,10 +2182,10 @@ class _ThreeWaysPanel extends ConsumerWidget {
                     child: _AddCard(
                       index: '2',
                       accent: _AddCardAccent.secondary,
-                      title: 'Add from Library',
+                      title: loc.addFromLibrary,
                       body:
-                          'Choose an existing document from your library.',
-                      cta: 'Browse Library',
+                          loc.addFromLibraryBody,
+                      cta: loc.btnBrowseLibrary,
                       buttonKey: 'desk-add-from-library',
                       onPressed: () {
                         final pid = projectId;
@@ -2099,10 +2203,10 @@ class _ThreeWaysPanel extends ConsumerWidget {
                     child: _AddCard(
                       index: '3',
                       accent: _AddCardAccent.tertiary,
-                      title: 'Put in a Project',
+                      title: loc.addPutInProject,
                       body:
-                          'Create a new project, or add this file to one you already have.',
-                      cta: 'Choose a Project',
+                          loc.addPutInProjectBody,
+                      cta: loc.btnChooseProject,
                       buttonKey: 'desk-add-create-project',
                       onPressed: () => _chooseProjectAction(context, ref),
                     ),
@@ -2150,25 +2254,24 @@ class _ThreeWaysPanel extends ConsumerWidget {
   /// Let the writer create a new project for this file or add it to one they
   /// already have.
   Future<void> _chooseProjectAction(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Put this file in a Project'),
-        content: const Text(
-          'Create a new project for it, or add it to a project you already have.',
-        ),
+        title: Text(loc.putInProjectTitle),
+        content: Text(loc.putInProjectBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop('existing'),
-            child: const Text('Add to existing'),
+            child: Text(loc.btnAddToExisting),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop('create'),
-            child: const Text('Create new'),
+            child: Text(loc.btnCreateNew),
           ),
         ],
       ),

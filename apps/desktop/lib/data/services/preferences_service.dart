@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -554,3 +555,45 @@ final storyCoachMutedDocsProvider =
   final userId = ref.watch(currentUserIdProvider);
   return StoryCoachMutedDocsNotifier(userId: userId);
 });
+
+
+// ── App language (device-level, not user-scoped) ────────────────────────
+/// The app's UI locale. `null` means "follow the system locale".
+class LocalePreferenceNotifier extends StateNotifier<Locale?> {
+  LocalePreferenceNotifier() : super(null) {
+    _load();
+  }
+
+  static const String _kLocaleKey = 'app_locale';
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final code = prefs.getString(_kLocaleKey);
+    if (code == null || code.isEmpty) return;
+    // Stored as `lang` or `lang_COUNTRY` (e.g. `pt_BR`). Splitting keeps
+    // pt-BR and pt-PT distinct while staying backward-compatible with the
+    // earlier language-only values.
+    final parts = code.split('_');
+    state = parts.length >= 2 ? Locale(parts[0], parts[1]) : Locale(parts[0]);
+  }
+
+  /// Pass `null` to fall back to the system locale.
+  Future<void> setLocale(Locale? locale) async {
+    state = locale;
+    final prefs = await SharedPreferences.getInstance();
+    if (locale == null) {
+      await prefs.remove(_kLocaleKey);
+      return;
+    }
+    final country = locale.countryCode;
+    final tag = (country != null && country.isNotEmpty)
+        ? '${locale.languageCode}_$country'
+        : locale.languageCode;
+    await prefs.setString(_kLocaleKey, tag);
+  }
+}
+
+final selectedLocaleProvider =
+    StateNotifierProvider<LocalePreferenceNotifier, Locale?>(
+  (ref) => LocalePreferenceNotifier(),
+);

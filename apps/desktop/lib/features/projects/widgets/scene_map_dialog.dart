@@ -7,6 +7,8 @@ import '../../../data/providers/project_providers.dart';
 import '../../../data/providers/providers.dart'
     show projectRepositoryProvider, projectsProvider;
 import '../../blueprints/narrative_structures.dart' show kNarrativeStructures;
+import '../../blueprints/narrative_i18n.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// Opens the Scene Map for a project — the "story spine": each beat with the
 /// files that cover it underneath, plus an Unassigned group. Files are moved
@@ -29,19 +31,18 @@ Future<void> pickProjectAndShowSceneMap(
     return;
   }
   if (!context.mounted) return;
+  final loc = AppLocalizations.of(context);
 
   if (projects.isEmpty) {
     await showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('No projects yet'),
-        content: const Text(
-            'Create a project and attach a narrative, then you can map its '
-            'scenes here.'),
+        title: Text(loc.noProjectsYet),
+        content: Text(loc.sceneMapCreateProjectBody),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK')),
+              child: Text(loc.actionOk)),
         ],
       ),
     );
@@ -52,7 +53,7 @@ Future<void> pickProjectAndShowSceneMap(
   chosen ??= await showDialog<String>(
     context: context,
     builder: (ctx) => SimpleDialog(
-      title: const Text('Map scenes for which book?'),
+      title: Text(loc.mapScenesWhichBook),
       children: [
         for (final p in projects)
           SimpleDialogOption(
@@ -89,6 +90,7 @@ class _SceneMapDialog extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final detailAsync = ref.watch(projectDetailProvider(projectId));
 
     return Dialog(
@@ -102,7 +104,7 @@ class _SceneMapDialog extends ConsumerWidget {
               height: 220, child: Center(child: CircularProgressIndicator())),
           error: (e, _) => Padding(
             padding: const EdgeInsets.all(24),
-            child: Text('Could not load the project.',
+            child: Text(loc.couldNotLoadProject,
                 style: TextStyle(color: scheme.onSurfaceVariant)),
           ),
           data: (p) {
@@ -112,14 +114,13 @@ class _SceneMapDialog extends ConsumerWidget {
 
             if (beats.isEmpty) {
               return _Shell(
-                title: 'Scene Map',
+                title: loc.sceneMapTitle,
                 subtitle: null,
                 onClose: () => Navigator.of(context).pop(),
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(22, 8, 22, 24),
                   child: Text(
-                    'This book has no narrative yet. Attach one in '
-                    'Blueprints → Narrative Structure, then map your scenes here.',
+                    loc.sceneMapNoNarrative,
                     style: TextStyle(
                         color: scheme.onSurfaceVariant, height: 1.45),
                   ),
@@ -139,14 +140,19 @@ class _SceneMapDialog extends ConsumerWidget {
               }
             }
             final covered = beats.where((b) => byBeat[b]!.isNotEmpty).length;
-            final name = _structureName(p.narrativeStructureKey);
+            final rawName = _structureName(p.narrativeStructureKey);
+            final name = rawName == 'Narrative'
+                ? loc.structureFallbackNarrative
+                : structureNameLabel(context, rawName);
             final variant = p.narrativeVariant;
+            final variantLabel =
+                variant != null ? bestForLabel(context, variant) : null;
             final subtitle =
-                '${variant != null ? '$name · $variant' : name}  ·  '
-                '$covered of ${beats.length} beats covered';
+                '${variantLabel != null ? '$name · $variantLabel' : name}  ·  '
+                '${loc.beatsCovered(covered, beats.length)}';
 
             return _Shell(
-              title: 'Scene Map',
+              title: loc.sceneMapTitle,
               subtitle: subtitle,
               onClose: () => Navigator.of(context).pop(),
               child: ListView(
@@ -195,6 +201,7 @@ class _Shell extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -222,7 +229,7 @@ class _Shell extends StatelessWidget {
                 ),
               ),
               IconButton(
-                tooltip: 'Close',
+                tooltip: loc.actionClose,
                 icon: const Icon(Icons.close, size: 20),
                 onPressed: onClose,
               ),
@@ -256,6 +263,7 @@ class _BeatGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final isUnassigned = index == null;
 
     return Padding(
@@ -289,7 +297,8 @@ class _BeatGroup extends StatelessWidget {
                 ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(beat,
+                child: Text(
+                    isUnassigned ? loc.sceneUnassigned : beatLabel(context, beat),
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
@@ -301,7 +310,7 @@ class _BeatGroup extends StatelessWidget {
           if (files.isEmpty && !isUnassigned)
             Padding(
               padding: const EdgeInsets.only(left: 32, top: 2, bottom: 2),
-              child: Text('No file yet',
+              child: Text(loc.noFileYet,
                   style: TextStyle(
                       fontSize: 12,
                       fontStyle: FontStyle.italic,
@@ -338,6 +347,7 @@ class _FileRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     Future<void> assign(String? beat) async {
       try {
@@ -349,9 +359,8 @@ class _FileRow extends ConsumerWidget {
       } catch (_) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Couldn't save — check your connection and "
-                  'try again.'),
+            SnackBar(
+              content: Text(loc.sceneMapSaveFailed),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -374,21 +383,22 @@ class _FileRow extends ConsumerWidget {
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
           ),
           PopupMenuButton<String?>(
-            tooltip: 'Move to beat',
+            tooltip: loc.moveToBeat,
             position: PopupMenuPosition.under,
             onSelected: (v) => assign(v),
             itemBuilder: (_) => [
               CheckedPopupMenuItem<String?>(
                 value: null,
                 checked: currentBeat == null,
-                child: const Text('Unassigned'),
+                child: Text(loc.sceneUnassigned),
               ),
               const PopupMenuDivider(),
               for (final b in beats)
                 CheckedPopupMenuItem<String?>(
                   value: b,
                   checked: currentBeat == b,
-                  child: Text(b, overflow: TextOverflow.ellipsis),
+                  child: Text(beatLabel(context, b),
+                      overflow: TextOverflow.ellipsis),
                 ),
             ],
             child: Container(
@@ -400,7 +410,7 @@ class _FileRow extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Move',
+                  Text(loc.actionMove,
                       style: TextStyle(
                           fontSize: 11.5, color: scheme.onSurfaceVariant)),
                   const SizedBox(width: 2),

@@ -1,0 +1,874 @@
+{
+  "@@locale": "en",
+  "appTitle": "Psitta",
+  "navLibrary": "Library",
+  "navPlayer": "Player",
+  "navWritingDesk": "Writing Desk",
+  "navProjects": "Projects",
+  "navBlueprints": "Blueprints",
+  "navPlans": "Plans",
+  "navVoices": "Voices",
+  "navAnalytics": "Analytics",
+  "navSettings": "Settings",
+  "navHelp": "Help",
+  "navUpgrade": "Upgrade",
+  "comingSoon": "Coming soon",
+  "sidebarExpand": "Expand sidebar",
+  "sidebarCollapse": "Collapse sidebar",
+  "settingsLanguage": "Language",
+  "languageSystem": "System default",
+  "languageEnglish": "English",
+  "languagePortuguese": "Portuguese",
+  "languageSpanish": "Spanish",
+  "languageFrench": "French",
+  "libraryTitle": "Library",
+  "librarySubtitle": "All your documents, notes, and writing resources in one place.",
+  "newFileTooltip": "New file",
+  "newBlankFile": "New blank file (DOCX)",
+  "uploadFromDevice": "Upload from device",
+  "newFile": "New File",
+  "searchHint": "Search documents, folders, or tags...",
+  "sortBy": "Sort by",
+  "tabAll": "All",
+  "tabDocuments": "Documents",
+  "tabNotes": "Notes",
+  "tabPdfs": "PDFs",
+  "tabBooks": "Books",
+  "tabOther": "Other",
+  "sortLastEdited": "Last edited",
+  "sortName": "Name",
+  "sortDateAdded": "Date added",
+  "statDocuments": "Documents",
+  "statProjects": "Projects",
+  "statProjectsSub": "Organize your work",
+  "statBookStructures": "Book Structures",
+  "statBookStructuresSub": "Your outlines",
+  "statTrash": "Trash",
+  "statTrashSub": "Restore deleted",
+  "statStorage": "Storage",
+  "statStorageUsed": "Used",
+  "statThisWeek": "+{count} this week",
+  "@statThisWeek": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "storageDocs": "{count, plural, =1{1 document} other{{count} documents}}",
+  "@storageDocs": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libraryOfUser": "{name}'s Library",
+  "@libraryOfUser": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusSearch": "Search",
+  "statusShortcuts": "Shortcuts",
+  "proPlan": "Pro Plan",
+  "freePlan": "Free Plan",
+  "quickAccess": "Quick Access",
+  "archive": "Archive",
+  "archivedDocuments": "Archived documents",
+  "quickNotes": "Quick notes",
+  "voiceNotes": "Voice notes",
+  "notesCountLabel": "{count, plural, =1{1 note} other{{count} notes}}",
+  "@notesCountLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "whispersCountLabel": "{count, plural, =1{1 voice note} other{{count} voice notes}}",
+  "@whispersCountLabel": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "guideTitle": "Writer's Guide",
+  "guideStartOver": "Start over",
+  "guideHide": "Hide (turn back on in Settings)",
+  "scribblesTitle": "Scribbles",
+  "whispersTitle": "Whispers",
+  "btnExport": "Export",
+  "btnShare": "Share",
+  "btnResume": "Resume",
+  "tooltipRefresh": "Refresh",
+  "tooltipHelp": "Help & Guides",
+  "showPanel": "Show panel",
+  "hidePanel": "Hide panel",
+  "btnSave": "Save",
+  "deskReadOnly": "Read only",
+  "deskWrite": "Write",
+  "deskRead": "Read",
+  "deskFindReplace": "Find & Replace (Ctrl+F)",
+  "wordCount": "Word count",
+  "addThreeWays": "Three ways to add content to your project",
+  "addStartNewFile": "Start New File",
+  "addStartNewFileBody": "Create a new document and choose where it lives.",
+  "addFromLibrary": "Add from Library",
+  "addFromLibraryBody": "Choose an existing document from your library.",
+  "btnBrowseLibrary": "Browse Library",
+  "addPutInProject": "Put in a Project",
+  "addPutInProjectBody": "Create a new project, or add this file to one you already have.",
+  "btnChooseProject": "Choose a Project",
+  "summarizeItTitle": "SUMMARIZE IT",
+  "summarizeBtn": "Summarize",
+  "lengthShort": "short",
+  "lengthMedium": "medium",
+  "lengthLong": "long",
+  "docProcessing": "Document is still processing",
+  "summarizeAllowance": "Each summary uses AI tokens from your monthly Writing Nook allowance. Generate one when you want a quick recap of this file.",
+  "summarizeAllowanceCount": "Each summary uses AI tokens from your monthly Writing Nook allowance — about {count} per month. Generate one when you want a quick recap of this file.",
+  "@summarizeAllowanceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "conceptProject": "Project",
+  "conceptBlueprint": "Blueprint",
+  "conceptPart": "Part",
+  "conceptRole": "Role",
+  "conceptNarrative": "Narrative",
+  "conceptBeat": "Beat",
+  "placedIn": "PLACED IN",
+  "notInProject": "Not in a project",
+  "notAssigned": "Not assigned",
+  "notInProjectYet": "Not in a project yet. Add this file to a project to organize it.",
+  "tabBook": "Book",
+  "tabFiles": "Files",
+  "tabBookTooltip": "Book content — sections & pages",
+  "addToProjectFirst": "Add this document to a project first",
+  "nameYourDocument": "Name your document",
+  "titleLabel": "Title",
+  "titleHint": "e.g. Chapter One",
+  "btnCancel": "Cancel",
+  "btnCreate": "Create",
+  "putInProjectTitle": "Put this file in a Project",
+  "putInProjectBody": "Create a new project for it, or add it to a project you already have.",
+  "btnAddToExisting": "Add to existing",
+  "btnCreateNew": "Create new",
+  "flyoverNoProject": "This document isn't in a project yet.",
+  "noBookStructure": "No Book Structure.",
+  "addToProject": "Add to a project",
+  "createProjectFirst": "Create a project in the Projects tab first.",
+  "exportOptions": "Export Options",
+  "exportBrandedDocx": "Export as a branded DOCX file.",
+  "whatToExport": "WHAT TO EXPORT",
+  "exportThisFile": "This file",
+  "exportThisFileSub": "Only the document open now",
+  "exportFullBook": "Full book",
+  "exportFullBookSub": "All files assembled in blueprint order",
+  "includeCover": "Include cover page",
+  "includeCoverSub": "Title page with name and date",
+  "includeFooter": "Include Psitta footer",
+  "includeFooterSub": "Branding and page numbers on every page",
+  "badgeSoon": "Soon",
+  "shareCopyText": "Copy text",
+  "shareEmail": "Email",
+  "shareSaveFile": "Save file",
+  "shareHeader": "Share \"{title}\"",
+  "@shareHeader": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
+  "shareSubtitle": "Posts open in your browser; for Instagram and Substack the text is copied so you can paste it.",
+  "shareCopied": "Copied to clipboard.",
+  "dragDropHere": "Drag & drop files here",
+  "orClickUpload": "or click to upload from your device",
+  "dropFilesToUpload": "Drop files to upload",
+  "newProject": "New Project",
+  "projectsSubtitle": "Group your documents into projects.",
+  "noProjectsYet": "No projects yet",
+  "createProjectHint": "Create a project to organize your documents.",
+  "createProject": "Create Project",
+  "trashSubtitle": "Deleted documents are kept here. Restore them to your Library, or delete them permanently.",
+  "trashEmpty": "Trash is empty",
+  "emptyTrash": "Empty Trash ({count})",
+  "@emptyTrash": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "btnRestore": "Restore",
+  "archiveSubtitle": "Archived documents are hidden from your Library but kept safe. Unarchive to bring one back.",
+  "nothingArchived": "Nothing archived",
+  "btnUnarchive": "Unarchive",
+  "newScribble": "New scribble",
+  "scribblesSubtitle": "Quick notes and ideas — jot, color, and keep.",
+  "noScribblesYet": "No scribbles yet",
+  "whispersSubtitle": "Capture an idea by voice — listen back anytime.",
+  "tapRecord": "Tap record to capture a voice note.",
+  "btnRecord": "Record",
+  "noWhispersYet": "No whispers yet",
+  "blueprintsSubtitle": "Design the structure of your book, and the narrative structure.",
+  "newBookStructure": "New Book Structure",
+  "tabBookStructure": "Book Structure",
+  "tabNarrativeStructure": "Narrative Structure",
+  "tabDiagram": "Diagram",
+  "couldntLoadBlueprints": "Couldn’t load blueprints.",
+  "noBlueprintsYet": "No blueprints yet",
+  "blueprintsEmptyHint": "Templates and your own blueprints will appear here.",
+  "groupTemplates": "Templates",
+  "groupMyBooks": "My Books",
+  "renameBookStructure": "Rename Book Structure",
+  "deleteBookStructure": "Delete Book Structure",
+  "deleteBookStructureQ": "Delete Book Structure?",
+  "deleteBookStructureMsg": "Delete \"{name}\"? Its sections are permanently removed. This does not delete any documents.",
+  "@deleteBookStructureMsg": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "btnDelete": "Delete",
+  "genreNovel": "Novel",
+  "genreMemoir": "Memoir",
+  "genreNonFiction": "Non-Fiction",
+  "genreBiography": "Biography",
+  "genreResearchPaper": "Research Paper",
+  "genreChildrensPictureBook": "Children's Picture Book",
+  "genreScreenplay": "Screenplay",
+  "genreWorkbookHowTo": "Workbook/How-To",
+  "genreBusinessBook": "Business Book",
+  "genreShortStoryCollection": "Short Story Collection",
+  "statusDraft": "Draft",
+  "statusCompleted": "Completed",
+  "statusArchived": "Archived",
+  "useThisBookStructure": "Use this Book Structure",
+  "noSectionsYet": "No sections yet",
+  "addSection": "Add Section",
+  "sectionCount": "{count, plural, =1{1 section} other{{count} sections}}",
+  "@sectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "selectASection": "Select a section",
+  "toSeeDetails": "to see its details",
+  "labelDescription": "DESCRIPTION",
+  "noDescriptionYet": "No description yet.",
+  "inThisBookStructure": "IN THIS BOOK STRUCTURE",
+  "subsectionCount": "{count, plural, =1{1 subsection} other{{count} subsections}}",
+  "@subsectionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "labelActions": "ACTIONS",
+  "addDocument": "Add document",
+  "renameEdit": "Rename / edit",
+  "addSubsection": "Add subsection",
+  "deleteSection": "Delete section",
+  "fieldName": "Name",
+  "bookStructureNameHint": "Book Structure name",
+  "fieldGenre": "Genre",
+  "fieldStatus": "Status",
+  "sectionNameHint": "Section name",
+  "descriptionOptional": "Description (optional)",
+  "nameYourBookStructure": "Name your Book Structure",
+  "editBookStructure": "Edit Book Structure",
+  "editSection": "Edit Section",
+  "addSubsectionTitle": "Add Subsection",
+  "btnAdd": "Add",
+  "featureInteractiveGuide": "Interactive Guide",
+  "guideDesc": "Learn each step with examples and tips.",
+  "featureStructureAnalyzer": "Structure Analyzer",
+  "analyzerDesc": "Analyze your manuscript against this structure.",
+  "featureSceneMapper": "Scene Mapper",
+  "sceneMapperDesc": "Map your chapters to the structure.",
+  "featureProgressTracker": "Progress Tracker",
+  "progressDesc": "Track your progress through the journey.",
+  "openGuide": "Open guide",
+  "useThisStructure": "Use this Structure",
+  "labelBestFor": "BEST FOR",
+  "pickSections": "Pick the sections you want:",
+  "selectAll": "Select all",
+  "clearSelection": "Clear",
+  "labelIncludes": "INCLUDES",
+  "editableInDesk": "Editable in the Writing Desk",
+  "placeDocsInSection": "Place your documents into each section",
+  "createProjectFirstNarrative": "Create a project first, then attach a narrative to its book.",
+  "addNarrativeToBook": "Add this narrative to which book?",
+  "narrativeSaveFailed": "Could not save the narrative. Please try again.",
+  "narrativeSavedMsg": "{structure} · {variant} saved to \"{book}\".",
+  "@narrativeSavedMsg": {
+    "placeholders": {
+      "structure": {
+        "type": "String"
+      },
+      "variant": {
+        "type": "String"
+      },
+      "book": {
+        "type": "String"
+      }
+    }
+  },
+  "sectionsSelected": "{count} of {total} sections selected",
+  "@sectionsSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "sectionsForBestFor": "{count, plural, =1{1 section ({bestFor})} other{{count} sections ({bestFor})}}",
+  "@sectionsForBestFor": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "bestFor": {
+        "type": "String"
+      }
+    }
+  },
+  "popularStructures": "POPULAR STRUCTURES",
+  "nSteps": "{count, plural, =1{1 step} other{{count} steps}}",
+  "@nSteps": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "nAudiences": "{count, plural, =1{1 audience} other{{count} audiences}}",
+  "@nAudiences": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "nSections": "{count, plural, =1{1 section} other{{count} sections}}",
+  "@nSections": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "ringStepsSelected": "{selected} of {total}\nsteps selected",
+  "@ringStepsSelected": {
+    "placeholders": {
+      "selected": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "interactiveGuideLabel": "Interactive Guide",
+  "guideStepsCaption": "{count, plural, =1{1 step · tap through your arc} other{{count} steps · tap through your arc}}",
+  "@guideStepsCaption": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "generalCraftGuidance": "General craft guidance — your story may bend these on purpose.",
+  "tipLabel": "Tip",
+  "actionClose": "Close",
+  "actionOk": "OK",
+  "actionTryAgain": "Try again",
+  "actionMove": "Move",
+  "couldNotLoadProject": "Could not load the project.",
+  "analyzerCreateProjectBody": "Create a project and attach a narrative to analyze its structure.",
+  "analyzeWhichBook": "Analyze which book?",
+  "analyzerCouldNotAnalyze": "Could not analyze right now. Please try again.",
+  "analyzerReading": "Reading your manuscript and weighing each beat…",
+  "analyzerIntro": "Analyze your whole manuscript against your chosen beats. Each beat comes back as Present, Thin, or Missing, with a short note and an overall read.",
+  "analyzerTokensNote": "This uses AI tokens from your monthly Writing Nook allowance.",
+  "analyzerRun": "Run analysis",
+  "analyzerReanalyze": "Re-analyze",
+  "beatStatusPresent": "Present",
+  "beatStatusThin": "Thin",
+  "beatStatusMissing": "Missing",
+  "sceneMapTitle": "Scene Map",
+  "sceneMapCreateProjectBody": "Create a project and attach a narrative, then you can map its scenes here.",
+  "mapScenesWhichBook": "Map scenes for which book?",
+  "sceneMapNoNarrative": "This book has no narrative yet. Attach one in Blueprints → Narrative Structure, then map your scenes here.",
+  "sceneUnassigned": "Unassigned",
+  "noFileYet": "No file yet",
+  "sceneMapSaveFailed": "Couldn't save — check your connection and try again.",
+  "moveToBeat": "Move to beat",
+  "structureFallbackNarrative": "Narrative",
+  "progressCreateProjectBody": "Create a project and attach a narrative to track your progress through the beats.",
+  "trackProgressWhichBook": "Track progress for which book?",
+  "progressNoNarrative": "This book has no narrative yet. Attach one in Blueprints → Narrative Structure to track progress.",
+  "statusCovered": "Covered",
+  "statusEmpty": "Empty",
+  "beatsCovered": "{covered} of {total} beats covered",
+  "@beatsCovered": {
+    "placeholders": {
+      "covered": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "progressBeatsMapped": "{covered} of {total} beats covered · {pct}% mapped",
+  "@progressBeatsMapped": {
+    "placeholders": {
+      "covered": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
+  "progressBeatsArc": "{covered} of {total} beats covered · {pct}% through your arc",
+  "@progressBeatsArc": {
+    "placeholders": {
+      "covered": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
+  "diagramTitle": "Understanding Blueprints",
+  "diagramSubtitle": "Every great book combines structure and narrative.",
+  "diagramBook": "BOOK",
+  "diagramFrontMatter": "Front Matter",
+  "diagramPartI": "Part I",
+  "diagramPartII": "Part II",
+  "diagramPartIII": "Part III",
+  "diagramBackMatter": "Back Matter",
+  "diagramBeginning": "Beginning",
+  "diagramConflict": "Conflict",
+  "diagramChallenge": "Challenge",
+  "diagramClimax": "Climax",
+  "diagramResolution": "Resolution",
+  "diagramWhereContentLives": "  =  Where content lives",
+  "diagramHowContentFlows": "  =  How content flows",
+  "diagramChooseBookTitle": "Choosing your Book Structure",
+  "diagramChooseBookRule": "Pick by format — how the manuscript is organized.",
+  "diagramBookEx1": "Novel → Parts & Chapters",
+  "diagramBookEx2": "Memoir → life phases",
+  "diagramBookEx3": "Business → Problem ▸ Method",
+  "diagramChooseNarrativeTitle": "Choosing your Narrative Structure",
+  "diagramChooseNarrativeRule": "Pick by journey — how the story unfolds.",
+  "diagramNarrEx1": "Hero's Journey → transformation",
+  "diagramNarrEx2": "Three Act → most fiction",
+  "diagramNarrEx3": "Save the Cat → screenplays",
+  "diagramMapTitle": "How the Writing Nook fits together",
+  "diagramMapSubtitle": "Every piece of your book — and how you move between them.",
+  "diagramSavedInDb": "Saved in the database",
+  "diagramInAppOnly": "In-app only (not saved)",
+  "diagramGlossaryTitle": "What each piece means",
+  "diagramDocument": "Document",
+  "diagramSection": "Section",
+  "diagramGlossDocument": "your file — the centre of everything",
+  "diagramGlossWritingDesk": "where you write a file",
+  "diagramGlossProject": "a folder that holds the book and its files",
+  "diagramGlossSection": "a file's home in the outline — one file, one section",
+  "diagramGlossBookStructure": "your reusable book outline and its sections (saved)",
+  "diagramGlossNarrativeStructure": "a menu of story models — picking one builds a Book Structure",
+  "diagramPathTitle": "The writer's path",
+  "diagramPath1": "Create a Project — the book you are working on.",
+  "diagramPath2": "Choose a structure — it generates a Book Structure outline.",
+  "diagramPath3": "Add or place each file into one Section of that outline.",
+  "diagramPath4": "Write each file at the Writing Desk.",
+  "diagramSolidLine": "Solid line — a saved connection between pieces.",
+  "diagramDashedLine": "Dashed line — an action you take from the Writing Desk.",
+  "diagramMapDeskSub": "where you write it",
+  "diagramMapProjSub": "a folder of files",
+  "diagramMapSectionSub": "its home in the outline",
+  "diagramMapBookSub": "the outline of your book",
+  "diagramMapNarrSub": "story model (builds a Book Structure)",
+  "diagramLinkWrittenHere": "written & edited here",
+  "diagramLinkFiledProject": "filed in 1 project",
+  "diagramLinkPlacedSection": "placed in 1 section",
+  "diagramLinkSectionOf": "section of",
+  "diagramLinkProjectAdopts": "project adopts it",
+  "diagramLinkBuiltFrom": "built from",
+  "planBackToSettings": "Back to Settings",
+  "planSubtitle": "Choose how you finish your book.",
+  "planStatusError": "Plan status temporarily unavailable. Your current plan cannot be shown right now.",
+  "actionRetry": "Retry",
+  "planLoading": "Loading your plan…",
+  "billingMonthly": "Monthly",
+  "billingAnnual": "Annual",
+  "billingSave15": "Save 15%",
+  "planCurrent": "Current Plan",
+  "planMostPopular": "Most Popular",
+  "planComingSoon": "Coming Soon",
+  "planGetStarted": "Get Started",
+  "planIncluded": "Included",
+  "planChooseReading": "Choose Reading",
+  "planUpgradeFinish": "Upgrade — finish your book",
+  "planNotifyLaunch": "Notify me when it launches",
+  "planOnWaitlist": "On the waitlist ✓",
+  "perMonth": "/mo",
+  "perYear": "/yr",
+  "billedMonthly": "Billed monthly",
+  "launchingSoon": "Launching soon",
+  "planTaglineRead": "Read",
+  "planTaglineReadRefine": "Read. Refine.",
+  "planTaglineWrite": "Write. Structure. Finish.",
+  "planTaglineCreate": "Create. Refine. Research.",
+  "planNoCheckoutUrl": "Payment service returned no checkout URL.",
+  "planCouldNotOpenBrowser": "Could not open browser. Please try again.",
+  "planCompletePayment": "Complete your payment in the browser. This page will update automatically.",
+  "planNotAvailableYet": "That plan is not available yet. Please try again later.",
+  "planAlreadySubscribed": "You already have an active subscription",
+  "planServiceUnavailable": "Payment service temporarily unavailable. Please try again.",
+  "planConnectionError": "Connection error. Please check your internet.",
+  "planServiceError": "Payment service error. Please try again.",
+  "planCouldNotReadEmail": "Could not read your email. Please try again later.",
+  "planWaitlistJoined": "You're on the waitlist. We'll email you when Creative Nook launches.",
+  "planCouldNotSaveSpot": "Could not save your spot. Please try again.",
+  "planPaymentProcessing": "Payment processing. Your plan will update shortly.",
+  "planActiveWelcome": "Your plan is active. Welcome!",
+  "featListen": "Listen to your documents",
+  "featBasicVoices": "Basic voices",
+  "feat10Docs": "10 documents per month",
+  "featPremiumVoices": "Premium voices",
+  "featWordByWord": "Word-by-word highlighting",
+  "featDeskBlueprints": "Writing Desk & Blueprints",
+  "featStoryCoachTools": "Story-Coach & AI tools",
+  "featHdrListening": "Listening & revision",
+  "featPremiumNatural": "Premium natural voices",
+  "featWordSentence": "Word & sentence highlighting",
+  "featPlayback4x": "Playback speed up to 4×",
+  "featHdrDocuments": "Documents",
+  "featBrandedDocx": "Edit & download branded DOCX",
+  "feat50Docs": "50 documents per month",
+  "featArchive": "Archive documents",
+  "feat150k": "150k premium-voice characters / month",
+  "featPriority": "Priority support",
+  "featWritingPlatform": "Writing platform & AI tools",
+  "featHdrEverythingReading": "Everything in Reading Nook, plus",
+  "featHdrWorkspace": "Writing workspace",
+  "featFullDesk": "Full Writing Desk",
+  "featUnlimitedProjects": "Unlimited projects",
+  "featHdrBookDev": "Book development",
+  "featBlueprints25": "Blueprints & 25+ Narrative Structures",
+  "featSceneProgress": "Scene Mapping & Progress Tracking",
+  "featHdrAiIntel": "AI writing intelligence",
+  "featStoryCoachDrift": "Story-Coach — live drift nudges",
+  "feat1MTokens": "1M AI tokens / month",
+  "feat250k": "250k premium-voice characters / month",
+  "featWritingAnalytics": "Writing analytics",
+  "featHdrEverythingWriting": "Everything in Writing Nook, plus a Creative Studio",
+  "featInspoBoards": "Inspiration, Character & Research boards",
+  "featStoryWorldMood": "Story, World & Mood boards",
+  "featAiBrainstorm": "AI brainstorming & story expansion",
+  "featCloneVoice": "Clone your own voice",
+  "featCreativeAssets": "Creative asset management",
+  "feat400k": "400k premium-voice characters / month",
+  "feat2MTokens": "2M AI tokens / month",
+  "billedAnnuallyAt": "{amount} billed annually",
+  "@billedAnnuallyAt": {
+    "placeholders": {
+      "amount": {
+        "type": "String"
+      }
+    }
+  },
+  "voicesSubtitle": "Choose the default voice for narration. Premium voices unlock with Pro.",
+  "voicesLoadError": "Couldn't load voices.",
+  "voicesNone": "No voices available",
+  "genderFemale": "Female",
+  "genderMale": "Male",
+  "voicesDefaultSet": "Default voice set to {name}",
+  "@voicesDefaultSet": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "analyticsSubtitle": "Your Writer Growth Dashboard.",
+  "analyticsLoadError": "Could not load analytics.",
+  "analyticsGlance": "Your writing at a glance",
+  "statLifetimeWords": "Lifetime words",
+  "statNewThisMonth": "New this month",
+  "statWritingOnPsitta": "Writing on Psitta",
+  "analyticsProjectsInMotion": "Projects in motion",
+  "analyticsNoProjects": "Create a project to start tracking your book progress.",
+  "agoJustNow": "just now",
+  "analyticsActivityStreaks": "Writing activity & streaks",
+  "analyticsStreaksEmpty": "Your first saved writing will start your streak. Streaks, sessions, and word trends build automatically as you write in the Desk.",
+  "analyticsWeeklyTrend": "Weekly words trend",
+  "analyticsWritingActivity": "Writing activity",
+  "statDayStreak": "Day streak",
+  "statLongestStreak": "Longest streak",
+  "statSessionsThisWeek": "Sessions this week",
+  "statAvgSession": "Avg session",
+  "statMostProductive": "Most productive",
+  "statTypedVsPaste": "Typed (vs paste)",
+  "statKeystrokes": "Keystrokes",
+  "statCharsPasted": "Chars pasted",
+  "analyticsWritingDays": "Writing days",
+  "analyticsWordsWritten": "Words written",
+  "statToday": "Today",
+  "statThisMonth": "This month",
+  "statTrackedTotal": "Tracked total",
+  "analyticsTrendEmpty": "Your weekly word trend appears here once you have written across a few days. Keep saving in the Desk and the line will grow.",
+  "analyticsSince": "Since {year}",
+  "@analyticsSince": {
+    "placeholders": {
+      "year": {
+        "type": "int"
+      }
+    }
+  },
+  "agoDays": "{count}d ago",
+  "@agoDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agoHours": "{count}h ago",
+  "@agoHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "agoMinutes": "{count}m ago",
+  "@agoMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "wordsCount": "{count, plural, =1{{words} word} other{{words} words}}",
+  "@wordsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "words": {
+        "type": "String"
+      }
+    }
+  },
+  "filesCount": "{count, plural, =1{1 file} other{{count} files}}",
+  "@filesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "weeksAgo": "{count, plural, =1{1 week ago} other{{count} weeks ago}}",
+  "@weeksAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chartWordsThisWeek": "{words} words this week",
+  "@chartWordsThisWeek": {
+    "placeholders": {
+      "words": {
+        "type": "String"
+      }
+    }
+  },
+  "analyticsThisWeek": "This week",
+  "setSecAccount": "Account",
+  "setSecSession": "Session",
+  "setSecUsage": "Usage",
+  "setSecAppearance": "Appearance",
+  "setSecPlayback": "Playback",
+  "setSecSwh": "Sync Word Highlight",
+  "setSecStoryCoach": "Story-Coach",
+  "setSecHelpGuide": "Help guide",
+  "setSecStorage": "Storage",
+  "setLoading": "Loading...",
+  "accountFallbackName": "User",
+  "accountFallbackEmail": "Unknown",
+  "accountLoadError": "Could not load profile",
+  "subTitle": "Subscription",
+  "subStatusUnavailable": "Plan status temporarily unavailable",
+  "subTapRetry": "Tap to retry",
+  "subUnknownDate": "unknown date",
+  "subNoActive": "No active subscription",
+  "subActive": "Active",
+  "usageUnavailable": "Usage temporarily unavailable — tap to retry",
+  "usageStandardFree": "Standard voices on Free plan",
+  "setChangePlan": "Change Plan",
+  "manageNoUrl": "Subscription portal returned no URL. Please try again.",
+  "manageBrowserMsg": "Manage your subscription in the browser. This page will refresh when you return.",
+  "manageNoSubscription": "No active subscription. Subscribe first to manage.",
+  "managePortalUnavailable": "Subscription portal temporarily unavailable. Please try again.",
+  "managePortalError": "Could not open subscription portal. Please try again.",
+  "manageTitle": "Manage Subscription",
+  "manageSubtitle": "Update payment, swap plan, or cancel — opens in your browser",
+  "staySignedIn": "Stay signed in",
+  "staySignedInSub": "Skip the login screen after signing out",
+  "setLogout": "Logout",
+  "setDefaultVoice": "Default Voice",
+  "setSelectAVoice": "Select a voice",
+  "setPlaybackSpeed": "Playback Speed",
+  "setSpeedFreeLimit": "Free plan limited to 2.0x. Upgrade for up to 4.0x.",
+  "setSwhProGate": "Available with Reading Nook Pro",
+  "setSwhReadWith": "Read with S.W.H",
+  "setSwhReadWithSub": "Highlights each word as it's spoken",
+  "setSwhReadWithout": "Read without S.W.H",
+  "setStoryCoachToggle": "AI Story-Coaching",
+  "setStoryCoachSub": "Nudge me when my writing drifts from my book's narrative",
+  "setHelpGuideToggle": "Show the Writing Nook guide",
+  "setHelpGuideSub": "A quick-help chat in the Library corner",
+  "setAutoDelete": "Auto-Delete Documents",
+  "setCacheSize": "Cache Size",
+  "setAutoDeleteNever": "Never",
+  "setTheme": "Theme",
+  "brandListen": "Listen to your documents.",
+  "brandImprove": "Improve your writing.",
+  "subAlphaTooltip": "Alpha tester access — paid plan features active until {date}",
+  "@subAlphaTooltip": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "subPlanAlphaTester": "Plan: {plan} · Alpha tester",
+  "@subPlanAlphaTester": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      }
+    }
+  },
+  "subActiveUntil": "Active until {date}",
+  "@subActiveUntil": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "subPlanLabel": "Plan: {plan}",
+  "@subPlanLabel": {
+    "placeholders": {
+      "plan": {
+        "type": "String"
+      }
+    }
+  },
+  "usageResets": "Resets {date}",
+  "@usageResets": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "setAutoDeleteAfter": "{days, plural, =1{After 1 day} other{After {days} days}}",
+  "@setAutoDeleteAfter": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "helpTitle": "Help & Guides",
+  "helpSubtitle": "Learn the Writing Nook with short videos and step-by-step guides.",
+  "helpSecGettingStarted": "Getting Started",
+  "helpGuideFirstBook": "Your first book in 5 minutes",
+  "helpGuideFirstBookBody": "Create or upload a file, choose a Book Structure, place your files into sections, and listen as you write.",
+  "helpWatchGettingStarted": "Watch: Getting Started",
+  "helpSecFourSystems": "The Four Systems",
+  "helpGuideLibraryBody": "Every file you create or upload lives here. Visualize, take Notes and Whispers, and export.",
+  "helpGuideBlueprintsBody": "Your book's structure. Start from a Template, make it your own under My Books, and arrange the sections.",
+  "helpGuideProjectsBody": "A project is one book. It adopts a Book Structure and gathers the files that belong to it.",
+  "helpGuideDeskBody": "Where you write, edit, and listen, with your book's sections always one click away on the left.",
+  "helpWatchFourSystems": "Watch: The Four Systems",
+  "helpSecFaq": "Frequently Asked",
+  "helpFaqQ1": "How do I add a file to a section?",
+  "helpFaqA1": "Open the file in the Writing Desk, click “Add to a Blueprint,” then choose a section, or drag the file onto a section in the Book pane.",
+  "helpFaqQ2": "Template vs. My Book — what is the difference?",
+  "helpFaqA2": "Templates are built-in starting points. When you “Use this Book Structure,” you create your own titled copy under My Books.",
+  "helpFaqQ3": "Why is word-by-word highlighting off?",
+  "helpFaqA3": "Sync Word Highlight is a Pro feature. Turn it on in Settings → Sync Word Highlight.",
+  "helpFaqQ4": "How do premium voices count against my plan?",
+  "helpFaqA4": "Premium (ElevenLabs) voices use characters from your monthly allowance, shown in Settings → Usage. Standard voices are unlimited.",
+  "helpSecMore": "More help",
+  "helpContactSupport": "Contact support",
+  "helpViewShortcuts": "View all shortcuts (Ctrl + /)",
+  "helpVideoComingSoon": "Video coming soon",
+  "keyboardShortcuts": "Keyboard shortcuts",
+  "scSecPlayback": "PLAYBACK",
+  "scSecNavigation": "NAVIGATION",
+  "scSecPlayer": "PLAYER",
+  "scPlayPause": "Play / Pause",
+  "scSkipForward": "Skip Forward",
+  "scSkipBackward": "Skip Backward",
+  "scToggleSidebar": "Toggle Sidebar",
+  "scUploadDocument": "Upload Document",
+  "scSearchLibrary": "Search Library",
+  "scThisHelpPanel": "This Help Panel",
+  "scListenFromHere": "Listen from here (SWH mode)",
+  "scRightClick": "Right-click",
+  "helpVideoMinutes": "{minutes} min · opens in your browser",
+  "@helpVideoMinutes": {
+    "placeholders": {
+      "minutes": {
+        "type": "int"
+      }
+    }
+  },
+  "playerNoChapters": "No chapters",
+  "playerNoDocument": "No document playing",
+  "playerChapterOf": "Chapter {current} of {total}",
+  "@playerChapterOf": {
+    "placeholders": {
+      "current": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  }
+}

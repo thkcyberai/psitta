@@ -5,15 +5,20 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:country_flags/country_flags.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/constants.dart';
+import '../../core/i18n/working_language.dart';
+import '../../l10n/app_localizations.dart';
 import '../../core/state/now_reading.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart'
     show projectDetailProvider, projectPlacementsProvider;
+import '../../data/providers/blueprint_providers.dart'
+    show blueprintsListProvider, blueprintDetailProvider;
 import '../../data/providers/providers.dart'
     show
         billingStatusProvider,
@@ -170,6 +175,7 @@ class _WritingStatusBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final muted = scheme.onSurfaceVariant.withOpacity(0.85);
+    final loc = AppLocalizations.of(context);
     return Container(
       height: 34,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -185,9 +191,9 @@ class _WritingStatusBar extends StatelessWidget {
                 fontSize: 11.5, color: muted, fontWeight: FontWeight.w500),
           ),
           const Spacer(),
-          _hint(context, 'Ctrl F', 'Search', muted),
+          _hint(context, 'Ctrl F', loc.statusSearch, muted),
           const SizedBox(width: 16),
-          _hint(context, 'Ctrl /', 'Shortcuts', muted),
+          _hint(context, 'Ctrl /', loc.statusShortcuts, muted),
         ],
       ),
     );
@@ -243,6 +249,7 @@ class _ContextHeader extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final loc = AppLocalizations.of(context);
     final uri = GoRouterState.of(context).uri;
 
     // ── Writing Desk header ───────────────────────────────────────────────────
@@ -295,7 +302,7 @@ class _ContextHeader extends ConsumerWidget {
           // blueprints — that wrongly implied this file was placed in them.
         } else {
           // Opened from the Library (not in a project): show the return path.
-          crumbs.add(_Crumb('Library', '/library'));
+          crumbs.add(_Crumb(loc.navLibrary, '/library'));
         }
         final fileName = doc?.title;
         if (fileName != null && fileName.isNotEmpty) {
@@ -326,7 +333,7 @@ class _ContextHeader extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'Writing Desk',
+                          loc.navWritingDesk,
                           style: theme.textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w500),
                           maxLines: 1,
@@ -353,7 +360,7 @@ class _ContextHeader extends ConsumerWidget {
                     final name = displayNameFromProfile(
                         ref.watch(userProfileProvider).valueOrNull);
                     return Text(
-                      name.isEmpty ? 'Library' : "$name's Library",
+                      name.isEmpty ? loc.libraryTitle : loc.libraryOfUser(name),
                       style: theme.textTheme.titleLarge
                           ?.copyWith(fontWeight: FontWeight.w500),
                       maxLines: 1,
@@ -389,8 +396,8 @@ class _ContextHeader extends ConsumerWidget {
               // Word count
               Text(
                 wordCount != null
-                    ? 'Word count $wordCount'
-                    : 'Word count —',
+                    ? '${loc.wordCount} $wordCount'
+                    : '${loc.wordCount} —',
                 style: theme.textTheme.labelSmall
                     ?.copyWith(color: scheme.onSurfaceVariant),
               ),
@@ -455,7 +462,7 @@ class _ContextHeader extends ConsumerWidget {
                   }
                 },
                 icon: const Icon(Icons.download, size: 16),
-                label: const Text('Export'),
+                label: Text(loc.btnExport),
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(
@@ -492,7 +499,7 @@ class _ContextHeader extends ConsumerWidget {
                   );
                 },
                 icon: const Icon(Icons.share_outlined, size: 16),
-                label: const Text('Share'),
+                label: Text(loc.btnShare),
                 style: OutlinedButton.styleFrom(
                   visualDensity: VisualDensity.compact,
                   padding: const EdgeInsets.symmetric(
@@ -501,9 +508,11 @@ class _ContextHeader extends ConsumerWidget {
               ),
               const SizedBox(width: 10),
             ],
-            // Always present: refresh, help, settings, avatar
+            // Always present: language, refresh, help, settings, avatar
+            const _LanguageFlagBar(),
+            const SizedBox(width: 10),
             IconButton(
-              tooltip: 'Refresh',
+              tooltip: loc.tooltipRefresh,
               onPressed: () => _refreshAllData(ref),
               icon: Icon(
                 Icons.refresh,
@@ -513,7 +522,7 @@ class _ContextHeader extends ConsumerWidget {
             ),
             const SizedBox(width: 2),
             IconButton(
-              tooltip: 'Help & Guides',
+              tooltip: loc.tooltipHelp,
               onPressed: () => context.go('/help'),
               icon: Icon(
                 Icons.help_outline,
@@ -523,7 +532,7 @@ class _ContextHeader extends ConsumerWidget {
             ),
             const SizedBox(width: 2),
             IconButton(
-              tooltip: 'Settings',
+              tooltip: loc.navSettings,
               onPressed: () => context.go('/settings'),
               icon: Icon(
                 Icons.settings_outlined,
@@ -597,14 +606,16 @@ class _ContextHeader extends ConsumerWidget {
                       ? null
                       : () => context.go('/player/$activeDocId'),
                   icon: const Icon(Icons.play_arrow, size: 18),
-                  label: const Text('Resume'),
+                  label: Text(loc.btnResume),
                 );
               },
             ),
           ],
           const SizedBox(width: 10),
+          const _LanguageFlagBar(),
+          const SizedBox(width: 10),
           IconButton(
-            tooltip: 'Refresh',
+            tooltip: loc.tooltipRefresh,
             onPressed: () => _refreshAllData(ref),
             icon: Icon(
               Icons.refresh,
@@ -614,7 +625,7 @@ class _ContextHeader extends ConsumerWidget {
           ),
           const SizedBox(width: 2),
           IconButton(
-            tooltip: 'Help & Guides',
+            tooltip: loc.tooltipHelp,
             onPressed: () => context.go('/help'),
             icon: Icon(
               Icons.help_outline,
@@ -624,7 +635,7 @@ class _ContextHeader extends ConsumerWidget {
           ),
           const SizedBox(width: 2),
           IconButton(
-            tooltip: 'Settings',
+            tooltip: loc.navSettings,
             onPressed: () => context.go('/settings'),
             icon: Icon(
               Icons.settings_outlined,
@@ -640,6 +651,92 @@ class _ContextHeader extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Working-language flag bar ─────────────────────────────────────────────────
+
+/// The 5-flag working-language selector shown in the top bar.
+///
+/// Picking a flag sets the writer's working language: it switches the UI
+/// locale AND resets the narration voice to that language's default, so the
+/// whole product turns to the chosen language in one click. `pt-BR` and
+/// `pt-PT` are separate flags that share the same `pt` UI strings but carry
+/// different default voices.
+class _LanguageFlagBar extends ConsumerWidget {
+  const _LanguageFlagBar();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final current =
+        WorkingLanguage.fromLocale(ref.watch(selectedLocaleProvider));
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (final lang in WorkingLanguage.bar)
+          _FlagButton(
+            lang: lang,
+            selected: lang == current,
+            onTap: () {
+              ref.read(selectedLocaleProvider.notifier).setLocale(lang.locale);
+              ref
+                  .read(selectedVoiceIdProvider.notifier)
+                  .select(lang.defaultVoiceId);
+              // Server data localized via translate-on-serve must re-fetch
+              // with the new X-Psitta-Language header on a language switch.
+              ref.invalidate(blueprintsListProvider);
+              ref.invalidate(blueprintDetailProvider);
+            },
+          ),
+      ],
+    );
+  }
+}
+
+class _FlagButton extends StatelessWidget {
+  const _FlagButton({
+    required this.lang,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final WorkingLanguage lang;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: lang.label,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: selected ? 1.0 : 0.42,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 1),
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: selected ? scheme.primary : Colors.transparent,
+                width: 1.5,
+              ),
+            ),
+            child: SizedBox(
+              width: 22,
+              height: 16,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: CountryFlag.fromCountryCode(lang.countryCode),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -668,6 +765,7 @@ void _showWritingShareSheet(
   required String title,
   required String body,
 }) {
+  final loc = AppLocalizations.of(context);
   final full = body.trim().isEmpty ? title : '$title\n\n$body';
   String clip(int n) => full.length <= n ? full : '${full.substring(0, n)}…';
 
@@ -698,16 +796,16 @@ void _showWritingShareSheet(
   }
 
   final targets = <_ShareTarget>[
-    _ShareTarget('Copy text', Icons.content_copy, const Color(0xFF6B7280),
+    _ShareTarget(loc.shareCopyText, Icons.content_copy, const Color(0xFF6B7280),
         () async {
       await Clipboard.setData(ClipboardData(text: full));
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Copied to clipboard.')),
+          SnackBar(content: Text(loc.shareCopied)),
         );
       }
     }),
-    _ShareTarget('Email', Icons.mail_outline, const Color(0xFF2563EB),
+    _ShareTarget(loc.shareEmail, Icons.mail_outline, const Color(0xFF2563EB),
         () => open('mailto:?subject=$encTitle&body=$enc')),
     _ShareTarget('WhatsApp', Icons.chat, const Color(0xFF25D366),
         () => open('https://wa.me/?text=$enc')),
@@ -726,7 +824,7 @@ void _showWritingShareSheet(
     _ShareTarget(
         'Instagram', Icons.camera_alt_outlined, const Color(0xFFE1306C),
         () => copyThenOpen('https://www.instagram.com/', 'Instagram')),
-    _ShareTarget('Save file', Icons.folder_open_outlined,
+    _ShareTarget(loc.shareSaveFile, Icons.folder_open_outlined,
         const Color(0xFF6B7280), () => _saveAndRevealDocx(context, ref, documentId)),
   ];
 
@@ -743,7 +841,7 @@ void _showWritingShareSheet(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Share "$title"',
+                loc.shareHeader(title),
                 style: theme.textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w600),
                 maxLines: 1,
@@ -751,8 +849,7 @@ void _showWritingShareSheet(
               ),
               const SizedBox(height: 4),
               Text(
-                'Posts open in your browser; for Instagram and Substack the '
-                'text is copied so you can paste it.',
+                loc.shareSubtitle,
                 style: theme.textTheme.bodySmall
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
               ),

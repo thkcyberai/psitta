@@ -217,6 +217,44 @@ class DocumentRepository {
     }
   }
 
+  /// Word-timing alignment for ONE sentence of a chunk (instant-highlight path).
+  ///
+  /// Character times are relative to the sentence text; the caller offsets them
+  /// by the sentence's start-within-chunk to place the highlight. Normally a
+  /// zero-credit cache hit written by the sibling /sentences/{i}/audio synthesis.
+  /// Returns an empty map on any failure so highlighting degrades gracefully.
+  Future<Map<String, dynamic>> getChunkSentenceAlignment({
+    required String documentId,
+    required String chunkId,
+    required int sentenceIndex,
+    required String voiceId,
+  }) async {
+    try {
+      final response = await _api.dio.get<Map<String, dynamic>>(
+        '/documents/$documentId/chunks/$chunkId/sentences/$sentenceIndex/alignment',
+        queryParameters: {'voice_id': voiceId},
+        options: Options(
+          receiveTimeout: const Duration(seconds: 60),
+          sendTimeout: const Duration(seconds: 30),
+        ),
+      );
+      if (response.statusCode == 200 && response.data != null) {
+        return response.data!;
+      }
+      return {};
+    } on DioException catch (e) {
+      // ignore: avoid_print
+      print(
+          '[DocumentRepository] getChunkSentenceAlignment DioException: ${e.message}');
+      return {};
+    } catch (e) {
+      // ignore: avoid_print
+      print(
+          '[DocumentRepository] getChunkSentenceAlignment unexpected error: $e');
+      return {};
+    }
+  }
+
   /// Synthesize all chunks for a document with a specific voice.
   Future<Map<String, dynamic>> synthesizeDocument(
       String documentId, String voiceId) async {

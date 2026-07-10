@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
 import '../../../data/models/blueprint_enums.dart';
+import '../../../data/models/blueprint_enum_labels.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// Dialogs and the shared mutation runner for the Blueprints screen. UI text
 /// uses "Blueprint"/"Section"; the data layer's terms are unchanged.
@@ -99,6 +101,7 @@ class _BlueprintFormDialogState extends State<_BlueprintFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return AlertDialog(
       title: Text(widget.title),
       content: SizedBox(
@@ -109,10 +112,10 @@ class _BlueprintFormDialogState extends State<_BlueprintFormDialog> {
             TextField(
               controller: _name,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'Book Structure name',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: loc.fieldName,
+                hintText: loc.bookStructureNameHint,
+                border: const OutlineInputBorder(),
               ),
               onSubmitted: (_) => _submit(),
             ),
@@ -120,13 +123,13 @@ class _BlueprintFormDialogState extends State<_BlueprintFormDialog> {
             DropdownButtonFormField<Genre>(
               value: _genre,
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Genre',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: loc.fieldGenre,
+                border: const OutlineInputBorder(),
               ),
               items: [
                 for (final g in _genres)
-                  DropdownMenuItem(value: g, child: Text(g.wire)),
+                  DropdownMenuItem(value: g, child: Text(genreLabel(loc, g))),
               ],
               onChanged: (g) {
                 if (g != null) setState(() => _genre = g);
@@ -136,13 +139,13 @@ class _BlueprintFormDialogState extends State<_BlueprintFormDialog> {
             DropdownButtonFormField<BlueprintStatus>(
               value: _status,
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Status',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: loc.fieldStatus,
+                border: const OutlineInputBorder(),
               ),
               items: [
                 for (final s in _statuses)
-                  DropdownMenuItem(value: s, child: Text(s.wire)),
+                  DropdownMenuItem(value: s, child: Text(blueprintStatusLabel(loc, s))),
               ],
               onChanged: (s) {
                 if (s != null) setState(() => _status = s);
@@ -154,7 +157,7 @@ class _BlueprintFormDialogState extends State<_BlueprintFormDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(loc.btnCancel),
         ),
         FilledButton(onPressed: _submit, child: Text(widget.submitLabel)),
       ],
@@ -236,6 +239,7 @@ class _SectionFormDialogState extends State<_SectionFormDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return AlertDialog(
       title: Text(widget.title),
       content: SizedBox(
@@ -246,10 +250,10 @@ class _SectionFormDialogState extends State<_SectionFormDialog> {
             TextField(
               controller: _name,
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Name',
-                hintText: 'Section name',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: loc.fieldName,
+                hintText: loc.sectionNameHint,
+                border: const OutlineInputBorder(),
               ),
               onSubmitted: (_) => _submit(),
             ),
@@ -258,9 +262,9 @@ class _SectionFormDialogState extends State<_SectionFormDialog> {
               controller: _description,
               minLines: 2,
               maxLines: 4,
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: loc.descriptionOptional,
+                border: const OutlineInputBorder(),
               ),
             ),
           ],
@@ -269,7 +273,7 @@ class _SectionFormDialogState extends State<_SectionFormDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(loc.btnCancel),
         ),
         FilledButton(onPressed: _submit, child: Text(widget.submitLabel)),
       ],
@@ -285,6 +289,7 @@ Future<bool> confirmDeleteDialog(
   required String message,
   String confirmLabel = 'Delete',
 }) async {
+  final loc = AppLocalizations.of(context);
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
@@ -293,7 +298,7 @@ Future<bool> confirmDeleteDialog(
       actions: [
         TextButton(
           onPressed: () => Navigator.of(ctx).pop(false),
-          child: const Text('Cancel'),
+          child: Text(loc.btnCancel),
         ),
         FilledButton(
           style: FilledButton.styleFrom(

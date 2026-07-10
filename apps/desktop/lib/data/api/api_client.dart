@@ -29,6 +29,7 @@ class ApiClient {
   ApiClient({
     AuthService? authService,
     this.onUnauthorized,
+    this.currentLanguage,
   }) : _authService = authService ?? AuthService() {
     _dio = Dio(BaseOptions(
       baseUrl: AppConstants.apiBaseUrl,
@@ -55,6 +56,10 @@ class ApiClient {
           options.headers.remove('Authorization');
         } else {
           options.headers['Authorization'] = 'Bearer $token';
+        }
+        final lang = currentLanguage?.call();
+        if (lang != null && lang.isNotEmpty) {
+          options.headers['X-Psitta-Language'] = lang;
         }
         handler.next(options);
       },
@@ -115,6 +120,12 @@ class ApiClient {
   /// Callers use this to invalidate auth-dependent providers and force
   /// re-authentication.
   final void Function()? onUnauthorized;
+
+  /// Supplies the writer's current working-language name (e.g. "French") for
+  /// the X-Psitta-Language header, so AI features (Summarize, Story-Coach,
+  /// Structure Analyzer) reply in that language. Returns null to omit the
+  /// header (English default).
+  final String? Function()? currentLanguage;
 
   late final Dio _dio;
 

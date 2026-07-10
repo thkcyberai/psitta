@@ -3156,6 +3156,15 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
     final swhParam = uri.queryParameters['swh']?.toLowerCase().trim();
     final swhEnabled = !(swhParam == '0' || swhParam == 'false');
 
+    // Instant word-highlighting via the sentence playlist. Opt-in (?ssp=1)
+    // while it's validated; when off, playback + highlighting are exactly the
+    // pre-existing single-file/chunk-alignment path.
+    final sspParam = uri.queryParameters['ssp']?.toLowerCase().trim();
+    // Default ON for the instant-highlight test build so it's exercised without
+    // URL editing (a desktop app has no address bar). ?ssp=0 disables it and
+    // restores the exact pre-existing single-file/chunk-alignment path.
+    final sentencePlaylistEnabled = !(sspParam == '0' || sspParam == 'false');
+
     // When SWH is OFF, drive auto-scroll from audio position fraction.
     // When SWH is ON, _onActiveWordChanged handles scroll instead.
     if (!swhEnabled) {
@@ -3341,6 +3350,80 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             ref.watch(audioDurationProvider).valueOrNull ?? Duration.zero;
         final isAudioPlaying =
             ref.watch(audioPlayingProvider).valueOrNull ?? false;
+
+        // ── Instant-highlight (sentence playlist) wiring ─────────────
+        // Configure the AudioService dispatch so play / skip / prepare route
+        // to the gapless sentence playlist for this document's chunks. DOCX /
+        // native only for now; PDF keeps its own render + highlight path. Set
+        // synchronously in build so it's in place before the post-frame
+        // autoplay callback fires.
+        final sentenceCounts = <String, int>{
+          for (final c in chunks)
+            (((c as Map<String, dynamic>)['id'] ?? '').toString()):
+                ((c['sentence_boundaries'] as List<dynamic>?)?.length ?? 0),
+        };
+        ref.read(audioServiceProvider).setSentencePlan(
+              enabled: sentencePlaylistEnabled && !isPdfDocument,
+              counts: sentenceCounts,
+            );
+        // ignore: avoid_print
+        print('[SSP] plan enabled=${sentencePlaylistEnabled && !isPdfDocument} '
+            'sspFlag=$sentencePlaylistEnabled isPdf=$isPdfDocument '
+            'isDocx=$isDocxDocument srcType=${resolvedDoc?.sourceType} '
+            'chunks=${sentenceCounts.length} '
+            'totalSentences=${sentenceCounts.values.fold<int>(0, (a, b) => a + b)} '
+            'activeChunkSents=${sentenceCounts[chunkId] ?? 0}');
+
+        // When active, the highlighter reads the CURRENT sentence's alignment
+        // (char times sentence-local) and shifts it into chunk space by the
+        // sentence's start offset. Position is already sentence-local in
+        // playlist mode, so audioPositionProvider drives the in-sentence sync.
+        final useSentenceHighlight = sentencePlaylistEnabled &&
+            !isPdfDocument &&
+            (sentenceBoundaries?.isNotEmpty ?? false);
+        final activeSentenceIdx = useSentenceHighlight
+            ? (ref.watch(activeSentenceIndexProvider).valueOrNull ?? 0)
+            : 0;
+        final sentenceAlignAsync = (useSentenceHighlight && chunkId.isNotEmpty)
+            ? ref.watch(sentenceAlignmentProvider(SentenceAlignmentKey(
+                documentId: widget.documentId,
+                chunkId: chunkId,
+                sentenceIndex: activeSentenceIdx,
+                voiceId: voiceId,
+              )))
+            : const AsyncValue<Map<String, dynamic>>.data({});
+        final sentenceAlignPayload =
+            sentenceAlignAsync.valueOrNull ?? const <String, dynamic>{};
+        int sentenceCharBase = 0;
+        if (useSentenceHighlight &&
+            sentenceBoundaries != null &&
+            activeSentenceIdx >= 0 &&
+            activeSentenceIdx < sentenceBoundaries.length) {
+          final b = sentenceBoundaries[activeSentenceIdx] as List<dynamic>;
+          if (b.isNotEmpty) sentenceCharBase = (b[0] as num).toInt();
+        }
+        // Prefetch the next couple of sentences' alignment (which also warms
+        // their audio cache server-side) so the highlight — and gapless
+        // playback — stay ahead of the reader. Dedup'd by the FutureProvider.
+        if (useSentenceHighlight &&
+            sentenceBoundaries != null &&
+            chunkId.isNotEmpty) {
+          for (var k = 1; k <= 2; k++) {
+            final ni = activeSentenceIdx + k;
+            if (ni >= 0 && ni < sentenceBoundaries.length) {
+              unawaited(
+                ref
+                    .read(sentenceAlignmentProvider(SentenceAlignmentKey(
+                      documentId: widget.documentId,
+                      chunkId: chunkId,
+                      sentenceIndex: ni,
+                      voiceId: voiceId,
+                    )).future)
+                    .catchError((_) => <String, dynamic>{}),
+              );
+            }
+          }
+        }
 
         // ── Assemble document model ──────────────────────────────────
         final psittaDoc = isPdfDocument
@@ -3586,7 +3669,10 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (isFetchingAlignment && !hasAlignment)
+              // In sentence-playlist mode the first sentence (and its
+              // highlight) arrives in ~1s, so the blocking "loading" row is
+              // suppressed \u2014 it only guarded the slow whole-chunk alignment.
+              if (!useSentenceHighlight && isFetchingAlignment && !hasAlignment)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Row(
@@ -3613,7 +3699,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                 key: ValueKey('doc_${widget.documentId}_$voiceId'),
                 document: psittaDoc,
                 activeChunkIndex: currentIndex,
-                alignmentPayload: alignmentPayload ?? const {},
+                alignmentPayload: useSentenceHighlight
+                    ? sentenceAlignPayload
+                    : (alignmentPayload ?? const {}),
+                sentenceMode: useSentenceHighlight,
+                sentenceCharBase: sentenceCharBase,
                 onActiveSentenceChanged: _scrollFromSentence,
                 onActiveWordChanged: _onActiveWordChanged,
                 audioService: _audioService,

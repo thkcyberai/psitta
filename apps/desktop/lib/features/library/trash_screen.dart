@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -138,6 +139,7 @@ class TrashScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(trashedDocumentsProvider);
     final docs = async.valueOrNull ?? const <Document>[];
 
@@ -160,7 +162,7 @@ class TrashScreen extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.chevron_left, size: 16, color: scheme.primary),
-                      Text('Library',
+                      Text(loc.navLibrary,
                           style: TextStyle(
                               fontSize: 12.5,
                               fontWeight: FontWeight.w600,
@@ -169,7 +171,7 @@ class TrashScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-              Text('  ›  Trash',
+              Text('  ›  ${loc.statTrash}',
                   style: TextStyle(
                       fontSize: 12.5, color: scheme.onSurfaceVariant)),
             ],
@@ -179,7 +181,7 @@ class TrashScreen extends ConsumerWidget {
             children: [
               Icon(Icons.delete_outline, size: 26, color: scheme.onSurface),
               const SizedBox(width: 10),
-              Text('Trash',
+              Text(loc.statTrash,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800)),
               const Spacer(),
@@ -189,14 +191,13 @@ class TrashScreen extends ConsumerWidget {
                   style: OutlinedButton.styleFrom(
                       foregroundColor: const Color(0xFFE5534B)),
                   icon: const Icon(Icons.delete_sweep_outlined, size: 18),
-                  label: Text('Empty Trash (${docs.length})'),
+                  label: Text(loc.emptyTrash(docs.length)),
                 ),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Deleted documents are kept here. Restore them to your Library, '
-            'or delete them permanently.',
+            loc.trashSubtitle,
             style:
                 TextStyle(fontSize: 13, color: scheme.onSurfaceVariant),
           ),
@@ -218,7 +219,7 @@ class TrashScreen extends ConsumerWidget {
                             size: 48,
                             color: scheme.onSurfaceVariant.withOpacity(0.5)),
                         const SizedBox(height: 12),
-                        Text('Trash is empty',
+                        Text(loc.trashEmpty,
                             style: TextStyle(color: scheme.onSurfaceVariant)),
                       ],
                     ),
@@ -256,7 +257,7 @@ class TrashScreen extends ConsumerWidget {
                           TextButton.icon(
                             onPressed: () => _restore(ref, context, doc),
                             icon: const Icon(Icons.restore, size: 18),
-                            label: const Text('Restore'),
+                            label: Text(loc.btnRestore),
                           ),
                           const SizedBox(width: 4),
                           TextButton.icon(

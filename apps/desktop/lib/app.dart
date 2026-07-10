@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/plan_gate.dart';
@@ -6,6 +7,7 @@ import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
 import 'data/providers/providers.dart';
 import 'data/services/preferences_service.dart';
+import 'l10n/app_localizations.dart';
 
 /// Throttle window for resume-driven billing invalidation. Prevents
 /// /billing/status from being hammered when the user rapidly toggles
@@ -89,6 +91,7 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
     final router = ref.watch(appRouterProvider);
     final themeName = ref.watch(selectedThemeNameProvider);
     final theme = AppTheme.forName(themeName);
+    final locale = ref.watch(selectedLocaleProvider);
 
     // Downgrade guard: when the resolved plan is Free, enforce the Free
     // caps on any preferences the user may have set while on Pro. Runs
@@ -128,7 +131,13 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
       // registered; without it every QuillEditor/QuillSimpleToolbar throws
       // UnimplementedError. MaterialApp still appends its own Material/Widgets
       // default delegates, so this only adds Quill's.
+      locale: locale,
+      supportedLocales: AppLocalizations.supportedLocales,
       localizationsDelegates: const [
+        AppLocalizations.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
         FlutterQuillLocalizations.delegate,
       ],
       builder: (context, child) {

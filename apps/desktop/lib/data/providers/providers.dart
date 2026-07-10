@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
+import '../../core/i18n/working_language.dart';
 import '../models/document.dart';
 import '../models/voice.dart';
 import '../repositories/document_repository.dart';
@@ -7,6 +8,7 @@ import '../repositories/voice_repository.dart';
 import '../repositories/playback_repository.dart';
 import '../repositories/project_repository.dart';
 import '../services/auth_service.dart';
+import '../services/preferences_service.dart';
 
 // ── Core ───────────────────────────────────────────────────────
 
@@ -25,6 +27,9 @@ ApiClient _buildApiClient(Ref ref) {
   return ApiClient(
     authService: ref.watch(authServiceProvider),
     onUnauthorized: () => _invalidateAuthProviders(ref),
+    currentLanguage: () =>
+        WorkingLanguage.fromLocale(ref.read(selectedLocaleProvider))
+            ?.aiLanguageName,
   );
 }
 
@@ -337,6 +342,46 @@ final chunkAlignmentProvider = FutureProvider.autoDispose
   return repo.getChunkAlignment(
     documentId: key.documentId,
     chunkId: key.chunkId,
+    voiceId: key.voiceId,
+  );
+});
+
+class SentenceAlignmentKey {
+  const SentenceAlignmentKey({
+    required this.documentId,
+    required this.chunkId,
+    required this.sentenceIndex,
+    required this.voiceId,
+  });
+
+  final String documentId;
+  final String chunkId;
+  final int sentenceIndex;
+  final String voiceId;
+
+  @override
+  bool operator ==(Object other) {
+    return other is SentenceAlignmentKey &&
+        other.documentId == documentId &&
+        other.chunkId == chunkId &&
+        other.sentenceIndex == sentenceIndex &&
+        other.voiceId == voiceId;
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(documentId, chunkId, sentenceIndex, voiceId);
+}
+
+/// Fetch alignment for ONE sentence of a chunk (instant-highlight path).
+/// Same payload shape as chunkAlignmentProvider; char times are sentence-local.
+final sentenceAlignmentProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, SentenceAlignmentKey>((ref, key) async {
+  final repo = ref.watch(documentRepositoryProvider);
+  return repo.getChunkSentenceAlignment(
+    documentId: key.documentId,
+    chunkId: key.chunkId,
+    sentenceIndex: key.sentenceIndex,
     voiceId: key.voiceId,
   );
 });

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/psitta_tokens.dart';
 import 'blueprint_architecture_map.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// The "Diagram" tab — the place a writer goes to understand the whole
 /// Blueprint sector. Two coaching surfaces:
@@ -27,6 +28,7 @@ class BlueprintGuideTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     return Container(
       color: tokens.surface,
@@ -38,40 +40,40 @@ class BlueprintGuideTab extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Understanding Blueprints',
+              Text(loc.diagramTitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
                       color: scheme.onSurface)),
               const SizedBox(height: 6),
-              Text('Every great book combines structure and narrative.',
+              Text(loc.diagramSubtitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 13.5, color: scheme.onSurfaceVariant)),
               const SizedBox(height: 26),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 460),
-                child: _didactic(tokens, scheme),
+                child: _didactic(loc, tokens, scheme),
               ),
               const SizedBox(height: 22),
-              _chooseCoach(tokens, scheme),
+              _chooseCoach(loc, tokens, scheme),
               const SizedBox(height: 30),
               Divider(height: 1, color: tokens.divider),
               const SizedBox(height: 24),
-              Text('How the Writing Nook fits together',
+              Text(loc.diagramMapTitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w800,
                       color: scheme.onSurface)),
               const SizedBox(height: 4),
-              Text('Every piece of your book — and how you move between them.',
+              Text(loc.diagramMapSubtitle,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 12.5, color: scheme.onSurfaceVariant)),
               const SizedBox(height: 14),
-              _mapSwatches(scheme),
+              _mapSwatches(loc, scheme),
               const SizedBox(height: 12),
               LayoutBuilder(
                 builder: (context, cns) {
@@ -92,7 +94,7 @@ class BlueprintGuideTab extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 22),
-              _glossary(tokens, scheme),
+              _glossary(loc, tokens, scheme),
               const SizedBox(height: 8),
             ],
           ),
@@ -103,7 +105,7 @@ class BlueprintGuideTab extends StatelessWidget {
 
   // ── 1. Didactic infographic ──────────────────────────────────────────────
 
-  Widget _didactic(PsittaTokens tokens, ColorScheme scheme) {
+  Widget _didactic(AppLocalizations loc, PsittaTokens tokens, ColorScheme scheme) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -119,7 +121,7 @@ class BlueprintGuideTab extends StatelessWidget {
             children: [
               Icon(Icons.menu_book_rounded, size: 18, color: tokens.glow),
               const SizedBox(width: 8),
-              Text('BOOK',
+              Text(loc.diagramBook,
                   style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w800,
@@ -133,23 +135,23 @@ class BlueprintGuideTab extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _branch(scheme, Icons.view_agenda_rounded, 'BOOK STRUCTURE', _purple,
-                const [
-                  'Front Matter',
-                  'Part I',
-                  'Part II',
-                  'Part III',
-                  'Back Matter',
-                ]),
+            _branch(scheme, Icons.view_agenda_rounded,
+                loc.tabBookStructure.toUpperCase(), _purple, [
+              loc.diagramFrontMatter,
+              loc.diagramPartI,
+              loc.diagramPartII,
+              loc.diagramPartIII,
+              loc.diagramBackMatter,
+            ]),
             const SizedBox(width: 22),
-            _branch(scheme, Icons.timeline_rounded, 'NARRATIVE STRUCTURE', _blue,
-                const [
-                  'Beginning',
-                  'Conflict',
-                  'Challenge',
-                  'Climax',
-                  'Resolution',
-                ]),
+            _branch(scheme, Icons.timeline_rounded,
+                loc.tabNarrativeStructure.toUpperCase(), _blue, [
+              loc.diagramBeginning,
+              loc.diagramConflict,
+              loc.diagramChallenge,
+              loc.diagramClimax,
+              loc.diagramResolution,
+            ]),
           ],
         ),
         const SizedBox(height: 22),
@@ -163,11 +165,11 @@ class BlueprintGuideTab extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _legend(scheme, _purple, 'Book Structure',
-                  '  =  Where content lives'),
+              _legend(scheme, _purple, loc.tabBookStructure,
+                  loc.diagramWhereContentLives),
               const SizedBox(height: 10),
-              _legend(scheme, _blue, 'Narrative Structure',
-                  '  =  How content flows'),
+              _legend(scheme, _blue, loc.tabNarrativeStructure,
+                  loc.diagramHowContentFlows),
             ],
           ),
         ),
@@ -267,7 +269,7 @@ class BlueprintGuideTab extends StatelessWidget {
 
   // ── Coaching: how to choose each structure ───────────────────────────────
 
-  Widget _chooseCoach(PsittaTokens tokens, ColorScheme scheme) {
+  Widget _chooseCoach(AppLocalizations loc, PsittaTokens tokens, ColorScheme scheme) {
     // IntrinsicHeight bounds the Row's height; a stretch Row directly in the
     // vertical scroll would get unbounded height → "render box with no size".
     return IntrinsicHeight(
@@ -278,12 +280,12 @@ class BlueprintGuideTab extends StatelessWidget {
           child: _chooseCard(
             scheme,
             _purple,
-            'Choosing your Book Structure',
-            'Pick by format — how the manuscript is organized.',
-            const [
-              'Novel → Parts & Chapters',
-              'Memoir → life phases',
-              'Business → Problem ▸ Method',
+            loc.diagramChooseBookTitle,
+            loc.diagramChooseBookRule,
+            [
+              loc.diagramBookEx1,
+              loc.diagramBookEx2,
+              loc.diagramBookEx3,
             ],
           ),
         ),
@@ -292,12 +294,12 @@ class BlueprintGuideTab extends StatelessWidget {
           child: _chooseCard(
             scheme,
             _blue,
-            'Choosing your Narrative Structure',
-            'Pick by journey — how the story unfolds.',
-            const [
-              "Hero's Journey → transformation",
-              'Three Act → most fiction',
-              'Save the Cat → screenplays',
+            loc.diagramChooseNarrativeTitle,
+            loc.diagramChooseNarrativeRule,
+            [
+              loc.diagramNarrEx1,
+              loc.diagramNarrEx2,
+              loc.diagramNarrEx3,
             ],
           ),
         ),
@@ -357,12 +359,12 @@ class BlueprintGuideTab extends StatelessWidget {
 
   // ── Map: swatches, glossary, flow, line key ──────────────────────────────
 
-  Widget _mapSwatches(ColorScheme scheme) => Row(
+  Widget _mapSwatches(AppLocalizations loc, ColorScheme scheme) => Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _swatch(_amber, 'Saved in the database', scheme),
+          _swatch(_amber, loc.diagramSavedInDb, scheme),
           const SizedBox(width: 20),
-          _swatch(_grey, 'In-app only (not saved)', scheme),
+          _swatch(_grey, loc.diagramInAppOnly, scheme),
         ],
       );
 
@@ -384,22 +386,20 @@ class BlueprintGuideTab extends StatelessWidget {
         ],
       );
 
-  Widget _glossary(PsittaTokens tokens, ColorScheme scheme) {
-    const items = <(String, String)>[
-      ('Document', 'your file — the centre of everything'),
-      ('Writing Desk', 'where you write a file'),
-      ('Project', 'a folder that holds the book and its files'),
-      ('Section', 'a file’s home in the outline — one file, one section'),
-      ('Book Structure',
-          'your reusable book outline and its sections (saved)'),
-      ('Narrative Structure',
-          'a menu of story models — picking one builds a Book Structure'),
+  Widget _glossary(AppLocalizations loc, PsittaTokens tokens, ColorScheme scheme) {
+    final items = <(String, String)>[
+      (loc.diagramDocument, loc.diagramGlossDocument),
+      (loc.navWritingDesk, loc.diagramGlossWritingDesk),
+      (loc.conceptProject, loc.diagramGlossProject),
+      (loc.diagramSection, loc.diagramGlossSection),
+      (loc.tabBookStructure, loc.diagramGlossBookStructure),
+      (loc.tabNarrativeStructure, loc.diagramGlossNarrativeStructure),
     ];
-    const flow = <String>[
-      'Create a Project — the book you are working on.',
-      'Choose a structure — it generates a Book Structure outline.',
-      'Add or place each file into one Section of that outline.',
-      'Write each file at the Writing Desk.',
+    final flow = <String>[
+      loc.diagramPath1,
+      loc.diagramPath2,
+      loc.diagramPath3,
+      loc.diagramPath4,
     ];
     return Container(
       width: double.infinity,
@@ -412,7 +412,7 @@ class BlueprintGuideTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('What each piece means',
+          Text(loc.diagramGlossaryTitle,
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -441,7 +441,7 @@ class BlueprintGuideTab extends StatelessWidget {
           const SizedBox(height: 6),
           Divider(height: 1, color: tokens.divider),
           const SizedBox(height: 12),
-          Text('The writer’s path',
+          Text(loc.diagramPathTitle,
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w800,
@@ -483,11 +483,11 @@ class BlueprintGuideTab extends StatelessWidget {
           const SizedBox(height: 12),
           _lineKey(scheme,
               dashed: false,
-              text: 'Solid line — a saved connection between pieces.'),
+              text: loc.diagramSolidLine),
           const SizedBox(height: 8),
           _lineKey(scheme,
               dashed: true,
-              text: 'Dashed line — an action you take from the Writing Desk.'),
+              text: loc.diagramDashedLine),
         ],
       ),
     );

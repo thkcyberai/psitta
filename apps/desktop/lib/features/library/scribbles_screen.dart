@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/psitta_tokens.dart';
@@ -133,6 +134,7 @@ class ScribblesScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(notesProvider);
     final pinnedIds =
         ref.watch(floatingScribblesProvider).map((n) => n.id).toSet();
@@ -143,26 +145,26 @@ class ScribblesScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const LibraryBreadcrumb(current: 'Scribbles'),
+          LibraryBreadcrumb(current: loc.scribblesTitle),
           const SizedBox(height: 8),
           Row(
             children: [
               Icon(Icons.sticky_note_2_outlined,
                   size: 26, color: scheme.onSurface),
               const SizedBox(width: 10),
-              Text('Scribbles',
+              Text(loc.scribblesTitle,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w800)),
               const Spacer(),
               FilledButton.icon(
                 onPressed: () => _openEditor(context, ref),
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('New scribble'),
+                label: Text(loc.newScribble),
               ),
             ],
           ),
           const SizedBox(height: 4),
-          Text('Quick notes and ideas — jot, color, and keep.',
+          Text(loc.scribblesSubtitle,
               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
           const SizedBox(height: 18),
           Expanded(
@@ -182,7 +184,7 @@ class ScribblesScreen extends ConsumerWidget {
                             size: 48,
                             color: scheme.onSurfaceVariant.withOpacity(0.5)),
                         const SizedBox(height: 12),
-                        Text('No scribbles yet',
+                        Text(loc.noScribblesYet,
                             style: TextStyle(color: scheme.onSurfaceVariant)),
                       ],
                     ),

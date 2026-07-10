@@ -6,6 +6,7 @@ import 'player_bar.dart';
 import '../../../core/keyboard/shortcuts.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../shared/widgets/psitta_logo.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// Sidebar navigation for the Writing Nook shell.
 ///
@@ -20,6 +21,7 @@ class WritingNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
 
     return Container(
       color: tokens.surface2,
@@ -32,56 +34,56 @@ class WritingNav extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 14),
               children: [
                 _WritingNavItem(
-                  label: 'Library',
+                  label: loc.navLibrary,
                   icon: Icons.article_outlined,
                   route: '/library',
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Writing Desk',
+                  label: loc.navWritingDesk,
                   icon: Icons.edit_note_outlined,
                   route: '/writing-desk',
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Projects',
+                  label: loc.navProjects,
                   icon: Icons.folder_outlined,
                   route: '/projects',
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Blueprints',
+                  label: loc.navBlueprints,
                   icon: Icons.account_tree_outlined,
                   route: '/blueprints',
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Plans',
+                  label: loc.navPlans,
                   icon: Icons.workspace_premium_outlined,
                   route: '/plan',
-                  badge: 'Upgrade',
+                  badge: loc.navUpgrade,
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Voices',
+                  label: loc.navVoices,
                   icon: Icons.record_voice_over_outlined,
                   route: '/voices',
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Analytics',
+                  label: loc.navAnalytics,
                   icon: Icons.bar_chart_outlined,
                   route: '/analytics',
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Settings',
+                  label: loc.navSettings,
                   icon: Icons.tune_outlined,
                   route: '/settings',
                   isCollapsed: isCollapsed,
                 ),
                 _WritingNavItem(
-                  label: 'Help',
+                  label: loc.navHelp,
                   icon: Icons.help_outline,
                   route: '/help',
                   isCollapsed: isCollapsed,
@@ -108,6 +110,7 @@ class _WritingBrandHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
 
     if (isCollapsed) {
       return SizedBox(
@@ -116,7 +119,7 @@ class _WritingBrandHeader extends StatelessWidget {
           child: IconButton(
             key: const ValueKey('writing-nav-toggle'),
             iconSize: 20,
-            tooltip: 'Expand sidebar',
+            tooltip: loc.sidebarExpand,
             icon: Icon(Icons.menu,
                 color: theme.colorScheme.onSurface.withOpacity(0.7)),
             onPressed: () =>
@@ -151,7 +154,7 @@ class _WritingBrandHeader extends StatelessWidget {
           IconButton(
             key: const ValueKey('writing-nav-toggle'),
             iconSize: 20,
-            tooltip: 'Collapse sidebar',
+            tooltip: loc.sidebarCollapse,
             icon: Icon(Icons.menu_open,
                 color: theme.colorScheme.onSurface.withOpacity(0.7)),
             onPressed: () =>
@@ -235,6 +238,7 @@ class _WritingNavItem extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     final location = GoRouterState.of(context).uri.toString();
 
     // Always watch activeDocumentIdProvider so Writing Desk items rebuild
@@ -349,7 +353,7 @@ class _WritingNavItem extends ConsumerWidget {
 
     // Static disabled items (enabled == false) get a 'Coming soon' tooltip.
     // Dynamically disabled items (Writing Desk without an open doc) do not.
-    if (!enabled) return Tooltip(message: 'Coming soon', child: item);
+    if (!enabled) return Tooltip(message: loc.comingSoon, child: item);
     if (isCollapsed) return Tooltip(message: label, child: item);
     return item;
   }

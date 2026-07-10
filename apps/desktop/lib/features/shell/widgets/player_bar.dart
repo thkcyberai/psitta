@@ -7,6 +7,7 @@ import '../../../data/providers/providers.dart';
 import '../../../data/services/audio_service.dart';
 import '../../../data/services/preferences_service.dart';
 import '../../../widgets/voice_avatar.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// Shared state for current document info in the player bar.
 final currentDocTitleProvider = StateProvider<String?>((ref) => null);
@@ -38,13 +39,32 @@ class PlayerBar extends ConsumerWidget {
 
     // Audio streams
     final isPlaying = ref.watch(audioPlayingProvider).valueOrNull ?? false;
-    final position =
-        ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero;
-    final duration = ref.watch(audioDurationProvider).valueOrNull ??
-        const Duration(minutes: 5);
+    // When a sentence playlist is active, just_audio's position/duration are
+    // relative to the current sentence clip. Source the scrubber from the
+    // chunk-level ("chapter") model instead so it reads as one timeline.
+    final sentencePlaylistActive =
+        ref.watch(sentencePlaylistActiveProvider).valueOrNull ?? false;
+    final position = sentencePlaylistActive
+        ? (ref.watch(chapterPositionProvider).valueOrNull ?? Duration.zero)
+        : (ref.watch(audioPositionProvider).valueOrNull ?? Duration.zero);
+    final duration = sentencePlaylistActive
+        ? (ref.watch(chapterDurationProvider).valueOrNull ??
+            const Duration(minutes: 5))
+        : (ref.watch(audioDurationProvider).valueOrNull ??
+            const Duration(minutes: 5));
     final audioService = ref.watch(audioServiceProvider);
     final isSynthesizing =
         ref.watch(isSynthesizingProvider).valueOrNull ?? false;
+    final loc = AppLocalizations.of(context);
+    final selectedVoiceId = ref.watch(selectedVoiceIdProvider);
+    final voiceDisplayName = ref.watch(voicesProvider).whenOrNull(
+      data: (voices) {
+        for (final v in voices) {
+          if (v.id == selectedVoiceId) return v.displayName;
+        }
+        return null;
+      },
+    );
 
     // Reset audio when voice changes — forces reload with new voice
     ref.listen<String>(selectedVoiceIdProvider, (previous, next) {
@@ -68,28 +88,15 @@ class PlayerBar extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
-          if (hasActiveSession)
-            Builder(builder: (context) {
-              final voicesAsync = ref.watch(voicesProvider);
-              final selectedId = ref.watch(selectedVoiceIdProvider);
-              final displayName = voicesAsync.whenOrNull(
-                data: (voices) {
-                  for (final v in voices) {
-                    if (v.id == selectedId) return v.displayName;
-                  }
-                  return null;
-                },
-              );
-              if (displayName == null) return const SizedBox.shrink();
-              return Padding(
-                padding: const EdgeInsets.only(right: 12),
-                child: VoiceAvatar(
-                  voiceName: displayName,
-                  size: 32,
-                  variant: VoiceAvatarVariant.small,
-                ),
-              );
-            }),
+          if (hasActiveSession && voiceDisplayName != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: VoiceAvatar(
+                voiceName: voiceDisplayName,
+                size: 32,
+                variant: VoiceAvatarVariant.small,
+              ),
+            ),
           // Document info (left)
           SizedBox(
             width: 200,
@@ -108,9 +115,15 @@ class PlayerBar extends ConsumerWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        totalChunks > 0
-                            ? 'Chapter ${chunkIndex + 1} of $totalChunks'
-                            : 'No chapters',
+                        [
+                          if (voiceDisplayName != null) voiceDisplayName,
+                          totalChunks > 0
+                              ? loc.playerChapterOf(
+                                  chunkIndex + 1, totalChunks)
+                              : loc.playerNoChapters,
+                        ].join('  ·  '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: isDark
                               ? AppColors.textSecondaryDark
@@ -120,7 +133,7 @@ class PlayerBar extends ConsumerWidget {
                     ],
                   )
                 : Text(
-                    'No document playing',
+                    loc.playerNoDocument,
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: isDark
                           ? AppColors.textSecondaryDark
@@ -286,8 +299,11 @@ class PlayerBar extends ConsumerWidget {
                               .toDouble()
                               .clamp(1, double.infinity),
                           onChanged: hasActiveSession
-                              ? (v) => audioService
-                                  .seek(Duration(milliseconds: v.toInt()))
+                              ? (v) => sentencePlaylistActive
+                                  ? audioService.seekChapter(
+                                      Duration(milliseconds: v.toInt()))
+                                  : audioService
+                                      .seek(Duration(milliseconds: v.toInt()))
                               : null,
                         ),
                       ),

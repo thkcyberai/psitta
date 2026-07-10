@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../l10n/app_localizations.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/providers.dart';
@@ -116,6 +117,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     // Entitlement: gate on llm_tokens_per_period > 0 from billing limits.
     // Writing Nook Pro and Creative Nook Pro have llm > 0; Free and Reading
@@ -142,7 +144,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
         .firstOrNull;
     final String? notReadyHint = (doc != null &&
             _kPreContentStatuses.contains(doc.status))
-        ? 'Document is still processing'
+        ? loc.docProcessing
         : null;
 
     final int? summariesPerPeriod =
@@ -165,11 +167,12 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
   // ── Header ─────────────────────────────────────────────────────────────────
 
   Widget _buildHeader(BuildContext context, ColorScheme scheme) {
+    final loc = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
           child: Text(
-            'SUMMARIZE IT',
+            loc.summarizeItTitle,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                   letterSpacing: 0.8,
@@ -218,6 +221,17 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
     return _buildIdle(context, scheme, notReadyHint, summariesPerPeriod);
   }
 
+  String _lengthLabel(AppLocalizations loc, String value) {
+    switch (value) {
+      case 'short':
+        return loc.lengthShort;
+      case 'long':
+        return loc.lengthLong;
+      default:
+        return loc.lengthMedium;
+    }
+  }
+
   // ── Idle ───────────────────────────────────────────────────────────────────
 
   Widget _buildIdle(
@@ -226,6 +240,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
     String? notReadyHint,
     int? summariesPerPeriod,
   ) {
+    final loc = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -236,7 +251,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
               ChoiceChip(
                 key: ValueKey('desk-summarize-length-$length'),
                 label: Text(
-                  length,
+                  _lengthLabel(loc, length),
                   style: Theme.of(context).textTheme.labelSmall,
                 ),
                 selected: _selectedLength == length,
@@ -255,7 +270,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
             child: FilledButton(
               key: const ValueKey('desk-summarize-generate'),
               onPressed: notReadyHint == null ? _submit : null,
-              child: const Text('Summarize'),
+              child: Text(loc.summarizeBtn),
             ),
           ),
         ),
@@ -269,12 +284,8 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
             Expanded(
               child: Text(
                 summariesPerPeriod != null
-                    ? 'Each summary uses AI tokens from your monthly Writing '
-                        'Nook allowance — about $summariesPerPeriod per month. '
-                        'Generate one when you want a quick recap of this file.'
-                    : 'Each summary uses AI tokens from your monthly Writing '
-                        'Nook allowance. Generate one when you want a quick '
-                        'recap of this file.',
+                    ? loc.summarizeAllowanceCount(summariesPerPeriod)
+                    : loc.summarizeAllowance,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
                     ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../shell/widgets/shortcuts_panel.dart';
+import '../../l10n/app_localizations.dart';
 
 const String _supportEmail = 'support@psitta.ai';
 
@@ -14,19 +15,20 @@ class HelpScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Help & Guides',
+            loc.helpTitle,
             style: theme.textTheme.headlineSmall
                 ?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
-            'Learn the Writing Nook with short videos and step-by-step guides.',
+            loc.helpSubtitle,
             style: theme.textTheme.bodyMedium
                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
           ),
@@ -37,98 +39,71 @@ class HelpScreen extends StatelessWidget {
                 constraints: const BoxConstraints(maxWidth: 860),
                 child: ListView(
                   children: [
-                    const _HelpSection(
+                    _HelpSection(
                       icon: Icons.rocket_launch_outlined,
-                      title: 'Getting Started',
+                      title: loc.helpSecGettingStarted,
                       children: [
                         _GuideTile(
                           icon: Icons.bolt_outlined,
-                          title: 'Your first book in 5 minutes',
-                          body:
-                              'Create or upload a file, choose a Book Structure, '
-                              'place your files into sections, and listen as you write.',
+                          title: loc.helpGuideFirstBook,
+                          body: loc.helpGuideFirstBookBody,
                         ),
-                        _VideoTile(title: 'Watch: Getting Started', minutes: 3),
+                        _VideoTile(
+                            title: loc.helpWatchGettingStarted, minutes: 3),
                       ],
                     ),
-                    const _HelpSection(
+                    _HelpSection(
                       icon: Icons.account_tree_outlined,
-                      title: 'The Four Systems',
+                      title: loc.helpSecFourSystems,
                       children: [
                         _GuideTile(
                           icon: Icons.article_outlined,
-                          title: 'Library',
-                          body:
-                              'Every file you create or upload lives here. '
-                              'Visualize, take Notes and Whispers, and export.',
+                          title: loc.navLibrary,
+                          body: loc.helpGuideLibraryBody,
                         ),
                         _GuideTile(
                           icon: Icons.account_tree_outlined,
-                          title: 'Blueprints',
-                          body:
-                              "Your book's structure. Start from a Template, make "
-                              'it your own under My Books, and arrange the sections.',
+                          title: loc.navBlueprints,
+                          body: loc.helpGuideBlueprintsBody,
                         ),
                         _GuideTile(
                           icon: Icons.folder_outlined,
-                          title: 'Projects',
-                          body:
-                              'A project is one book. It adopts a Book Structure '
-                              'and gathers the files that belong to it.',
+                          title: loc.navProjects,
+                          body: loc.helpGuideProjectsBody,
                         ),
                         _GuideTile(
                           icon: Icons.edit_note_outlined,
-                          title: 'Writing Desk',
-                          body:
-                              "Where you write, edit, and listen, with your book's "
-                              'sections always one click away on the left.',
+                          title: loc.navWritingDesk,
+                          body: loc.helpGuideDeskBody,
                         ),
-                        _VideoTile(title: 'Watch: The Four Systems', minutes: 6),
+                        _VideoTile(
+                            title: loc.helpWatchFourSystems, minutes: 6),
                       ],
                     ),
-                    const _HelpSection(
+                    _HelpSection(
                       icon: Icons.help_outline,
-                      title: 'Frequently Asked',
+                      title: loc.helpSecFaq,
                       children: [
-                        _FaqTile(
-                          q: 'How do I add a file to a section?',
-                          a: 'Open the file in the Writing Desk, click “Add to a '
-                              'Blueprint,” then choose a section, or drag the file '
-                              'onto a section in the Book pane.',
-                        ),
-                        _FaqTile(
-                          q: 'Template vs. My Book — what is the difference?',
-                          a: 'Templates are built-in starting points. When you '
-                              '“Use this Book Structure,” you create your own '
-                              'titled copy under My Books.',
-                        ),
-                        _FaqTile(
-                          q: 'Why is word-by-word highlighting off?',
-                          a: 'Sync Word Highlight is a Pro feature. Turn it on in '
-                              'Settings → Sync Word Highlight.',
-                        ),
-                        _FaqTile(
-                          q: 'How do premium voices count against my plan?',
-                          a: 'Premium (ElevenLabs) voices use characters from your '
-                              'monthly allowance, shown in Settings → Usage. '
-                              'Standard voices are unlimited.',
-                        ),
+                        _FaqTile(q: loc.helpFaqQ1, a: loc.helpFaqA1),
+                        _FaqTile(q: loc.helpFaqQ2, a: loc.helpFaqA2),
+                        _FaqTile(q: loc.helpFaqQ3, a: loc.helpFaqA3),
+                        _FaqTile(q: loc.helpFaqQ4, a: loc.helpFaqA4),
                       ],
                     ),
                     _HelpSection(
                       icon: Icons.support_agent_outlined,
-                      title: 'More help',
+                      title: loc.helpSecMore,
                       children: [
-                        const _ActionTile(
+                        _ActionTile(
                           icon: Icons.mail_outline,
-                          title: 'Contact support',
+                          title: loc.helpContactSupport,
                           subtitle: _supportEmail,
                           onTap: _emailSupport,
                         ),
                         _ActionTile(
                           icon: Icons.keyboard_outlined,
-                          title: 'Keyboard shortcuts',
-                          subtitle: 'View all shortcuts (Ctrl + /)',
+                          title: loc.keyboardShortcuts,
+                          subtitle: loc.helpViewShortcuts,
                           onTap: () => showDialog(
                             context: context,
                             builder: (_) => const ShortcutsPanel(),
@@ -261,6 +236,7 @@ class _VideoTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final loc = AppLocalizations.of(context);
     final available = url != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -302,8 +278,8 @@ class _VideoTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         available
-                            ? '$minutes min · opens in your browser'
-                            : 'Video coming soon',
+                            ? loc.helpVideoMinutes(minutes)
+                            : loc.helpVideoComingSoon,
                         style: theme.textTheme.bodySmall
                             ?.copyWith(color: scheme.onSurfaceVariant),
                       ),
