@@ -363,9 +363,13 @@ jobs:
         working-directory: core/backend
         run: alembic -c alembic.ini upgrade head
 
-      - name: Verify migration reversibility (downgrade)
+      # Migration 020 is an intentional one-way data purge (its downgrade
+      # raises NotImplementedError), so a full `downgrade base` can never pass.
+      # Verify reversibility of everything ABOVE 020 instead — downgrade to 020
+      # (leaving it applied), then the next step re-upgrades to head.
+      - name: Verify migration reversibility (downgrade to 020)
         working-directory: core/backend
-        run: alembic -c alembic.ini downgrade base
+        run: alembic -c alembic.ini downgrade 020
 
       - name: Re-apply migrations (idempotency)
         working-directory: core/backend
