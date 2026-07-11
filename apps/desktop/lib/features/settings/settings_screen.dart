@@ -203,12 +203,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               .read(activeDocumentIdProvider.notifier)
                               .state = null;
                           if (!context.mounted) return;
+                          // 4. Land the writer in the Library — a clean,
+                          //    language-neutral starting point after the reset.
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
                                   loc.setLanguageResetSnack(deviceLabel)),
                             ),
                           );
+                          context.go('/library');
                         },
                         child: Text(loc.setResetButton),
                       ),
