@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/plan_gate.dart';
 import '../../core/quota_gate.dart';
 import '../../data/providers/providers.dart';
+import '../../core/i18n/working_language.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
 import '../../shared/widgets/psitta_logo.dart';
@@ -135,6 +136,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             icon: Icons.graphic_eq_outlined,
             title: loc.setSecUsage,
             children: [_PremiumVoicesUsageTile()],
+          ),
+          _SettingsCard(
+            icon: Icons.translate_outlined,
+            title: loc.setSecLanguage,
+            children: [
+              Builder(builder: (context) {
+                final currentWl =
+                    WorkingLanguage.fromLocale(ref.watch(selectedLocaleProvider));
+                final currentLabel =
+                    currentWl?.label ?? WorkingLanguage.englishUS.label;
+                final device =
+                    WidgetsBinding.instance.platformDispatcher.locale;
+                final deviceLabel = WorkingLanguage.fromLocale(device)?.label ??
+                    WorkingLanguage.englishUS.label;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.language_outlined),
+                      title: Text(loc.setWorkingLanguage),
+                      subtitle: Text(
+                        loc.setWorkingLanguageSub,
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: Text(
+                        currentLabel,
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.restart_alt),
+                      title: Text(loc.setResetToDeviceLanguage),
+                      subtitle: Text(
+                        loc.setResetToDeviceLanguageSub(deviceLabel),
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: OutlinedButton(
+                        onPressed: () async {
+                          await ref
+                              .read(selectedLocaleProvider.notifier)
+                              .resetToDeviceDefault();
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                  loc.setLanguageResetSnack(deviceLabel)),
+                            ),
+                          );
+                        },
+                        child: Text(loc.setResetButton),
+                      ),
+                    ),
+                  ],
+                );
+              }),
+            ],
           ),
           _SettingsCard(
             icon: Icons.palette_outlined,

@@ -2862,6 +2862,96 @@ abstract class AppLocalizations {
   /// **'Usage'**
   String get setSecUsage;
 
+  /// No description provided for @deskUnsavedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsaved changes'**
+  String get deskUnsavedTitle;
+
+  /// No description provided for @deskUnsavedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ve made changes to this document. Do you want to save them before leaving?'**
+  String get deskUnsavedBody;
+
+  /// No description provided for @deskUnsavedSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get deskUnsavedSave;
+
+  /// No description provided for @deskUnsavedDiscard.
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t save'**
+  String get deskUnsavedDiscard;
+
+  /// No description provided for @deskUnsavedCancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get deskUnsavedCancel;
+
+  /// No description provided for @readModeRequiredTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to Read mode'**
+  String get readModeRequiredTitle;
+
+  /// No description provided for @readModeRequiredBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Narration is available in Read mode. Switch to Read mode to listen to this document.'**
+  String get readModeRequiredBody;
+
+  /// No description provided for @readModeRequiredOk.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get readModeRequiredOk;
+
+  /// No description provided for @setSecLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Language'**
+  String get setSecLanguage;
+
+  /// No description provided for @setWorkingLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Working language'**
+  String get setWorkingLanguage;
+
+  /// No description provided for @setWorkingLanguageSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Everything Psitta reads, writes and speaks. Pick a flag in the header to switch.'**
+  String get setWorkingLanguageSub;
+
+  /// No description provided for @setResetToDeviceLanguage.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset to device language'**
+  String get setResetToDeviceLanguage;
+
+  /// No description provided for @setResetToDeviceLanguageSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Match your computer — currently {lang}.'**
+  String setResetToDeviceLanguageSub(String lang);
+
+  /// No description provided for @setResetButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset'**
+  String get setResetButton;
+
+  /// No description provided for @setLanguageResetSnack.
+  ///
+  /// In en, this message translates to:
+  /// **'Working language reset to {lang}.'**
+  String setLanguageResetSnack(String lang);
+
   /// No description provided for @setSecAppearance.
   ///
   /// In en, this message translates to:
@@ -3419,6 +3509,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No chapters'**
   String get playerNoChapters;
+
+  /// No description provided for @playerChangeNarrator.
+  ///
+  /// In en, this message translates to:
+  /// **'Change narrator'**
+  String get playerChangeNarrator;
 
   /// No description provided for @playerNoDocument.
   ///

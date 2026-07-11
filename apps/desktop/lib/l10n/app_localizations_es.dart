@@ -1593,6 +1593,59 @@ class AppLocalizationsEs extends AppLocalizations {
   String get setSecUsage => 'Uso';
 
   @override
+  String get deskUnsavedTitle => 'Cambios sin guardar';
+
+  @override
+  String get deskUnsavedBody =>
+      'Has hecho cambios en este documento. ¿Quieres guardarlos antes de salir?';
+
+  @override
+  String get deskUnsavedSave => 'Guardar';
+
+  @override
+  String get deskUnsavedDiscard => 'No guardar';
+
+  @override
+  String get deskUnsavedCancel => 'Cancelar';
+
+  @override
+  String get readModeRequiredTitle => 'Cambia al modo Lectura';
+
+  @override
+  String get readModeRequiredBody =>
+      'La narración está disponible en el modo Lectura. Cambia al modo Lectura para escuchar este documento.';
+
+  @override
+  String get readModeRequiredOk => 'Entendido';
+
+  @override
+  String get setSecLanguage => 'Idioma';
+
+  @override
+  String get setWorkingLanguage => 'Idioma de trabajo';
+
+  @override
+  String get setWorkingLanguageSub =>
+      'Todo lo que Psitta lee, escribe y habla. Elige una bandera en el encabezado para cambiar.';
+
+  @override
+  String get setResetToDeviceLanguage =>
+      'Restablecer al idioma del dispositivo';
+
+  @override
+  String setResetToDeviceLanguageSub(String lang) {
+    return 'Seguir tu computadora — actualmente $lang.';
+  }
+
+  @override
+  String get setResetButton => 'Restablecer';
+
+  @override
+  String setLanguageResetSnack(String lang) {
+    return 'Idioma de trabajo restablecido a $lang.';
+  }
+
+  @override
   String get setSecAppearance => 'Apariencia';
 
   @override
@@ -1914,6 +1967,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get playerNoChapters => 'Sin capítulos';
+
+  @override
+  String get playerChangeNarrator => 'Cambiar narrador';
 
   @override
   String get playerNoDocument => 'Ningún documento en reproducción';

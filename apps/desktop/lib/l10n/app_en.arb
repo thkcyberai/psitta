@@ -717,6 +717,35 @@
   "setSecAccount": "Account",
   "setSecSession": "Session",
   "setSecUsage": "Usage",
+  "deskUnsavedTitle": "Unsaved changes",
+  "deskUnsavedBody": "You've made changes to this document. Do you want to save them before leaving?",
+  "deskUnsavedSave": "Save",
+  "deskUnsavedDiscard": "Don't save",
+  "deskUnsavedCancel": "Cancel",
+  "readModeRequiredTitle": "Switch to Read mode",
+  "readModeRequiredBody": "Narration is available in Read mode. Switch to Read mode to listen to this document.",
+  "readModeRequiredOk": "Got it",
+  "setSecLanguage": "Language",
+  "setWorkingLanguage": "Working language",
+  "setWorkingLanguageSub": "Everything Psitta reads, writes and speaks. Pick a flag in the header to switch.",
+  "setResetToDeviceLanguage": "Reset to device language",
+  "setResetToDeviceLanguageSub": "Match your computer — currently {lang}.",
+  "@setResetToDeviceLanguageSub": {
+    "placeholders": {
+      "lang": {
+        "type": "String"
+      }
+    }
+  },
+  "setResetButton": "Reset",
+  "setLanguageResetSnack": "Working language reset to {lang}.",
+  "@setLanguageResetSnack": {
+    "placeholders": {
+      "lang": {
+        "type": "String"
+      }
+    }
+  },
   "setSecAppearance": "Appearance",
   "setSecPlayback": "Playback",
   "setSecSwh": "Sync Word Highlight",
@@ -859,6 +888,7 @@
     }
   },
   "playerNoChapters": "No chapters",
+  "playerChangeNarrator": "Change narrator",
   "playerNoDocument": "No document playing",
   "playerChapterOf": "Chapter {current} of {total}",
   "@playerChapterOf": {

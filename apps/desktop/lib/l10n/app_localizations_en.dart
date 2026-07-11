@@ -1587,6 +1587,58 @@ class AppLocalizationsEn extends AppLocalizations {
   String get setSecUsage => 'Usage';
 
   @override
+  String get deskUnsavedTitle => 'Unsaved changes';
+
+  @override
+  String get deskUnsavedBody =>
+      'You\'ve made changes to this document. Do you want to save them before leaving?';
+
+  @override
+  String get deskUnsavedSave => 'Save';
+
+  @override
+  String get deskUnsavedDiscard => 'Don\'t save';
+
+  @override
+  String get deskUnsavedCancel => 'Cancel';
+
+  @override
+  String get readModeRequiredTitle => 'Switch to Read mode';
+
+  @override
+  String get readModeRequiredBody =>
+      'Narration is available in Read mode. Switch to Read mode to listen to this document.';
+
+  @override
+  String get readModeRequiredOk => 'Got it';
+
+  @override
+  String get setSecLanguage => 'Language';
+
+  @override
+  String get setWorkingLanguage => 'Working language';
+
+  @override
+  String get setWorkingLanguageSub =>
+      'Everything Psitta reads, writes and speaks. Pick a flag in the header to switch.';
+
+  @override
+  String get setResetToDeviceLanguage => 'Reset to device language';
+
+  @override
+  String setResetToDeviceLanguageSub(String lang) {
+    return 'Match your computer — currently $lang.';
+  }
+
+  @override
+  String get setResetButton => 'Reset';
+
+  @override
+  String setLanguageResetSnack(String lang) {
+    return 'Working language reset to $lang.';
+  }
+
+  @override
   String get setSecAppearance => 'Appearance';
 
   @override
@@ -1902,6 +1954,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get playerNoChapters => 'No chapters';
+
+  @override
+  String get playerChangeNarrator => 'Change narrator';
 
   @override
   String get playerNoDocument => 'No document playing';

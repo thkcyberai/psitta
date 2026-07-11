@@ -30,3 +30,15 @@ enum DeskSaveState { saved, saving, editing }
 /// Published by [DeskCenterPane] as the user enters, edits, or saves.
 final deskSaveStateProvider =
     StateProvider<DeskSaveState>((ref) => DeskSaveState.saved);
+
+/// True when the open document in the Writing Desk has edits that haven't been
+/// saved. Set by the editor (on change), cleared on save/discard/close. Read by
+/// the navigation guards (route onExit, language flag) so leaving write mode
+/// without saving prompts Save / Don't save / Cancel.
+final deskDirtyProvider = StateProvider<bool>((ref) => false);
+
+/// The Writing Desk's own save action, registered while the editor is mounted
+/// so a guard *outside* the Desk (e.g. the top-bar language flag) can save on
+/// the writer's behalf. Null when no editable document is open.
+final deskSaveActionProvider =
+    StateProvider<Future<void> Function()?>((ref) => null);

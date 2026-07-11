@@ -135,9 +135,13 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     // Leaving the Desk: clear the editing flag (deferred to avoid mutating a
     // provider during teardown) so Space-to-play works elsewhere.
     final editingNotifier = ref.read(isInlineEditingProvider.notifier);
+    final dirtyNotifier = ref.read(deskDirtyProvider.notifier);
+    final saveActionNotifier = ref.read(deskSaveActionProvider.notifier);
     Future.microtask(() {
       try {
         editingNotifier.state = false;
+        dirtyNotifier.state = false;
+        saveActionNotifier.state = null;
       } catch (_) {}
     });
     _spellDebounce?.cancel();
@@ -205,6 +209,12 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   void _onEditorChanged() {
     _trackTyping();
     if (_squiggleInFlight) return;
+    // A real (non-squiggle) edit: the document now has unsaved changes. Drives
+    // the navigation guards (route onExit + language flag) so leaving write
+    // mode without saving prompts Save / Don't save / Cancel.
+    if (mounted && !ref.read(deskDirtyProvider)) {
+      ref.read(deskDirtyProvider.notifier).state = true;
+    }
     _spellDebounce?.cancel();
     _spellDebounce = Timer(const Duration(milliseconds: 350), _spellTick);
   }
@@ -481,6 +491,11 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
       _loadedDocId = widget.documentId;
     });
     ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.editing;
+    // Register the save action + start clean so guards outside the Desk (the
+    // top-bar language flag) can save on the writer's behalf, and a freshly
+    // loaded document isn't treated as dirty.
+    ref.read(deskSaveActionProvider.notifier).state = _save;
+    ref.read(deskDirtyProvider.notifier).state = false;
     final seedWordCount = controller.document
         .toPlainText()
         .trim()
@@ -609,6 +624,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     } finally {
       if (mounted) setState(() => _isSaving = false);
       ref.read(deskSaveStateProvider.notifier).state = DeskSaveState.saved;
+      ref.read(deskDirtyProvider.notifier).state = false;
     }
   }
 
@@ -1024,6 +1040,11 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             onModeChanged: (read) {
               setState(() => _readMode = read);
               ref.read(isInlineEditingProvider.notifier).state = !read;
+              // Narration is a Read-mode action: switching to Write mode stops
+              // any in-progress reading so a voice never plays while editing.
+              if (!read) {
+                ref.read(audioServiceProvider).stop();
+              }
             },
             onFind: (!readMode && _unifiedController != null) ? _openFind : null,
           ),

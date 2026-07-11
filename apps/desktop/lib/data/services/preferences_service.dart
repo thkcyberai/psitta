@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/i18n/working_language.dart';
 import 'auth_service.dart';
 
 /// Builds a per-user SharedPreferences key from a base key and the
@@ -569,7 +570,19 @@ class LocalePreferenceNotifier extends StateNotifier<Locale?> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final code = prefs.getString(_kLocaleKey);
-    if (code == null || code.isEmpty) return;
+    if (code == null || code.isEmpty) {
+      // First launch — no explicit choice yet. Smart-default to the DEVICE
+      // locale IF it maps to one of the five working languages (pt-BR, pt-PT,
+      // es, fr, en); otherwise stay null so English/system is used. This is a
+      // HINT, not a gate: the writer can switch to any language via the flag
+      // bar, and that choice persists. We deliberately DON'T persist the
+      // auto-detected value, so until they pick, Psitta keeps following the
+      // device language on later launches.
+      final device = WidgetsBinding.instance.platformDispatcher.locale;
+      final wl = WorkingLanguage.fromLocale(device);
+      if (wl != null) state = wl.locale;
+      return;
+    }
     // Stored as `lang` or `lang_COUNTRY` (e.g. `pt_BR`). Splitting keeps
     // pt-BR and pt-PT distinct while staying backward-compatible with the
     // earlier language-only values.
@@ -590,6 +603,17 @@ class LocalePreferenceNotifier extends StateNotifier<Locale?> {
         ? '${locale.languageCode}_$country'
         : locale.languageCode;
     await prefs.setString(_kLocaleKey, tag);
+  }
+
+  /// Forget any explicit choice and re-detect the device language, snapping the
+  /// working language back to the computer's language (or English if the device
+  /// language isn't one of the five supported ones). The writer can still pick
+  /// any flag afterward. Mirrors the first-launch smart default.
+  Future<void> resetToDeviceDefault() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kLocaleKey);
+    final device = WidgetsBinding.instance.platformDispatcher.locale;
+    state = WorkingLanguage.fromLocale(device)?.locale;
   }
 }
 

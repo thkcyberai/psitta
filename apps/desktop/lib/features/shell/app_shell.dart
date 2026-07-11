@@ -38,6 +38,7 @@ import '../../data/services/preferences_service.dart';
 import '../library/floating_scribbles.dart';
 import '../../features/writing_desk/desk_providers.dart'
     show deskDocumentProvider;
+import '../../features/writing_desk/leave_guard.dart';
 import '../../widgets/document_cover.dart';
 import '../../widgets/export_options_dialog.dart';
 import '../../widgets/user_avatar.dart';
@@ -679,7 +680,17 @@ class _LanguageFlagBar extends ConsumerWidget {
           _FlagButton(
             lang: lang,
             selected: lang == current,
-            onTap: () {
+            onTap: () async {
+              // Re-selecting the current flag is a no-op.
+              if (lang == current) return;
+              // Capture router + current location before any async gap.
+              final router = GoRouter.of(context);
+              final path = GoRouterState.of(context).uri.toString();
+              // If the writer is mid-edit in the Desk, prompt to save before
+              // switching languages. Cancel keeps the current language + doc.
+              if (!await confirmLeaveWritingDesk(context)) return;
+              if (!context.mounted) return;
+              // Apply the language switch (UI locale + default narrator).
               ref.read(selectedLocaleProvider.notifier).setLocale(lang.locale);
               ref
                   .read(selectedVoiceIdProvider.notifier)
@@ -688,6 +699,17 @@ class _LanguageFlagBar extends ConsumerWidget {
               // with the new X-Psitta-Language header on a language switch.
               ref.invalidate(blueprintsListProvider);
               ref.invalidate(blueprintDetailProvider);
+              // Anti-mismatch: a language-A narrator must never read a
+              // language-B document. If a document is open (Writing Desk or
+              // Reading Nook), stop audio, clear it, and return to the Library
+              // so the writer picks a same-language document.
+              final onDocument = path.startsWith('/writing-desk') ||
+                  path.startsWith('/player');
+              if (onDocument) {
+                await ref.read(audioServiceProvider).stop();
+                ref.read(activeDocumentIdProvider.notifier).state = null;
+                if (context.mounted) router.go('/library');
+              }
             },
           ),
       ],

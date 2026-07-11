@@ -20,6 +20,7 @@ import '../../features/editor/document_editor_screen.dart';
 import '../../features/settings/settings_screen.dart';
 import '../../features/voices/voice_selector_screen.dart';
 import '../../features/writing_desk/writing_desk_screen.dart';
+import '../../features/writing_desk/leave_guard.dart';
 import '../../features/help/help_screen.dart';
 import '../../features/analytics/analytics_screen.dart';
 
@@ -210,6 +211,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/writing-desk/:documentId',
+            // Guard every exit from the Desk: if the open document has unsaved
+            // edits, prompt Save / Don't save / Cancel before leaving. Covers
+            // sidebar nav, library links, project navigation and the close
+            // button. Returns false to cancel navigation and stay put.
+            onExit: (context, state) => confirmLeaveWritingDesk(context),
             pageBuilder: (context, state) => NoTransitionPage(
               child: WritingDeskScreen(
                 documentId: state.pathParameters['documentId']!,

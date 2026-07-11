@@ -128,7 +128,7 @@ class PlayerBar extends ConsumerWidget {
               padding: const EdgeInsets.only(right: 12),
               child: languageVoices.length > 1
                   ? PopupMenuButton<String>(
-                      tooltip: 'Change narrator',
+                      tooltip: loc.playerChangeNarrator,
                       offset: const Offset(0, -12),
                       itemBuilder: (context) => [
                         for (final v in languageVoices)
@@ -276,6 +276,14 @@ class PlayerBar extends ConsumerWidget {
                                 ),
                                 onPressed: hasActiveSession
                                     ? () {
+                                        // Narration is a Read-mode action: if
+                                        // the writer is editing in the Desk,
+                                        // block play and ask them to switch to
+                                        // Read mode.
+                                        if (_blockNarrationInWriteMode(
+                                            context, ref)) {
+                                          return;
+                                        }
                                         final chunkIds =
                                             ref.read(activeChunkIdsProvider);
                                         final docId =
@@ -422,6 +430,28 @@ class PlayerBar extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// Narration is a Read-mode action. When the writer is in the Writing Desk's
+  /// write mode ([isInlineEditingProvider]), block playback and tell them to
+  /// switch to Read mode. Returns true when playback was blocked.
+  bool _blockNarrationInWriteMode(BuildContext context, WidgetRef ref) {
+    if (!ref.read(isInlineEditingProvider)) return false;
+    final loc = AppLocalizations.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(loc.readModeRequiredTitle),
+        content: Text(loc.readModeRequiredBody),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(loc.readModeRequiredOk),
+          ),
+        ],
+      ),
+    );
+    return true;
   }
 
   /// Start a chunk via streaming (Writing Nook) or batch (Reading Nook) based
