@@ -734,6 +734,36 @@ class AudioService {
   StreamSubscription<Duration>? _plPositionSub;
   StreamSubscription<Duration?>? _plDurationSub;
 
+  // ── Playlist resilience ──────────────────────────────────────────────
+  // A per-sentence clip can fail or stall to load (bad synthesis, timeout,
+  // just_audio_windows hiccup). Unguarded, that ends the playlist early and the
+  // toolbar's ProcessingState.completed listener treats it as "chapter
+  // finished" → jumps to the next chunk (the "page 2 sentence 1" bug), or the
+  // player wedges (the multi-minute hang). These guard that:
+  //   • only signal chunk-complete when the LAST sentence really finished;
+  //   • on a premature completion, skip to the next sentence instead;
+  //   • a watchdog skips a clip stuck loading > _kStallSeconds;
+  //   • recoveries are capped so a run of bad clips ends the chunk cleanly.
+  int _playlistSentenceCount = 0;
+  int _chunkCompleteSeq = 0;
+  final StreamController<int> _chunkCompletedController =
+      StreamController<int>.broadcast();
+  StreamSubscription<PlayerState>? _plStateSub;
+  Timer? _plWatchdog;
+  DateTime _plLastProgressAt = DateTime.now();
+  int _plLastIndex = 0;
+  Duration _plLastPos = Duration.zero;
+  int _plRecoveries = 0;
+  static const int _kStallSeconds = 8;
+  static const int _kMaxRecoveries = 3;
+
+  /// Emits an incrementing token when the active sentence playlist genuinely
+  /// finishes its LAST sentence (so the toolbar can advance to the next
+  /// chapter). Does NOT emit on a mid-playlist clip failure — those are
+  /// recovered by skipping ahead. The token increments so each end-of-chunk is
+  /// a distinct event the listener won't dedupe.
+  Stream<int> get chunkCompletedStream => _chunkCompletedController.stream;
+
   /// Whether the sentence-playlist path is enabled, and the sentence count per
   /// chunk id (from the chunk's sentence_boundaries). Set by the player screen
   /// via [setSentencePlan] when the flag is on. When enabled, the ordinary
@@ -817,9 +847,13 @@ class AudioService {
     await _plIndexSub?.cancel();
     await _plPositionSub?.cancel();
     await _plDurationSub?.cancel();
+    await _plStateSub?.cancel();
+    _plWatchdog?.cancel();
     _plIndexSub = null;
     _plPositionSub = null;
     _plDurationSub = null;
+    _plStateSub = null;
+    _plWatchdog = null;
   }
 
   void _clearPlaylistState() {
@@ -888,6 +922,7 @@ class AudioService {
       _playlistDocumentId = documentId;
       _playlistChunkId = chunkId;
       _playlistVoiceId = voiceId;
+      _playlistSentenceCount = sentenceCount;
 
       await _player.setAudioSource(
         playlist,
@@ -921,6 +956,10 @@ class AudioService {
       // audioPositionProvider. Coarser cadence is fine for the scrubber; the
       // highlighter keeps the tuned stream for smooth in-sentence sync.
       _plPositionSub = _player.positionStream.listen((_) => _emitChapterPosition());
+      // Resilience: catch a failed/premature completion and a stuck clip so a
+      // bad sentence never jumps chapters or wedges the player.
+      _plStateSub = _player.playerStateStream.listen(_onPlaylistState);
+      _startPlaylistWatchdog();
 
       _markLoadedSource(
           documentId: documentId, chunkId: chunkId, voiceId: voiceId);
@@ -967,20 +1006,111 @@ class AudioService {
 
   /// Jump the active sentence playlist to a specific sentence (click-to-listen).
   /// No-op when no playlist is active.
+  ///
+  /// On just_audio_windows a seek to a clip that isn't prepared yet is
+  /// sometimes dropped — which is why click-to-jump used to need 2–3 taps. So
+  /// we re-issue the seek and confirm the player actually landed on the target
+  /// clip, retrying briefly, so a SINGLE click is reliable.
   Future<void> seekToSentence(int index) async {
     if (!hasSentencePlaylist) return;
     final n = _sentenceDurations.length;
-    final i = n > 0 ? index.clamp(0, n - 1) : 0;
-    await _player.seek(Duration.zero, index: i);
-    _sentenceIndexController.add(i);
+    final target = n > 0 ? index.clamp(0, n - 1) : 0;
+    final token = _nextToken();
+
+    for (var attempt = 0; attempt < 4; attempt++) {
+      if (!_isLatest(token) || !hasSentencePlaylist) return;
+      try {
+        await _player.seek(Duration.zero, index: target);
+      } catch (_) {}
+      if (!_player.playing) {
+        try {
+          await _player.play();
+        } catch (_) {}
+      }
+      // Give the player a beat to switch/prepare the target clip, then confirm.
+      await Future.delayed(const Duration(milliseconds: 160));
+      if ((_player.currentIndex ?? -1) == target) break;
+    }
+    if (!_isLatest(token)) return;
+    _sentenceIndexController.add(target);
     _emitChapterPosition();
-    if (!_player.playing) {
-      await _player.play();
+  }
+
+  // React to the player finishing (or a clip failing) during a sentence
+  // playlist. Only a genuine end-of-last-sentence advances the chapter.
+  void _onPlaylistState(PlayerState s) {
+    if (!hasSentencePlaylist) return;
+    if (s.processingState != ProcessingState.completed) return;
+    final idx = _player.currentIndex ?? 0;
+    if (idx >= _playlistSentenceCount - 1) {
+      if (!_chunkCompletedController.isClosed) {
+        _chunkCompletedController.add(++_chunkCompleteSeq); // real end of the chunk
+      }
+    } else {
+      // Premature end — a clip failed mid-playlist. Skip to the next sentence
+      // rather than let the toolbar jump to the next chapter.
+      unawaited(_recoverPlaylist('premature_complete'));
+    }
+  }
+
+  void _startPlaylistWatchdog() {
+    _plWatchdog?.cancel();
+    _plLastProgressAt = DateTime.now();
+    _plLastIndex = _player.currentIndex ?? 0;
+    _plLastPos = _player.position;
+    _plRecoveries = 0;
+    _plWatchdog = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!hasSentencePlaylist) return;
+      final idx = _player.currentIndex ?? 0;
+      final pos = _player.position;
+      if (idx != _plLastIndex || pos != _plLastPos) {
+        _plLastIndex = idx;
+        _plLastPos = pos;
+        _plLastProgressAt = DateTime.now();
+        _plRecoveries = 0;
+        return;
+      }
+      final stalledFor = DateTime.now().difference(_plLastProgressAt).inSeconds;
+      final st = _player.processingState;
+      final loadingish =
+          st == ProcessingState.loading || st == ProcessingState.buffering;
+      // Only act on a clip that's trying to play but is stuck loading — never
+      // on a legitimate pause or normal in-clip playback.
+      if (_player.playing && loadingish && stalledFor >= _kStallSeconds) {
+        unawaited(_recoverPlaylist('watchdog_stall'));
+      }
+    });
+  }
+
+  Future<void> _recoverPlaylist(String reason) async {
+    if (!hasSentencePlaylist) return;
+    final idx = _player.currentIndex ?? 0;
+    _plRecoveries++;
+    debugPrint('[SSP] recover ($reason) at sentence=$idx '
+        'recoveries=$_plRecoveries/$_kMaxRecoveries');
+    if (idx >= _playlistSentenceCount - 1 || _plRecoveries > _kMaxRecoveries) {
+      // At/near the end, or too many consecutive failures → end the chunk
+      // cleanly and let the toolbar move on (no wedge, no silent stall).
+      if (!_chunkCompletedController.isClosed) {
+        _chunkCompletedController.add(++_chunkCompleteSeq);
+      }
+      return;
+    }
+    try {
+      await _player.seek(Duration.zero, index: idx + 1);
+      _sentenceIndexController.add(idx + 1);
+      _plLastProgressAt = DateTime.now();
+      if (!_player.playing) await _player.play();
+    } catch (_) {
+      if (!_chunkCompletedController.isClosed) {
+        _chunkCompletedController.add(++_chunkCompleteSeq);
+      }
     }
   }
 
   void dispose() {
     _teardownPlaylistSubs();
+    _chunkCompletedController.close();
     _sentenceIndexController.close();
     _chapterPositionController.close();
     _chapterDurationController.close();
@@ -1067,4 +1197,13 @@ final chapterDurationProvider = StreamProvider<Duration?>((ref) {
 final sentencePlaylistActiveProvider = StreamProvider<bool>((ref) {
   final service = ref.watch(audioServiceProvider);
   return service.sentencePlaylistActiveStream;
+});
+
+/// Emits when the active sentence playlist finishes its LAST sentence. The
+/// toolbar advances to the next chapter on this — instead of the raw
+/// ProcessingState.completed, which can fire on a mid-playlist clip failure and
+/// wrongly skip a chapter.
+final chunkCompletedProvider = StreamProvider<int>((ref) {
+  final service = ref.watch(audioServiceProvider);
+  return service.chunkCompletedStream;
 });

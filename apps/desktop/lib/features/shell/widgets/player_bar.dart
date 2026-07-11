@@ -73,12 +73,25 @@ class PlayerBar extends ConsumerWidget {
       }
     });
 
-    // Auto-advance to next chunk when current one finishes
+    // Auto-advance to next chunk when the current one finishes.
+    // In sentence-playlist mode the raw "completed" can fire when a single clip
+    // fails mid-playlist — advancing on that wrongly jumps a chapter. So there
+    // we ignore the raw signal and advance only on chunkCompletedProvider,
+    // which fires ONLY when the last sentence genuinely finished.
     ref.listen<AsyncValue<PlayerState>>(audioPlayerStateProvider, (prev, next) {
       final state = next.valueOrNull;
       if (state != null &&
           state.processingState == ProcessingState.completed &&
           state.playing == false) {
+        final sentenceActive =
+            ref.read(sentencePlaylistActiveProvider).valueOrNull ?? false;
+        if (!sentenceActive) _skipForward(ref, audioService);
+      }
+    });
+    // Sentence-playlist mode: advance only on a genuine end-of-chunk.
+    ref.listen<AsyncValue<int>>(chunkCompletedProvider, (prev, next) {
+      if (next.valueOrNull != null &&
+          next.valueOrNull != prev?.valueOrNull) {
         _skipForward(ref, audioService);
       }
     });

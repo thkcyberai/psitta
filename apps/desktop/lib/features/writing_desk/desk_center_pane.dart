@@ -2053,6 +2053,29 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
       if (b.isNotEmpty) sentenceCharBase = (b[0] as num).toInt();
     }
 
+    // Keep a sliding window of upcoming sentences' alignment WARM by watching
+    // them (watch, not read — so they stay cached and don't auto-dispose). This
+    // removes the ~1–2s highlight lag at each sentence start: the next
+    // sentence's word-timings are already loaded when it begins. Warming
+    // /alignment also warms that sentence's /audio server-side (shared
+    // synthesis), so the clip doesn't stall at the boundary either.
+    if (useSentenceHighlight &&
+        activeBoundaries != null &&
+        activeChunkId.isNotEmpty) {
+      const kPrefetchWindow = 4;
+      for (var k = 1; k <= kPrefetchWindow; k++) {
+        final ni = activeSentenceIdx + k;
+        if (ni >= 0 && ni < activeBoundaries.length) {
+          ref.watch(sentenceAlignmentProvider(SentenceAlignmentKey(
+            documentId: widget.documentId,
+            chunkId: activeChunkId,
+            sentenceIndex: ni,
+            voiceId: voiceId,
+          )));
+        }
+      }
+    }
+
     final alignmentPayload = useSentenceHighlight
         ? (sentenceAlignAsync?.valueOrNull ?? const <String, dynamic>{})
         : (alignmentAsync?.valueOrNull ?? const <String, dynamic>{});
