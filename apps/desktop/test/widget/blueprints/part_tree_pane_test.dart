@@ -10,6 +10,8 @@ import 'package:psitta/data/models/blueprint.dart';
 import 'package:psitta/data/providers/blueprint_providers.dart';
 import 'package:psitta/features/blueprints/blueprint_screen_state.dart';
 import 'package:psitta/features/blueprints/widgets/part_tree_pane.dart';
+import 'package:psitta/l10n/app_localizations.dart';
+import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 
 // Act I ─ Chapter 1 ─ Scene 1   (depths 0,1,2)
 //       └ Chapter 2
@@ -70,6 +72,15 @@ Future<ProviderContainer> _pump(
     UncontrolledProviderScope(
       container: container,
       child: MaterialApp(
+          localizationsDelegates: const [
+          ...AppLocalizations.localizationsDelegates,
+          FlutterQuillLocalizations.delegate,
+        ],
+          supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => Material(
+          type: MaterialType.transparency,
+          child: child ?? const SizedBox.shrink(),
+        ),
         theme: AppTheme.creatorStudioDark,
         home: const Scaffold(body: PartTreePane()),
       ),

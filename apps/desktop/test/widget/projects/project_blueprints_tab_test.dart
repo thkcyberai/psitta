@@ -10,6 +10,8 @@ import 'package:psitta/data/models/blueprint.dart';
 import 'package:psitta/data/providers/blueprint_providers.dart';
 import 'package:psitta/data/services/preferences_service.dart';
 import 'package:psitta/features/projects/widgets/project_blueprints_tab.dart';
+import 'package:psitta/l10n/app_localizations.dart';
+import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
 
 class MockBlueprintActions extends Mock implements BlueprintActions {}
 
@@ -82,6 +84,15 @@ Future<MockBlueprintActions> _pump(
         ),
       ],
       child: MaterialApp(
+          localizationsDelegates: const [
+          ...AppLocalizations.localizationsDelegates,
+          FlutterQuillLocalizations.delegate,
+        ],
+          supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) => Material(
+          type: MaterialType.transparency,
+          child: child ?? const SizedBox.shrink(),
+        ),
         theme: theme ?? AppTheme.creatorStudioDark,
         home: const Scaffold(body: ProjectBlueprintsTab(projectId: 'p1')),
       ),
