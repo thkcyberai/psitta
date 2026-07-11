@@ -7,6 +7,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/plan_gate.dart';
 import '../../core/quota_gate.dart';
 import '../../data/providers/providers.dart';
+import '../../data/providers/blueprint_providers.dart'
+    show blueprintsListProvider, blueprintDetailProvider;
+import '../../data/services/audio_service.dart' show audioServiceProvider;
+import '../shell/widgets/player_bar.dart' show activeDocumentIdProvider;
 import '../../core/i18n/working_language.dart';
 import '../../data/services/auth_service.dart';
 import '../../data/services/preferences_service.dart';
@@ -177,9 +181,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       trailing: OutlinedButton(
                         onPressed: () async {
+                          // 1. Snap the UI locale back to the device language.
                           await ref
                               .read(selectedLocaleProvider.notifier)
                               .resetToDeviceDefault();
+                          // 2. Reset the narrator voice to that language's
+                          //    default, so a stale voice never reads the next
+                          //    document with the wrong accent.
+                          final resolved = WorkingLanguage.fromLocale(device) ??
+                              WorkingLanguage.englishUS;
+                          ref
+                              .read(selectedVoiceIdProvider.notifier)
+                              .select(resolved.defaultVoiceId);
+                          ref.invalidate(blueprintsListProvider);
+                          ref.invalidate(blueprintDetailProvider);
+                          // 3. Clear the open document + stop audio so the
+                          //    Writing Desk / player bar don't keep a
+                          //    now-mismatched document loaded.
+                          await ref.read(audioServiceProvider).stop();
+                          ref
+                              .read(activeDocumentIdProvider.notifier)
+                              .state = null;
                           if (!context.mounted) return;
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(

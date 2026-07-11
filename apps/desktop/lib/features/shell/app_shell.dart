@@ -700,16 +700,16 @@ class _LanguageFlagBar extends ConsumerWidget {
               ref.invalidate(blueprintsListProvider);
               ref.invalidate(blueprintDetailProvider);
               // Anti-mismatch: a language-A narrator must never read a
-              // language-B document. If a document is open (Writing Desk or
-              // Reading Nook), stop audio, clear it, and return to the Library
-              // so the writer picks a same-language document.
+              // language-B document. Always drop the active playback session +
+              // audio so a stale document/voice never lingers in the player bar
+              // after a language change. If a document is currently open,
+              // also return to the Library so the writer picks a same-language
+              // document.
+              await ref.read(audioServiceProvider).stop();
+              ref.read(activeDocumentIdProvider.notifier).state = null;
               final onDocument = path.startsWith('/writing-desk') ||
                   path.startsWith('/player');
-              if (onDocument) {
-                await ref.read(audioServiceProvider).stop();
-                ref.read(activeDocumentIdProvider.notifier).state = null;
-                if (context.mounted) router.go('/library');
-              }
+              if (onDocument && context.mounted) router.go('/library');
             },
           ),
       ],

@@ -1025,6 +1025,16 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     final isReadOnly = docAsync.valueOrNull?.isReadOnly ?? false;
     // Effective read state: forced on for read-only docs, otherwise the toggle.
     final readMode = _readMode || isReadOnly;
+    // Keep the shell-wide editing flag in sync with the EFFECTIVE read mode.
+    // Read-only formats (PDF/EPUB) force Read mode, so they must never be
+    // treated as "editing" — otherwise narration would be wrongly blocked with
+    // the "Switch to Read mode" dialog. (A provider can't be set during build.)
+    final editingNow = !readMode;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && ref.read(isInlineEditingProvider) != editingNow) {
+        ref.read(isInlineEditingProvider.notifier).state = editingNow;
+      }
+    });
     return ColoredBox(
       color: tokens.surface,
       child: Column(
