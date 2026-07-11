@@ -552,6 +552,38 @@ class AudioService {
     _clearPlaylistState();
   }
 
+  /// Change narrator (voice) WITHOUT losing the reading position.
+  ///
+  /// When a sentence playlist is active, capture the current sentence + speed /
+  /// volume / playing state, then relaunch the SAME chunk with the new voice
+  /// starting at that sentence. The new voice's audio is a fresh synthesis, so
+  /// the first sentence takes ~1–2s — but the reader resumes where they were
+  /// instead of restarting from the top or skipping ahead. Falls back to a
+  /// plain reset when no sentence playlist is active (single-file path).
+  Future<void> changeVoicePreservingPosition(String newVoiceId) async {
+    final doc = _playlistDocumentId;
+    final chunk = _playlistChunkId;
+    final count = _playlistSentenceCount;
+    if (doc == null || chunk == null || count <= 0) {
+      await reset();
+      return;
+    }
+    final sentenceIdx = currentSentenceIndex; // authoritative (stream-tracked)
+    final wasPlaying = _player.playing;
+    final speed = _player.speed;
+    final volume = _player.volume;
+    await playChunkSentences(
+      documentId: doc,
+      chunkId: chunk,
+      sentenceCount: count,
+      voiceId: newVoiceId,
+      speed: speed,
+      volume: volume,
+      initialSentence: sentenceIdx,
+      autoplay: wasPlaying,
+    );
+  }
+
   /// User-switch reset: stops playback, zeroes position, and wipes
   /// the in-memory and on-disk audio caches so a different user cannot
   /// see or hear the previous user's data. Position tracking is cancelled
@@ -576,6 +608,7 @@ class AudioService {
 
     _fileCache.clear();
     _inflight.clear();
+    _resumeSentenceByChunk.clear();
 
     try {
       final tmpDir = await getTemporaryDirectory();
@@ -757,6 +790,18 @@ class AudioService {
   static const int _kStallSeconds = 8;
   static const int _kMaxRecoveries = 3;
 
+  /// The authoritative current sentence index, tracked from the currentIndex
+  /// STREAM (reliable) rather than the player's synchronous currentIndex getter
+  /// (which can read 0 right after a relaunch). Used to capture position on a
+  /// voice change so a second change doesn't drop to the top.
+  int _liveSentenceIdx = 0;
+
+  /// Last sentence index actually reached, per chunk id. Lets pressing Play —
+  /// after a voice change or leaving/returning to the reader — RESUME where the
+  /// reader left off instead of restarting at sentence 0. Survives reset() and
+  /// navigation; cleared on genuine chunk completion and on user switch.
+  final Map<String, int> _resumeSentenceByChunk = {};
+
   /// Emits an incrementing token when the active sentence playlist genuinely
   /// finishes its LAST sentence (so the toolbar can advance to the next
   /// chapter). Does NOT emit on a mid-playlist clip failure — those are
@@ -808,7 +853,7 @@ class AudioService {
 
   bool get hasSentencePlaylist => _playlistChunkId != null;
 
-  int get currentSentenceIndex => _player.currentIndex ?? 0;
+  int get currentSentenceIndex => _liveSentenceIdx;
 
   Duration _cumulativeBefore(int index) {
     var total = Duration.zero;
@@ -861,6 +906,7 @@ class AudioService {
     _playlistChunkId = null;
     _playlistVoiceId = null;
     _sentenceDurations = const [];
+    _liveSentenceIdx = 0;
     if (!_sentenceActiveController.isClosed) {
       _sentenceActiveController.add(false);
     }
@@ -924,9 +970,19 @@ class AudioService {
       _playlistVoiceId = voiceId;
       _playlistSentenceCount = sentenceCount;
 
+      // Resume where the reader left off: if the caller didn't request a
+      // specific sentence (initialSentence == 0) but we remember a position for
+      // this chunk, resume from there instead of restarting at the top.
+      var effectiveInitial = initialSentence;
+      if (initialSentence == 0) {
+        final saved = _resumeSentenceByChunk[chunkId] ?? 0;
+        if (saved > 0 && saved < sentenceCount) effectiveInitial = saved;
+      }
+      _liveSentenceIdx = effectiveInitial.clamp(0, sentenceCount - 1);
+
       await _player.setAudioSource(
         playlist,
-        initialIndex: initialSentence.clamp(0, sentenceCount - 1),
+        initialIndex: effectiveInitial.clamp(0, sentenceCount - 1),
         initialPosition: Duration.zero,
       );
       if (!_isLatest(token)) {
@@ -941,8 +997,13 @@ class AudioService {
       // cumulative timeline sharpens as clips load; position → chapter position.
       _plIndexSub = _player.currentIndexStream.listen((idx) {
         if (idx == null) return;
+        _liveSentenceIdx = idx; // authoritative current sentence
         _sentenceIndexController.add(idx);
         _emitChapterPosition();
+        // Remember how far we've read so Play resumes here after a voice change
+        // or leaving/returning to the reader.
+        final ch = _playlistChunkId;
+        if (ch != null) _resumeSentenceByChunk[ch] = idx;
       });
       _plDurationSub = _player.durationStream.listen((d) {
         final idx = _player.currentIndex ?? 0;
@@ -963,7 +1024,7 @@ class AudioService {
 
       _markLoadedSource(
           documentId: documentId, chunkId: chunkId, voiceId: voiceId);
-      _sentenceIndexController.add(initialSentence);
+      _sentenceIndexController.add(effectiveInitial);
       _sentenceActiveController.add(true);
       _synthesizingController.add(false);
       if (autoplay) await _player.play();
@@ -1043,6 +1104,9 @@ class AudioService {
     if (s.processingState != ProcessingState.completed) return;
     final idx = _player.currentIndex ?? 0;
     if (idx >= _playlistSentenceCount - 1) {
+      // Chunk finished — drop its resume point so replaying it starts fresh.
+      final ch = _playlistChunkId;
+      if (ch != null) _resumeSentenceByChunk.remove(ch);
       if (!_chunkCompletedController.isClosed) {
         _chunkCompletedController.add(++_chunkCompleteSeq); // real end of the chunk
       }

@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/extensions.dart';
+import '../../../core/i18n/working_language.dart';
+import '../../../data/models/voice.dart';
 import '../../../data/providers/providers.dart';
 import '../../../data/services/audio_service.dart';
 import '../../../data/services/preferences_service.dart';
@@ -65,11 +67,31 @@ class PlayerBar extends ConsumerWidget {
         return null;
       },
     );
+    // Narrators for the CURRENT working language only (language-locked, same as
+    // the Voices screen). Powers the inline narrator menu so the writer can
+    // switch voice without leaving the reader.
+    final workingLang =
+        WorkingLanguage.fromLocale(ref.watch(selectedLocaleProvider)) ??
+            WorkingLanguage.englishUS;
+    final languageVoices = ref
+            .watch(voicesProvider)
+            .valueOrNull
+            ?.where((v) => v.language == workingLang.bcp47)
+            .toList() ??
+        const <Voice>[];
 
-    // Reset audio when voice changes — forces reload with new voice
+    // On voice change: in sentence-playlist mode, keep the reading position and
+    // relaunch the current chunk with the new voice at the same sentence.
+    // Otherwise fall back to a full reset (single-file path).
     ref.listen<String>(selectedVoiceIdProvider, (previous, next) {
       if (previous != null && previous != next) {
-        audioService.reset();
+        final sentenceActive =
+            ref.read(sentencePlaylistActiveProvider).valueOrNull ?? false;
+        if (sentenceActive) {
+          audioService.changeVoicePreservingPosition(next);
+        } else {
+          audioService.reset();
+        }
       }
     });
 
@@ -104,11 +126,58 @@ class PlayerBar extends ConsumerWidget {
           if (hasActiveSession && voiceDisplayName != null)
             Padding(
               padding: const EdgeInsets.only(right: 12),
-              child: VoiceAvatar(
-                voiceName: voiceDisplayName,
-                size: 32,
-                variant: VoiceAvatarVariant.small,
-              ),
+              child: languageVoices.length > 1
+                  ? PopupMenuButton<String>(
+                      tooltip: 'Change narrator',
+                      offset: const Offset(0, -12),
+                      itemBuilder: (context) => [
+                        for (final v in languageVoices)
+                          PopupMenuItem<String>(
+                            value: v.id,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  v.id == selectedVoiceId
+                                      ? Icons.check_circle
+                                      : Icons.circle_outlined,
+                                  size: 16,
+                                  color: v.id == selectedVoiceId
+                                      ? AppColors.primary
+                                      : theme.colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 10),
+                                Text(v.displayName),
+                                const SizedBox(width: 8),
+                                Text(
+                                  v.gender == 'male' ? '♂' : '♀',
+                                  style: TextStyle(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                      onSelected: (id) {
+                        if (id != selectedVoiceId) {
+                          ref
+                              .read(selectedVoiceIdProvider.notifier)
+                              .select(id);
+                        }
+                      },
+                      child: VoiceAvatar(
+                        voiceName: voiceDisplayName,
+                        size: 32,
+                        variant: VoiceAvatarVariant.small,
+                      ),
+                    )
+                  : VoiceAvatar(
+                      voiceName: voiceDisplayName,
+                      size: 32,
+                      variant: VoiceAvatarVariant.small,
+                    ),
             ),
           // Document info (left)
           SizedBox(
