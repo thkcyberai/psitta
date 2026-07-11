@@ -1008,6 +1008,84 @@ abstract class AppLocalizations {
   /// **'Trash is empty'**
   String get trashEmpty;
 
+  /// No description provided for @trashRestored.
+  ///
+  /// In en, this message translates to:
+  /// **'Restored “{title}”'**
+  String trashRestored(String title);
+
+  /// No description provided for @trashRestoreError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t restore the document.'**
+  String get trashRestoreError;
+
+  /// No description provided for @trashDeleteForeverQ.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete forever?'**
+  String get trashDeleteForeverQ;
+
+  /// No description provided for @trashDeleteForeverBody.
+  ///
+  /// In en, this message translates to:
+  /// **'“{title}” will be permanently deleted. This can’t be undone.'**
+  String trashDeleteForeverBody(String title);
+
+  /// No description provided for @btnDeleteForever.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete forever'**
+  String get btnDeleteForever;
+
+  /// No description provided for @trashDeletedForever.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted “{title}” forever'**
+  String trashDeletedForever(String title);
+
+  /// No description provided for @trashDeleteError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t delete the document.'**
+  String get trashDeleteError;
+
+  /// No description provided for @trashEmptyQ.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty Trash?'**
+  String get trashEmptyQ;
+
+  /// No description provided for @trashEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 document in Trash will be permanently deleted. This can’t be undone.} other{All {count} documents in Trash will be permanently deleted. This can’t be undone.}}'**
+  String trashEmptyBody(int count);
+
+  /// No description provided for @btnDeleteAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete all'**
+  String get btnDeleteAll;
+
+  /// No description provided for @trashEmptied.
+  ///
+  /// In en, this message translates to:
+  /// **'Trash emptied'**
+  String get trashEmptied;
+
+  /// No description provided for @trashEmptiedPartial.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Emptied — 1 item couldn’t be deleted} other{Emptied — {count} items couldn’t be deleted}}'**
+  String trashEmptiedPartial(int count);
+
+  /// No description provided for @trashLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t load Trash.'**
+  String get trashLoadError;
+
   /// No description provided for @emptyTrash.
   ///
   /// In en, this message translates to:

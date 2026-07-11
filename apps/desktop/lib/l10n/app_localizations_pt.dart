@@ -506,6 +506,69 @@ class AppLocalizationsPt extends AppLocalizations {
   String get trashEmpty => 'A lixeira está vazia';
 
   @override
+  String trashRestored(String title) {
+    return '“$title” restaurado';
+  }
+
+  @override
+  String get trashRestoreError => 'Não foi possível restaurar o documento.';
+
+  @override
+  String get trashDeleteForeverQ => 'Excluir para sempre?';
+
+  @override
+  String trashDeleteForeverBody(String title) {
+    return '“$title” será excluído permanentemente. Isso não pode ser desfeito.';
+  }
+
+  @override
+  String get btnDeleteForever => 'Excluir para sempre';
+
+  @override
+  String trashDeletedForever(String title) {
+    return '“$title” excluído para sempre';
+  }
+
+  @override
+  String get trashDeleteError => 'Não foi possível excluir o documento.';
+
+  @override
+  String get trashEmptyQ => 'Esvaziar a Lixeira?';
+
+  @override
+  String trashEmptyBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Todos os $count documentos na Lixeira serão excluídos permanentemente. Isso não pode ser desfeito.',
+      one:
+          '1 documento na Lixeira será excluído permanentemente. Isso não pode ser desfeito.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get btnDeleteAll => 'Excluir tudo';
+
+  @override
+  String get trashEmptied => 'Lixeira esvaziada';
+
+  @override
+  String trashEmptiedPartial(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Esvaziada — $count itens não puderam ser excluídos',
+      one: 'Esvaziada — 1 item não pôde ser excluído',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trashLoadError => 'Não foi possível carregar a Lixeira.';
+
+  @override
   String emptyTrash(int count) {
     return 'Esvaziar lixeira ($count)';
   }

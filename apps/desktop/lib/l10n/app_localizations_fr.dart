@@ -508,6 +508,69 @@ class AppLocalizationsFr extends AppLocalizations {
   String get trashEmpty => 'La corbeille est vide';
 
   @override
+  String trashRestored(String title) {
+    return '« $title » restauré';
+  }
+
+  @override
+  String get trashRestoreError => 'Impossible de restaurer le document.';
+
+  @override
+  String get trashDeleteForeverQ => 'Supprimer définitivement ?';
+
+  @override
+  String trashDeleteForeverBody(String title) {
+    return '« $title » sera définitivement supprimé. Cette action est irréversible.';
+  }
+
+  @override
+  String get btnDeleteForever => 'Supprimer définitivement';
+
+  @override
+  String trashDeletedForever(String title) {
+    return '« $title » supprimé définitivement';
+  }
+
+  @override
+  String get trashDeleteError => 'Impossible de supprimer le document.';
+
+  @override
+  String get trashEmptyQ => 'Vider la corbeille ?';
+
+  @override
+  String trashEmptyBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Les $count documents dans la corbeille seront définitivement supprimés. Cette action est irréversible.',
+      one:
+          '1 document dans la corbeille sera définitivement supprimé. Cette action est irréversible.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get btnDeleteAll => 'Tout supprimer';
+
+  @override
+  String get trashEmptied => 'Corbeille vidée';
+
+  @override
+  String trashEmptiedPartial(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Vidée — $count éléments n’ont pas pu être supprimés',
+      one: 'Vidée — 1 élément n’a pas pu être supprimé',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trashLoadError => 'Impossible de charger la corbeille.';
+
+  @override
   String emptyTrash(int count) {
     return 'Vider la corbeille ($count)';
   }

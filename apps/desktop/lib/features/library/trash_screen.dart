@@ -33,6 +33,7 @@ class TrashScreen extends ConsumerWidget {
 
   Future<void> _restore(
       WidgetRef ref, BuildContext context, Document doc) async {
+    final loc = AppLocalizations.of(context);
     try {
       await ref.read(documentActionsProvider).restoreDocument(doc.id);
       ref.invalidate(trashedDocumentsProvider);
@@ -40,13 +41,13 @@ class TrashScreen extends ConsumerWidget {
       ref.invalidate(storageUsageProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Restored “${doc.title}”')),
+          SnackBar(content: Text(loc.trashRestored(doc.title))),
         );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t restore the document.')),
+          SnackBar(content: Text(loc.trashRestoreError)),
         );
       }
     }
@@ -54,21 +55,21 @@ class TrashScreen extends ConsumerWidget {
 
   Future<void> _purge(
       WidgetRef ref, BuildContext context, Document doc) async {
+    final loc = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete forever?'),
-        content: Text(
-            '“${doc.title}” will be permanently deleted. This can’t be undone.'),
+        title: Text(loc.trashDeleteForeverQ),
+        content: Text(loc.trashDeleteForeverBody(doc.title)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(loc.btnCancel)),
           FilledButton(
             style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFE5534B)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete forever'),
+            child: Text(loc.btnDeleteForever),
           ),
         ],
       ),
@@ -86,7 +87,7 @@ class TrashScreen extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t delete the document.')),
+          SnackBar(content: Text(loc.trashDeleteError)),
         );
       }
     }
@@ -94,22 +95,21 @@ class TrashScreen extends ConsumerWidget {
 
   Future<void> _emptyTrash(
       WidgetRef ref, BuildContext context, List<Document> docs) async {
+    final loc = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Empty Trash?'),
-        content: Text(
-            'All ${docs.length} document${docs.length == 1 ? '' : 's'} in Trash '
-            'will be permanently deleted. This can’t be undone.'),
+        title: Text(loc.trashEmptyQ),
+        content: Text(loc.trashEmptyBody(docs.length)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(loc.btnCancel)),
           FilledButton(
             style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFE5534B)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete all'),
+            child: Text(loc.btnDeleteAll),
           ),
         ],
       ),
@@ -129,8 +129,8 @@ class TrashScreen extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(failed == 0
-                ? 'Trash emptied'
-                : 'Emptied — $failed item${failed == 1 ? '' : 's'} couldn’t be deleted')),
+                ? loc.trashEmptied
+                : loc.trashEmptiedPartial(failed))),
       );
     }
   }
@@ -206,7 +206,7 @@ class TrashScreen extends ConsumerWidget {
             child: async.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Couldn’t load Trash.',
+                child: Text(loc.trashLoadError,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
               ),
               data: (docs) {
@@ -266,7 +266,7 @@ class TrashScreen extends ConsumerWidget {
                                 foregroundColor: const Color(0xFFE5534B)),
                             icon: const Icon(Icons.delete_forever_outlined,
                                 size: 18),
-                            label: const Text('Delete'),
+                            label: Text(loc.btnDelete),
                           ),
                         ],
                       ),

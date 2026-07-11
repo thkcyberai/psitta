@@ -505,6 +505,69 @@ class AppLocalizationsEn extends AppLocalizations {
   String get trashEmpty => 'Trash is empty';
 
   @override
+  String trashRestored(String title) {
+    return 'Restored “$title”';
+  }
+
+  @override
+  String get trashRestoreError => 'Couldn’t restore the document.';
+
+  @override
+  String get trashDeleteForeverQ => 'Delete forever?';
+
+  @override
+  String trashDeleteForeverBody(String title) {
+    return '“$title” will be permanently deleted. This can’t be undone.';
+  }
+
+  @override
+  String get btnDeleteForever => 'Delete forever';
+
+  @override
+  String trashDeletedForever(String title) {
+    return 'Deleted “$title” forever';
+  }
+
+  @override
+  String get trashDeleteError => 'Couldn’t delete the document.';
+
+  @override
+  String get trashEmptyQ => 'Empty Trash?';
+
+  @override
+  String trashEmptyBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'All $count documents in Trash will be permanently deleted. This can’t be undone.',
+      one:
+          '1 document in Trash will be permanently deleted. This can’t be undone.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get btnDeleteAll => 'Delete all';
+
+  @override
+  String get trashEmptied => 'Trash emptied';
+
+  @override
+  String trashEmptiedPartial(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Emptied — $count items couldn’t be deleted',
+      one: 'Emptied — 1 item couldn’t be deleted',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trashLoadError => 'Couldn’t load Trash.';
+
+  @override
   String emptyTrash(int count) {
     return 'Empty Trash ($count)';
   }

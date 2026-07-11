@@ -506,6 +506,69 @@ class AppLocalizationsEs extends AppLocalizations {
   String get trashEmpty => 'La papelera está vacía';
 
   @override
+  String trashRestored(String title) {
+    return '“$title” restaurado';
+  }
+
+  @override
+  String get trashRestoreError => 'No se pudo restaurar el documento.';
+
+  @override
+  String get trashDeleteForeverQ => '¿Eliminar para siempre?';
+
+  @override
+  String trashDeleteForeverBody(String title) {
+    return '“$title” se eliminará permanentemente. Esto no se puede deshacer.';
+  }
+
+  @override
+  String get btnDeleteForever => 'Eliminar para siempre';
+
+  @override
+  String trashDeletedForever(String title) {
+    return '“$title” eliminado para siempre';
+  }
+
+  @override
+  String get trashDeleteError => 'No se pudo eliminar el documento.';
+
+  @override
+  String get trashEmptyQ => '¿Vaciar la papelera?';
+
+  @override
+  String trashEmptyBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          'Los $count documentos en la papelera se eliminarán permanentemente. Esto no se puede deshacer.',
+      one:
+          '1 documento en la papelera se eliminará permanentemente. Esto no se puede deshacer.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get btnDeleteAll => 'Eliminar todo';
+
+  @override
+  String get trashEmptied => 'Papelera vaciada';
+
+  @override
+  String trashEmptiedPartial(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Vaciada — no se pudieron eliminar $count elementos',
+      one: 'Vaciada — no se pudo eliminar 1 elemento',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get trashLoadError => 'No se pudo cargar la papelera.';
+
+  @override
   String emptyTrash(int count) {
     return 'Vaciar papelera ($count)';
   }
