@@ -610,6 +610,74 @@ class AppLocalizationsPt extends AppLocalizations {
   String get noWhispersYet => 'Nenhum sussurro ainda';
 
   @override
+  String get btnApply => 'Aplicar';
+
+  @override
+  String get btnDiscard => 'Descartar';
+
+  @override
+  String archiveUnarchived(String title) {
+    return '“$title” desarquivado';
+  }
+
+  @override
+  String get archiveUnarchiveError =>
+      'Não foi possível desarquivar o documento.';
+
+  @override
+  String archiveMovedToTrash(String title) {
+    return '“$title” movido para a Lixeira';
+  }
+
+  @override
+  String get archiveMoveError => 'Não foi possível mover o documento.';
+
+  @override
+  String get archiveLoadError => 'Não foi possível carregar o Arquivo.';
+
+  @override
+  String get scribbleSaveError => 'Não foi possível salvar o rabisco.';
+
+  @override
+  String get scribbleDeleteError => 'Não foi possível excluir o rabisco.';
+
+  @override
+  String get scribbleLoadError => 'Não foi possível carregar seus rabiscos.';
+
+  @override
+  String get scribbleEdit => 'Editar rabisco';
+
+  @override
+  String get scribbleEmptyNote => 'Nota vazia';
+
+  @override
+  String get scribbleStick => 'Fixar no topo';
+
+  @override
+  String get scribbleUnstick => 'Desafixar do topo';
+
+  @override
+  String get whisperNameTitle => 'Dê um nome a este sussurro';
+
+  @override
+  String get whisperLoadError => 'Não foi possível carregar suas gravações.';
+
+  @override
+  String get whisperSaving => 'Salvando seu sussurro…';
+
+  @override
+  String get whisperStopSave => 'Parar e salvar';
+
+  @override
+  String get whisperNameLabel => 'Nome';
+
+  @override
+  String get whisperRecording => 'Gravando…';
+
+  @override
+  String get coverChooseDifferent => 'Escolher outra imagem';
+
+  @override
   String get blueprintsSubtitle =>
       'Desenhe a estrutura do seu livro e a estrutura narrativa.';
 

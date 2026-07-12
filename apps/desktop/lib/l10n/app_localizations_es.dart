@@ -610,6 +610,73 @@ class AppLocalizationsEs extends AppLocalizations {
   String get noWhispersYet => 'Aún no hay susurros';
 
   @override
+  String get btnApply => 'Aplicar';
+
+  @override
+  String get btnDiscard => 'Descartar';
+
+  @override
+  String archiveUnarchived(String title) {
+    return '“$title” desarchivado';
+  }
+
+  @override
+  String get archiveUnarchiveError => 'No se pudo desarchivar el documento.';
+
+  @override
+  String archiveMovedToTrash(String title) {
+    return '“$title” movido a la papelera';
+  }
+
+  @override
+  String get archiveMoveError => 'No se pudo mover el documento.';
+
+  @override
+  String get archiveLoadError => 'No se pudo cargar el archivo.';
+
+  @override
+  String get scribbleSaveError => 'No se pudo guardar el garabato.';
+
+  @override
+  String get scribbleDeleteError => 'No se pudo eliminar el garabato.';
+
+  @override
+  String get scribbleLoadError => 'No se pudieron cargar tus garabatos.';
+
+  @override
+  String get scribbleEdit => 'Editar garabato';
+
+  @override
+  String get scribbleEmptyNote => 'Nota vacía';
+
+  @override
+  String get scribbleStick => 'Fijar arriba';
+
+  @override
+  String get scribbleUnstick => 'Desfijar de arriba';
+
+  @override
+  String get whisperNameTitle => 'Nombra este susurro';
+
+  @override
+  String get whisperLoadError => 'No se pudieron cargar tus grabaciones.';
+
+  @override
+  String get whisperSaving => 'Guardando tu susurro…';
+
+  @override
+  String get whisperStopSave => 'Detener y guardar';
+
+  @override
+  String get whisperNameLabel => 'Nombre';
+
+  @override
+  String get whisperRecording => 'Grabando…';
+
+  @override
+  String get coverChooseDifferent => 'Elegir otra imagen';
+
+  @override
   String get blueprintsSubtitle =>
       'Diseña la estructura de tu libro y la estructura narrativa.';
 

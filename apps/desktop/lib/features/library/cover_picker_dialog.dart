@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/cover_illustration.dart';
+import '../../l10n/app_localizations.dart';
 
 /// Result from the cover picker dialog.
 sealed class CoverPickerResult {}
@@ -171,6 +172,7 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
     return Dialog(
@@ -245,12 +247,12 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    child: Text(loc.btnCancel),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
                     onPressed: _canConfirm ? _onConfirm : null,
-                    child: const Text('Apply'),
+                    child: Text(loc.btnApply),
                   ),
                 ],
               ),
@@ -392,6 +394,7 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
 
   Widget _buildUploadTab(
       ThemeData theme, PsittaTokens tokens, bool isDark) {
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -475,7 +478,7 @@ class _CoverPickerDialogState extends State<_CoverPickerDialog>
             TextButton.icon(
               onPressed: _pickFile,
               icon: const Icon(Icons.swap_horiz, size: 16),
-              label: const Text('Choose different image'),
+              label: Text(loc.coverChooseDifferent),
             ),
           ],
         ],

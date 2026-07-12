@@ -432,6 +432,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
   /// Prompts for a whisper name. Returns the chosen title (blank falls back to
   /// the timestamp default), or null if the writer discards the recording.
   Future<String?> _promptName() async {
+    final loc = AppLocalizations.of(context);
     final ctrl = TextEditingController();
     final fallback = _defaultTitle();
     return showDialog<String>(
@@ -440,7 +441,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
         String result() =>
             ctrl.text.trim().isEmpty ? fallback : ctrl.text.trim();
         return AlertDialog(
-          title: const Text('Name this whisper'),
+          title: Text(loc.whisperNameTitle),
           content: SizedBox(
             width: 360,
             child: TextField(
@@ -449,7 +450,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
               maxLength: 120,
               textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
-                labelText: 'Name',
+                labelText: loc.whisperNameLabel,
                 hintText: fallback,
                 border: const OutlineInputBorder(),
               ),
@@ -459,11 +460,11 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, null),
-              child: const Text('Discard'),
+              child: Text(loc.btnDiscard),
             ),
             FilledButton(
               onPressed: () => Navigator.pop(ctx, result()),
-              child: const Text('Save'),
+              child: Text(loc.btnSave),
             ),
           ],
         );
@@ -563,7 +564,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
             child: async.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Couldn’t load your recordings.',
+                child: Text(loc.whisperLoadError,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
               ),
               data: (docs) {
@@ -679,7 +680,7 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
           ),
           const SizedBox(width: 12),
           Expanded(
-            child: Text('Saving your whisper…',
+            child: Text(loc.whisperSaving,
                 style: TextStyle(color: scheme.onSurfaceVariant)),
           ),
         ],
@@ -699,18 +700,18 @@ class _WhispersScreenState extends ConsumerState<WhispersScreen> {
                   fontWeight: FontWeight.w700)),
           const SizedBox(width: 12),
           Expanded(
-            child: Text('Recording…',
+            child: Text(loc.whisperRecording,
                 style: TextStyle(color: scheme.onSurfaceVariant)),
           ),
           TextButton(
             onPressed: _cancelRecording,
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           const SizedBox(width: 8),
           FilledButton.icon(
             onPressed: _stopAndSave,
             icon: const Icon(Icons.stop, size: 18),
-            label: const Text('Stop & save'),
+            label: Text(loc.whisperStopSave),
           ),
         ],
       );

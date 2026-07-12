@@ -26,6 +26,7 @@ class ScribblesScreen extends ConsumerWidget {
     WidgetRef ref, {
     Map<String, dynamic>? note,
   }) async {
+    final loc = AppLocalizations.of(context);
     final ctrl =
         TextEditingController(text: (note?['content'] as String?) ?? '');
     var color = (note?['color'] as String?) ?? 'yellow';
@@ -35,7 +36,7 @@ class ScribblesScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
-          title: Text(note == null ? 'New scribble' : 'Edit scribble'),
+          title: Text(note == null ? loc.newScribble : loc.scribbleEdit),
           content: SizedBox(
             width: 360,
             child: Column(
@@ -82,11 +83,11 @@ class ScribblesScreen extends ConsumerWidget {
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
+                child: Text(loc.btnCancel)),
             FilledButton(
               onPressed: () => Navigator.pop(
                   ctx, (content: ctrl.text.trim(), color: color)),
-              child: const Text('Save'),
+              child: Text(loc.btnSave),
             ),
           ],
         ),
@@ -112,20 +113,21 @@ class ScribblesScreen extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Couldn’t save the scribble.')));
+            SnackBar(content: Text(loc.scribbleSaveError)));
       }
     }
   }
 
   Future<void> _delete(
       BuildContext context, WidgetRef ref, Map<String, dynamic> note) async {
+    final loc = AppLocalizations.of(context);
     try {
       await ref.read(apiClientProvider).dio.delete('/notes/${note['id']}');
       ref.invalidate(notesProvider);
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Couldn’t delete the scribble.')));
+            SnackBar(content: Text(loc.scribbleDeleteError)));
       }
     }
   }
@@ -171,7 +173,7 @@ class ScribblesScreen extends ConsumerWidget {
             child: async.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Couldn’t load your scribbles.',
+                child: Text(loc.scribbleLoadError,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
               ),
               data: (notes) {
@@ -211,6 +213,7 @@ class ScribblesScreen extends ConsumerWidget {
 
   Widget _noteCard(BuildContext context, WidgetRef ref,
       Map<String, dynamic> note, bool isPinned) {
+    final loc = AppLocalizations.of(context);
     final color = _kNoteColors[note['color']] ?? _kNoteColors['yellow']!;
     final content = (note['content'] as String?)?.trim() ?? '';
     return GestureDetector(
@@ -237,7 +240,7 @@ class ScribblesScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  content.isEmpty ? 'Empty note' : content,
+                  content.isEmpty ? loc.scribbleEmptyNote : content,
                   maxLines: 7,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -254,7 +257,7 @@ class ScribblesScreen extends ConsumerWidget {
               Row(
                 children: [
                   IconButton(
-                    tooltip: isPinned ? 'Unstick from top' : 'Stick on top',
+                    tooltip: isPinned ? loc.scribbleUnstick : loc.scribbleStick,
                     visualDensity: VisualDensity.compact,
                     iconSize: 18,
                     onPressed: () => ref
@@ -267,7 +270,7 @@ class ScribblesScreen extends ConsumerWidget {
                   ),
                   const Spacer(),
                   IconButton(
-                    tooltip: 'Delete',
+                    tooltip: loc.btnDelete,
                     visualDensity: VisualDensity.compact,
                     iconSize: 18,
                     onPressed: () => _delete(context, ref, note),

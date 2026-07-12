@@ -33,6 +33,7 @@ class ArchiveScreen extends ConsumerWidget {
 
   Future<void> _unarchive(
       WidgetRef ref, BuildContext context, Document doc) async {
+    final loc = AppLocalizations.of(context);
     try {
       // archive toggle: archived -> ready
       await ref.read(documentActionsProvider).archiveDocument(doc.id);
@@ -40,13 +41,13 @@ class ArchiveScreen extends ConsumerWidget {
       ref.invalidate(documentsProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unarchived “${doc.title}”')),
+          SnackBar(content: Text(loc.archiveUnarchived(doc.title))),
         );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t unarchive the document.')),
+          SnackBar(content: Text(loc.archiveUnarchiveError)),
         );
       }
     }
@@ -54,6 +55,7 @@ class ArchiveScreen extends ConsumerWidget {
 
   Future<void> _trash(
       WidgetRef ref, BuildContext context, Document doc) async {
+    final loc = AppLocalizations.of(context);
     try {
       await ref.read(documentActionsProvider).deleteDocument(doc.id);
       ref.invalidate(archivedDocumentsProvider);
@@ -61,13 +63,13 @@ class ArchiveScreen extends ConsumerWidget {
       ref.invalidate(storageUsageProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Moved “${doc.title}” to Trash')),
+          SnackBar(content: Text(loc.archiveMovedToTrash(doc.title))),
         );
       }
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t move the document.')),
+          SnackBar(content: Text(loc.archiveMoveError)),
         );
       }
     }
@@ -108,7 +110,7 @@ class ArchiveScreen extends ConsumerWidget {
             child: async.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Couldn’t load the Archive.',
+                child: Text(loc.archiveLoadError,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
               ),
               data: (docs) {

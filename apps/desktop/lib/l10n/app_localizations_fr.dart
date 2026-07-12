@@ -613,6 +613,73 @@ class AppLocalizationsFr extends AppLocalizations {
   String get noWhispersYet => 'Aucun murmure pour l\'instant';
 
   @override
+  String get btnApply => 'Appliquer';
+
+  @override
+  String get btnDiscard => 'Abandonner';
+
+  @override
+  String archiveUnarchived(String title) {
+    return '« $title » désarchivé';
+  }
+
+  @override
+  String get archiveUnarchiveError => 'Impossible de désarchiver le document.';
+
+  @override
+  String archiveMovedToTrash(String title) {
+    return '« $title » déplacé vers la corbeille';
+  }
+
+  @override
+  String get archiveMoveError => 'Impossible de déplacer le document.';
+
+  @override
+  String get archiveLoadError => 'Impossible de charger les archives.';
+
+  @override
+  String get scribbleSaveError => 'Impossible d’enregistrer le gribouillage.';
+
+  @override
+  String get scribbleDeleteError => 'Impossible de supprimer le gribouillage.';
+
+  @override
+  String get scribbleLoadError => 'Impossible de charger vos gribouillages.';
+
+  @override
+  String get scribbleEdit => 'Modifier le gribouillage';
+
+  @override
+  String get scribbleEmptyNote => 'Note vide';
+
+  @override
+  String get scribbleStick => 'Épingler en haut';
+
+  @override
+  String get scribbleUnstick => 'Désépingler du haut';
+
+  @override
+  String get whisperNameTitle => 'Nommez ce murmure';
+
+  @override
+  String get whisperLoadError => 'Impossible de charger vos enregistrements.';
+
+  @override
+  String get whisperSaving => 'Enregistrement de votre murmure…';
+
+  @override
+  String get whisperStopSave => 'Arrêter et enregistrer';
+
+  @override
+  String get whisperNameLabel => 'Nom';
+
+  @override
+  String get whisperRecording => 'Enregistrement…';
+
+  @override
+  String get coverChooseDifferent => 'Choisir une autre image';
+
+  @override
   String get blueprintsSubtitle =>
       'Concevez la structure de votre livre et la structure narrative.';
 

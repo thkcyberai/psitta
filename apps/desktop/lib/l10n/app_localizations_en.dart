@@ -609,6 +609,73 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noWhispersYet => 'No whispers yet';
 
   @override
+  String get btnApply => 'Apply';
+
+  @override
+  String get btnDiscard => 'Discard';
+
+  @override
+  String archiveUnarchived(String title) {
+    return 'Unarchived “$title”';
+  }
+
+  @override
+  String get archiveUnarchiveError => 'Couldn’t unarchive the document.';
+
+  @override
+  String archiveMovedToTrash(String title) {
+    return 'Moved “$title” to Trash';
+  }
+
+  @override
+  String get archiveMoveError => 'Couldn’t move the document.';
+
+  @override
+  String get archiveLoadError => 'Couldn’t load the Archive.';
+
+  @override
+  String get scribbleSaveError => 'Couldn’t save the scribble.';
+
+  @override
+  String get scribbleDeleteError => 'Couldn’t delete the scribble.';
+
+  @override
+  String get scribbleLoadError => 'Couldn’t load your scribbles.';
+
+  @override
+  String get scribbleEdit => 'Edit scribble';
+
+  @override
+  String get scribbleEmptyNote => 'Empty note';
+
+  @override
+  String get scribbleStick => 'Stick on top';
+
+  @override
+  String get scribbleUnstick => 'Unstick from top';
+
+  @override
+  String get whisperNameTitle => 'Name this whisper';
+
+  @override
+  String get whisperLoadError => 'Couldn’t load your recordings.';
+
+  @override
+  String get whisperSaving => 'Saving your whisper…';
+
+  @override
+  String get whisperStopSave => 'Stop & save';
+
+  @override
+  String get whisperNameLabel => 'Name';
+
+  @override
+  String get whisperRecording => 'Recording…';
+
+  @override
+  String get coverChooseDifferent => 'Choose different image';
+
+  @override
   String get blueprintsSubtitle =>
       'Design the structure of your book, and the narrative structure.';
 

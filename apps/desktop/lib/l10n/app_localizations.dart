@@ -1158,6 +1158,132 @@ abstract class AppLocalizations {
   /// **'No whispers yet'**
   String get noWhispersYet;
 
+  /// No description provided for @btnApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get btnApply;
+
+  /// No description provided for @btnDiscard.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get btnDiscard;
+
+  /// No description provided for @archiveUnarchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Unarchived “{title}”'**
+  String archiveUnarchived(String title);
+
+  /// No description provided for @archiveUnarchiveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t unarchive the document.'**
+  String get archiveUnarchiveError;
+
+  /// No description provided for @archiveMovedToTrash.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved “{title}” to Trash'**
+  String archiveMovedToTrash(String title);
+
+  /// No description provided for @archiveMoveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t move the document.'**
+  String get archiveMoveError;
+
+  /// No description provided for @archiveLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t load the Archive.'**
+  String get archiveLoadError;
+
+  /// No description provided for @scribbleSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t save the scribble.'**
+  String get scribbleSaveError;
+
+  /// No description provided for @scribbleDeleteError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t delete the scribble.'**
+  String get scribbleDeleteError;
+
+  /// No description provided for @scribbleLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t load your scribbles.'**
+  String get scribbleLoadError;
+
+  /// No description provided for @scribbleEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit scribble'**
+  String get scribbleEdit;
+
+  /// No description provided for @scribbleEmptyNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Empty note'**
+  String get scribbleEmptyNote;
+
+  /// No description provided for @scribbleStick.
+  ///
+  /// In en, this message translates to:
+  /// **'Stick on top'**
+  String get scribbleStick;
+
+  /// No description provided for @scribbleUnstick.
+  ///
+  /// In en, this message translates to:
+  /// **'Unstick from top'**
+  String get scribbleUnstick;
+
+  /// No description provided for @whisperNameTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Name this whisper'**
+  String get whisperNameTitle;
+
+  /// No description provided for @whisperLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t load your recordings.'**
+  String get whisperLoadError;
+
+  /// No description provided for @whisperSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving your whisper…'**
+  String get whisperSaving;
+
+  /// No description provided for @whisperStopSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop & save'**
+  String get whisperStopSave;
+
+  /// No description provided for @whisperNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get whisperNameLabel;
+
+  /// No description provided for @whisperRecording.
+  ///
+  /// In en, this message translates to:
+  /// **'Recording…'**
+  String get whisperRecording;
+
+  /// No description provided for @coverChooseDifferent.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose different image'**
+  String get coverChooseDifferent;
+
   /// No description provided for @blueprintsSubtitle.
   ///
   /// In en, this message translates to:
