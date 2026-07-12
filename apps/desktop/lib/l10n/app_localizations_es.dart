@@ -677,6 +677,24 @@ class AppLocalizationsEs extends AppLocalizations {
   String get coverChooseDifferent => 'Elegir otra imagen';
 
   @override
+  String get docMenuRename => 'Cambiar nombre';
+
+  @override
+  String get docMenuChangeCover => 'Cambiar portada';
+
+  @override
+  String get docMenuRegenAudio => 'Regenerar audio';
+
+  @override
+  String get docMenuAddToProject => 'Añadir al proyecto';
+
+  @override
+  String get docMenuMoveToProject => 'Mover al proyecto';
+
+  @override
+  String get docMenuRemoveFromProject => 'Quitar del proyecto';
+
+  @override
   String get blueprintsSubtitle =>
       'Diseña la estructura de tu libro y la estructura narrativa.';
 

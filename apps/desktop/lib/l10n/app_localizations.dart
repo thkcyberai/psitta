@@ -1284,6 +1284,42 @@ abstract class AppLocalizations {
   /// **'Choose different image'**
   String get coverChooseDifferent;
 
+  /// No description provided for @docMenuRename.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get docMenuRename;
+
+  /// No description provided for @docMenuChangeCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Cover'**
+  String get docMenuChangeCover;
+
+  /// No description provided for @docMenuRegenAudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Regenerate Audio'**
+  String get docMenuRegenAudio;
+
+  /// No description provided for @docMenuAddToProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Add to Project'**
+  String get docMenuAddToProject;
+
+  /// No description provided for @docMenuMoveToProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Project'**
+  String get docMenuMoveToProject;
+
+  /// No description provided for @docMenuRemoveFromProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Project'**
+  String get docMenuRemoveFromProject;
+
   /// No description provided for @blueprintsSubtitle.
   ///
   /// In en, this message translates to:

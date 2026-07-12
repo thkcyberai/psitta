@@ -680,6 +680,24 @@ class AppLocalizationsFr extends AppLocalizations {
   String get coverChooseDifferent => 'Choisir une autre image';
 
   @override
+  String get docMenuRename => 'Renommer';
+
+  @override
+  String get docMenuChangeCover => 'Changer de couverture';
+
+  @override
+  String get docMenuRegenAudio => 'Régénérer l’audio';
+
+  @override
+  String get docMenuAddToProject => 'Ajouter au projet';
+
+  @override
+  String get docMenuMoveToProject => 'Déplacer vers le projet';
+
+  @override
+  String get docMenuRemoveFromProject => 'Retirer du projet';
+
+  @override
   String get blueprintsSubtitle =>
       'Concevez la structure de votre livre et la structure narrative.';
 

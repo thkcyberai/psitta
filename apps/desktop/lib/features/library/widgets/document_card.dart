@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../l10n/app_localizations.dart';
 import '../../../core/theme/colors.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../widgets/document_cover.dart';
@@ -236,96 +237,99 @@ class DocumentCard extends StatelessWidget {
             break;
         }
       },
-      itemBuilder: (context) => [
-        const PopupMenuItem(
+      itemBuilder: (context) {
+        final loc = AppLocalizations.of(context);
+        return [
+        PopupMenuItem(
           value: 'read',
           child: Row(children: [
-            Icon(Icons.chrome_reader_mode, size: 18),
-            SizedBox(width: 10),
-            Text('Read'),
+            const Icon(Icons.chrome_reader_mode, size: 18),
+            const SizedBox(width: 10),
+            Text(loc.deskRead),
           ]),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'edit',
           child: Row(children: [
-            Icon(Icons.edit, size: 18),
-            SizedBox(width: 10),
-            Text('Rename'),
+            const Icon(Icons.edit, size: 18),
+            const SizedBox(width: 10),
+            Text(loc.docMenuRename),
           ]),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'delete',
           child: Row(children: [
-            Icon(Icons.delete_outline, size: 18),
-            SizedBox(width: 10),
-            Text('Delete'),
+            const Icon(Icons.delete_outline, size: 18),
+            const SizedBox(width: 10),
+            Text(loc.btnDelete),
           ]),
         ),
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'change_cover',
           child: Row(children: [
-            Icon(Icons.image_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Change Cover'),
+            const Icon(Icons.image_outlined, size: 18),
+            const SizedBox(width: 8),
+            Text(loc.docMenuChangeCover),
           ]),
         ),
         if (onArchive != null || onDownload != null)
           const PopupMenuDivider(),
         if (onArchive != null)
-          const PopupMenuItem<String>(
+          PopupMenuItem<String>(
             value: 'archive',
             child: Row(children: [
-              Icon(Icons.archive_outlined, size: 18),
-              SizedBox(width: 8),
-              Text('Archive'),
+              const Icon(Icons.archive_outlined, size: 18),
+              const SizedBox(width: 8),
+              Text(loc.archive),
             ]),
           ),
         if (onDownload != null)
-          const PopupMenuItem<String>(
+          PopupMenuItem<String>(
             value: 'download',
             child: Row(children: [
-              Icon(Icons.download_outlined, size: 18),
-              SizedBox(width: 8),
-              Text('Export'),
+              const Icon(Icons.download_outlined, size: 18),
+              const SizedBox(width: 8),
+              Text(loc.btnExport),
             ]),
           ),
-        const PopupMenuItem<String>(
+        PopupMenuItem<String>(
           value: 'regenerate_audio',
           child: Row(children: [
-            Icon(Icons.refresh_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Regenerate Audio'),
+            const Icon(Icons.refresh_outlined, size: 18),
+            const SizedBox(width: 8),
+            Text(loc.docMenuRegenAudio),
           ]),
         ),
         const PopupMenuDivider(),
         if (currentProjectId == null)
-          const PopupMenuItem<String>(
+          PopupMenuItem<String>(
             value: 'assign_project',
             child: Row(children: [
-              Icon(Icons.folder_outlined, size: 18),
-              SizedBox(width: 8),
-              Text('Add to Project'),
+              const Icon(Icons.folder_outlined, size: 18),
+              const SizedBox(width: 8),
+              Text(loc.docMenuAddToProject),
             ]),
           )
         else ...[
-          const PopupMenuItem<String>(
+          PopupMenuItem<String>(
             value: 'assign_project',
             child: Row(children: [
-              Icon(Icons.drive_file_move_outlined, size: 18),
-              SizedBox(width: 8),
-              Text('Move to Project'),
+              const Icon(Icons.drive_file_move_outlined, size: 18),
+              const SizedBox(width: 8),
+              Text(loc.docMenuMoveToProject),
             ]),
           ),
-          const PopupMenuItem<String>(
+          PopupMenuItem<String>(
             value: 'remove_project',
             child: Row(children: [
-              Icon(Icons.folder_off_outlined, size: 18),
-              SizedBox(width: 8),
-              Text('Remove from Project'),
+              const Icon(Icons.folder_off_outlined, size: 18),
+              const SizedBox(width: 8),
+              Text(loc.docMenuRemoveFromProject),
             ]),
           ),
         ],
-      ],
+        ];
+      },
       child: Padding(
         padding: const EdgeInsets.all(4),
         child: Icon(Icons.more_horiz, size: 18, color: menuColor),
