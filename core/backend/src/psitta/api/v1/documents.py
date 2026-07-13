@@ -2865,7 +2865,11 @@ async def create_chunk(
     )
 
 
-@router.delete("/{document_id}/chunks/{chunk_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}/chunks/{chunk_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
 async def delete_chunk(
     document_id: UUID,
     chunk_id: UUID,
@@ -3482,7 +3486,11 @@ async def get_cover(
     )
 
 
-@router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{document_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
+)
 async def delete_document(
     document_id: UUID,
     request: Request,
@@ -3549,7 +3557,9 @@ async def restore_document(
 
 
 @router.delete(
-    "/{document_id}/permanent", status_code=status.HTTP_204_NO_CONTENT
+    "/{document_id}/permanent",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_model=None,
 )
 async def purge_document(
     document_id: UUID,

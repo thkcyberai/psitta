@@ -135,7 +135,10 @@ async def update_note(
 
 
 @router.delete(
-    "/{note_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["notes"]
+    "/{note_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    tags=["notes"],
+    response_model=None,
 )
 async def delete_note(
     note_id: UUID,
