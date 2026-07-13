@@ -109,6 +109,15 @@ class Settings(BaseSettings):
     STRIPE_PUBLISHABLE_KEY_TEST: str = ""
     STRIPE_WEBHOOK_SECRET: SecretStr = SecretStr("")
 
+    # ── Reverse-trial funnel (Phase 1) ───────────────────────────────
+    # On genuine new-user signup, grant full Writing Nook for a fixed
+    # window, then lazy-downgrade to Free (no cron — the resolver drops
+    # the trial when expires_at passes, mirroring tester_allowlist).
+    # REVERSE_TRIAL_ENABLED=false is an instant env-var kill switch.
+    REVERSE_TRIAL_ENABLED: bool = True
+    REVERSE_TRIAL_DAYS: int = 14
+    REVERSE_TRIAL_PLAN_ID: str = "writing_nook_pro"
+
     # ── Rate Limiting ──────────────────────────────────────────────────
     # Global fallback tier — applies to any route that doesn't match a
     # specific tier below (PATCH, DELETE, cover upload, non-/documents

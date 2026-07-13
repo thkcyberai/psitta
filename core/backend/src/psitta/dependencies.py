@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.config import Settings, get_settings
 from psitta.middleware.auth import TokenClaims, get_current_user
+from psitta.services.trial_service import grant_reverse_trial
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
@@ -109,6 +110,11 @@ async def get_current_user_id(
 
     if inserted is not None:
         logger.info("user.provisioned", auth0_sub=sub, user_id=str(new_id))
+        # GTM reverse trial: grant this brand-new writer full Writing Nook
+        # for REVERSE_TRIAL_DAYS. Best-effort and savepoint-isolated — it
+        # can never raise or roll back the user row above, so provisioning
+        # (and therefore first login) is never at risk.
+        await grant_reverse_trial(db, new_id)
         return inserted[0]
 
     # ON CONFLICT fired -- another concurrent request inserted the

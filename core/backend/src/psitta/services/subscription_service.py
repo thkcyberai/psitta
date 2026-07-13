@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.services.plan_limits import _normalize_plan_id, get_plan_limits
 from psitta.services.tester_allowlist import check_allowlist_entitlement
+from psitta.services.trial_service import check_trial_entitlement
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +90,8 @@ class EffectivePlan:
             ``expires_at``; for ``free`` both are ``None``.
         cancel_at_period_end: only meaningful for ``stripe``. Other
             sources default to ``False``.
-        source: ``stripe`` | ``dev_override`` | ``tester_allowlist`` | ``free``.
+        source: ``stripe`` | ``dev_override`` | ``reverse_trial`` |
+            ``tester_allowlist`` | ``free``.
     """
 
     plan_id: str
@@ -135,11 +137,14 @@ async def get_effective_plan(
          customer. Only ``status='active'`` rows.
       2. ``user_subscriptions`` (dev/admin override via
          ``set_plan_override``). Only ``status='active'`` rows.
-      3. ``tester_allowlist`` (Item 11 Internal Alpha pathway). Active =
+      3. ``trial_grants`` (GTM reverse trial — Writing Nook granted on
+         signup). Active = ``revoked_at IS NULL AND expires_at > NOW()``.
+         Lazy expiry drops the writer to Free automatically.
+      4. ``tester_allowlist`` (Item 11 Internal Alpha pathway). Active =
          ``revoked_at IS NULL AND expires_at > NOW()``. Lookup uses the
          caller-provided ``email`` if present, else ``users.email`` for
          the given user_id.
-      4. Free.
+      5. Free.
 
     The first match wins — when a tester later subscribes via Stripe,
     the Stripe row supersedes the allowlist automatically without
@@ -201,7 +206,24 @@ async def get_effective_plan(
             source="dev_override",
         )
 
-    # 3. Tester allowlist
+    # 3. Reverse trial (GTM Phase 1) — time-boxed Writing Nook granted on
+    # signup. Ranks above tester_allowlist and Free but below a real
+    # Stripe subscription and an explicit dev/admin override, so a paying
+    # or admin-granted user is never demoted to the trial. Lazy expiry:
+    # once expires_at passes, check_trial_entitlement returns None and the
+    # resolver falls through to allowlist → Free automatically.
+    trial = await check_trial_entitlement(db, user_id)
+    if trial:
+        return EffectivePlan(
+            plan_id=_normalize_plan_id(trial.plan_id),
+            raw_plan_id=trial.plan_id,
+            current_period_start=trial.granted_at,
+            current_period_end=trial.expires_at,
+            cancel_at_period_end=False,
+            source="reverse_trial",
+        )
+
+    # 4. Tester allowlist
     # JWT email claim may be empty string (not None) for Cognito
     # auto-provisioned users — TokenClaims.email defaults to "" when
     # the access token omits the email claim, so callers pass "" not
@@ -223,7 +245,7 @@ async def get_effective_plan(
                 source="tester_allowlist",
             )
 
-    # 4. Free
+    # 5. Free
     return EffectivePlan(
         plan_id="free",
         raw_plan_id="free",
