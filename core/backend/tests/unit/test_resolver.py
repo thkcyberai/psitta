@@ -1,14 +1,15 @@
 """Unit tests for subscription_service.get_effective_plan resolver.
 
-Verifies the 4-step entitlement resolution chain:
+Verifies the 5-step entitlement resolution chain:
   1. Stripe (subscriptions ⋈ stripe_customers, status='active')
   2. dev_override (user_subscriptions, status='active')
-  3. tester_allowlist (Item 11 — Pattern 3 Internal Alpha pathway)
-  4. free
+  3. reverse_trial (trial_grants — GTM 14-day Writing Nook on signup)
+  4. tester_allowlist (Item 11 — Pattern 3 Internal Alpha pathway)
+  5. free
 
-Plus precedence rules: Stripe > dev_override > allowlist > free, and
-the email-fallback path (resolver fetches users.email when caller
-doesn't pass one).
+Plus precedence rules: Stripe > dev_override > reverse_trial >
+allowlist > free, and the email-fallback path (resolver fetches
+users.email when caller doesn't pass one).
 
 DB I/O exercised through a recording fake AsyncSession (no live
 Postgres) — same RecordingSession pattern as test_billing_handlers
@@ -85,6 +86,7 @@ def _now() -> datetime:
 
 SQL_STRIPE = "JOIN stripe_customers"
 SQL_DEV = "FROM user_subscriptions"
+SQL_TRIAL = "FROM trial_grants"
 SQL_ALLOWLIST = "FROM tester_allowlist"
 SQL_USER_EMAIL = "FROM users WHERE id"
 
@@ -115,6 +117,22 @@ def _dev_row(
         "plan_id": plan_id,
         "current_period_start": period_start or (_now() - timedelta(days=10)),
         "current_period_end": period_end or (_now() + timedelta(days=20)),
+    }
+
+
+def _trial_grant_row(
+    plan_id: str = "writing_nook_pro",
+    granted_at: datetime | None = None,
+    expires_at: datetime | None = None,
+    activated_at: datetime | None = None,
+) -> dict:
+    return {
+        "user_id": uuid4(),
+        "plan_id": plan_id,
+        "granted_at": granted_at or (_now() - timedelta(days=1)),
+        "expires_at": expires_at or (_now() + timedelta(days=13)),
+        "activated_at": activated_at,
+        "revoked_at": None,
     }
 
 
@@ -357,6 +375,105 @@ async def test_email_fallback_user_row_missing():
     sqls = [c[0] for c in db.calls]
     # No allowlist query when email is unresolvable — saves a roundtrip.
     assert not any(SQL_ALLOWLIST in s for s in sqls)
+
+
+# ── reverse_trial (GTM 14-day Writing Nook on signup) ───────────────────
+
+
+@pytest.mark.asyncio
+async def test_source_reverse_trial():
+    user_id = uuid4()
+    granted = _now() - timedelta(days=1)
+    expires = _now() + timedelta(days=13)
+    db = RecordingSession({
+        SQL_TRIAL: _FakeResult(
+            mapping=_trial_grant_row(granted_at=granted, expires_at=expires)
+        ),
+    })
+
+    plan = await get_effective_plan(db, user_id, email="alice@example.com")
+
+    assert plan.source == "reverse_trial"
+    assert plan.plan_id == "writing_nook_pro"
+    assert plan.raw_plan_id == "writing_nook_pro"
+    # Trial period surfaces granted_at + expires_at directly (drives the
+    # desktop "Writing Nook · N days left" countdown).
+    assert plan.current_period_start == granted
+    assert plan.current_period_end == expires
+    assert plan.cancel_at_period_end is False
+    # Trial short-circuits — allowlist must NOT be queried.
+    sqls = [c[0] for c in db.calls]
+    assert any(SQL_TRIAL in s for s in sqls)
+    assert not any(SQL_ALLOWLIST in s for s in sqls)
+
+
+@pytest.mark.asyncio
+async def test_precedence_stripe_over_reverse_trial():
+    user_id = uuid4()
+    db = RecordingSession({
+        SQL_STRIPE: _FakeResult(mapping=_stripe_row()),
+        SQL_TRIAL: _FakeResult(mapping=_trial_grant_row()),
+    })
+
+    plan = await get_effective_plan(db, user_id, email="alice@example.com")
+
+    assert plan.source == "stripe"
+    # A paying customer is never demoted to the trial; Stripe short-
+    # circuits before the trial query runs.
+    sqls = [c[0] for c in db.calls]
+    assert not any(SQL_TRIAL in s for s in sqls)
+
+
+@pytest.mark.asyncio
+async def test_precedence_dev_override_over_reverse_trial():
+    user_id = uuid4()
+    db = RecordingSession({
+        SQL_DEV: _FakeResult(mapping=_dev_row()),
+        SQL_TRIAL: _FakeResult(mapping=_trial_grant_row()),
+    })
+
+    plan = await get_effective_plan(db, user_id, email="alice@example.com")
+
+    assert plan.source == "dev_override"
+    # An explicit admin/dev grant outranks the trial.
+    sqls = [c[0] for c in db.calls]
+    assert not any(SQL_TRIAL in s for s in sqls)
+
+
+@pytest.mark.asyncio
+async def test_precedence_reverse_trial_over_allowlist():
+    user_id = uuid4()
+    # No Stripe/dev, but BOTH an active trial and an allowlist entry.
+    db = RecordingSession({
+        SQL_TRIAL: _FakeResult(mapping=_trial_grant_row()),
+        SQL_ALLOWLIST: _FakeResult(mapping=_allowlist_entry_row()),
+    })
+
+    plan = await get_effective_plan(db, user_id, email="alice@example.com")
+
+    assert plan.source == "reverse_trial"
+    assert plan.plan_id == "writing_nook_pro"
+    # Trial short-circuits; allowlist query never runs.
+    sqls = [c[0] for c in db.calls]
+    assert not any(SQL_ALLOWLIST in s for s in sqls)
+
+
+@pytest.mark.asyncio
+async def test_reverse_trial_absent_falls_through_to_free():
+    """An expired or missing grant returns no row (the SQL filters
+    ``expires_at > NOW()``), so the resolver must fall through — here to
+    Free. Modelled by the trial query returning empty, which is exactly
+    what an expired trial does at the DB level."""
+    user_id = uuid4()
+    db = RecordingSession()  # every query, including trial, returns empty
+
+    plan = await get_effective_plan(db, user_id, email="alice@example.com")
+
+    assert plan.source == "free"
+    assert plan.plan_id == "free"
+    # The trial query WAS issued (no Stripe/dev to short-circuit it).
+    sqls = [c[0] for c in db.calls]
+    assert any(SQL_TRIAL in s for s in sqls)
 
 
 # ── Stripe lookup_key canonicalization ──────────────────────────────────
