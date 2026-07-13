@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../data/models/document.dart';
 import '../../../data/providers/document_actions.dart';
 import '../../../data/providers/providers.dart' show documentsProvider;
+import '../../../l10n/app_localizations.dart';
 
 /// Add existing Library files to a project.
 ///
@@ -16,11 +17,12 @@ Future<void> addDocumentsToProjectFlow(
   WidgetRef ref, {
   required String projectId,
 }) async {
+  final loc = AppLocalizations.of(context);
   List<Document> all;
   try {
     all = await ref.read(documentsProvider.future);
   } catch (e) {
-    if (context.mounted) _snack(context, 'Failed to load files: $e');
+    if (context.mounted) _snack(context, loc.addDocsLoadError('$e'));
     return;
   }
   if (!context.mounted) return;
@@ -29,7 +31,7 @@ Future<void> addDocumentsToProjectFlow(
     ..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
 
   if (candidates.isEmpty) {
-    _snack(context, 'All your files are already in this project.');
+    _snack(context, loc.addDocsAllInProject);
     return;
   }
 
@@ -45,14 +47,10 @@ Future<void> addDocumentsToProjectFlow(
       await actions.assignToProject(id, projectId);
     }
     if (context.mounted) {
-      _snack(
-        context,
-        'Added ${chosen.length} file${chosen.length == 1 ? '' : 's'} '
-        'to the project.',
-      );
+      _snack(context, loc.addDocsAdded(chosen.length));
     }
   } catch (e) {
-    if (context.mounted) _snack(context, 'Could not add files: $e');
+    if (context.mounted) _snack(context, loc.addDocsAddError('$e'));
   }
 }
 
@@ -71,8 +69,9 @@ class _AddDocumentsDialogState extends State<_AddDocumentsDialog> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Add files to this project'),
+      title: Text(loc.addDocsTitle),
       contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
       content: SizedBox(
         width: 440,
@@ -100,7 +99,7 @@ class _AddDocumentsDialogState extends State<_AddDocumentsDialog> {
               ),
               subtitle: Text(
                 inOther
-                    ? '${d.sourceType.toUpperCase()} · moves from another project'
+                    ? '${d.sourceType.toUpperCase()} · ${loc.addDocsMovesFrom}'
                     : d.sourceType.toUpperCase(),
                 style: TextStyle(color: scheme.onSurfaceVariant),
               ),
@@ -111,13 +110,15 @@ class _AddDocumentsDialogState extends State<_AddDocumentsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(loc.btnCancel),
         ),
         FilledButton(
           onPressed: _selected.isEmpty
               ? null
               : () => Navigator.of(context).pop(_selected),
-          child: Text(_selected.isEmpty ? 'Add' : 'Add ${_selected.length}'),
+          child: Text(_selected.isEmpty
+              ? loc.btnAdd
+              : loc.addDocsAddCount(_selected.length)),
         ),
       ],
     );

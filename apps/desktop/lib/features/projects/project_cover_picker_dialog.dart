@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/models/document.dart';
 import '../../data/providers/project_providers.dart';
+import '../../l10n/app_localizations.dart';
 import '../../widgets/document_cover.dart';
 
 /// Result from the project cover picker. Null documentId means remove cover.
@@ -27,7 +28,8 @@ Future<ProjectCoverResult?> showProjectCoverPickerDialog({
   } catch (_) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to load project documents')),
+        SnackBar(
+            content: Text(AppLocalizations.of(context).pcpLoadError)),
       );
     }
     return null;
@@ -76,6 +78,7 @@ class _ProjectCoverPickerDialogState
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
 
     return Dialog(
       shape: RoundedRectangleBorder(
@@ -91,7 +94,7 @@ class _ProjectCoverPickerDialogState
               child: Row(
                 children: [
                   Text(
-                    'Project Cover',
+                    loc.pcpTitle,
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
@@ -118,14 +121,14 @@ class _ProjectCoverPickerDialogState
                                 color: theme.colorScheme.outline),
                             const SizedBox(height: 12),
                             Text(
-                              'No documents with covers',
+                              loc.pcpNoDocsTitle,
                               style: theme.textTheme.bodyLarge?.copyWith(
                                 color: theme.colorScheme.outline,
                               ),
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              'Add a cover to a document first.',
+                              loc.pcpNoDocsBody,
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.outline,
                               ),
@@ -201,14 +204,14 @@ class _ProjectCoverPickerDialogState
                       onPressed: () => Navigator.of(context)
                           .pop(const ProjectCoverResult(null)),
                       child: Text(
-                        'Remove Cover',
+                        loc.pcpRemoveCover,
                         style: TextStyle(color: theme.colorScheme.error),
                       ),
                     ),
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
+                    child: Text(loc.btnCancel),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
@@ -216,7 +219,7 @@ class _ProjectCoverPickerDialogState
                         ? () => Navigator.of(context)
                             .pop(ProjectCoverResult(_selectedDocId))
                         : null,
-                    child: const Text('Apply'),
+                    child: Text(loc.btnApply),
                   ),
                 ],
               ),

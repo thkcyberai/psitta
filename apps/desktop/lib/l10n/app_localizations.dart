@@ -1986,6 +1986,252 @@ abstract class AppLocalizations {
   /// **'“{title}” will be moved to Trash. You can restore it later.'**
   String wlTrashConfirmBody(String title);
 
+  /// No description provided for @pcpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Project Cover'**
+  String get pcpTitle;
+
+  /// No description provided for @pcpLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load project documents'**
+  String get pcpLoadError;
+
+  /// No description provided for @pcpNoDocsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No documents with covers'**
+  String get pcpNoDocsTitle;
+
+  /// No description provided for @pcpNoDocsBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a cover to a document first.'**
+  String get pcpNoDocsBody;
+
+  /// No description provided for @pcpRemoveCover.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove Cover'**
+  String get pcpRemoveCover;
+
+  /// No description provided for @addDocsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add files to this project'**
+  String get addDocsTitle;
+
+  /// No description provided for @addDocsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load files: {error}'**
+  String addDocsLoadError(String error);
+
+  /// No description provided for @addDocsAllInProject.
+  ///
+  /// In en, this message translates to:
+  /// **'All your files are already in this project.'**
+  String get addDocsAllInProject;
+
+  /// No description provided for @addDocsAdded.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Added 1 file to the project.} other{Added {count} files to the project.}}'**
+  String addDocsAdded(int count);
+
+  /// No description provided for @addDocsAddError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not add files: {error}'**
+  String addDocsAddError(String error);
+
+  /// No description provided for @addDocsMovesFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'moves from another project'**
+  String get addDocsMovesFrom;
+
+  /// No description provided for @addDocsAddCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Add {count}'**
+  String addDocsAddCount(int count);
+
+  /// No description provided for @adoptBpLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load Book Structures: {error}'**
+  String adoptBpLoadError(String error);
+
+  /// No description provided for @adoptBpNoneToAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'No Book Structures to add. Create one in the Blueprints sector first.'**
+  String get adoptBpNoneToAdd;
+
+  /// No description provided for @adoptBpTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a Book Structure'**
+  String get adoptBpTitle;
+
+  /// No description provided for @adoptBpTabMine.
+  ///
+  /// In en, this message translates to:
+  /// **'My Book Structures ({count})'**
+  String adoptBpTabMine(int count);
+
+  /// No description provided for @adoptBpTabTemplates.
+  ///
+  /// In en, this message translates to:
+  /// **'Templates ({count})'**
+  String adoptBpTabTemplates(int count);
+
+  /// No description provided for @adoptBpEmptyMine.
+  ///
+  /// In en, this message translates to:
+  /// **'No Book Structures of your own yet.\nCreate one in the Blueprints sector, or start from a template.'**
+  String get adoptBpEmptyMine;
+
+  /// No description provided for @adoptBpEmptyTemplates.
+  ///
+  /// In en, this message translates to:
+  /// **'No templates available.'**
+  String get adoptBpEmptyTemplates;
+
+  /// No description provided for @actLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading activity…'**
+  String get actLoading;
+
+  /// No description provided for @actLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load activity.'**
+  String get actLoadError;
+
+  /// No description provided for @actViewAll.
+  ///
+  /// In en, this message translates to:
+  /// **'View all activity'**
+  String get actViewAll;
+
+  /// No description provided for @actEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No activity yet'**
+  String get actEmpty;
+
+  /// No description provided for @actEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Edits, file placements, and narrative changes will show up here.'**
+  String get actEmptyBody;
+
+  /// No description provided for @docUntitled.
+  ///
+  /// In en, this message translates to:
+  /// **'Untitled'**
+  String get docUntitled;
+
+  /// No description provided for @bookTreeLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t load the book tree.'**
+  String get bookTreeLoadError;
+
+  /// No description provided for @bookTreeEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a Book Structure above, then your sections and files appear here.'**
+  String get bookTreeEmpty;
+
+  /// No description provided for @bookTreePrimary.
+  ///
+  /// In en, this message translates to:
+  /// **'Primary'**
+  String get bookTreePrimary;
+
+  /// No description provided for @bookTreeUnassigned.
+  ///
+  /// In en, this message translates to:
+  /// **'Unassigned'**
+  String get bookTreeUnassigned;
+
+  /// No description provided for @bookTreeNotPlaced.
+  ///
+  /// In en, this message translates to:
+  /// **'not placed'**
+  String get bookTreeNotPlaced;
+
+  /// No description provided for @bpTabHeader.
+  ///
+  /// In en, this message translates to:
+  /// **'Book Structures in this Project'**
+  String get bpTabHeader;
+
+  /// No description provided for @bpTabUseStructure.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a Book Structure'**
+  String get bpTabUseStructure;
+
+  /// No description provided for @bpTabError.
+  ///
+  /// In en, this message translates to:
+  /// **'Error: {error}'**
+  String bpTabError(String error);
+
+  /// No description provided for @bpTabEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No Book Structures in this project yet. Add one to structure your work.'**
+  String get bpTabEmpty;
+
+  /// No description provided for @bpTabYourBook.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Book'**
+  String get bpTabYourBook;
+
+  /// No description provided for @bpTabYourBookDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Files placed into the primary Book Structure, section by section. Click a file to open it in the Writing Desk.'**
+  String get bpTabYourBookDesc;
+
+  /// No description provided for @bpSetPrimary.
+  ///
+  /// In en, this message translates to:
+  /// **'Set as Primary'**
+  String get bpSetPrimary;
+
+  /// No description provided for @tipMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get tipMore;
+
+  /// No description provided for @bpRemoveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove from Project?'**
+  String get bpRemoveTitle;
+
+  /// No description provided for @bpRemoveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove “{name}” from this project? The Book Structure itself is not deleted.'**
+  String bpRemoveBody(String name);
+
+  /// No description provided for @btnRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get btnRemove;
+
   /// No description provided for @blueprintsSubtitle.
   ///
   /// In en, this message translates to:

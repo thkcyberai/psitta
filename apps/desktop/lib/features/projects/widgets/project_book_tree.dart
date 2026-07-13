@@ -8,6 +8,7 @@ import '../../../data/models/document.dart';
 import '../../../data/models/project_detail.dart';
 import '../../../data/providers/blueprint_providers.dart';
 import '../../../data/providers/project_providers.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// The Project's Explorer-style "Book" tree: the primary Book Structure's
 /// sections shown as collapsible folders, with the files placed in each section
@@ -39,6 +40,7 @@ class _ProjectBookTreeState extends ConsumerState<ProjectBookTree> {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final overview =
         ref.watch(projectBlueprintOverviewProvider(widget.projectId));
     final placements =
@@ -53,12 +55,11 @@ class _ProjectBookTreeState extends ConsumerState<ProjectBookTree> {
         padding: EdgeInsets.all(24),
         child: Center(child: CircularProgressIndicator()),
       ),
-      error: (e, _) => Text('Couldn’t load the book tree.',
+      error: (e, _) => Text(loc.bookTreeLoadError,
           style: TextStyle(color: scheme.onSurfaceVariant)),
       data: (ov) {
         if (ov.blueprints.isEmpty) {
-          return _empty(scheme,
-              'Use a Book Structure above, then your sections and files appear here.');
+          return _empty(scheme, loc.bookTreeEmpty);
         }
         final bp = ov.blueprints.firstWhere((b) => b.isPrimary,
             orElse: () => ov.blueprints.first);
@@ -136,7 +137,7 @@ class _ProjectBookTreeState extends ConsumerState<ProjectBookTree> {
               color: scheme.primary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text('Primary',
+            child: Text(AppLocalizations.of(context).bookTreePrimary,
                 style: TextStyle(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w700,
@@ -191,7 +192,7 @@ class _ProjectBookTreeState extends ConsumerState<ProjectBookTree> {
 
   Widget _fileRow(Document? doc, ProjectPlacement pl, int depth,
       PsittaTokens tokens, ColorScheme scheme) {
-    final title = doc?.title ?? 'Untitled';
+    final title = doc?.title ?? AppLocalizations.of(context).docUntitled;
     return InkWell(
       onTap: doc == null
           ? null
@@ -256,7 +257,7 @@ class _ProjectBookTreeState extends ConsumerState<ProjectBookTree> {
                     size: 18, color: scheme.onSurfaceVariant),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('Unassigned',
+                  child: Text(AppLocalizations.of(context).bookTreeUnassigned,
                       style: TextStyle(
                           fontSize: 13.5,
                           fontWeight: FontWeight.w700,
@@ -296,7 +297,7 @@ class _ProjectBookTreeState extends ConsumerState<ProjectBookTree> {
                     style: const TextStyle(fontSize: 13)),
               ),
               const SizedBox(width: 8),
-              Text('not placed',
+              Text(AppLocalizations.of(context).bookTreeNotPlaced,
                   style: TextStyle(
                       fontSize: 10, color: scheme.onSurfaceVariant)),
             ],

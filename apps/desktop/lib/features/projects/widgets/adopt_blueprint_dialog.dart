@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/models/blueprint.dart';
 import '../../../data/providers/blueprint_providers.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blueprints/widgets/blueprint_dialogs.dart' show describeBlueprintError;
 
 /// Shows the blueprint picker with two tabs — "My Blueprints" (your own) and
@@ -17,11 +18,12 @@ Future<void> adoptBlueprintFlow(
   required String projectId,
   required Set<String> adoptedIds,
 }) async {
+  final loc = AppLocalizations.of(context);
   List<BlueprintSummary> all;
   try {
     all = await ref.read(blueprintsListProvider.future);
   } catch (e) {
-    if (context.mounted) _snack(context, 'Failed to load Book Structures: $e');
+    if (context.mounted) _snack(context, loc.adoptBpLoadError('$e'));
     return;
   }
   if (!context.mounted) return;
@@ -44,8 +46,7 @@ Future<void> adoptBlueprintFlow(
     ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
   if (own.isEmpty && templates.isEmpty) {
-    _snack(context,
-        'No Book Structures to add. Create one in the Blueprints sector first.');
+    _snack(context, loc.adoptBpNoneToAdd);
     return;
   }
 
@@ -78,8 +79,9 @@ class _BlueprintPickerDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Choose a Book Structure'),
+      title: Text(loc.adoptBpTitle),
       contentPadding: const EdgeInsets.fromLTRB(0, 12, 0, 0),
       content: SizedBox(
         width: 380,
@@ -93,8 +95,8 @@ class _BlueprintPickerDialog extends StatelessWidget {
                 unselectedLabelColor: scheme.onSurfaceVariant,
                 indicatorColor: scheme.primary,
                 tabs: [
-                  Tab(text: 'My Book Structures (${own.length})'),
-                  Tab(text: 'Templates (${templates.length})'),
+                  Tab(text: loc.adoptBpTabMine(own.length)),
+                  Tab(text: loc.adoptBpTabTemplates(templates.length)),
                 ],
               ),
               Expanded(
@@ -102,12 +104,11 @@ class _BlueprintPickerDialog extends StatelessWidget {
                   children: [
                     _BlueprintList(
                       items: own,
-                      emptyText: 'No Book Structures of your own yet.\n'
-                          'Create one in the Blueprints sector, or start from a template.',
+                      emptyText: loc.adoptBpEmptyMine,
                     ),
                     _BlueprintList(
                       items: templates,
-                      emptyText: 'No templates available.',
+                      emptyText: loc.adoptBpEmptyTemplates,
                     ),
                   ],
                 ),
@@ -119,7 +120,7 @@ class _BlueprintPickerDialog extends StatelessWidget {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(loc.btnCancel),
         ),
       ],
     );

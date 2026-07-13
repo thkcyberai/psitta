@@ -1081,6 +1081,161 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get pcpTitle => 'Portada del proyecto';
+
+  @override
+  String get pcpLoadError =>
+      'No se pudieron cargar los documentos del proyecto';
+
+  @override
+  String get pcpNoDocsTitle => 'No hay documentos con portada';
+
+  @override
+  String get pcpNoDocsBody => 'Añade una portada a un documento primero.';
+
+  @override
+  String get pcpRemoveCover => 'Quitar portada';
+
+  @override
+  String get addDocsTitle => 'Añadir archivos a este proyecto';
+
+  @override
+  String addDocsLoadError(String error) {
+    return 'No se pudieron cargar los archivos: $error';
+  }
+
+  @override
+  String get addDocsAllInProject =>
+      'Todos tus archivos ya están en este proyecto.';
+
+  @override
+  String addDocsAdded(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count archivos añadidos al proyecto.',
+      one: '1 archivo añadido al proyecto.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String addDocsAddError(String error) {
+    return 'No se pudieron añadir los archivos: $error';
+  }
+
+  @override
+  String get addDocsMovesFrom => 'se mueve desde otro proyecto';
+
+  @override
+  String addDocsAddCount(int count) {
+    return 'Añadir $count';
+  }
+
+  @override
+  String adoptBpLoadError(String error) {
+    return 'No se pudieron cargar las Estructuras de Libro: $error';
+  }
+
+  @override
+  String get adoptBpNoneToAdd =>
+      'No hay Estructuras de Libro para añadir. Crea una en el sector Blueprints primero.';
+
+  @override
+  String get adoptBpTitle => 'Elige una Estructura de Libro';
+
+  @override
+  String adoptBpTabMine(int count) {
+    return 'Mis Estructuras de Libro ($count)';
+  }
+
+  @override
+  String adoptBpTabTemplates(int count) {
+    return 'Plantillas ($count)';
+  }
+
+  @override
+  String get adoptBpEmptyMine =>
+      'Aún no tienes Estructuras de Libro propias.\nCrea una en el sector Blueprints o empieza desde una plantilla.';
+
+  @override
+  String get adoptBpEmptyTemplates => 'No hay plantillas disponibles.';
+
+  @override
+  String get actLoading => 'Cargando actividad…';
+
+  @override
+  String get actLoadError => 'No se pudo cargar la actividad.';
+
+  @override
+  String get actViewAll => 'Ver toda la actividad';
+
+  @override
+  String get actEmpty => 'Aún no hay actividad';
+
+  @override
+  String get actEmptyBody =>
+      'Las ediciones, colocaciones de archivos y cambios en la narrativa aparecerán aquí.';
+
+  @override
+  String get docUntitled => 'Sin título';
+
+  @override
+  String get bookTreeLoadError => 'No se pudo cargar el árbol del libro.';
+
+  @override
+  String get bookTreeEmpty =>
+      'Usa una Estructura de Libro arriba y tus secciones y archivos aparecerán aquí.';
+
+  @override
+  String get bookTreePrimary => 'Principal';
+
+  @override
+  String get bookTreeUnassigned => 'Sin asignar';
+
+  @override
+  String get bookTreeNotPlaced => 'sin ubicar';
+
+  @override
+  String get bpTabHeader => 'Estructuras de Libro en este proyecto';
+
+  @override
+  String get bpTabUseStructure => 'Usar una Estructura de Libro';
+
+  @override
+  String bpTabError(String error) {
+    return 'Error: $error';
+  }
+
+  @override
+  String get bpTabEmpty =>
+      'Aún no hay Estructuras de Libro en este proyecto. Añade una para estructurar tu trabajo.';
+
+  @override
+  String get bpTabYourBook => 'Tu Libro';
+
+  @override
+  String get bpTabYourBookDesc =>
+      'Archivos ubicados en la Estructura de Libro principal, sección por sección. Haz clic en un archivo para abrirlo en el Escritorio.';
+
+  @override
+  String get bpSetPrimary => 'Establecer como Principal';
+
+  @override
+  String get tipMore => 'Más';
+
+  @override
+  String get bpRemoveTitle => '¿Quitar del proyecto?';
+
+  @override
+  String bpRemoveBody(String name) {
+    return '¿Quitar “$name” de este proyecto? La Estructura de Libro en sí no se elimina.';
+  }
+
+  @override
+  String get btnRemove => 'Quitar';
+
+  @override
   String get blueprintsSubtitle =>
       'Diseña la estructura de tu libro y la estructura narrativa.';
 

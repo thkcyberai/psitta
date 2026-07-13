@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/models/project_detail.dart' show ActivityEvent;
 import '../../../data/providers/project_providers.dart';
+import '../../../l10n/app_localizations.dart';
 
 /// Project → Activity feed: a reverse-chronological list of meaningful project
 /// events from the backend (read-only).
@@ -28,14 +29,15 @@ class ProjectActivityFeed extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final async = ref.watch(projectActivityProvider(projectId));
 
     return async.when(
       loading: () => compact
-          ? const _MutedLine(text: 'Loading activity…')
+          ? _MutedLine(text: loc.actLoading)
           : const Center(child: CircularProgressIndicator()),
       error: (e, _) => _MutedLine(
-        text: 'Could not load activity.',
+        text: loc.actLoadError,
         padding: compact ? null : const EdgeInsets.all(24),
       ),
       data: (events) {
@@ -64,8 +66,8 @@ class ProjectActivityFeed extends ConsumerWidget {
                       padding: EdgeInsets.zero,
                       foregroundColor: scheme.primary,
                     ),
-                    child: const Text('View all activity',
-                        style: TextStyle(fontSize: 12)),
+                    child: Text(loc.actViewAll,
+                        style: const TextStyle(fontSize: 12)),
                   ),
                 ),
             ],
@@ -91,6 +93,7 @@ class _ActivityRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
@@ -112,7 +115,7 @@ class _ActivityRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _relativeTime(event.createdAt),
+                  _relativeTime(loc, event.createdAt),
                   style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
                 ),
               ],
@@ -132,6 +135,7 @@ class _EmptyActivity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: EdgeInsets.all(compact ? 2 : 24),
       child: Column(
@@ -141,11 +145,11 @@ class _EmptyActivity extends StatelessWidget {
         children: [
           Icon(Icons.history_outlined, size: compact ? 22 : 30, color: muted),
           const SizedBox(height: 8),
-          Text('No activity yet', style: TextStyle(fontSize: 12, color: muted)),
+          Text(loc.actEmpty, style: TextStyle(fontSize: 12, color: muted)),
           if (!compact) ...[
             const SizedBox(height: 4),
             Text(
-              'Edits, file placements, and narrative changes will show up here.',
+              loc.actEmptyBody,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 11.5, height: 1.4, color: muted),
             ),
@@ -208,13 +212,13 @@ Color _colorFor(String kind, BuildContext context) {
   }
 }
 
-String _relativeTime(DateTime t) {
+String _relativeTime(AppLocalizations loc, DateTime t) {
   final local = t.toLocal();
   final d = DateTime.now().difference(local);
-  if (d.inSeconds < 60) return 'just now';
-  if (d.inMinutes < 60) return '${d.inMinutes}m ago';
-  if (d.inHours < 24) return '${d.inHours}h ago';
-  if (d.inDays < 7) return '${d.inDays}d ago';
+  if (d.inSeconds < 60) return loc.agoJustNow;
+  if (d.inMinutes < 60) return loc.agoMinutes(d.inMinutes);
+  if (d.inHours < 24) return loc.agoHours(d.inHours);
+  if (d.inDays < 7) return loc.agoDays(d.inDays);
   String two(int n) => n.toString().padLeft(2, '0');
   return '${local.year}-${two(local.month)}-${two(local.day)}';
 }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../data/models/blueprint.dart';
 import '../../../data/providers/blueprint_providers.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blueprints/widgets/blueprint_dialogs.dart'
     show confirmDeleteDialog, describeBlueprintError;
 import 'adopt_blueprint_dialog.dart';
@@ -23,6 +24,7 @@ class ProjectBlueprintsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final overviewAsync = ref.watch(projectBlueprintOverviewProvider(projectId));
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
     final adoptedIds = overviewAsync.valueOrNull == null
         ? <String>{}
         : {for (final bp in overviewAsync.valueOrNull!.blueprints) bp.id};
@@ -32,16 +34,16 @@ class ProjectBlueprintsTab extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Book Structures in this Project',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                loc.bpTabHeader,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             FilledButton.icon(
               key: const ValueKey('blueprints-tab-add-button'),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Use a Book Structure'),
+              label: Text(loc.bpTabUseStructure),
               onPressed: () => adoptBlueprintFlow(
                 context,
                 ref,
@@ -54,12 +56,11 @@ class ProjectBlueprintsTab extends ConsumerWidget {
         const SizedBox(height: 16),
         overviewAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text('Error: $e'),
+          error: (e, _) => Text(loc.bpTabError('$e')),
           data: (ov) {
             if (ov.blueprints.isEmpty) {
               return Text(
-                'No Book Structures in this project yet. '
-                'Add one to structure your work.',
+                loc.bpTabEmpty,
                 style: TextStyle(color: muted),
               );
             }
@@ -79,14 +80,13 @@ class ProjectBlueprintsTab extends ConsumerWidget {
         const SizedBox(height: 24),
         Divider(color: Theme.of(context).colorScheme.outlineVariant),
         const SizedBox(height: 8),
-        const Text(
-          'Your Book',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        Text(
+          loc.bpTabYourBook,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 4),
         Text(
-          'Files placed into the primary Book Structure, section by section. '
-          'Click a file to open it in the Writing Desk.',
+          loc.bpTabYourBookDesc,
           style: TextStyle(fontSize: 12.5, color: muted),
         ),
         const SizedBox(height: 10),
@@ -105,10 +105,11 @@ class _BlueprintCardMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final error = Theme.of(context).colorScheme.error;
+    final loc = AppLocalizations.of(context);
     return PopupMenuButton<String>(
       key: ValueKey('bp-menu-${blueprint.id}'),
       icon: const Icon(Icons.more_vert, size: 18),
-      tooltip: 'More',
+      tooltip: loc.tipMore,
       onSelected: (value) {
         switch (value) {
           case 'set_primary':
@@ -121,12 +122,12 @@ class _BlueprintCardMenu extends ConsumerWidget {
       },
       itemBuilder: (_) => [
         if (!blueprint.isPrimary)
-          const PopupMenuItem(
+          PopupMenuItem(
             value: 'set_primary',
             child: Row(children: [
-              Icon(Icons.star_outline, size: 18),
-              SizedBox(width: 8),
-              Flexible(child: Text('Set as Primary')),
+              const Icon(Icons.star_outline, size: 18),
+              const SizedBox(width: 8),
+              Flexible(child: Text(loc.bpSetPrimary)),
             ]),
           ),
         PopupMenuItem(
@@ -135,7 +136,8 @@ class _BlueprintCardMenu extends ConsumerWidget {
             Icon(Icons.link_off, size: 18, color: error),
             const SizedBox(width: 8),
             Flexible(
-              child: Text('Remove from Project', style: TextStyle(color: error)),
+              child: Text(loc.docMenuRemoveFromProject,
+                  style: TextStyle(color: error)),
             ),
           ]),
         ),
@@ -158,13 +160,12 @@ class _BlueprintCardMenu extends ConsumerWidget {
   }
 
   Future<void> _remove(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final ok = await confirmDeleteDialog(
       context,
-      title: 'Remove from Project?',
-      message:
-          'Remove "${blueprint.name}" from this project? The Book Structure itself '
-          'is not deleted.',
-      confirmLabel: 'Remove',
+      title: loc.bpRemoveTitle,
+      message: loc.bpRemoveBody(blueprint.name),
+      confirmLabel: loc.btnRemove,
     );
     if (!ok || !context.mounted) return;
     try {

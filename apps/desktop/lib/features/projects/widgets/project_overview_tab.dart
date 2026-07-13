@@ -7,6 +7,7 @@ import '../../../data/models/document.dart';
 import '../../../data/models/project_detail.dart';
 import '../../../data/providers/blueprint_providers.dart';
 import '../../../data/providers/project_providers.dart';
+import '../../../l10n/app_localizations.dart';
 import 'adopt_blueprint_dialog.dart';
 import 'adopted_blueprint_card.dart';
 
@@ -75,6 +76,7 @@ class _StatRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Row(
       children: [
         Expanded(
@@ -82,7 +84,7 @@ class _StatRow extends StatelessWidget {
             valueKey: 'stat-documents-value',
             icon: Icons.description_outlined,
             value: '$total',
-            label: 'Documents',
+            label: loc.statDocuments,
           ),
         ),
         const SizedBox(width: 12),
@@ -91,7 +93,7 @@ class _StatRow extends StatelessWidget {
             valueKey: 'stat-in-blueprints-value',
             icon: Icons.account_tree_outlined,
             value: '$inBlueprints',
-            label: 'In Book Structures',
+            label: loc.ovStatInStructures,
           ),
         ),
         const SizedBox(width: 12),
@@ -100,7 +102,7 @@ class _StatRow extends StatelessWidget {
             valueKey: 'stat-unassigned-value',
             icon: Icons.help_outline,
             value: '$unassigned',
-            label: 'Unassigned',
+            label: loc.bookTreeUnassigned,
           ),
         ),
         const SizedBox(width: 12),
@@ -109,7 +111,7 @@ class _StatRow extends StatelessWidget {
             valueKey: 'stat-archived-value',
             icon: Icons.archive_outlined,
             value: '$archived',
-            label: 'Archived',
+            label: loc.ovStatArchived,
           ),
         ),
       ],
@@ -179,9 +181,9 @@ class _SummaryLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
     return Text(
-      '$inBlueprints of $total document${total == 1 ? '' : 's'} '
-      'in Book Structures · $unassigned not in Book Structures',
+      loc.ovSummary(total, inBlueprints, unassigned),
       style: TextStyle(fontSize: 12, color: muted),
     );
   }

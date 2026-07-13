@@ -1078,6 +1078,160 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get pcpTitle => 'Project Cover';
+
+  @override
+  String get pcpLoadError => 'Failed to load project documents';
+
+  @override
+  String get pcpNoDocsTitle => 'No documents with covers';
+
+  @override
+  String get pcpNoDocsBody => 'Add a cover to a document first.';
+
+  @override
+  String get pcpRemoveCover => 'Remove Cover';
+
+  @override
+  String get addDocsTitle => 'Add files to this project';
+
+  @override
+  String addDocsLoadError(String error) {
+    return 'Failed to load files: $error';
+  }
+
+  @override
+  String get addDocsAllInProject =>
+      'All your files are already in this project.';
+
+  @override
+  String addDocsAdded(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Added $count files to the project.',
+      one: 'Added 1 file to the project.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String addDocsAddError(String error) {
+    return 'Could not add files: $error';
+  }
+
+  @override
+  String get addDocsMovesFrom => 'moves from another project';
+
+  @override
+  String addDocsAddCount(int count) {
+    return 'Add $count';
+  }
+
+  @override
+  String adoptBpLoadError(String error) {
+    return 'Failed to load Book Structures: $error';
+  }
+
+  @override
+  String get adoptBpNoneToAdd =>
+      'No Book Structures to add. Create one in the Blueprints sector first.';
+
+  @override
+  String get adoptBpTitle => 'Choose a Book Structure';
+
+  @override
+  String adoptBpTabMine(int count) {
+    return 'My Book Structures ($count)';
+  }
+
+  @override
+  String adoptBpTabTemplates(int count) {
+    return 'Templates ($count)';
+  }
+
+  @override
+  String get adoptBpEmptyMine =>
+      'No Book Structures of your own yet.\nCreate one in the Blueprints sector, or start from a template.';
+
+  @override
+  String get adoptBpEmptyTemplates => 'No templates available.';
+
+  @override
+  String get actLoading => 'Loading activity…';
+
+  @override
+  String get actLoadError => 'Could not load activity.';
+
+  @override
+  String get actViewAll => 'View all activity';
+
+  @override
+  String get actEmpty => 'No activity yet';
+
+  @override
+  String get actEmptyBody =>
+      'Edits, file placements, and narrative changes will show up here.';
+
+  @override
+  String get docUntitled => 'Untitled';
+
+  @override
+  String get bookTreeLoadError => 'Couldn’t load the book tree.';
+
+  @override
+  String get bookTreeEmpty =>
+      'Use a Book Structure above, then your sections and files appear here.';
+
+  @override
+  String get bookTreePrimary => 'Primary';
+
+  @override
+  String get bookTreeUnassigned => 'Unassigned';
+
+  @override
+  String get bookTreeNotPlaced => 'not placed';
+
+  @override
+  String get bpTabHeader => 'Book Structures in this Project';
+
+  @override
+  String get bpTabUseStructure => 'Use a Book Structure';
+
+  @override
+  String bpTabError(String error) {
+    return 'Error: $error';
+  }
+
+  @override
+  String get bpTabEmpty =>
+      'No Book Structures in this project yet. Add one to structure your work.';
+
+  @override
+  String get bpTabYourBook => 'Your Book';
+
+  @override
+  String get bpTabYourBookDesc =>
+      'Files placed into the primary Book Structure, section by section. Click a file to open it in the Writing Desk.';
+
+  @override
+  String get bpSetPrimary => 'Set as Primary';
+
+  @override
+  String get tipMore => 'More';
+
+  @override
+  String get bpRemoveTitle => 'Remove from Project?';
+
+  @override
+  String bpRemoveBody(String name) {
+    return 'Remove “$name” from this project? The Book Structure itself is not deleted.';
+  }
+
+  @override
+  String get btnRemove => 'Remove';
+
+  @override
   String get blueprintsSubtitle =>
       'Design the structure of your book, and the narrative structure.';
 
