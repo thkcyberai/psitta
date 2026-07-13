@@ -1442,6 +1442,288 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get summErrorGenerate =>
+      'Couldn’t generate a summary. Please try again.';
+
+  @override
+  String get summLoading => 'Summarizing…';
+
+  @override
+  String get summReSummarize => 'Re-summarize';
+
+  @override
+  String summRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'About $count summaries left this month',
+      one: 'About 1 summary left this month',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get summResetFallback => 'your next billing anniversary';
+
+  @override
+  String summQuotaExhausted(String date) {
+    return 'Monthly summaries used up.\nResets on $date.';
+  }
+
+  @override
+  String get summUpgrade => 'Upgrade to Writing Nook';
+
+  @override
+  String get summTryAgain => 'Try again';
+
+  @override
+  String get pnFilesTooltip => 'Files to place into a section';
+
+  @override
+  String get pnSections => 'SECTIONS';
+
+  @override
+  String get pnChooseStructureTooltip =>
+      'Choose a Book Structure for this project';
+
+  @override
+  String get pnFilesToPlace => 'FILES TO PLACE';
+
+  @override
+  String get pnNoFilesWaiting =>
+      'No files waiting to be placed.\nEvery file is already in a section.';
+
+  @override
+  String get pnNoStructureYet =>
+      'No Book Structure yet.\nChoose one to structure your book.';
+
+  @override
+  String get pnUnassignedDocs => 'Unassigned documents';
+
+  @override
+  String get pnBlueprintProgress => 'BLUEPRINT PROGRESS';
+
+  @override
+  String pnSectionsWithContent(int done, int total) {
+    return '$done / $total sections with content';
+  }
+
+  @override
+  String get pnSectionActions => 'Section actions';
+
+  @override
+  String get pnAddSubsection => 'Add subsection';
+
+  @override
+  String get pnRenameSection => 'Rename Section';
+
+  @override
+  String get pnAddSubsectionTitle => 'Add Subsection';
+
+  @override
+  String get pnDeleteSectionTitle => 'Delete Section?';
+
+  @override
+  String get pnDeleteSectionBody =>
+      'Delete this section? Any subsections are removed too. Files in it return to Unassigned — they stay in your project and Library.';
+
+  @override
+  String get pnAssignTooltip => 'Assign to a section of the book';
+
+  @override
+  String get pnAssign => 'Assign';
+
+  @override
+  String get pnAssignTitle => 'Assign to Section';
+
+  @override
+  String get pnAssignNoStructure =>
+      'This project has no Book Structure yet, so there are no sections to assign into. Choose a Book Structure first.';
+
+  @override
+  String get dcpNotSet => 'Not set';
+
+  @override
+  String get dcpStep1 =>
+      'Step 1 — choose a Book Structure for your book. Then you can place this file in one of its sections.';
+
+  @override
+  String dcpStep2(String names) {
+    return 'Step 2 — this file isn’t in a section yet. Place it in a $names section to finish.';
+  }
+
+  @override
+  String get dcpPlaceInSection => 'Place in a section';
+
+  @override
+  String get dcpPlaceInSectionTitle => 'Place in a Section';
+
+  @override
+  String get dcpActions => 'Actions';
+
+  @override
+  String get dcpMoveSection => 'Move section';
+
+  @override
+  String get dcpChangeRole => 'Change role';
+
+  @override
+  String get dcpMoveToSection => 'Move to section';
+
+  @override
+  String get dcpDownload => 'Download';
+
+  @override
+  String get dcpMoveToStructureSection => 'Move to Book Structure / section';
+
+  @override
+  String get dcpChangeRoleTitle => 'Change Role';
+
+  @override
+  String get dcpRemovePlacementTitle => 'Remove placement';
+
+  @override
+  String get dcpRemovePlacementBody =>
+      'Remove this document from the section? The document itself is not deleted.';
+
+  @override
+  String get dcpSaveDocument => 'Save Document';
+
+  @override
+  String dcpExportFailed(String detail) {
+    return 'Export failed: $detail';
+  }
+
+  @override
+  String dcpDownloadFailed(String error) {
+    return 'Download failed: $error';
+  }
+
+  @override
+  String get dcpDeleteDocTitle => 'Delete document?';
+
+  @override
+  String get dcpDeleteDocBody =>
+      'This document will be permanently deleted and cannot be recovered.';
+
+  @override
+  String dcpDeleteFailed(String error) {
+    return 'Delete failed: $error';
+  }
+
+  @override
+  String get dcpMoveToSectionTitle => 'Move to Section';
+
+  @override
+  String get dcpWhichBeat => 'Which beat does this file cover?';
+
+  @override
+  String get dcNoDocOpen => 'No document open';
+
+  @override
+  String get dcNoDocBody =>
+      'Start a new document below, or open one from your Library.';
+
+  @override
+  String get dcShowAddPanel => 'Show add-content panel';
+
+  @override
+  String get dcExpandSheet => 'Expand sheet';
+
+  @override
+  String get dcNoResults => 'No results';
+
+  @override
+  String dcResultCount(int index, int total) {
+    return '$index of $total';
+  }
+
+  @override
+  String get dcFind => 'Find';
+
+  @override
+  String get dcMatchCase => 'Match case';
+
+  @override
+  String get dcPrevious => 'Previous';
+
+  @override
+  String get dcNext => 'Next';
+
+  @override
+  String get dcHideReplace => 'Hide replace';
+
+  @override
+  String get dcReplace => 'Replace';
+
+  @override
+  String get dcCloseEsc => 'Close (Esc)';
+
+  @override
+  String get dcReplaceWith => 'Replace with';
+
+  @override
+  String get dcReplaceAll => 'Replace all';
+
+  @override
+  String get dcStoryCoach => 'STORY-COACH';
+
+  @override
+  String dcReadsLike(String beat) {
+    return 'Reads like: $beat';
+  }
+
+  @override
+  String get dcMuteHere => 'Mute here';
+
+  @override
+  String get dcGotIt => 'Got it';
+
+  @override
+  String get dcStartWriting => 'Start writing…';
+
+  @override
+  String get dcUndo => 'Undo';
+
+  @override
+  String get dcRedo => 'Redo';
+
+  @override
+  String get dcCut => 'Cut';
+
+  @override
+  String get dcCopy => 'Copy';
+
+  @override
+  String get dcPaste => 'Paste';
+
+  @override
+  String get dcSelectAll => 'Select all';
+
+  @override
+  String get dcNoSuggestions => 'No suggestions';
+
+  @override
+  String get dcDocLimit =>
+      'Document limit reached for this month — upgrade in Settings.';
+
+  @override
+  String dcCreateDocError(String error) {
+    return 'Could not create document: $error';
+  }
+
+  @override
+  String get dcNoProjectsYet => 'No projects yet — create one first.';
+
+  @override
+  String dcAddToProjectError(String error) {
+    return 'Could not add to project: $error';
+  }
+
+  @override
+  String get dcProjectNameExample => 'e.g. My Memoir';
+
+  @override
   String get blueprintsSubtitle =>
       'Design the structure of your book, and the narrative structure.';
 

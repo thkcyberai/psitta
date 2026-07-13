@@ -99,13 +99,13 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
         setState(() => _state = _SummarizeState.notInPlan);
       } else {
         setState(() {
-          _errorMessage = "Couldn't generate a summary. Please try again.";
+          _errorMessage = null;
           _state = _SummarizeState.error;
         });
       }
     } catch (_) {
       setState(() {
-        _errorMessage = "Couldn't generate a summary. Please try again.";
+        _errorMessage = null;
         _state = _SummarizeState.error;
       });
     }
@@ -315,7 +315,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
           ),
           const SizedBox(width: 8),
           Text(
-            'Summarizing…',
+            AppLocalizations.of(context).summLoading,
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                 ),
@@ -328,6 +328,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
   // ── Result ─────────────────────────────────────────────────────────────────
 
   Widget _buildResult(BuildContext context, ColorScheme scheme) {
+    final loc = AppLocalizations.of(context);
     final remaining = _tokensLimitPeriod > 0
         ? ((_tokensLimitPeriod - _tokensUsedPeriod) / _kAvgTokensPerSummary)
             .round()
@@ -354,13 +355,13 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
             style: OutlinedButton.styleFrom(
               visualDensity: VisualDensity.compact,
             ),
-            child: const Text('Re-summarize'),
+            child: Text(loc.summReSummarize),
           ),
         ),
         if (remaining != null) ...[
           const SizedBox(height: 6),
           Text(
-            'About $remaining ${remaining == 1 ? 'summary' : 'summaries'} left this month',
+            loc.summRemaining(remaining),
             key: const ValueKey('desk-summarize-quota-footer'),
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: scheme.onSurfaceVariant,
@@ -374,7 +375,8 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
   // ── Quota exhausted ────────────────────────────────────────────────────────
 
   Widget _buildQuotaExhausted(BuildContext context, ColorScheme scheme) {
-    var resetLabel = 'your next billing anniversary';
+    final loc = AppLocalizations.of(context);
+    var resetLabel = loc.summResetFallback;
     if (_resetDate != null) {
       final dt = DateTime.tryParse(_resetDate!);
       if (dt != null) {
@@ -382,7 +384,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
       }
     }
     return Text(
-      'Monthly summaries used up.\nResets on $resetLabel.',
+      loc.summQuotaExhausted(resetLabel),
       key: const ValueKey('desk-summarize-quota-exhausted'),
       style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: scheme.onSurface,
@@ -404,7 +406,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
             const SizedBox(width: 6),
             Expanded(
               child: Text(
-                'Upgrade to Writing Nook',
+                AppLocalizations.of(context).summUpgrade,
                 key: const ValueKey('desk-summarize-locked-label'),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: scheme.onSurfaceVariant,
@@ -420,11 +422,12 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
   // ── Error ──────────────────────────────────────────────────────────────────
 
   Widget _buildError(BuildContext context, ColorScheme scheme) {
+    final loc = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          _errorMessage ?? "Couldn't generate a summary. Please try again.",
+          _errorMessage ?? loc.summErrorGenerate,
           key: const ValueKey('desk-summarize-error-text'),
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: scheme.error,
@@ -439,7 +442,7 @@ class _SummarizeItPanelState extends ConsumerState<SummarizeItPanel> {
             style: OutlinedButton.styleFrom(
               visualDensity: VisualDensity.compact,
             ),
-            child: const Text('Try again'),
+            child: Text(loc.summTryAgain),
           ),
         ),
       ],

@@ -758,6 +758,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
 
   Widget _buildCenterBody(BuildContext context, PsittaTokens tokens,
       AsyncValue<dynamic> docAsync) {
+    final loc = AppLocalizations.of(context);
     final sheet = docAsync.when(
       loading: () => const Center(
         key: ValueKey('desk-center-loading'),
@@ -776,7 +777,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
               ),
               const SizedBox(height: 12),
               Text(
-                'No document open',
+                loc.dcNoDocOpen,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: _kPaperInk,
                       fontWeight: FontWeight.w600,
@@ -784,7 +785,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Start a new document below, or open one from your Library.',
+                loc.dcNoDocBody,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: _kPaperInkMuted,
@@ -848,7 +849,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
             iconSize: 18,
             visualDensity: VisualDensity.compact,
             tooltip:
-                _sheetExpanded ? 'Show add-content panel' : 'Expand sheet',
+                _sheetExpanded ? loc.dcShowAddPanel : loc.dcExpandSheet,
             icon: Icon(
               _sheetExpanded ? Icons.fullscreen_exit : Icons.fullscreen,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -863,9 +864,10 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
 
   Widget _buildFindBar(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final total = _findMatches.length;
     final countText =
-        total == 0 ? 'No results' : '${_findIndex + 1} of $total';
+        total == 0 ? loc.dcNoResults : loc.dcResultCount(_findIndex + 1, total);
     const fieldDecoration = InputDecoration(
       isDense: true,
       border: OutlineInputBorder(),
@@ -887,7 +889,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                   key: const ValueKey('desk-find-field'),
                   controller: _findCtrl,
                   focusNode: _findFocus,
-                  decoration: fieldDecoration.copyWith(hintText: 'Find'),
+                  decoration: fieldDecoration.copyWith(hintText: loc.dcFind),
                   // Don't search while typing — wait for Enter. Clear stale
                   // matches so the counter doesn't react to a half-typed word.
                   onChanged: (_) {
@@ -910,7 +912,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                       )),
               const Spacer(),
               _findToggle(
-                tooltip: 'Match case',
+                tooltip: loc.dcMatchCase,
                 selected: _findCaseSensitive,
                 label: 'Aa',
                 onTap: () {
@@ -919,26 +921,26 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                 },
               ),
               IconButton(
-                tooltip: 'Previous',
+                tooltip: loc.dcPrevious,
                 iconSize: 18,
                 icon: const Icon(Icons.keyboard_arrow_up),
                 onPressed: _findMatches.isEmpty ? null : _findPrev,
               ),
               IconButton(
-                tooltip: 'Next',
+                tooltip: loc.dcNext,
                 iconSize: 18,
                 icon: const Icon(Icons.keyboard_arrow_down),
                 onPressed: _findMatches.isEmpty ? null : _findNext,
               ),
               IconButton(
-                tooltip: _showReplace ? 'Hide replace' : 'Replace',
+                tooltip: _showReplace ? loc.dcHideReplace : loc.dcReplace,
                 iconSize: 18,
                 icon: Icon(
                     _showReplace ? Icons.expand_less : Icons.find_replace),
                 onPressed: () => setState(() => _showReplace = !_showReplace),
               ),
               IconButton(
-                tooltip: 'Close (Esc)',
+                tooltip: loc.dcCloseEsc,
                 iconSize: 18,
                 icon: const Icon(Icons.close),
                 onPressed: _closeFind,
@@ -957,7 +959,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                     key: const ValueKey('desk-replace-field'),
                     controller: _replaceCtrl,
                     decoration:
-                        fieldDecoration.copyWith(hintText: 'Replace with'),
+                        fieldDecoration.copyWith(hintText: loc.dcReplaceWith),
                     onSubmitted: (_) => _replaceCurrent(),
                   ),
                 ),
@@ -965,12 +967,12 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
                 TextButton(
                   key: const ValueKey('desk-replace-one'),
                   onPressed: _findMatches.isEmpty ? null : _replaceCurrent,
-                  child: const Text('Replace'),
+                  child: Text(loc.dcReplace),
                 ),
                 TextButton(
                   key: const ValueKey('desk-replace-all'),
                   onPressed: _findMatches.isEmpty ? null : _replaceAll,
-                  child: const Text('Replace all'),
+                  child: Text(loc.dcReplaceAll),
                 ),
               ],
             ),
@@ -1018,6 +1020,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   @override
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
     final docAsync = ref.watch(deskDocumentProvider(widget.documentId));
 
     final title = docAsync.valueOrNull?.title as String?;
@@ -1041,7 +1044,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
         children: [
           _DeskCenterHeader(
             key: const ValueKey('desk-center-header'),
-            title: (title == null || title.trim().isEmpty) ? 'New file' : title,
+            title: (title == null || title.trim().isEmpty) ? loc.newFile : title,
             isSaving: _isSaving,
             canSave: _unifiedController != null && !readMode && !isReadOnly,
             onSave: _save,
@@ -1134,6 +1137,7 @@ class _CoachThoughtBubble extends StatelessWidget {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final accent = tokens.glow;
+    final loc = AppLocalizations.of(context);
 
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 300),
@@ -1165,7 +1169,7 @@ class _CoachThoughtBubble extends StatelessWidget {
                     Icon(Icons.auto_stories_outlined, size: 15, color: accent),
                     const SizedBox(width: 6),
                     Text(
-                      'STORY-COACH',
+                      loc.dcStoryCoach,
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w800,
@@ -1199,7 +1203,7 @@ class _CoachThoughtBubble extends StatelessWidget {
                 if (beat != null) ...[
                   const SizedBox(height: 6),
                   Text(
-                    'Reads like: $beat',
+                    loc.dcReadsLike(beat!),
                     style: TextStyle(
                       fontSize: 11.5,
                       fontStyle: FontStyle.italic,
@@ -1219,8 +1223,8 @@ class _CoachThoughtBubble extends StatelessWidget {
                         foregroundColor: scheme.onSurfaceVariant,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
-                      child: const Text('Mute here',
-                          style: TextStyle(fontSize: 12)),
+                      child: Text(loc.dcMuteHere,
+                          style: const TextStyle(fontSize: 12)),
                     ),
                     TextButton(
                       onPressed: onDismiss,
@@ -1229,8 +1233,8 @@ class _CoachThoughtBubble extends StatelessWidget {
                         foregroundColor: accent,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                       ),
-                      child: const Text('Got it',
-                          style: TextStyle(
+                      child: Text(loc.dcGotIt,
+                          style: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.w700)),
                     ),
                   ],
@@ -1496,6 +1500,7 @@ class _DeskEditorBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return quill.QuillEditor.basic(
       controller: controller,
       focusNode: focusNode,
@@ -1517,7 +1522,7 @@ class _DeskEditorBody extends StatelessWidget {
         },
         padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 40),
         scrollPhysics: const ClampingScrollPhysics(),
-        placeholder: 'Start writing…',
+        placeholder: loc.dcStartWriting,
         enableInteractiveSelection: true,
         customStyles: quill.DefaultStyles(
           paragraph: quill.DefaultTextBlockStyle(
@@ -1669,6 +1674,7 @@ class _DeskEditorBody extends StatelessWidget {
     final sel = ctrl.selection;
     final hasSelection = sel.isValid && !sel.isCollapsed;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
     final overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
@@ -1703,14 +1709,14 @@ class _DeskEditorBody extends StatelessWidget {
       context: context,
       position: position,
       items: [
-        item('undo', 'Undo', 'Ctrl+Z'),
-        item('redo', 'Redo', 'Ctrl+Shift+Z'),
+        item('undo', loc.dcUndo, 'Ctrl+Z'),
+        item('redo', loc.dcRedo, 'Ctrl+Shift+Z'),
         const PopupMenuDivider(),
-        item('cut', 'Cut', 'Ctrl+X', enabled: hasSelection),
-        item('copy', 'Copy', 'Ctrl+C', enabled: hasSelection),
-        item('paste', 'Paste', 'Ctrl+V'),
+        item('cut', loc.dcCut, 'Ctrl+X', enabled: hasSelection),
+        item('copy', loc.dcCopy, 'Ctrl+C', enabled: hasSelection),
+        item('paste', loc.dcPaste, 'Ctrl+V'),
         const PopupMenuDivider(),
-        item('selectAll', 'Select all', 'Ctrl+A'),
+        item('selectAll', loc.dcSelectAll, 'Ctrl+A'),
       ],
     );
     switch (choice) {
@@ -1746,6 +1752,7 @@ class _DeskEditorBody extends StatelessWidget {
     Offset anchorGlobal,
   ) async {
     final suggestions = suggest(word).take(6).toList();
+    final loc = AppLocalizations.of(context);
     final overlay =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
@@ -1758,10 +1765,10 @@ class _DeskEditorBody extends StatelessWidget {
       context: context,
       position: position,
       items: suggestions.isEmpty
-          ? const [
+          ? [
               PopupMenuItem<String>(
                 enabled: false,
-                child: Text('No suggestions'),
+                child: Text(loc.dcNoSuggestions),
               ),
             ]
           : [
@@ -2279,6 +2286,7 @@ class _ThreeWaysPanel extends ConsumerWidget {
   /// Create a blank document and open it in the Writing Desk, carrying the
   /// current project context when present.
   Future<void> _newDocument(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     try {
       final repo = ref.read(documentRepositoryProvider);
       final name = await promptNewSheetName(context);
@@ -2293,14 +2301,14 @@ class _ThreeWaysPanel extends ConsumerWidget {
     } on DioException catch (e) {
       if (!context.mounted) return;
       final msg = e.response?.statusCode == 402
-          ? 'Document limit reached for this month — upgrade in Settings.'
-          : 'Could not create document: ${e.message ?? e}';
+          ? loc.dcDocLimit
+          : loc.dcCreateDocError('${e.message ?? e}');
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg)));
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create document: $e')),
+        SnackBar(content: Text(loc.dcCreateDocError('$e'))),
       );
     }
   }
@@ -2341,19 +2349,20 @@ class _ThreeWaysPanel extends ConsumerWidget {
   /// Assign the current file to an existing project, then reopen the Desk with
   /// that project's context so every sector reflects it (the Heart).
   Future<void> _addToExistingProject(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     try {
       final projects = await ref.read(projectsProvider.future);
       if (!context.mounted) return;
       if (projects.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No projects yet \u2014 create one first.')),
+          SnackBar(content: Text(loc.dcNoProjectsYet)),
         );
         return;
       }
       final chosenId = await showDialog<String>(
         context: context,
         builder: (ctx) => SimpleDialog(
-          title: const Text('Add to a Project'),
+          title: Text(loc.addToProject),
           children: [
             for (final p in projects)
               SimpleDialogOption(
@@ -2372,35 +2381,36 @@ class _ThreeWaysPanel extends ConsumerWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not add to project: $e')),
+        SnackBar(content: Text(loc.dcAddToProjectError('$e'))),
       );
     }
   }
 
   /// Prompt for a name, create the project, then open it.
   Future<void> _createProject(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final controller = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('New Project'),
+        title: Text(loc.newProject),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Project name',
-            hintText: 'e.g. My Memoir',
+          decoration: InputDecoration(
+            labelText: loc.projNameHint,
+            hintText: loc.dcProjectNameExample,
           ),
           onSubmitted: (_) => Navigator.of(ctx).pop(true),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Create'),
+            child: Text(loc.btnCreate),
           ),
         ],
       ),
@@ -2420,7 +2430,7 @@ class _ThreeWaysPanel extends ConsumerWidget {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not create project: $e')),
+        SnackBar(content: Text(loc.projCreateError('$e'))),
       );
     }
   }

@@ -24,8 +24,8 @@ import '../blueprints/narrative_structures.dart' show kNarrativeStructures;
 /// "Hero's Journey · Adventure", or just the structure name when no variant,
 /// or "Not set" when the project has no narrative attached. Maps the stored
 /// slug back to its display name (falls back to a prettified slug).
-String _narrativeLabel(String? key, String? variant) {
-  if (key == null || key.isEmpty) return 'Not set';
+String _narrativeLabel(AppLocalizations loc, String? key, String? variant) {
+  if (key == null || key.isEmpty) return loc.dcpNotSet;
   var name = key;
   for (final s in kNarrativeStructures) {
     if (s.key == key) {
@@ -194,8 +194,8 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
     final detail =
         ref.watch(projectDetailProvider(widget.projectId)).valueOrNull;
     final projectName = detail?.name;
-    final narrative =
-        _narrativeLabel(detail?.narrativeStructureKey, detail?.narrativeVariant);
+    final narrative = _narrativeLabel(
+        loc, detail?.narrativeStructureKey, detail?.narrativeVariant);
 
     return _RailCard(
       key: const ValueKey('desk-placement-card'),
@@ -365,7 +365,7 @@ class _UnplacedContextCard extends ConsumerWidget {
             concept: DeskConcept.narrative,
             value: inProject
                 ? _narrativeLabel(
-                    detail?.narrativeStructureKey, detail?.narrativeVariant)
+                    loc, detail?.narrativeStructureKey, detail?.narrativeVariant)
                 : loc.notInProject,
             onTap: inProject ? () => context.go('/projects/$pid') : null,
           ),
@@ -398,8 +398,7 @@ class _UnplacedContextCard extends ConsumerWidget {
             )
           else if (!hasSections) ...[
             Text(
-              'Step 1 — choose a Book Structure for your book. '
-              'Then you can place this file in one of its sections.',
+              loc.dcpStep1,
               style: bodyStyle,
             ),
             const SizedBox(height: 10),
@@ -409,13 +408,12 @@ class _UnplacedContextCard extends ConsumerWidget {
                 key: const ValueKey('desk-placedin-choose-blueprint'),
                 onPressed: chooseBlueprint,
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('Choose a Book Structure'),
+                label: Text(loc.adoptBpTitle),
               ),
             ),
           ] else ...[
             Text(
-              'Step 2 — this file isn\'t in a section yet. '
-              'Place it in a ${blueprintNames.join(', ')} section to finish.',
+              loc.dcpStep2(blueprintNames.join(', ')),
               style: bodyStyle,
             ),
             const SizedBox(height: 10),
@@ -425,7 +423,7 @@ class _UnplacedContextCard extends ConsumerWidget {
                 key: const ValueKey('desk-placedin-place-section'),
                 onPressed: () => _placeInSection(context, ref, flatParts),
                 icon: const Icon(Icons.playlist_add_check, size: 18),
-                label: const Text('Place in a section'),
+                label: Text(loc.dcpPlaceInSection),
               ),
             ),
           ],
@@ -447,10 +445,11 @@ class _UnplacedContextCard extends ConsumerWidget {
     WidgetRef ref,
     List<PartOverviewNode> parts,
   ) async {
+    final loc = AppLocalizations.of(context);
     final chosen = await showDialog<PartOverviewNode>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Place in a Section'),
+        title: Text(loc.dcpPlaceInSectionTitle),
         content: SizedBox(
           width: 320,
           child: ListView(
@@ -468,7 +467,7 @@ class _UnplacedContextCard extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
         ],
       ),
@@ -509,6 +508,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     if (_busy) {
       return const SizedBox(
@@ -523,7 +523,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
 
     return PopupMenuButton<String>(
       key: const ValueKey('desk-doc-actions-menu'),
-      tooltip: 'Actions',
+      tooltip: loc.dcpActions,
       icon: Icon(Icons.more_vert, size: 20, color: scheme.onSurfaceVariant),
       onSelected: (value) {
         switch (value) {
@@ -543,24 +543,24 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
       },
       itemBuilder: (context) => [
         if (widget.placement != null) ...[
-          const PopupMenuItem(value: 'move', child: Text('Move section')),
-          const PopupMenuItem(value: 'role', child: Text('Change role')),
+          PopupMenuItem(value: 'move', child: Text(loc.dcpMoveSection)),
+          PopupMenuItem(value: 'role', child: Text(loc.dcpChangeRole)),
           PopupMenuItem(
             value: 'remove',
-            child: Text('Remove', style: TextStyle(color: scheme.error)),
+            child: Text(loc.btnRemove, style: TextStyle(color: scheme.error)),
           ),
           const PopupMenuDivider(),
         ] else ...[
-          const PopupMenuItem(
+          PopupMenuItem(
             value: 'movetosection',
-            child: Text('Move to section'),
+            child: Text(loc.dcpMoveToSection),
           ),
           const PopupMenuDivider(),
         ],
-        const PopupMenuItem(value: 'download', child: Text('Download')),
+        PopupMenuItem(value: 'download', child: Text(loc.dcpDownload)),
         PopupMenuItem(
           value: 'delete',
-          child: Text('Delete', style: TextStyle(color: scheme.error)),
+          child: Text(loc.docMenuDelete, style: TextStyle(color: scheme.error)),
         ),
       ],
     );
@@ -574,10 +574,11 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     if (overview.blueprints.isEmpty) return;
 
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final chosen = await showDialog<PartOverviewNode>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Move to Book Structure / section'),
+        title: Text(loc.dcpMoveToStructureSection),
         content: SizedBox(
           width: 340,
           child: ListView(
@@ -624,7 +625,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
         ],
       ),
@@ -655,11 +656,12 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     final placement = widget.placement;
     if (placement == null) return;
     final roles = Role.values.where((r) => r != Role.unknown).toList();
+    final loc = AppLocalizations.of(context);
 
     final chosen = await showDialog<Role>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Change Role'),
+        title: Text(loc.dcpChangeRoleTitle),
         content: SizedBox(
           width: 320,
           child: ListView(
@@ -678,7 +680,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
         ],
       ),
@@ -701,18 +703,16 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
 
   Future<void> _removePlacement(BuildContext context) async {
     if (widget.placement == null) return;
+    final loc = AppLocalizations.of(context);
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove placement'),
-        content: const Text(
-          'Remove this document from the section? '
-          'The document itself is not deleted.',
-        ),
+        title: Text(loc.dcpRemovePlacementTitle),
+        content: Text(loc.dcpRemovePlacementBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           TextButton(
             key: const ValueKey('desk-placement-remove-confirm'),
@@ -720,7 +720,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
               foregroundColor: Theme.of(ctx).colorScheme.error,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Remove'),
+            child: Text(loc.btnRemove),
           ),
         ],
       ),
@@ -739,6 +739,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
   }
 
   Future<void> _download(BuildContext context) async {
+    final loc = AppLocalizations.of(context);
     final docs = await ref.read(documentsProvider.future);
     final doc =
         docs.where((d) => d.id == widget.documentId).firstOrNull;
@@ -746,7 +747,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     if (!context.mounted) return;
 
     final savePath = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Document',
+      dialogTitle: loc.dcpSaveDocument,
       fileName: '${doc.title}.docx',
       type: FileType.custom,
       allowedExtensions: ['docx'],
@@ -764,36 +765,37 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Saved to ${File(finalPath).parent.path}'),
+          content: Text(loc.libSavedTo(File(finalPath).parent.path)),
         ),
       );
     } on DioException catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Export failed: ${e.response?.statusCode ?? e.message}'),
+          content: Text(loc.dcpExportFailed(
+              '${e.response?.statusCode ?? e.message}')),
         ),
       );
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Download failed: $e')));
+          .showSnackBar(SnackBar(content: Text(loc.dcpDownloadFailed('$e'))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
   Future<void> _delete(BuildContext context) async {
+    final loc = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete document?'),
-        content: const Text(
-            'This document will be permanently deleted and cannot be recovered.'),
+        title: Text(loc.dcpDeleteDocTitle),
+        content: Text(loc.dcpDeleteDocBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           TextButton(
             key: const ValueKey('desk-quick-delete-confirm'),
@@ -801,7 +803,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
               foregroundColor: Theme.of(ctx).colorScheme.error,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+            child: Text(loc.docMenuDelete),
           ),
         ],
       ),
@@ -817,7 +819,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Delete failed: $e')));
+          .showSnackBar(SnackBar(content: Text(loc.dcpDeleteFailed('$e'))));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -832,11 +834,12 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
       _flattenPartsQ(bp.parts, flat);
     }
     if (flat.isEmpty) return;
+    final loc = AppLocalizations.of(context);
 
     final chosen = await showDialog<PartOverviewNode>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Move to Section'),
+        title: Text(loc.dcpMoveToSectionTitle),
         content: SizedBox(
           width: 320,
           child: ListView(
@@ -854,7 +857,7 @@ class _DocActionsMenuState extends ConsumerState<_DocActionsMenu> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
         ],
       ),
@@ -915,13 +918,14 @@ class _BeatRow extends ConsumerWidget {
       }
     }
     if (current != null && !beats.contains(current)) current = null;
+    final loc = AppLocalizations.of(context);
 
     return Column(
       children: [
         const SizedBox(height: 10),
         _PlacedRow(
           concept: DeskConcept.beat,
-          value: current ?? 'Unassigned',
+          value: current ?? loc.bookTreeUnassigned,
           valueKey: const ValueKey('desk-placed-beat'),
           onTap: () => _pickBeat(context, ref, beats, current),
         ),
@@ -931,14 +935,15 @@ class _BeatRow extends ConsumerWidget {
 
   Future<void> _pickBeat(BuildContext context, WidgetRef ref,
       List<String> beats, String? current) async {
+    final loc = AppLocalizations.of(context);
     final result = await showDialog<String>(
       context: context,
       builder: (dctx) => SimpleDialog(
-        title: const Text('Which beat does this file cover?'),
+        title: Text(loc.dcpWhichBeat),
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.of(dctx).pop(''),
-            child: Text('Unassigned',
+            child: Text(loc.bookTreeUnassigned,
                 style: TextStyle(
                     fontWeight:
                         current == null ? FontWeight.w700 : FontWeight.w400)),

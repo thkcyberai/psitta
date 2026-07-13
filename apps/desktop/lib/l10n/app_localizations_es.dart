@@ -1446,6 +1446,289 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String get summErrorGenerate =>
+      'No se pudo generar un resumen. Inténtalo de nuevo.';
+
+  @override
+  String get summLoading => 'Resumiendo…';
+
+  @override
+  String get summReSummarize => 'Volver a resumir';
+
+  @override
+  String summRemaining(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Quedan alrededor de $count resúmenes este mes',
+      one: 'Queda alrededor de 1 resumen este mes',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get summResetFallback => 'tu próximo aniversario de facturación';
+
+  @override
+  String summQuotaExhausted(String date) {
+    return 'Resúmenes mensuales agotados.\nSe renueva el $date.';
+  }
+
+  @override
+  String get summUpgrade => 'Mejora a Writing Nook';
+
+  @override
+  String get summTryAgain => 'Intentar de nuevo';
+
+  @override
+  String get pnFilesTooltip => 'Archivos para colocar en una sección';
+
+  @override
+  String get pnSections => 'SECCIONES';
+
+  @override
+  String get pnChooseStructureTooltip =>
+      'Elige una Estructura de Libro para este proyecto';
+
+  @override
+  String get pnFilesToPlace => 'ARCHIVOS PARA UBICAR';
+
+  @override
+  String get pnNoFilesWaiting =>
+      'No hay archivos esperando ubicación.\nTodos los archivos ya están en una sección.';
+
+  @override
+  String get pnNoStructureYet =>
+      'Aún sin Estructura de Libro.\nElige una para estructurar tu libro.';
+
+  @override
+  String get pnUnassignedDocs => 'Documentos sin asignar';
+
+  @override
+  String get pnBlueprintProgress => 'PROGRESO DEL BLUEPRINT';
+
+  @override
+  String pnSectionsWithContent(int done, int total) {
+    return '$done / $total secciones con contenido';
+  }
+
+  @override
+  String get pnSectionActions => 'Acciones de la sección';
+
+  @override
+  String get pnAddSubsection => 'Añadir subsección';
+
+  @override
+  String get pnRenameSection => 'Renombrar sección';
+
+  @override
+  String get pnAddSubsectionTitle => 'Añadir subsección';
+
+  @override
+  String get pnDeleteSectionTitle => '¿Eliminar sección?';
+
+  @override
+  String get pnDeleteSectionBody =>
+      '¿Eliminar esta sección? Las subsecciones también se eliminan. Los archivos vuelven a Sin asignar — permanecen en tu proyecto y en la Biblioteca.';
+
+  @override
+  String get pnAssignTooltip => 'Asignar a una sección del libro';
+
+  @override
+  String get pnAssign => 'Asignar';
+
+  @override
+  String get pnAssignTitle => 'Asignar a sección';
+
+  @override
+  String get pnAssignNoStructure =>
+      'Este proyecto aún no tiene Estructura de Libro, así que no hay secciones para asignar. Elige una Estructura de Libro primero.';
+
+  @override
+  String get dcpNotSet => 'Sin definir';
+
+  @override
+  String get dcpStep1 =>
+      'Paso 1 — elige una Estructura de Libro para tu libro. Luego podrás ubicar este archivo en una de sus secciones.';
+
+  @override
+  String dcpStep2(String names) {
+    return 'Paso 2 — este archivo aún no está en una sección. Ubícalo en una sección de $names para terminar.';
+  }
+
+  @override
+  String get dcpPlaceInSection => 'Ubicar en una sección';
+
+  @override
+  String get dcpPlaceInSectionTitle => 'Ubicar en una sección';
+
+  @override
+  String get dcpActions => 'Acciones';
+
+  @override
+  String get dcpMoveSection => 'Mover sección';
+
+  @override
+  String get dcpChangeRole => 'Cambiar rol';
+
+  @override
+  String get dcpMoveToSection => 'Mover a sección';
+
+  @override
+  String get dcpDownload => 'Descargar';
+
+  @override
+  String get dcpMoveToStructureSection =>
+      'Mover a Estructura de Libro / sección';
+
+  @override
+  String get dcpChangeRoleTitle => 'Cambiar rol';
+
+  @override
+  String get dcpRemovePlacementTitle => 'Quitar ubicación';
+
+  @override
+  String get dcpRemovePlacementBody =>
+      '¿Quitar este documento de la sección? El documento en sí no se elimina.';
+
+  @override
+  String get dcpSaveDocument => 'Guardar documento';
+
+  @override
+  String dcpExportFailed(String detail) {
+    return 'Error de exportación: $detail';
+  }
+
+  @override
+  String dcpDownloadFailed(String error) {
+    return 'Error de descarga: $error';
+  }
+
+  @override
+  String get dcpDeleteDocTitle => '¿Eliminar documento?';
+
+  @override
+  String get dcpDeleteDocBody =>
+      'Este documento se eliminará permanentemente y no se podrá recuperar.';
+
+  @override
+  String dcpDeleteFailed(String error) {
+    return 'Error al eliminar: $error';
+  }
+
+  @override
+  String get dcpMoveToSectionTitle => 'Mover a sección';
+
+  @override
+  String get dcpWhichBeat => '¿Qué beat cubre este archivo?';
+
+  @override
+  String get dcNoDocOpen => 'Ningún documento abierto';
+
+  @override
+  String get dcNoDocBody =>
+      'Comienza un nuevo documento abajo o abre uno desde tu Biblioteca.';
+
+  @override
+  String get dcShowAddPanel => 'Mostrar panel de contenido';
+
+  @override
+  String get dcExpandSheet => 'Expandir hoja';
+
+  @override
+  String get dcNoResults => 'Sin resultados';
+
+  @override
+  String dcResultCount(int index, int total) {
+    return '$index de $total';
+  }
+
+  @override
+  String get dcFind => 'Buscar';
+
+  @override
+  String get dcMatchCase => 'Distinguir mayúsculas';
+
+  @override
+  String get dcPrevious => 'Anterior';
+
+  @override
+  String get dcNext => 'Siguiente';
+
+  @override
+  String get dcHideReplace => 'Ocultar reemplazo';
+
+  @override
+  String get dcReplace => 'Reemplazar';
+
+  @override
+  String get dcCloseEsc => 'Cerrar (Esc)';
+
+  @override
+  String get dcReplaceWith => 'Reemplazar con';
+
+  @override
+  String get dcReplaceAll => 'Reemplazar todo';
+
+  @override
+  String get dcStoryCoach => 'STORY-COACH';
+
+  @override
+  String dcReadsLike(String beat) {
+    return 'Se lee como: $beat';
+  }
+
+  @override
+  String get dcMuteHere => 'Silenciar aquí';
+
+  @override
+  String get dcGotIt => 'Entendido';
+
+  @override
+  String get dcStartWriting => 'Empieza a escribir…';
+
+  @override
+  String get dcUndo => 'Deshacer';
+
+  @override
+  String get dcRedo => 'Rehacer';
+
+  @override
+  String get dcCut => 'Cortar';
+
+  @override
+  String get dcCopy => 'Copiar';
+
+  @override
+  String get dcPaste => 'Pegar';
+
+  @override
+  String get dcSelectAll => 'Seleccionar todo';
+
+  @override
+  String get dcNoSuggestions => 'Sin sugerencias';
+
+  @override
+  String get dcDocLimit =>
+      'Límite de documentos de este mes alcanzado — mejora en Configuración.';
+
+  @override
+  String dcCreateDocError(String error) {
+    return 'No se pudo crear el documento: $error';
+  }
+
+  @override
+  String get dcNoProjectsYet => 'Aún no hay proyectos — crea uno primero.';
+
+  @override
+  String dcAddToProjectError(String error) {
+    return 'No se pudo añadir al proyecto: $error';
+  }
+
+  @override
+  String get dcProjectNameExample => 'p. ej. Mis Memorias';
+
+  @override
   String get blueprintsSubtitle =>
       'Diseña la estructura de tu libro y la estructura narrativa.';
 

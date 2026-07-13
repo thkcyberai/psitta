@@ -361,6 +361,7 @@ class _ProjectNavigatorBodyState
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final overviewAsync =
         ref.watch(projectBlueprintOverviewProvider(widget.projectId));
     final docsAsync = ref.watch(projectDocumentsProvider(widget.projectId));
@@ -370,13 +371,13 @@ class _ProjectNavigatorBodyState
     // Merge the three async values: only render content when all are data.
     return overviewAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
+      error: (e, _) => Center(child: Text(loc.bpTabError('$e'))),
       data: (overview) => docsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
+        error: (e, _) => Center(child: Text(loc.bpTabError('$e'))),
         data: (docs) => placementsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Center(child: Text('Error: $e')),
+          error: (e, _) => Center(child: Text(loc.bpTabError('$e'))),
           data: (placements) =>
               _buildContent(context, overview, docs, placements),
         ),
@@ -450,7 +451,7 @@ class _ProjectNavigatorBodyState
                       color: scheme.secondary,
                     ),
                     label: loc.tabFiles,
-                    tooltip: 'Files to place into a section',
+                    tooltip: loc.pnFilesTooltip,
                     badgeCount: unplacedDocs.length,
                     tokens: tokens,
                     scheme: scheme,
@@ -517,6 +518,7 @@ class _BookContentPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
 
     final placedIds = placements.map((p) => p.documentId).toSet();
     final unplaced =
@@ -570,7 +572,7 @@ class _BookContentPanel extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  'SECTIONS',
+                  loc.pnSections,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                         letterSpacing: 0.8,
@@ -578,7 +580,7 @@ class _BookContentPanel extends ConsumerWidget {
                 ),
               ),
               Tooltip(
-                message: 'Choose a Book Structure for this project',
+                message: loc.pnChooseStructureTooltip,
                 child: InkWell(
                   key: const ValueKey('desk-add-blueprint'),
                   onTap: chooseBlueprint,
@@ -592,7 +594,7 @@ class _BookContentPanel extends ConsumerWidget {
                         Icon(Icons.add, size: 14, color: scheme.primary),
                         const SizedBox(width: 2),
                         Text(
-                          'Book Structure',
+                          loc.tabBookStructure,
                           style: Theme.of(context)
                               .textTheme
                               .labelSmall
@@ -645,12 +647,13 @@ class _AddFilePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionHeader(
-          key: ValueKey('desk-addfile-header'),
-          label: 'FILES TO PLACE',
+        _SectionHeader(
+          key: const ValueKey('desk-addfile-header'),
+          label: loc.pnFilesToPlace,
         ),
         Expanded(
           child: unplacedDocs.isEmpty
@@ -658,8 +661,7 @@ class _AddFilePanel extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(
-                      'No files waiting to be placed.\n'
-                      'Every file is already in a section.',
+                      loc.pnNoFilesWaiting,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
@@ -844,6 +846,7 @@ class _NoBlueprintAdopt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -851,7 +854,7 @@ class _NoBlueprintAdopt extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'No Book Structure yet.\nChoose one to structure your book.',
+              loc.pnNoStructureYet,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),
@@ -862,7 +865,7 @@ class _NoBlueprintAdopt extends StatelessWidget {
               key: const ValueKey('desk-choose-blueprint-empty'),
               onPressed: onAdd,
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Choose a Book Structure'),
+              label: Text(loc.adoptBpTitle),
             ),
           ],
         ),
@@ -999,9 +1002,9 @@ class _PartTreeState extends State<_PartTree> {
     _flatten(context, widget.parts, items, 0);
 
     if (widget.unplacedDocs.isNotEmpty) {
-      items.add(const _SectionHeader(
-        key: ValueKey('desk-unassigned-header'),
-        label: 'Unassigned documents',
+      items.add(_SectionHeader(
+        key: const ValueKey('desk-unassigned-header'),
+        label: AppLocalizations.of(context).pnUnassignedDocs,
       ));
       for (final doc in widget.unplacedDocs) {
         items.add(_UnplacedDocTile(
@@ -1091,6 +1094,7 @@ class _NavProgressFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final ratio = progress.ratio ?? 0.0;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
@@ -1104,7 +1108,7 @@ class _NavProgressFooter extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'BLUEPRINT PROGRESS',
+            loc.pnBlueprintProgress,
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: scheme.onSurfaceVariant,
                   letterSpacing: 0.8,
@@ -1122,7 +1126,8 @@ class _NavProgressFooter extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '${progress.leavesWithContent} / ${progress.totalLeaves} sections with content',
+            loc.pnSectionsWithContent(
+                progress.leavesWithContent, progress.totalLeaves),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: scheme.onSurface,
                 ),
@@ -1303,23 +1308,24 @@ class _SectionActionsMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return SizedBox(
       width: 26,
       height: 26,
       child: PopupMenuButton<String>(
       key: ValueKey('desk-section-menu-${part.id}'),
-      tooltip: 'Section actions',
+      tooltip: loc.pnSectionActions,
       padding: EdgeInsets.zero,
       iconSize: 16,
       icon: Icon(Icons.more_vert, color: scheme.onSurfaceVariant),
       onSelected: (value) => _onSelected(context, ref, value),
       itemBuilder: (_) => [
-        const PopupMenuItem(value: 'rename', child: Text('Rename')),
-        const PopupMenuItem(value: 'addsub', child: Text('Add subsection')),
+        PopupMenuItem(value: 'rename', child: Text(loc.docMenuRename)),
+        PopupMenuItem(value: 'addsub', child: Text(loc.pnAddSubsection)),
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'delete',
-          child: Text('Delete', style: TextStyle(color: scheme.error)),
+          child: Text(loc.docMenuDelete, style: TextStyle(color: scheme.error)),
         ),
       ],
       ),
@@ -1328,13 +1334,14 @@ class _SectionActionsMenu extends ConsumerWidget {
 
   Future<void> _onSelected(
       BuildContext context, WidgetRef ref, String value) async {
+    final loc = AppLocalizations.of(context);
     final actions = ref.read(blueprintActionsProvider);
     switch (value) {
       case 'rename':
         final result = await showSectionFormDialog(
           context,
-          title: 'Rename Section',
-          submitLabel: 'Save',
+          title: loc.pnRenameSection,
+          submitLabel: loc.btnSave,
           initialName: part.name,
           initialDescription: part.description,
         );
@@ -1351,8 +1358,8 @@ class _SectionActionsMenu extends ConsumerWidget {
       case 'addsub':
         final result = await showSectionFormDialog(
           context,
-          title: 'Add Subsection',
-          submitLabel: 'Add',
+          title: loc.pnAddSubsectionTitle,
+          submitLabel: loc.btnAdd,
         );
         if (result == null || !context.mounted) return;
         await runBlueprintMutation(
@@ -1367,10 +1374,8 @@ class _SectionActionsMenu extends ConsumerWidget {
       case 'delete':
         final ok = await confirmDeleteDialog(
           context,
-          title: 'Delete Section?',
-          message:
-              'Delete this section? Any subsections are removed too. Files in '
-              'it return to Unassigned — they stay in your project and Library.',
+          title: loc.pnDeleteSectionTitle,
+          message: loc.pnDeleteSectionBody,
         );
         if (!ok || !context.mounted) return;
         await runBlueprintMutation(
@@ -1486,6 +1491,7 @@ class _UnplacedDocTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final row = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Row(
@@ -1505,7 +1511,7 @@ class _UnplacedDocTile extends ConsumerWidget {
             ),
           ),
           Tooltip(
-            message: 'Assign to a section of the book',
+            message: loc.pnAssignTooltip,
             child: TextButton(
               key: ValueKey('desk-assign-${doc.id}'),
               onPressed: () => _showAssignDialog(context, ref),
@@ -1513,7 +1519,7 @@ class _UnplacedDocTile extends ConsumerWidget {
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
               ),
-              child: const Text('Assign'),
+              child: Text(loc.pnAssign),
             ),
           ),
         ],
@@ -1530,6 +1536,7 @@ class _UnplacedDocTile extends ConsumerWidget {
 
   Future<void> _showAssignDialog(
       BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final flat = <PartOverviewNode>[];
     _flattenParts(parts, flat);
 
@@ -1539,23 +1546,22 @@ class _UnplacedDocTile extends ConsumerWidget {
       final choose = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Assign to Section'),
+          title: Text(loc.pnAssignTitle),
           content: SizedBox(
             width: 320,
             child: Text(
-              'This project has no Book Structure yet, so there are no sections to '
-              'assign into. Choose a Book Structure first.',
+              loc.pnAssignNoStructure,
               style: Theme.of(ctx).textTheme.bodySmall,
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
+              child: Text(loc.btnCancel),
             ),
             FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Choose a Book Structure'),
+              child: Text(loc.adoptBpTitle),
             ),
           ],
         ),
@@ -1574,7 +1580,7 @@ class _UnplacedDocTile extends ConsumerWidget {
     final chosen = await showDialog<PartOverviewNode>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Assign to Section'),
+        title: Text(loc.pnAssignTitle),
         content: SizedBox(
           width: 320,
           child: ListView(
@@ -1592,7 +1598,7 @@ class _UnplacedDocTile extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
         ],
       ),

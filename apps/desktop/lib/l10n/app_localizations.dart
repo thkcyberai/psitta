@@ -2544,6 +2544,492 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 doc} other{{count} docs}}'**
   String projDocShort(int count);
 
+  /// No description provided for @summErrorGenerate.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t generate a summary. Please try again.'**
+  String get summErrorGenerate;
+
+  /// No description provided for @summLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Summarizing…'**
+  String get summLoading;
+
+  /// No description provided for @summReSummarize.
+  ///
+  /// In en, this message translates to:
+  /// **'Re-summarize'**
+  String get summReSummarize;
+
+  /// No description provided for @summRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{About 1 summary left this month} other{About {count} summaries left this month}}'**
+  String summRemaining(int count);
+
+  /// No description provided for @summResetFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'your next billing anniversary'**
+  String get summResetFallback;
+
+  /// No description provided for @summQuotaExhausted.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly summaries used up.\nResets on {date}.'**
+  String summQuotaExhausted(String date);
+
+  /// No description provided for @summUpgrade.
+  ///
+  /// In en, this message translates to:
+  /// **'Upgrade to Writing Nook'**
+  String get summUpgrade;
+
+  /// No description provided for @summTryAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get summTryAgain;
+
+  /// No description provided for @pnFilesTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Files to place into a section'**
+  String get pnFilesTooltip;
+
+  /// No description provided for @pnSections.
+  ///
+  /// In en, this message translates to:
+  /// **'SECTIONS'**
+  String get pnSections;
+
+  /// No description provided for @pnChooseStructureTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a Book Structure for this project'**
+  String get pnChooseStructureTooltip;
+
+  /// No description provided for @pnFilesToPlace.
+  ///
+  /// In en, this message translates to:
+  /// **'FILES TO PLACE'**
+  String get pnFilesToPlace;
+
+  /// No description provided for @pnNoFilesWaiting.
+  ///
+  /// In en, this message translates to:
+  /// **'No files waiting to be placed.\nEvery file is already in a section.'**
+  String get pnNoFilesWaiting;
+
+  /// No description provided for @pnNoStructureYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No Book Structure yet.\nChoose one to structure your book.'**
+  String get pnNoStructureYet;
+
+  /// No description provided for @pnUnassignedDocs.
+  ///
+  /// In en, this message translates to:
+  /// **'Unassigned documents'**
+  String get pnUnassignedDocs;
+
+  /// No description provided for @pnBlueprintProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'BLUEPRINT PROGRESS'**
+  String get pnBlueprintProgress;
+
+  /// No description provided for @pnSectionsWithContent.
+  ///
+  /// In en, this message translates to:
+  /// **'{done} / {total} sections with content'**
+  String pnSectionsWithContent(int done, int total);
+
+  /// No description provided for @pnSectionActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Section actions'**
+  String get pnSectionActions;
+
+  /// No description provided for @pnAddSubsection.
+  ///
+  /// In en, this message translates to:
+  /// **'Add subsection'**
+  String get pnAddSubsection;
+
+  /// No description provided for @pnRenameSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename Section'**
+  String get pnRenameSection;
+
+  /// No description provided for @pnAddSubsectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Subsection'**
+  String get pnAddSubsectionTitle;
+
+  /// No description provided for @pnDeleteSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Section?'**
+  String get pnDeleteSectionTitle;
+
+  /// No description provided for @pnDeleteSectionBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this section? Any subsections are removed too. Files in it return to Unassigned — they stay in your project and Library.'**
+  String get pnDeleteSectionBody;
+
+  /// No description provided for @pnAssignTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign to a section of the book'**
+  String get pnAssignTooltip;
+
+  /// No description provided for @pnAssign.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign'**
+  String get pnAssign;
+
+  /// No description provided for @pnAssignTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign to Section'**
+  String get pnAssignTitle;
+
+  /// No description provided for @pnAssignNoStructure.
+  ///
+  /// In en, this message translates to:
+  /// **'This project has no Book Structure yet, so there are no sections to assign into. Choose a Book Structure first.'**
+  String get pnAssignNoStructure;
+
+  /// No description provided for @dcpNotSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get dcpNotSet;
+
+  /// No description provided for @dcpStep1.
+  ///
+  /// In en, this message translates to:
+  /// **'Step 1 — choose a Book Structure for your book. Then you can place this file in one of its sections.'**
+  String get dcpStep1;
+
+  /// No description provided for @dcpStep2.
+  ///
+  /// In en, this message translates to:
+  /// **'Step 2 — this file isn’t in a section yet. Place it in a {names} section to finish.'**
+  String dcpStep2(String names);
+
+  /// No description provided for @dcpPlaceInSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Place in a section'**
+  String get dcpPlaceInSection;
+
+  /// No description provided for @dcpPlaceInSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Place in a Section'**
+  String get dcpPlaceInSectionTitle;
+
+  /// No description provided for @dcpActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Actions'**
+  String get dcpActions;
+
+  /// No description provided for @dcpMoveSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Move section'**
+  String get dcpMoveSection;
+
+  /// No description provided for @dcpChangeRole.
+  ///
+  /// In en, this message translates to:
+  /// **'Change role'**
+  String get dcpChangeRole;
+
+  /// No description provided for @dcpMoveToSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to section'**
+  String get dcpMoveToSection;
+
+  /// No description provided for @dcpDownload.
+  ///
+  /// In en, this message translates to:
+  /// **'Download'**
+  String get dcpDownload;
+
+  /// No description provided for @dcpMoveToStructureSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Book Structure / section'**
+  String get dcpMoveToStructureSection;
+
+  /// No description provided for @dcpChangeRoleTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Role'**
+  String get dcpChangeRoleTitle;
+
+  /// No description provided for @dcpRemovePlacementTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove placement'**
+  String get dcpRemovePlacementTitle;
+
+  /// No description provided for @dcpRemovePlacementBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this document from the section? The document itself is not deleted.'**
+  String get dcpRemovePlacementBody;
+
+  /// No description provided for @dcpSaveDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Document'**
+  String get dcpSaveDocument;
+
+  /// No description provided for @dcpExportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Export failed: {detail}'**
+  String dcpExportFailed(String detail);
+
+  /// No description provided for @dcpDownloadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Download failed: {error}'**
+  String dcpDownloadFailed(String error);
+
+  /// No description provided for @dcpDeleteDocTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete document?'**
+  String get dcpDeleteDocTitle;
+
+  /// No description provided for @dcpDeleteDocBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This document will be permanently deleted and cannot be recovered.'**
+  String get dcpDeleteDocBody;
+
+  /// No description provided for @dcpDeleteFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete failed: {error}'**
+  String dcpDeleteFailed(String error);
+
+  /// No description provided for @dcpMoveToSectionTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Section'**
+  String get dcpMoveToSectionTitle;
+
+  /// No description provided for @dcpWhichBeat.
+  ///
+  /// In en, this message translates to:
+  /// **'Which beat does this file cover?'**
+  String get dcpWhichBeat;
+
+  /// No description provided for @dcNoDocOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'No document open'**
+  String get dcNoDocOpen;
+
+  /// No description provided for @dcNoDocBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Start a new document below, or open one from your Library.'**
+  String get dcNoDocBody;
+
+  /// No description provided for @dcShowAddPanel.
+  ///
+  /// In en, this message translates to:
+  /// **'Show add-content panel'**
+  String get dcShowAddPanel;
+
+  /// No description provided for @dcExpandSheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand sheet'**
+  String get dcExpandSheet;
+
+  /// No description provided for @dcNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No results'**
+  String get dcNoResults;
+
+  /// No description provided for @dcResultCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{index} of {total}'**
+  String dcResultCount(int index, int total);
+
+  /// No description provided for @dcFind.
+  ///
+  /// In en, this message translates to:
+  /// **'Find'**
+  String get dcFind;
+
+  /// No description provided for @dcMatchCase.
+  ///
+  /// In en, this message translates to:
+  /// **'Match case'**
+  String get dcMatchCase;
+
+  /// No description provided for @dcPrevious.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous'**
+  String get dcPrevious;
+
+  /// No description provided for @dcNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get dcNext;
+
+  /// No description provided for @dcHideReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Hide replace'**
+  String get dcHideReplace;
+
+  /// No description provided for @dcReplace.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace'**
+  String get dcReplace;
+
+  /// No description provided for @dcCloseEsc.
+  ///
+  /// In en, this message translates to:
+  /// **'Close (Esc)'**
+  String get dcCloseEsc;
+
+  /// No description provided for @dcReplaceWith.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace with'**
+  String get dcReplaceWith;
+
+  /// No description provided for @dcReplaceAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace all'**
+  String get dcReplaceAll;
+
+  /// No description provided for @dcStoryCoach.
+  ///
+  /// In en, this message translates to:
+  /// **'STORY-COACH'**
+  String get dcStoryCoach;
+
+  /// No description provided for @dcReadsLike.
+  ///
+  /// In en, this message translates to:
+  /// **'Reads like: {beat}'**
+  String dcReadsLike(String beat);
+
+  /// No description provided for @dcMuteHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute here'**
+  String get dcMuteHere;
+
+  /// No description provided for @dcGotIt.
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get dcGotIt;
+
+  /// No description provided for @dcStartWriting.
+  ///
+  /// In en, this message translates to:
+  /// **'Start writing…'**
+  String get dcStartWriting;
+
+  /// No description provided for @dcUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get dcUndo;
+
+  /// No description provided for @dcRedo.
+  ///
+  /// In en, this message translates to:
+  /// **'Redo'**
+  String get dcRedo;
+
+  /// No description provided for @dcCut.
+  ///
+  /// In en, this message translates to:
+  /// **'Cut'**
+  String get dcCut;
+
+  /// No description provided for @dcCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy'**
+  String get dcCopy;
+
+  /// No description provided for @dcPaste.
+  ///
+  /// In en, this message translates to:
+  /// **'Paste'**
+  String get dcPaste;
+
+  /// No description provided for @dcSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get dcSelectAll;
+
+  /// No description provided for @dcNoSuggestions.
+  ///
+  /// In en, this message translates to:
+  /// **'No suggestions'**
+  String get dcNoSuggestions;
+
+  /// No description provided for @dcDocLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'Document limit reached for this month — upgrade in Settings.'**
+  String get dcDocLimit;
+
+  /// No description provided for @dcCreateDocError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not create document: {error}'**
+  String dcCreateDocError(String error);
+
+  /// No description provided for @dcNoProjectsYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No projects yet — create one first.'**
+  String get dcNoProjectsYet;
+
+  /// No description provided for @dcAddToProjectError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not add to project: {error}'**
+  String dcAddToProjectError(String error);
+
+  /// No description provided for @dcProjectNameExample.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. My Memoir'**
+  String get dcProjectNameExample;
+
   /// No description provided for @blueprintsSubtitle.
   ///
   /// In en, this message translates to:
