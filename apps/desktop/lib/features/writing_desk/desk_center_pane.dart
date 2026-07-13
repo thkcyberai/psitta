@@ -219,8 +219,20 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
     _spellDebounce = Timer(const Duration(milliseconds: 350), _spellTick);
   }
 
+  /// Spell-check uses an English-only dictionary (scowl_en_US), so the red
+  /// squiggle runs ONLY when the working language is English. For pt/es/fr it
+  /// would flag nearly every word as misspelled — so we skip it entirely
+  /// (clean text) until real per-language dictionaries land. The whole app's
+  /// locale IS the working language (one flag drives everything), so the
+  /// active locale is the correct signal.
+  bool _spellCheckActive() {
+    if (!mounted) return false;
+    return Localizations.localeOf(context).languageCode == 'en';
+  }
+
   void _spellTick() {
     if (!mounted) return;
+    if (!_spellCheckActive()) return;
     final controller = _unifiedController;
     if (controller == null) return;
     final plain = controller.document.toPlainText();
@@ -262,6 +274,7 @@ class _DeskCenterPaneState extends ConsumerState<DeskCenterPane> {
   // Paint red wavy squiggles under misspelled words. Undo-safe (ignoreChange)
   // and non-persistent (the 'squiggle' attribute isn't in the codec whitelist).
   void _runSpellPass({int? start, int? end}) {
+    if (!_spellCheckActive()) return;
     final controller = _unifiedController;
     if (controller == null) return;
     final plain = controller.document.toPlainText();
@@ -1620,7 +1633,11 @@ class _DeskEditorBody extends StatelessWidget {
   ) {
     final ctrl = rawEditorState.controller;
     final sel = ctrl.selection;
-    if (sel.isValid) {
+    // Spell suggestions use the English-only dictionary; for pt/es/fr skip
+    // straight to the normal Cut/Copy/Paste menu (the active locale is the
+    // working language).
+    if (sel.isValid &&
+        Localizations.localeOf(context).languageCode == 'en') {
       final plain = ctrl.document.toPlainText();
       if (plain.isNotEmpty) {
         final off = sel.baseOffset.clamp(0, plain.length - 1);
