@@ -1320,6 +1320,378 @@ abstract class AppLocalizations {
   /// **'Remove from Project'**
   String get docMenuRemoveFromProject;
 
+  /// No description provided for @btnClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get btnClose;
+
+  /// No description provided for @btnConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get btnConfirm;
+
+  /// No description provided for @btnOk.
+  ///
+  /// In en, this message translates to:
+  /// **'OK'**
+  String get btnOk;
+
+  /// No description provided for @btnRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get btnRetry;
+
+  /// No description provided for @btnUpload.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload'**
+  String get btnUpload;
+
+  /// No description provided for @libDeleteDocTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete document'**
+  String get libDeleteDocTitle;
+
+  /// No description provided for @libDocDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Document deleted'**
+  String get libDocDeleted;
+
+  /// No description provided for @libRegenStartedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Regeneration Started'**
+  String get libRegenStartedTitle;
+
+  /// No description provided for @libErrorTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Error'**
+  String get libErrorTitle;
+
+  /// No description provided for @libExporting.
+  ///
+  /// In en, this message translates to:
+  /// **'Exporting document…'**
+  String get libExporting;
+
+  /// No description provided for @libExportNoContent.
+  ///
+  /// In en, this message translates to:
+  /// **'Export produced no content'**
+  String get libExportNoContent;
+
+  /// No description provided for @libEditNameTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit document name'**
+  String get libEditNameTitle;
+
+  /// No description provided for @libDocUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Document updated'**
+  String get libDocUpdated;
+
+  /// No description provided for @libShowArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Show Archived'**
+  String get libShowArchived;
+
+  /// No description provided for @libNewSheet.
+  ///
+  /// In en, this message translates to:
+  /// **'New Sheet'**
+  String get libNewSheet;
+
+  /// No description provided for @libListen.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen'**
+  String get libListen;
+
+  /// No description provided for @libCreateSheetError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to create sheet: {error}'**
+  String libCreateSheetError(String error);
+
+  /// No description provided for @libDeleteError.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete failed: {error}'**
+  String libDeleteError(String error);
+
+  /// No description provided for @libArchiveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to archive: {error}'**
+  String libArchiveError(String error);
+
+  /// No description provided for @libSavedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to {folder}'**
+  String libSavedTo(String folder);
+
+  /// No description provided for @libExportError.
+  ///
+  /// In en, this message translates to:
+  /// **'Export failed: {error}'**
+  String libExportError(String error);
+
+  /// No description provided for @libAssignProjectError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to assign project: {error}'**
+  String libAssignProjectError(String error);
+
+  /// No description provided for @libRemoveProjectError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to remove from project: {error}'**
+  String libRemoveProjectError(String error);
+
+  /// No description provided for @libCoverUpdateError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to update cover: {error}'**
+  String libCoverUpdateError(String error);
+
+  /// No description provided for @libUpdateError.
+  ///
+  /// In en, this message translates to:
+  /// **'Update failed: {error}'**
+  String libUpdateError(String error);
+
+  /// No description provided for @libViewDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'View Details'**
+  String get libViewDetails;
+
+  /// No description provided for @libOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get libOpen;
+
+  /// No description provided for @libEditText.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit Text'**
+  String get libEditText;
+
+  /// No description provided for @btnClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get btnClear;
+
+  /// No description provided for @libNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get libNameLabel;
+
+  /// No description provided for @libNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a document name'**
+  String get libNameHint;
+
+  /// No description provided for @libSearchDocsHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search documents... (Ctrl+F)'**
+  String get libSearchDocsHint;
+
+  /// No description provided for @libDetailType.
+  ///
+  /// In en, this message translates to:
+  /// **'Type'**
+  String get libDetailType;
+
+  /// No description provided for @libDetailUploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploaded'**
+  String get libDetailUploaded;
+
+  /// No description provided for @libDetailPages.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages'**
+  String get libDetailPages;
+
+  /// No description provided for @libDetailStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get libDetailStatus;
+
+  /// No description provided for @libDetailDocId.
+  ///
+  /// In en, this message translates to:
+  /// **'Document ID'**
+  String get libDetailDocId;
+
+  /// No description provided for @libWordsValue.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 word} other{{count} words}}'**
+  String libWordsValue(int count);
+
+  /// No description provided for @libUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload failed: {name}'**
+  String libUploadFailed(String name);
+
+  /// No description provided for @libDeleteConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{title}”?'**
+  String libDeleteConfirm(String title);
+
+  /// No description provided for @libRegenConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This will clear the cached audio for all chunks of {title} and re-synthesize using the current voice settings. This may take several minutes.'**
+  String libRegenConfirmBody(String title);
+
+  /// No description provided for @libRegenQueuedBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Audio regeneration has been queued for {title}. The new audio will be available within a few minutes.'**
+  String libRegenQueuedBody(String title);
+
+  /// No description provided for @libSaveDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Save Document'**
+  String get libSaveDocument;
+
+  /// No description provided for @libExportUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Export unavailable for this document.'**
+  String get libExportUnavailable;
+
+  /// No description provided for @libNoProjectsMsg.
+  ///
+  /// In en, this message translates to:
+  /// **'No projects yet. Create one in the Projects section.'**
+  String get libNoProjectsMsg;
+
+  /// No description provided for @libEmptyDrag.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag documents here or click Upload'**
+  String get libEmptyDrag;
+
+  /// No description provided for @libEmptySupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Supported: PDF, DOCX, TXT, MD, HTML'**
+  String get libEmptySupported;
+
+  /// No description provided for @libPlanUnavailableTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Plan status temporarily unavailable — refresh Settings'**
+  String get libPlanUnavailableTooltip;
+
+  /// No description provided for @libCouldNotLoad.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load documents'**
+  String get libCouldNotLoad;
+
+  /// No description provided for @libNoMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'No matches'**
+  String get libNoMatches;
+
+  /// No description provided for @libSelectDoc.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a document'**
+  String get libSelectDoc;
+
+  /// No description provided for @libSelectDocSub.
+  ///
+  /// In en, this message translates to:
+  /// **'Click on a document to see its details'**
+  String get libSelectDocSub;
+
+  /// No description provided for @libQuickActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Actions'**
+  String get libQuickActions;
+
+  /// No description provided for @libChangeProject.
+  ///
+  /// In en, this message translates to:
+  /// **'Change Project'**
+  String get libChangeProject;
+
+  /// No description provided for @libAvailableOnPro.
+  ///
+  /// In en, this message translates to:
+  /// **'Available on Pro — Upgrade in Settings'**
+  String get libAvailableOnPro;
+
+  /// No description provided for @libTextFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Text File'**
+  String get libTextFile;
+
+  /// No description provided for @libPdfDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'PDF Document'**
+  String get libPdfDocument;
+
+  /// No description provided for @libDocxDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'DOCX Document'**
+  String get libDocxDocument;
+
+  /// No description provided for @btnChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get btnChange;
+
+  /// No description provided for @libVoice.
+  ///
+  /// In en, this message translates to:
+  /// **'Voice'**
+  String get libVoice;
+
+  /// No description provided for @libDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get libDetails;
+
+  /// No description provided for @libReady.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready'**
+  String get libReady;
+
   /// No description provided for @blueprintsSubtitle.
   ///
   /// In en, this message translates to:

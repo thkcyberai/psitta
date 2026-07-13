@@ -696,6 +696,229 @@ class AppLocalizationsPt extends AppLocalizations {
   String get docMenuRemoveFromProject => 'Remover do Projeto';
 
   @override
+  String get btnClose => 'Fechar';
+
+  @override
+  String get btnConfirm => 'Confirmar';
+
+  @override
+  String get btnOk => 'OK';
+
+  @override
+  String get btnRetry => 'Tentar novamente';
+
+  @override
+  String get btnUpload => 'Enviar';
+
+  @override
+  String get libDeleteDocTitle => 'Excluir documento';
+
+  @override
+  String get libDocDeleted => 'Documento excluído';
+
+  @override
+  String get libRegenStartedTitle => 'Regeneração iniciada';
+
+  @override
+  String get libErrorTitle => 'Erro';
+
+  @override
+  String get libExporting => 'Exportando documento…';
+
+  @override
+  String get libExportNoContent => 'A exportação não gerou conteúdo';
+
+  @override
+  String get libEditNameTitle => 'Editar nome do documento';
+
+  @override
+  String get libDocUpdated => 'Documento atualizado';
+
+  @override
+  String get libShowArchived => 'Mostrar arquivados';
+
+  @override
+  String get libNewSheet => 'Nova planilha';
+
+  @override
+  String get libListen => 'Ouvir';
+
+  @override
+  String libCreateSheetError(String error) {
+    return 'Falha ao criar planilha: $error';
+  }
+
+  @override
+  String libDeleteError(String error) {
+    return 'Falha ao excluir: $error';
+  }
+
+  @override
+  String libArchiveError(String error) {
+    return 'Falha ao arquivar: $error';
+  }
+
+  @override
+  String libSavedTo(String folder) {
+    return 'Salvo em $folder';
+  }
+
+  @override
+  String libExportError(String error) {
+    return 'Falha na exportação: $error';
+  }
+
+  @override
+  String libAssignProjectError(String error) {
+    return 'Falha ao atribuir projeto: $error';
+  }
+
+  @override
+  String libRemoveProjectError(String error) {
+    return 'Falha ao remover do projeto: $error';
+  }
+
+  @override
+  String libCoverUpdateError(String error) {
+    return 'Falha ao atualizar a capa: $error';
+  }
+
+  @override
+  String libUpdateError(String error) {
+    return 'Falha na atualização: $error';
+  }
+
+  @override
+  String get libViewDetails => 'Ver detalhes';
+
+  @override
+  String get libOpen => 'Abrir';
+
+  @override
+  String get libEditText => 'Editar texto';
+
+  @override
+  String get btnClear => 'Limpar';
+
+  @override
+  String get libNameLabel => 'Nome';
+
+  @override
+  String get libNameHint => 'Digite um nome para o documento';
+
+  @override
+  String get libSearchDocsHint => 'Buscar documentos... (Ctrl+F)';
+
+  @override
+  String get libDetailType => 'Tipo';
+
+  @override
+  String get libDetailUploaded => 'Enviado em';
+
+  @override
+  String get libDetailPages => 'Páginas';
+
+  @override
+  String get libDetailStatus => 'Status';
+
+  @override
+  String get libDetailDocId => 'ID do documento';
+
+  @override
+  String libWordsValue(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count palavras',
+      one: '1 palavra',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String libUploadFailed(String name) {
+    return 'Falha no envio: $name';
+  }
+
+  @override
+  String libDeleteConfirm(String title) {
+    return 'Excluir “$title”?';
+  }
+
+  @override
+  String libRegenConfirmBody(String title) {
+    return 'Isto vai limpar o áudio em cache de todos os trechos de $title e regerar usando as configurações de voz atuais. Isso pode levar alguns minutos.';
+  }
+
+  @override
+  String libRegenQueuedBody(String title) {
+    return 'A regeneração de áudio foi enfileirada para $title. O novo áudio estará disponível em alguns minutos.';
+  }
+
+  @override
+  String get libSaveDocument => 'Salvar documento';
+
+  @override
+  String get libExportUnavailable =>
+      'Exportação indisponível para este documento.';
+
+  @override
+  String get libNoProjectsMsg =>
+      'Nenhum projeto ainda. Crie um na seção Projetos.';
+
+  @override
+  String get libEmptyDrag => 'Arraste documentos aqui ou clique em Enviar';
+
+  @override
+  String get libEmptySupported => 'Compatível: PDF, DOCX, TXT, MD, HTML';
+
+  @override
+  String get libPlanUnavailableTooltip =>
+      'Status do plano temporariamente indisponível — atualize em Configurações';
+
+  @override
+  String get libCouldNotLoad => 'Não foi possível carregar os documentos';
+
+  @override
+  String get libNoMatches => 'Nenhum resultado';
+
+  @override
+  String get libSelectDoc => 'Selecione um documento';
+
+  @override
+  String get libSelectDocSub => 'Clique em um documento para ver os detalhes';
+
+  @override
+  String get libQuickActions => 'Ações rápidas';
+
+  @override
+  String get libChangeProject => 'Alterar projeto';
+
+  @override
+  String get libAvailableOnPro => 'Disponível no Pro — Assine em Configurações';
+
+  @override
+  String get libTextFile => 'Arquivo de texto';
+
+  @override
+  String get libPdfDocument => 'Documento PDF';
+
+  @override
+  String get libDocxDocument => 'Documento DOCX';
+
+  @override
+  String get btnChange => 'Alterar';
+
+  @override
+  String get libVoice => 'Voz';
+
+  @override
+  String get libDetails => 'Detalhes';
+
+  @override
+  String get libReady => 'Pronto';
+
+  @override
   String get blueprintsSubtitle =>
       'Desenhe a estrutura do seu livro e a estrutura narrativa.';
 

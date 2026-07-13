@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:path/path.dart' as p;
 
+import '../../l10n/app_localizations.dart';
 import '../../core/constants.dart';
 import '../../core/plan_gate.dart';
 import '../../core/quota_gate.dart';
@@ -61,6 +62,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   String? _selectedDocId;
 
   Future<void> _handleNewSheet() async {
+    final loc = AppLocalizations.of(context);
     // Proactive quota check — skip the round-trip when we already know the
     // backend will 402. Relies on the cached quotaUsageProvider snapshot;
     // if it's still loading, we let the call proceed and the 402 catch
@@ -94,12 +96,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         return;
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create sheet: $e')),
+        SnackBar(content: Text(loc.libCreateSheetError('$e'))),
       );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create sheet: $e')),
+          SnackBar(content: Text(loc.libCreateSheetError('$e'))),
         );
       }
     }
@@ -132,6 +134,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _uploadFiles(List<PlatformFile> files) async {
+    final loc = AppLocalizations.of(context);
     // Same proactive quota check as _handleNewSheet — if the cached
     // snapshot already says we're at limit, short-circuit with the
     // dialog instead of spamming 402s one per file.
@@ -194,7 +197,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Upload failed: ${file.name}')),
+            SnackBar(content: Text(loc.libUploadFailed(file.name))),
           );
         }
       }
@@ -253,15 +256,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
-  String _prettySourceType(String sourceType) {
+  String _prettySourceType(BuildContext context, String sourceType) {
+    final loc = AppLocalizations.of(context);
     final st = sourceType.trim().toLowerCase();
     switch (st) {
       case 'pdf':
-        return 'PDF Document';
+        return loc.libPdfDocument;
       case 'docx':
-        return 'DOCX Document';
+        return loc.libDocxDocument;
       case 'txt':
-        return 'Text File';
+        return loc.libTextFile;
       case 'md':
         return 'Markdown';
       case 'html':
@@ -273,6 +277,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   void _showDetails(Document doc) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -297,26 +302,29 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _DetailRow(label: 'Type', value: doc.sourceType.toUpperCase()),
               _DetailRow(
-                label: 'Uploaded',
+                  label: loc.libDetailType,
+                  value: doc.sourceType.toUpperCase()),
+              _DetailRow(
+                label: loc.libDetailUploaded,
                 value: doc.createdAt.toLocal().toString().split('.').first,
               ),
-              _DetailRow(label: 'Pages', value: doc.pageCount.toString()),
+              _DetailRow(
+                  label: loc.libDetailPages, value: doc.pageCount.toString()),
               if (doc.wordCount != null)
                 _DetailRow(
-                  label: 'Word Count',
-                  value: '${doc.wordCount} words',
+                  label: loc.wordCount,
+                  value: loc.libWordsValue(doc.wordCount!),
                 ),
-              _DetailRow(label: 'Status', value: doc.status),
-              _DetailRow(label: 'Document ID', value: doc.id),
+              _DetailRow(label: loc.libDetailStatus, value: doc.status),
+              _DetailRow(label: loc.libDetailDocId, value: doc.id),
             ],
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close'),
+            child: Text(loc.btnClose),
           ),
         ],
       ),
@@ -324,19 +332,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _confirmAndDelete(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete document'),
-        content: Text('Delete "${doc.title}"?'),
+        title: Text(loc.libDeleteDocTitle),
+        content: Text(loc.libDeleteConfirm(doc.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+            child: Text(loc.btnDelete),
           ),
         ],
       ),
@@ -354,26 +363,27 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ref.invalidate(documentsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document deleted')),
+          SnackBar(content: Text(loc.libDocDeleted)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Delete failed: $e')),
+          SnackBar(content: Text(loc.libDeleteError('$e'))),
         );
       }
     }
   }
 
   Future<void> _archiveDocument(Document doc) async {
+    final loc = AppLocalizations.of(context);
     try {
       await ref.read(documentActionsProvider).archiveDocument(doc.id);
       ref.invalidate(documentsProvider);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to archive: $e')),
+          SnackBar(content: Text(loc.libArchiveError('$e'))),
         );
       }
     }
@@ -381,24 +391,21 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Future<void> _regenerateAudio(Document doc) async {
     if (!mounted) return;
+    final loc = AppLocalizations.of(context);
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Regenerate Audio'),
-        content: Text(
-          'This will clear the cached audio for all chunks of '
-          '${doc.title} and re-synthesize using the current voice '
-          'settings. This may take several minutes.',
-        ),
+        title: Text(loc.docMenuRegenAudio),
+        content: Text(loc.libRegenConfirmBody(doc.title)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Confirm'),
+            child: Text(loc.btnConfirm),
           ),
         ],
       ),
@@ -412,15 +419,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Regeneration Started'),
-          content: Text(
-            'Audio regeneration has been queued for ${doc.title}. '
-            'The new audio will be available within a few minutes.',
-          ),
+          title: Text(loc.libRegenStartedTitle),
+          content: Text(loc.libRegenQueuedBody(doc.title)),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
+              child: Text(loc.btnOk),
             ),
           ],
         ),
@@ -430,12 +434,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       await showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Error'),
+          title: Text(loc.libErrorTitle),
           content: Text('$e'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('OK'),
+              child: Text(loc.btnOk),
             ),
           ],
         ),
@@ -444,6 +448,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   Future<void> _downloadDocument(Document doc) async {
+    final loc = AppLocalizations.of(context);
     // Step 1: Show download options dialog
     final options = await showDialog<_DownloadOptions>(
       context: context,
@@ -454,7 +459,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     // Step 2: Show native Save As dialog
     final defaultName = '${doc.title}.docx';
     final savePath = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Document',
+      dialogTitle: loc.libSaveDocument,
       fileName: defaultName,
       type: FileType.custom,
       allowedExtensions: ['docx'],
@@ -465,19 +470,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     // Step 3: Download with progress indication
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
+      SnackBar(
         content: Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            SizedBox(width: 12),
-            Text('Exporting document…'),
+            const SizedBox(width: 12),
+            Text(loc.libExporting),
           ],
         ),
-        duration: Duration(seconds: 30),
+        duration: const Duration(seconds: 30),
       ),
     );
 
@@ -493,7 +498,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            const SnackBar(content: Text('Export produced no content')),
+            SnackBar(content: Text(loc.libExportNoContent)),
           );
         return;
       }
@@ -509,9 +514,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(
           SnackBar(
-            content: Text('Saved to $folder'),
+            content: Text(loc.libSavedTo(folder)),
             action: SnackBarAction(
-              label: 'Open',
+              label: loc.libOpen,
               onPressed: () => Process.run('cmd', ['/c', 'start', '', finalPath]),
             ),
             duration: const Duration(seconds: 6),
@@ -523,25 +528,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
           content: Text(e.response?.statusCode == 404
-              ? 'Export unavailable for this document.'
-              : 'Export failed: ${e.message}'),
+              ? loc.libExportUnavailable
+              : loc.libExportError(e.message ?? '')),
         ));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('Export failed: $e')));
+        ..showSnackBar(SnackBar(content: Text(loc.libExportError('$e'))));
     }
   }
 
   Future<void> _assignToProject(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final projects = await ref.read(projectsProvider.future);
     if (projects.isEmpty) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'No projects yet. Create one in the Projects section.'),
+        SnackBar(
+          content: Text(loc.libNoProjectsMsg),
         ),
       );
       return;
@@ -550,7 +555,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final selected = await showDialog<Project>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Add to Project'),
+        title: Text(loc.docMenuAddToProject),
         children: projects
             .map((p) => SimpleDialogOption(
                   onPressed: () => Navigator.of(ctx).pop(p),
@@ -567,13 +572,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to assign project: $e')),
+          SnackBar(content: Text(loc.libAssignProjectError('$e'))),
         );
       }
     }
   }
 
   Future<void> _removeFromProject(Document doc) async {
+    final loc = AppLocalizations.of(context);
     try {
       await ref.read(documentActionsProvider).assignToProject(doc.id, null);
       ref.invalidate(documentsProvider);
@@ -581,13 +587,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to remove from project: $e')),
+          SnackBar(content: Text(loc.libRemoveProjectError('$e'))),
         );
       }
     }
   }
 
   Future<void> _changeCover(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final result = await showCoverPickerDialog(
       context: context,
       currentCoverType: doc.coverType,
@@ -621,36 +628,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update cover: $e')),
+          SnackBar(content: Text(loc.libCoverUpdateError('$e'))),
         );
       }
     }
   }
 
   Future<void> _rename(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final controller = TextEditingController(text: doc.title);
 
     final newTitle = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Edit document name'),
+        title: Text(loc.libEditNameTitle),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Name',
-            hintText: 'Enter a document name',
+          decoration: InputDecoration(
+            labelText: loc.libNameLabel,
+            hintText: loc.libNameHint,
           ),
           onSubmitted: (_) => Navigator.of(ctx).pop(controller.text.trim()),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(null),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
-            child: const Text('Save'),
+            child: Text(loc.btnSave),
           ),
         ],
       ),
@@ -664,13 +672,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       ref.invalidate(documentsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document updated')),
+          SnackBar(content: Text(loc.libDocUpdated)),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Update failed: $e')),
+          SnackBar(content: Text(loc.libUpdateError('$e'))),
         );
       }
     }
@@ -678,6 +686,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final tokens = PsittaTokens.of(context);
     final documentsAsync = ref.watch(documentsProvider);
@@ -738,7 +747,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               const Icon(Icons.cloud_off, size: 48, color: AppColors.error),
               const SizedBox(height: 12),
               Text(
-                'Could not load documents',
+                loc.libCouldNotLoad,
                 style: theme.textTheme.bodyLarge,
               ),
               const SizedBox(height: 4),
@@ -752,7 +761,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               OutlinedButton.icon(
                 onPressed: () => ref.invalidate(documentsProvider),
                 icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('Retry'),
+                label: Text(loc.btnRetry),
               ),
             ],
           ),
@@ -797,12 +806,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       onChanged: (v) =>
                           setState(() => _searchQuery = v.trim().toLowerCase()),
                       decoration: InputDecoration(
-                        hintText: 'Search documents... (Ctrl+F)',
+                        hintText: loc.libSearchDocsHint,
                         prefixIcon: const Icon(Icons.search, size: 18),
                         suffixIcon: _searchQuery.isEmpty
                             ? null
                             : IconButton(
-                                tooltip: 'Clear',
+                                tooltip: loc.btnClear,
                                 onPressed: () {
                                   _searchController.clear();
                                   setState(() => _searchQuery = '');
@@ -823,7 +832,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     return Row(
                       children: [
                         Text(
-                          'Library',
+                          loc.navLibrary,
                           style: theme.textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
@@ -856,7 +865,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             return Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: FilterChip(
-                                label: const Text('Show Archived'),
+                                label: Text(loc.libShowArchived),
                                 selected: showArchived,
                                 onSelected: (val) =>
                                     ref.read(showArchivedProvider.notifier).state = val,
@@ -888,15 +897,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             newSheetTooltip = quotaTooltip(quotaInfo);
                           } else if (!isProTier) {
                             newSheetTooltip =
-                                'Available on Pro \u2014 Upgrade in Settings';
+                                loc.libAvailableOnPro;
                           } else {
                             newSheetTooltip = '';
                           }
                           final String uploadTooltip;
                           if (isPlanUnavailable) {
-                            uploadTooltip =
-                                'Plan status temporarily unavailable \u2014 '
-                                'refresh Settings';
+                            uploadTooltip = loc.libPlanUnavailableTooltip;
                           } else if (atLimit && quotaInfo != null) {
                             uploadTooltip = quotaTooltip(quotaInfo);
                           } else {
@@ -918,7 +925,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       ? null
                                       : _handleNewSheet,
                                   icon: const Icon(Icons.edit_note, size: 18),
-                                  label: const Text('New Sheet'),
+                                  label: Text(loc.libNewSheet),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -929,7 +936,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       ? null
                                       : _handleFilePick,
                                   icon: const Icon(Icons.upload_file, size: 18),
-                                  label: const Text('Upload'),
+                                  label: Text(loc.btnUpload),
                                 ),
                               ),
                             ],
@@ -948,7 +955,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       : filteredDocs.isEmpty
                           ? Center(
                               child: Text(
-                                'No matches',
+                                loc.libNoMatches,
                                 style: theme.textTheme.bodyLarge?.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
@@ -982,7 +989,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                     return DocumentCard(
                                       title: doc.title,
                                       subtitle:
-                                          _prettySourceType(doc.sourceType),
+                                          _prettySourceType(
+                                              context, doc.sourceType),
                                       status: doc.status,
                                       isSelected: doc.id == _selectedDocId,
                                       projectPath: path,
@@ -1181,13 +1189,14 @@ class _LibraryRightPanel extends StatelessWidget {
         ),
       ),
       child: selected == null
-          ? _buildEmptyState(theme, isDark, mutedColor)
+          ? _buildEmptyState(context, theme, isDark, mutedColor)
           : _buildSelectedState(context, theme, isDark, mutedColor),
     );
   }
 
   Widget _buildEmptyState(
-      ThemeData theme, bool isDark, Color mutedColor) {
+      BuildContext context, ThemeData theme, bool isDark, Color mutedColor) {
+    final loc = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -1204,7 +1213,7 @@ class _LibraryRightPanel extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Text(
-              'Select a document',
+              loc.libSelectDoc,
               style: theme.textTheme.bodyLarge?.copyWith(
                 color: mutedColor,
                 fontWeight: FontWeight.w600,
@@ -1212,7 +1221,7 @@ class _LibraryRightPanel extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Click on a document to see its details',
+              loc.libSelectDocSub,
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: mutedColor.withOpacity(0.70),
@@ -1226,6 +1235,7 @@ class _LibraryRightPanel extends StatelessWidget {
 
   Widget _buildSelectedState(
       BuildContext context, ThemeData theme, bool isDark, Color mutedColor) {
+    final loc = AppLocalizations.of(context);
     final doc = selected!;
 
     return SingleChildScrollView(
@@ -1314,7 +1324,7 @@ class _LibraryRightPanel extends StatelessWidget {
                             size: 14, color: mutedColor),
                         const SizedBox(width: 4),
                         Text(
-                          'Change',
+                          loc.btnChange,
                           style: TextStyle(
                               fontSize: 11, color: mutedColor),
                         ),
@@ -1335,7 +1345,7 @@ class _LibraryRightPanel extends StatelessWidget {
             child: FilledButton.icon(
               onPressed: onListen,
               icon: const Icon(Icons.play_arrow, size: 20),
-              label: const Text('Listen'),
+              label: Text(loc.libListen),
             ),
           ),
 
@@ -1343,7 +1353,7 @@ class _LibraryRightPanel extends StatelessWidget {
 
           // ── VOICE SELECTOR ──
           Text(
-            'Voice',
+            loc.libVoice,
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: mutedColor,
@@ -1415,7 +1425,7 @@ class _LibraryRightPanel extends StatelessWidget {
 
           // ── METADATA ──
           Text(
-            'Details',
+            loc.libDetails,
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: mutedColor,
@@ -1425,8 +1435,8 @@ class _LibraryRightPanel extends StatelessWidget {
           const SizedBox(height: 10),
           _MetadataRow(
             icon: Icons.folder_outlined,
-            label: 'Project',
-            value: projectName ?? 'Not assigned',
+            label: loc.conceptProject,
+            value: projectName ?? loc.notAssigned,
             tokens: tokens,
           ),
           const SizedBox(height: 6),
@@ -1434,9 +1444,9 @@ class _LibraryRightPanel extends StatelessWidget {
             icon: doc.status == 'ready'
                 ? Icons.check_circle_outline
                 : Icons.hourglass_top,
-            label: 'Status',
+            label: loc.libDetailStatus,
             value: doc.status == 'ready'
-                ? 'Ready'
+                ? loc.libReady
                 : doc.status[0].toUpperCase() + doc.status.substring(1),
             tokens: tokens,
           ),
@@ -1445,7 +1455,7 @@ class _LibraryRightPanel extends StatelessWidget {
 
           // ── QUICK ACTIONS ──
           Text(
-            'Quick Actions',
+            loc.libQuickActions,
             style: theme.textTheme.labelMedium?.copyWith(
               fontWeight: FontWeight.w700,
               color: mutedColor,
@@ -1455,20 +1465,20 @@ class _LibraryRightPanel extends StatelessWidget {
           const SizedBox(height: 10),
           _QuickAction(
             icon: Icons.info_outline,
-            label: 'View Details',
+            label: loc.libViewDetails,
             onTap: onViewDetails,
           ),
           const SizedBox(height: 6),
           _QuickAction(
             icon: Icons.edit_note_outlined,
-            label: 'Edit Text',
+            label: loc.libEditText,
             onTap: onEditText,
           ),
           const SizedBox(height: 6),
           // TODO(temp): remove once Project CTAs wire the real entry point
           _QuickAction(
             icon: Icons.table_rows_outlined,
-            label: 'Writing Desk',
+            label: loc.navWritingDesk,
             onTap: onOpenInDesk,
           ),
           const SizedBox(height: 6),
@@ -1476,7 +1486,9 @@ class _LibraryRightPanel extends StatelessWidget {
             icon: doc.projectId != null
                 ? Icons.drive_file_move_outlined
                 : Icons.folder_outlined,
-            label: doc.projectId != null ? 'Change Project' : 'Add to Project',
+            label: doc.projectId != null
+                ? loc.libChangeProject
+                : loc.docMenuAddToProject,
             onTap: onAssignProject,
           ),
         ],
@@ -1591,6 +1603,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1599,14 +1612,14 @@ class _EmptyState extends StatelessWidget {
               size: 64, color: AppColors.textSecondary),
           const SizedBox(height: 16),
           Text(
-            'Drag documents here or click Upload',
+            loc.libEmptyDrag,
             style: theme.textTheme.bodyLarge?.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Supported: PDF, DOCX, TXT, MD, HTML',
+            loc.libEmptySupported,
             style: theme.textTheme.bodySmall?.copyWith(
               color: AppColors.textSecondary,
             ),
@@ -1615,7 +1628,7 @@ class _EmptyState extends StatelessWidget {
           FilledButton.icon(
             onPressed: onUpload,
             icon: const Icon(Icons.upload_file, size: 18),
-            label: const Text('Upload'),
+            label: Text(loc.btnUpload),
           ),
         ],
       ),
@@ -1685,8 +1698,9 @@ class _DownloadOptionsDialogState extends State<_DownloadOptionsDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
     return AlertDialog(
-      title: const Text('Export Options'),
+      title: Text(loc.exportOptions),
       content: SizedBox(
         width: 340,
         child: Column(
@@ -1703,7 +1717,7 @@ class _DownloadOptionsDialogState extends State<_DownloadOptionsDialog> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Export as a branded DOCX file.',
+              loc.exportBrandedDocx,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),
@@ -1711,15 +1725,15 @@ class _DownloadOptionsDialogState extends State<_DownloadOptionsDialog> {
             const SizedBox(height: 20),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Include cover page'),
-              subtitle: const Text('Title page with document name and date'),
+              title: Text(loc.includeCover),
+              subtitle: Text(loc.includeCoverSub),
               value: _includeCover,
               onChanged: (v) => setState(() => _includeCover = v),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Include Psitta footer'),
-              subtitle: const Text('Branding and page numbers on every page'),
+              title: Text(loc.includeFooter),
+              subtitle: Text(loc.includeFooterSub),
               value: _includeFooter,
               onChanged: (v) => setState(() => _includeFooter = v),
             ),
@@ -1729,11 +1743,11 @@ class _DownloadOptionsDialogState extends State<_DownloadOptionsDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          child: Text(loc.btnCancel),
         ),
         FilledButton.icon(
           icon: const Icon(Icons.download, size: 18),
-          label: const Text('Export'),
+          label: Text(loc.btnExport),
           onPressed: () => Navigator.of(context).pop(
             _DownloadOptions(
               includeCover: _includeCover,
