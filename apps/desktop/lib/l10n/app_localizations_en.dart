@@ -1232,6 +1232,185 @@ class AppLocalizationsEn extends AppLocalizations {
   String get btnRemove => 'Remove';
 
   @override
+  String get ovStatInStructures => 'In Book Structures';
+
+  @override
+  String get ovStatArchived => 'Archived';
+
+  @override
+  String ovSummary(int total, int inBlueprints, int unassigned) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other:
+          '$inBlueprints of $total documents in Book Structures · $unassigned not in Book Structures',
+      one:
+          '$inBlueprints of 1 document in Book Structures · $unassigned not in Book Structures',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ovRecentDocs => 'Recent Documents';
+
+  @override
+  String get ovViewAllDocs => 'View all Documents';
+
+  @override
+  String get ovNoDocs => 'No documents yet';
+
+  @override
+  String get colStatus => 'Status';
+
+  @override
+  String get colStructureSection => 'Book Structure / Section';
+
+  @override
+  String get ovNoStructures =>
+      'No Book Structures yet. Use one to structure this project.';
+
+  @override
+  String get pdtEmptyTitle => 'No documents in this project';
+
+  @override
+  String get pdtEmptyBody =>
+      'Use “Add to Project” from the Library to add documents here.';
+
+  @override
+  String get tipPlay => 'Play';
+
+  @override
+  String get pdtOpenInDesk => 'Open in Writing Desk';
+
+  @override
+  String get pdtRenameTitle => 'Rename Document';
+
+  @override
+  String pdtRenameError(String error) {
+    return 'Failed to rename: $error';
+  }
+
+  @override
+  String pdtLoadProjectsError(String error) {
+    return 'Failed to load projects: $error';
+  }
+
+  @override
+  String get pdtNoOtherProjects =>
+      'No other projects available. Create another project first.';
+
+  @override
+  String pdtMoveError(String error) {
+    return 'Failed to move document: $error';
+  }
+
+  @override
+  String pdtRemoveBody(String title, String project) {
+    return 'Remove “$title” from “$project”? The document will remain in your Library.';
+  }
+
+  @override
+  String pdtRemoveError(String error) {
+    return 'Failed to remove document: $error';
+  }
+
+  @override
+  String narrLoadError(String error) {
+    return 'Could not load the narrative: $error';
+  }
+
+  @override
+  String get narrFallbackName => 'Narrative';
+
+  @override
+  String get narrFollows => 'This book follows';
+
+  @override
+  String narrBeatsChosen(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count beats chosen. Change this in Blueprints → Narrative Structure.',
+      one: '1 beat chosen. Change this in Blueprints → Narrative Structure.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get narrYourBeats => 'YOUR BEATS';
+
+  @override
+  String get narrAnalyzeTitle => 'Analyze structure';
+
+  @override
+  String get narrAnalyzeDesc =>
+      'AI checks your writing against each beat · Present / Thin / Missing';
+
+  @override
+  String get narrSceneMapEmpty => 'Map each file to the beat it covers.';
+
+  @override
+  String narrScenesCovered(int covered, int total) {
+    return '$covered of $total beats covered · tap to map your scenes';
+  }
+
+  @override
+  String get narrEmptyBody =>
+      'This book doesn’t follow a narrative yet. Choose one in Blueprints → Narrative Structure and tap “Use this Structure” to attach it to this book — your Book Structure stays untouched.';
+
+  @override
+  String get rrActivity => 'Activity';
+
+  @override
+  String get rrAboutTitle => 'About this Project';
+
+  @override
+  String get rrLoadError => 'Could not load details';
+
+  @override
+  String get rrCreated => 'Created';
+
+  @override
+  String get rrLastUpdated => 'Last updated';
+
+  @override
+  String get rrTotalWords => 'Total words';
+
+  @override
+  String get rrOwner => 'Owner';
+
+  @override
+  String get rrOwnerYou => 'You';
+
+  @override
+  String get rrActionsTitle => 'Project Actions';
+
+  @override
+  String get rrRenameTitle => 'Rename Project';
+
+  @override
+  String rrCoverError(String error) {
+    return 'Failed to update cover: $error';
+  }
+
+  @override
+  String get rrDeleteTitle => 'Delete Project?';
+
+  @override
+  String rrDeleteBody(String name) {
+    return 'Delete “$name”? Documents will not be deleted, just removed from the project.';
+  }
+
+  @override
+  String rrDeleteError(String error) {
+    return 'Failed to delete project: $error';
+  }
+
+  @override
+  String get rrActivitySoon => 'Activity feed coming soon';
+
+  @override
   String get blueprintsSubtitle =>
       'Design the structure of your book, and the narrative structure.';
 

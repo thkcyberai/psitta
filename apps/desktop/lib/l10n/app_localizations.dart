@@ -2232,6 +2232,276 @@ abstract class AppLocalizations {
   /// **'Remove'**
   String get btnRemove;
 
+  /// No description provided for @ovStatInStructures.
+  ///
+  /// In en, this message translates to:
+  /// **'In Book Structures'**
+  String get ovStatInStructures;
+
+  /// No description provided for @ovStatArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Archived'**
+  String get ovStatArchived;
+
+  /// No description provided for @ovSummary.
+  ///
+  /// In en, this message translates to:
+  /// **'{total, plural, =1{{inBlueprints} of 1 document in Book Structures · {unassigned} not in Book Structures} other{{inBlueprints} of {total} documents in Book Structures · {unassigned} not in Book Structures}}'**
+  String ovSummary(int total, int inBlueprints, int unassigned);
+
+  /// No description provided for @ovRecentDocs.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent Documents'**
+  String get ovRecentDocs;
+
+  /// No description provided for @ovViewAllDocs.
+  ///
+  /// In en, this message translates to:
+  /// **'View all Documents'**
+  String get ovViewAllDocs;
+
+  /// No description provided for @ovNoDocs.
+  ///
+  /// In en, this message translates to:
+  /// **'No documents yet'**
+  String get ovNoDocs;
+
+  /// No description provided for @colStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get colStatus;
+
+  /// No description provided for @colStructureSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Book Structure / Section'**
+  String get colStructureSection;
+
+  /// No description provided for @ovNoStructures.
+  ///
+  /// In en, this message translates to:
+  /// **'No Book Structures yet. Use one to structure this project.'**
+  String get ovNoStructures;
+
+  /// No description provided for @pdtEmptyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'No documents in this project'**
+  String get pdtEmptyTitle;
+
+  /// No description provided for @pdtEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Use “Add to Project” from the Library to add documents here.'**
+  String get pdtEmptyBody;
+
+  /// No description provided for @tipPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get tipPlay;
+
+  /// No description provided for @pdtOpenInDesk.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in Writing Desk'**
+  String get pdtOpenInDesk;
+
+  /// No description provided for @pdtRenameTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename Document'**
+  String get pdtRenameTitle;
+
+  /// No description provided for @pdtRenameError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to rename: {error}'**
+  String pdtRenameError(String error);
+
+  /// No description provided for @pdtLoadProjectsError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load projects: {error}'**
+  String pdtLoadProjectsError(String error);
+
+  /// No description provided for @pdtNoOtherProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'No other projects available. Create another project first.'**
+  String get pdtNoOtherProjects;
+
+  /// No description provided for @pdtMoveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to move document: {error}'**
+  String pdtMoveError(String error);
+
+  /// No description provided for @pdtRemoveBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove “{title}” from “{project}”? The document will remain in your Library.'**
+  String pdtRemoveBody(String title, String project);
+
+  /// No description provided for @pdtRemoveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to remove document: {error}'**
+  String pdtRemoveError(String error);
+
+  /// No description provided for @narrLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load the narrative: {error}'**
+  String narrLoadError(String error);
+
+  /// No description provided for @narrFallbackName.
+  ///
+  /// In en, this message translates to:
+  /// **'Narrative'**
+  String get narrFallbackName;
+
+  /// No description provided for @narrFollows.
+  ///
+  /// In en, this message translates to:
+  /// **'This book follows'**
+  String get narrFollows;
+
+  /// No description provided for @narrBeatsChosen.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 beat chosen. Change this in Blueprints → Narrative Structure.} other{{count} beats chosen. Change this in Blueprints → Narrative Structure.}}'**
+  String narrBeatsChosen(int count);
+
+  /// No description provided for @narrYourBeats.
+  ///
+  /// In en, this message translates to:
+  /// **'YOUR BEATS'**
+  String get narrYourBeats;
+
+  /// No description provided for @narrAnalyzeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Analyze structure'**
+  String get narrAnalyzeTitle;
+
+  /// No description provided for @narrAnalyzeDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'AI checks your writing against each beat · Present / Thin / Missing'**
+  String get narrAnalyzeDesc;
+
+  /// No description provided for @narrSceneMapEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Map each file to the beat it covers.'**
+  String get narrSceneMapEmpty;
+
+  /// No description provided for @narrScenesCovered.
+  ///
+  /// In en, this message translates to:
+  /// **'{covered} of {total} beats covered · tap to map your scenes'**
+  String narrScenesCovered(int covered, int total);
+
+  /// No description provided for @narrEmptyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This book doesn’t follow a narrative yet. Choose one in Blueprints → Narrative Structure and tap “Use this Structure” to attach it to this book — your Book Structure stays untouched.'**
+  String get narrEmptyBody;
+
+  /// No description provided for @rrActivity.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity'**
+  String get rrActivity;
+
+  /// No description provided for @rrAboutTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'About this Project'**
+  String get rrAboutTitle;
+
+  /// No description provided for @rrLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load details'**
+  String get rrLoadError;
+
+  /// No description provided for @rrCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Created'**
+  String get rrCreated;
+
+  /// No description provided for @rrLastUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Last updated'**
+  String get rrLastUpdated;
+
+  /// No description provided for @rrTotalWords.
+  ///
+  /// In en, this message translates to:
+  /// **'Total words'**
+  String get rrTotalWords;
+
+  /// No description provided for @rrOwner.
+  ///
+  /// In en, this message translates to:
+  /// **'Owner'**
+  String get rrOwner;
+
+  /// No description provided for @rrOwnerYou.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get rrOwnerYou;
+
+  /// No description provided for @rrActionsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Project Actions'**
+  String get rrActionsTitle;
+
+  /// No description provided for @rrRenameTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename Project'**
+  String get rrRenameTitle;
+
+  /// No description provided for @rrCoverError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to update cover: {error}'**
+  String rrCoverError(String error);
+
+  /// No description provided for @rrDeleteTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Project?'**
+  String get rrDeleteTitle;
+
+  /// No description provided for @rrDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{name}”? Documents will not be deleted, just removed from the project.'**
+  String rrDeleteBody(String name);
+
+  /// No description provided for @rrDeleteError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to delete project: {error}'**
+  String rrDeleteError(String error);
+
+  /// No description provided for @rrActivitySoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Activity feed coming soon'**
+  String get rrActivitySoon;
+
   /// No description provided for @blueprintsSubtitle.
   ///
   /// In en, this message translates to:

@@ -206,6 +206,7 @@ class _RecentDocumentsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
     final sectionByDoc = <String, String>{
       for (final p in placements)
         p.documentId: '${p.blueprintName} / ${p.partName}',
@@ -217,21 +218,21 @@ class _RecentDocumentsSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Recent Documents',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                loc.ovRecentDocs,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             TextButton(
               onPressed: () => DefaultTabController.maybeOf(context)?.animateTo(1),
-              child: const Text('View all Documents'),
+              child: Text(loc.ovViewAllDocs),
             ),
           ],
         ),
         const SizedBox(height: 8),
         if (recent.isEmpty)
-          Text('No documents yet', style: TextStyle(color: muted))
+          Text(loc.ovNoDocs, style: TextStyle(color: muted))
         else
           Container(
             decoration: BoxDecoration(
@@ -246,7 +247,7 @@ class _RecentDocumentsSection extends StatelessWidget {
                   Divider(height: 1, color: tokens.divider),
                   _DocRow(
                     doc: doc,
-                    section: sectionByDoc[doc.id] ?? 'Unassigned',
+                    section: sectionByDoc[doc.id] ?? loc.bookTreeUnassigned,
                   ),
                 ],
               ],
@@ -272,6 +273,7 @@ class _DocRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
     final headerStyle = TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w700,
@@ -285,10 +287,10 @@ class _DocRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         child: Row(
           children: [
-            cell(3, Text('Title', style: headerStyle)),
-            cell(2, Text('Status', style: headerStyle)),
-            cell(3, Text('Book Structure / Section', style: headerStyle)),
-            cell(2, Text('Last edited', style: headerStyle)),
+            cell(3, Text(loc.titleLabel, style: headerStyle)),
+            cell(2, Text(loc.colStatus, style: headerStyle)),
+            cell(3, Text(loc.colStructureSection, style: headerStyle)),
+            cell(2, Text(loc.sortLastEdited, style: headerStyle)),
           ],
         ),
       );
@@ -340,6 +342,7 @@ class _BlueprintsSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
     final overview = overviewAsync.valueOrNull;
     final adoptedIds = overview == null
         ? <String>{}
@@ -350,16 +353,16 @@ class _BlueprintsSection extends ConsumerWidget {
       children: [
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
-                'Book Structures in this Project',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                loc.bpTabHeader,
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
               ),
             ),
             FilledButton.icon(
               key: const ValueKey('add-blueprint-to-project-button'),
               icon: const Icon(Icons.add, size: 18),
-              label: const Text('Use a Book Structure'),
+              label: Text(loc.bpTabUseStructure),
               onPressed: () => adoptBlueprintFlow(
                 context,
                 ref,
@@ -372,12 +375,12 @@ class _BlueprintsSection extends ConsumerWidget {
         const SizedBox(height: 12),
         overviewAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) => Text('Error: $e'),
+          error: (e, _) => Text(loc.bpTabError('$e')),
           data: (ov) {
             final blueprints = ov.blueprints;
             if (blueprints.isEmpty) {
               return Text(
-                'No Book Structures yet. Use one to structure this project.',
+                loc.ovNoStructures,
                 style: TextStyle(color: muted),
               );
             }

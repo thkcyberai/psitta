@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/providers/project_providers.dart';
 import '../../../data/providers/providers.dart';
+import '../../../l10n/app_localizations.dart';
 import '../project_cover_picker_dialog.dart';
 import 'project_activity_feed.dart';
 
@@ -32,7 +33,7 @@ class ProjectRightRail extends StatelessWidget {
         _ProjectActions(projectId: projectId, projectName: projectName),
         const SizedBox(height: 16),
         _RailCard(
-          title: 'Activity',
+          title: AppLocalizations.of(context).rrActivity,
           child: ProjectActivityFeed(projectId: projectId, compact: true),
         ),
       ],
@@ -78,25 +79,26 @@ class _AboutCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(projectDetailProvider(projectId));
+    final loc = AppLocalizations.of(context);
     return _RailCard(
-      title: 'About this Project',
+      title: loc.rrAboutTitle,
       child: async.when(
         loading: () => const Padding(
           padding: EdgeInsets.symmetric(vertical: 8),
           child: Center(child: CircularProgressIndicator()),
         ),
         error: (e, _) => Text(
-          'Could not load details',
+          loc.rrLoadError,
           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         data: (d) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Description deferred (no backend field yet).
-            _AboutRow(label: 'Created', value: _fmtDate(d.createdAt)),
-            _AboutRow(label: 'Last updated', value: _fmtDate(d.updatedAt)),
-            _AboutRow(label: 'Total words', value: '${d.totalWords}'),
-            const _AboutRow(label: 'Owner', value: 'You'),
+            _AboutRow(label: loc.rrCreated, value: _fmtDate(d.createdAt)),
+            _AboutRow(label: loc.rrLastUpdated, value: _fmtDate(d.updatedAt)),
+            _AboutRow(label: loc.rrTotalWords, value: '${d.totalWords}'),
+            _AboutRow(label: loc.rrOwner, value: loc.rrOwnerYou),
           ],
         ),
       ),
@@ -141,29 +143,30 @@ class _ProjectActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final error = Theme.of(context).colorScheme.error;
+    final loc = AppLocalizations.of(context);
     return _RailCard(
-      title: 'Project Actions',
+      title: loc.rrActionsTitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           OutlinedButton.icon(
             key: const ValueKey('project-rename-button'),
             icon: const Icon(Icons.edit_outlined, size: 18),
-            label: const Text('Rename'),
+            label: Text(loc.docMenuRename),
             onPressed: () => _rename(context, ref),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             key: const ValueKey('project-cover-button'),
             icon: const Icon(Icons.image_outlined, size: 18),
-            label: const Text('Change Cover'),
+            label: Text(loc.docMenuChangeCover),
             onPressed: () => _changeCover(context, ref),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             key: const ValueKey('project-delete-button'),
             icon: Icon(Icons.delete_outline, size: 18, color: error),
-            label: Text('Delete', style: TextStyle(color: error)),
+            label: Text(loc.docMenuDelete, style: TextStyle(color: error)),
             onPressed: () => _delete(context, ref),
           ),
         ],
@@ -172,11 +175,12 @@ class _ProjectActions extends ConsumerWidget {
   }
 
   Future<void> _rename(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final controller = TextEditingController(text: projectName);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Rename Project'),
+        title: Text(loc.rrRenameTitle),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -186,11 +190,11 @@ class _ProjectActions extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Rename'),
+            child: Text(loc.docMenuRename),
           ),
         ],
       ),
@@ -205,7 +209,7 @@ class _ProjectActions extends ConsumerWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to rename: $e')),
+            SnackBar(content: Text(loc.pdtRenameError('$e'))),
           );
         }
       }
@@ -229,32 +233,30 @@ class _ProjectActions extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update cover: $e')),
+          SnackBar(content: Text(AppLocalizations.of(context).rrCoverError('$e'))),
         );
       }
     }
   }
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Project?'),
-        content: Text(
-          'Delete "$projectName"? Documents will not be deleted, just removed '
-          'from the project.',
-        ),
+        title: Text(loc.rrDeleteTitle),
+        content: Text(loc.rrDeleteBody(projectName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+            child: Text(loc.docMenuDelete),
           ),
         ],
       ),
@@ -267,7 +269,7 @@ class _ProjectActions extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to delete project: $e')),
+          SnackBar(content: Text(loc.rrDeleteError('$e'))),
         );
       }
     }
@@ -289,7 +291,7 @@ class ProjectActivityComingSoon extends StatelessWidget {
         Icon(Icons.history_outlined, size: 28, color: muted),
         const SizedBox(height: 8),
         Text(
-          'Activity feed coming soon',
+          AppLocalizations.of(context).rrActivitySoon,
           style: TextStyle(fontSize: 12, color: muted),
         ),
       ],

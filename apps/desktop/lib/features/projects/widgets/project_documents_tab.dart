@@ -8,6 +8,7 @@ import '../../../data/providers/project_providers.dart';
 import '../../../data/providers/providers.dart';
 import '../../../data/providers/document_actions.dart';
 import '../../../data/repositories/project_repository.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../../widgets/document_cover.dart';
 import '../../shell/widgets/player_bar.dart';
 
@@ -29,13 +30,15 @@ class ProjectDocumentsTab extends ConsumerWidget {
     final docsAsync = ref.watch(projectDocumentsProvider(projectId));
     return docsAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error: $e')),
+      error: (e, _) =>
+          Center(child: Text(AppLocalizations.of(context).bpTabError('$e'))),
       data: (docs) =>
           docs.isEmpty ? _buildEmptyState(context) : _buildDocList(context, ref, docs),
     );
   }
 
   Widget _buildEmptyState(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -43,10 +46,10 @@ class ProjectDocumentsTab extends ConsumerWidget {
           Icon(Icons.folder_open_outlined,
               size: 64, color: Theme.of(context).colorScheme.outline),
           const SizedBox(height: 16),
-          const Text('No documents in this project'),
+          Text(loc.pdtEmptyTitle),
           const SizedBox(height: 8),
           Text(
-            'Use "Add to Project" from the Library to add documents here.',
+            loc.pdtEmptyBody,
             style: TextStyle(color: Theme.of(context).colorScheme.outline),
             textAlign: TextAlign.center,
           ),
@@ -75,7 +78,7 @@ class ProjectDocumentsTab extends ConsumerWidget {
               ),
               IconButton(
                 icon: const Icon(Icons.play_circle_outline),
-                tooltip: 'Play',
+                tooltip: AppLocalizations.of(context).tipPlay,
                 onPressed: () => _openInPlayer(context, ref, doc),
               ),
             ],
@@ -144,9 +147,10 @@ class _DocContextMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final error = Theme.of(context).colorScheme.error;
+    final loc = AppLocalizations.of(context);
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert, size: 18),
-      tooltip: 'More options',
+      tooltip: loc.tipMore,
       onSelected: (value) async {
         switch (value) {
           case 'open_desk':
@@ -164,29 +168,29 @@ class _DocContextMenu extends ConsumerWidget {
         }
       },
       itemBuilder: (_) => [
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'open_desk',
           child: Row(children: [
-            Icon(Icons.edit_note_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Open in Writing Desk'),
+            const Icon(Icons.edit_note_outlined, size: 18),
+            const SizedBox(width: 8),
+            Text(loc.pdtOpenInDesk),
           ]),
         ),
         const PopupMenuDivider(),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'rename',
           child: Row(children: [
-            Icon(Icons.edit_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Rename'),
+            const Icon(Icons.edit_outlined, size: 18),
+            const SizedBox(width: 8),
+            Text(loc.docMenuRename),
           ]),
         ),
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'move',
           child: Row(children: [
-            Icon(Icons.drive_file_move_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Move to Project'),
+            const Icon(Icons.drive_file_move_outlined, size: 18),
+            const SizedBox(width: 8),
+            Text(loc.docMenuMoveToProject),
           ]),
         ),
         const PopupMenuDivider(),
@@ -195,7 +199,7 @@ class _DocContextMenu extends ConsumerWidget {
           child: Row(children: [
             Icon(Icons.delete_outlined, size: 18, color: error),
             const SizedBox(width: 8),
-            Text('Remove', style: TextStyle(color: error)),
+            Text(loc.btnRemove, style: TextStyle(color: error)),
           ]),
         ),
       ],
@@ -207,11 +211,12 @@ class _DocContextMenu extends ConsumerWidget {
   }
 
   Future<void> _showRenameDialog(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final controller = TextEditingController(text: doc.title);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Rename Document'),
+        title: Text(loc.pdtRenameTitle),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -221,11 +226,11 @@ class _DocContextMenu extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Rename'),
+            child: Text(loc.docMenuRename),
           ),
         ],
       ),
@@ -237,7 +242,7 @@ class _DocContextMenu extends ConsumerWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to rename: $e')),
+            SnackBar(content: Text(loc.pdtRenameError('$e'))),
           );
         }
       }
@@ -246,6 +251,7 @@ class _DocContextMenu extends ConsumerWidget {
   }
 
   Future<void> _showMoveDialog(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     List<Project> allProjects;
     try {
       final repo = ref.read(projectRepositoryProvider);
@@ -253,7 +259,7 @@ class _DocContextMenu extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load projects: $e')),
+          SnackBar(content: Text(loc.pdtLoadProjectsError('$e'))),
         );
       }
       return;
@@ -263,10 +269,7 @@ class _DocContextMenu extends ConsumerWidget {
     if (otherProjects.isEmpty) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'No other projects available. Create another project first.'),
-          ),
+          SnackBar(content: Text(loc.pdtNoOtherProjects)),
         );
       }
       return;
@@ -277,7 +280,7 @@ class _DocContextMenu extends ConsumerWidget {
     final targetProject = await showDialog<Project>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Move to Project'),
+        title: Text(loc.docMenuMoveToProject),
         content: SizedBox(
           width: 340,
           child: ListView.builder(
@@ -288,9 +291,7 @@ class _DocContextMenu extends ConsumerWidget {
               return ListTile(
                 leading: const Icon(Icons.folder_outlined),
                 title: Text(p.name),
-                subtitle: Text(
-                  '${p.documentCount} document${p.documentCount == 1 ? '' : 's'}',
-                ),
+                subtitle: Text(loc.storageDocs(p.documentCount)),
                 onTap: () => Navigator.of(ctx).pop(p),
               );
             },
@@ -299,7 +300,7 @@ class _DocContextMenu extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
         ],
       ),
@@ -314,32 +315,30 @@ class _DocContextMenu extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to move document: $e')),
+          SnackBar(content: Text(loc.pdtMoveError('$e'))),
         );
       }
     }
   }
 
   Future<void> _confirmRemove(BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Remove from Project'),
-        content: Text(
-          "Remove '${doc.title}' from '$projectName'? "
-          'The document will remain in your Library.',
-        ),
+        title: Text(loc.docMenuRemoveFromProject),
+        content: Text(loc.pdtRemoveBody(doc.title, projectName)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
               backgroundColor: Theme.of(ctx).colorScheme.error,
             ),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Remove'),
+            child: Text(loc.btnRemove),
           ),
         ],
       ),
@@ -352,7 +351,7 @@ class _DocContextMenu extends ConsumerWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to remove document: $e')),
+            SnackBar(content: Text(loc.pdtRemoveError('$e'))),
           );
         }
       }

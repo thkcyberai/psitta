@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/psitta_tokens.dart';
 import '../../../data/models/document.dart';
 import '../../../data/providers/project_providers.dart';
+import '../../../l10n/app_localizations.dart';
 import '../../blueprints/narrative_structures.dart';
 import 'progress_tracker.dart';
 import 'scene_map_dialog.dart';
@@ -26,7 +27,8 @@ class ProjectNarrativeTab extends ConsumerWidget {
     final detail = ref.watch(projectDetailProvider(projectId));
     return detail.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Could not load the narrative: $e')),
+      error: (e, _) => Center(
+          child: Text(AppLocalizations.of(context).narrLoadError('$e'))),
       data: (p) {
         final hasNarrative =
             p.narrativeVariant != null || p.narrativeStructureKey != null;
@@ -44,8 +46,8 @@ class ProjectNarrativeTab extends ConsumerWidget {
 
 /// Map a stored catalog key back to its display name (e.g. 'hero_s_journey' →
 /// "Hero's Journey"); falls back to a prettified slug if not found.
-String _structureDisplayName(String? key) {
-  if (key == null || key.isEmpty) return 'Narrative';
+String _structureDisplayName(AppLocalizations loc, String? key) {
+  if (key == null || key.isEmpty) return loc.narrFallbackName;
   for (final s in kNarrativeStructures) {
     if (s.key == key) return s.name;
   }
@@ -73,7 +75,8 @@ class _NarrativeView extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
-    final name = _structureDisplayName(structureKey);
+    final loc = AppLocalizations.of(context);
+    final name = _structureDisplayName(loc, structureKey);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(28, 22, 28, 24),
@@ -82,7 +85,7 @@ class _NarrativeView extends StatelessWidget {
           children: [
             Icon(Icons.auto_stories_outlined, size: 22, color: tokens.glow),
             const SizedBox(width: 10),
-            Text('This book follows',
+            Text(loc.narrFollows,
                 style: TextStyle(
                     fontSize: 13, color: scheme.onSurfaceVariant)),
           ],
@@ -114,8 +117,7 @@ class _NarrativeView extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          '${beats.length} beats chosen. Change this in Blueprints → Narrative '
-          'Structure.',
+          loc.narrBeatsChosen(beats.length),
           style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 14),
@@ -123,7 +125,7 @@ class _NarrativeView extends StatelessWidget {
         const SizedBox(height: 18),
         Divider(height: 1, color: tokens.divider),
         const SizedBox(height: 14),
-        Text('YOUR BEATS',
+        Text(loc.narrYourBeats,
             style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w800,
@@ -152,6 +154,7 @@ class _AnalyzeButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return InkWell(
       onTap: () => showStructureAnalyzer(context, projectId: projectId),
       borderRadius: BorderRadius.circular(12),
@@ -170,13 +173,12 @@ class _AnalyzeButton extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Analyze structure',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  Text(loc.narrAnalyzeTitle,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
                   Text(
-                    'AI checks your writing against each beat · Present / Thin / '
-                    'Missing',
+                    loc.narrAnalyzeDesc,
                     style:
                         TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
@@ -203,6 +205,7 @@ class _MapScenesButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     final docs = ref.watch(projectDocumentsProvider(projectId)).valueOrNull;
     final covered = docs == null
         ? null
@@ -226,15 +229,14 @@ class _MapScenesButton extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Scene Map',
-                      style:
-                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                  Text(loc.sceneMapTitle,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 2),
                   Text(
                     covered == null
-                        ? 'Map each file to the beat it covers.'
-                        : '$covered of ${beats.length} beats covered · '
-                            'tap to map your scenes',
+                        ? loc.narrSceneMapEmpty
+                        : loc.narrScenesCovered(covered, beats.length),
                     style:
                         TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                   ),
@@ -340,7 +342,7 @@ class _BeatRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 36, top: 4),
               child: Tooltip(
-                message: 'Open in the Writing Desk',
+                message: AppLocalizations.of(context).pdtOpenInDesk,
                 child: InkWell(
                   onTap: () => context
                       .go('/writing-desk/${f.id}?projectId=$projectId'),
@@ -384,6 +386,7 @@ class _NarrativeEmpty extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
+    final loc = AppLocalizations.of(context);
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 460),
@@ -394,13 +397,12 @@ class _NarrativeEmpty extends StatelessWidget {
             children: [
               Icon(Icons.auto_stories_outlined, size: 40, color: tokens.glow),
               const SizedBox(height: 14),
-              const Text('Narrative Structure',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              Text(loc.tabNarrativeStructure,
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
               Text(
-                'This book doesn\'t follow a narrative yet. Choose one in '
-                'Blueprints → Narrative Structure and tap "Use this Structure" '
-                'to attach it to this book — your Book Structure stays untouched.',
+                loc.narrEmptyBody,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 13, height: 1.5, color: scheme.onSurfaceVariant),

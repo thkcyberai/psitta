@@ -1240,6 +1240,186 @@ class AppLocalizationsFr extends AppLocalizations {
   String get btnRemove => 'Retirer';
 
   @override
+  String get ovStatInStructures => 'Dans des Structures de Livre';
+
+  @override
+  String get ovStatArchived => 'Archivés';
+
+  @override
+  String ovSummary(int total, int inBlueprints, int unassigned) {
+    String _temp0 = intl.Intl.pluralLogic(
+      total,
+      locale: localeName,
+      other:
+          '$inBlueprints documents sur $total dans des Structures de Livre · $unassigned hors Structures de Livre',
+      one:
+          '$inBlueprints document sur 1 dans des Structures de Livre · $unassigned hors Structures de Livre',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get ovRecentDocs => 'Documents récents';
+
+  @override
+  String get ovViewAllDocs => 'Voir tous les documents';
+
+  @override
+  String get ovNoDocs => 'Aucun document pour l’instant';
+
+  @override
+  String get colStatus => 'Statut';
+
+  @override
+  String get colStructureSection => 'Structure de Livre / Section';
+
+  @override
+  String get ovNoStructures =>
+      'Aucune Structure de Livre pour l’instant. Utilisez-en une pour structurer ce projet.';
+
+  @override
+  String get pdtEmptyTitle => 'Aucun document dans ce projet';
+
+  @override
+  String get pdtEmptyBody =>
+      'Utilisez « Ajouter au projet » depuis la Bibliothèque pour ajouter des documents ici.';
+
+  @override
+  String get tipPlay => 'Lire';
+
+  @override
+  String get pdtOpenInDesk => 'Ouvrir dans le Bureau d’écriture';
+
+  @override
+  String get pdtRenameTitle => 'Renommer le document';
+
+  @override
+  String pdtRenameError(String error) {
+    return 'Échec du renommage : $error';
+  }
+
+  @override
+  String pdtLoadProjectsError(String error) {
+    return 'Échec du chargement des projets : $error';
+  }
+
+  @override
+  String get pdtNoOtherProjects =>
+      'Aucun autre projet disponible. Créez d’abord un autre projet.';
+
+  @override
+  String pdtMoveError(String error) {
+    return 'Échec du déplacement du document : $error';
+  }
+
+  @override
+  String pdtRemoveBody(String title, String project) {
+    return 'Retirer « $title » de « $project » ? Le document restera dans votre Bibliothèque.';
+  }
+
+  @override
+  String pdtRemoveError(String error) {
+    return 'Échec de la suppression du document : $error';
+  }
+
+  @override
+  String narrLoadError(String error) {
+    return 'Impossible de charger le récit : $error';
+  }
+
+  @override
+  String get narrFallbackName => 'Récit';
+
+  @override
+  String get narrFollows => 'Ce livre suit';
+
+  @override
+  String narrBeatsChosen(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other:
+          '$count beats choisis. Modifiez-le dans Blueprints → Structure narrative.',
+      one: '1 beat choisi. Modifiez-le dans Blueprints → Structure narrative.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get narrYourBeats => 'VOS BEATS';
+
+  @override
+  String get narrAnalyzeTitle => 'Analyser la structure';
+
+  @override
+  String get narrAnalyzeDesc =>
+      'L’IA vérifie votre écriture pour chaque beat · Présent / Faible / Absent';
+
+  @override
+  String get narrSceneMapEmpty =>
+      'Associez chaque fichier au beat qu’il couvre.';
+
+  @override
+  String narrScenesCovered(int covered, int total) {
+    return '$covered beats couverts sur $total · touchez pour mapper vos scènes';
+  }
+
+  @override
+  String get narrEmptyBody =>
+      'Ce livre ne suit pas encore de récit. Choisissez-en un dans Blueprints → Structure narrative et touchez « Utiliser cette Structure » pour l’attacher à ce livre — votre Structure de Livre reste intacte.';
+
+  @override
+  String get rrActivity => 'Activité';
+
+  @override
+  String get rrAboutTitle => 'À propos de ce projet';
+
+  @override
+  String get rrLoadError => 'Impossible de charger les détails';
+
+  @override
+  String get rrCreated => 'Créé';
+
+  @override
+  String get rrLastUpdated => 'Dernière mise à jour';
+
+  @override
+  String get rrTotalWords => 'Total de mots';
+
+  @override
+  String get rrOwner => 'Propriétaire';
+
+  @override
+  String get rrOwnerYou => 'Vous';
+
+  @override
+  String get rrActionsTitle => 'Actions du projet';
+
+  @override
+  String get rrRenameTitle => 'Renommer le projet';
+
+  @override
+  String rrCoverError(String error) {
+    return 'Échec de la mise à jour de la couverture : $error';
+  }
+
+  @override
+  String get rrDeleteTitle => 'Supprimer le projet ?';
+
+  @override
+  String rrDeleteBody(String name) {
+    return 'Supprimer « $name » ? Les documents ne seront pas supprimés, seulement retirés du projet.';
+  }
+
+  @override
+  String rrDeleteError(String error) {
+    return 'Échec de la suppression du projet : $error';
+  }
+
+  @override
+  String get rrActivitySoon => 'Fil d’activité bientôt disponible';
+
+  @override
   String get blueprintsSubtitle =>
       'Concevez la structure de votre livre et la structure narrative.';
 
