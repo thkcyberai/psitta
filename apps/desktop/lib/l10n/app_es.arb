@@ -385,6 +385,7 @@
   "narrSceneMapEmpty": "Asigna cada archivo al beat que cubre.",
   "narrScenesCovered": "{covered} de {total} beats cubiertos · toca para mapear tus escenas",
   "narrEmptyBody": "Este libro aún no sigue una narrativa. Elige una en Blueprints → Estructura Narrativa y toca “Usar esta Estructura” para adjuntarla a este libro — tu Estructura de Libro no se modifica.",
+  "narrChooseNarrative": "Elegir una Estructura Narrativa",
   "rrActivity": "Actividad",
   "rrAboutTitle": "Acerca de este Proyecto",
   "rrLoadError": "No se pudieron cargar los detalles",

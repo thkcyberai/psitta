@@ -136,6 +136,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   return ProjectDetailScreen(
                     projectId: projectId,
                     projectName: projectName,
+                    initialTab: state.uri.queryParameters['tab'],
                   );
                 },
               ),
@@ -143,8 +144,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: '/blueprints',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: BlueprintsScreen(),
+            pageBuilder: (context, state) => NoTransitionPage(
+              child: BlueprintsScreen(
+                initialTab: state.uri.queryParameters['tab'],
+              ),
             ),
           ),
           GoRoute(

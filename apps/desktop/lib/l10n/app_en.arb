@@ -486,6 +486,7 @@
   "narrScenesCovered": "{covered} of {total} beats covered · tap to map your scenes",
   "@narrScenesCovered": {"placeholders": {"covered": {"type": "int"}, "total": {"type": "int"}}},
   "narrEmptyBody": "This book doesn’t follow a narrative yet. Choose one in Blueprints → Narrative Structure and tap “Use this Structure” to attach it to this book — your Book Structure stays untouched.",
+  "narrChooseNarrative": "Choose a Narrative Structure",
   "rrActivity": "Activity",
   "rrAboutTitle": "About this Project",
   "rrLoadError": "Could not load details",

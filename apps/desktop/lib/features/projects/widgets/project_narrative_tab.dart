@@ -407,6 +407,13 @@ class _NarrativeEmpty extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 13, height: 1.5, color: scheme.onSurfaceVariant),
               ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                key: const ValueKey('project-narrative-choose'),
+                onPressed: () => context.go('/blueprints?tab=narrative'),
+                icon: const Icon(Icons.add, size: 18),
+                label: Text(loc.narrChooseNarrative),
+              ),
             ],
           ),
         ),

@@ -23,10 +23,24 @@ class ProjectDetailScreen extends ConsumerWidget {
     super.key,
     required this.projectId,
     required this.projectName,
+    this.initialTab,
   });
 
   final String projectId;
   final String projectName;
+
+  /// Optional deep-link tab: 'documents' | 'book' | 'narrative' | 'activity';
+  /// anything else (or null) opens Overview. Lets callers (e.g. the Writing
+  /// Desk "Narrativa" placement row) land straight on a specific tab.
+  final String? initialTab;
+
+  int get _initialIndex => switch (initialTab) {
+        'documents' => 1,
+        'book' => 2,
+        'narrative' => 3,
+        'activity' => 4,
+        _ => 0,
+      };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -35,6 +49,7 @@ class ProjectDetailScreen extends ConsumerWidget {
 
     return DefaultTabController(
       length: 5,
+      initialIndex: _initialIndex,
       child: Scaffold(
         backgroundColor: Colors.transparent,
         body: Column(

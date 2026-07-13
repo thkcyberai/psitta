@@ -22,7 +22,19 @@ import 'widgets/section_detail_pane.dart';
 /// "Section" is the user-facing term for a tree node; the code keeps the data
 /// layer's "part" terminology throughout.
 class BlueprintsScreen extends ConsumerWidget {
-  const BlueprintsScreen({super.key});
+  const BlueprintsScreen({super.key, this.initialTab});
+
+  /// Optional deep-link tab: 'narrative' or 'diagram'; anything else (or
+  /// null) opens the default Book Structure tab. Used by the project
+  /// Narrative empty-state CTA to land the writer straight on Narrative
+  /// Structure.
+  final String? initialTab;
+
+  int get _initialIndex => switch (initialTab) {
+        'narrative' => 1,
+        'diagram' => 2,
+        _ => 0,
+      };
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -32,6 +44,7 @@ class BlueprintsScreen extends ConsumerWidget {
 
     return DefaultTabController(
       length: 3,
+      initialIndex: _initialIndex,
       child: Container(
       color: tokens.surface,
       child: Column(

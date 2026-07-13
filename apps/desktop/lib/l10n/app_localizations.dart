@@ -2412,6 +2412,12 @@ abstract class AppLocalizations {
   /// **'This book doesn’t follow a narrative yet. Choose one in Blueprints → Narrative Structure and tap “Use this Structure” to attach it to this book — your Book Structure stays untouched.'**
   String get narrEmptyBody;
 
+  /// No description provided for @narrChooseNarrative.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a Narrative Structure'**
+  String get narrChooseNarrative;
+
   /// No description provided for @rrActivity.
   ///
   /// In en, this message translates to:

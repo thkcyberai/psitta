@@ -1365,6 +1365,9 @@ class AppLocalizationsPt extends AppLocalizations {
       'Este livro ainda não segue uma narrativa. Escolha uma em Blueprints → Estrutura Narrativa e toque em “Usar esta Estrutura” para anexá-la a este livro — sua Estrutura de Livro permanece intacta.';
 
   @override
+  String get narrChooseNarrative => 'Escolher uma Estrutura Narrativa';
+
+  @override
   String get rrActivity => 'Atividade';
 
   @override

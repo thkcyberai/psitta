@@ -240,7 +240,13 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
             concept: DeskConcept.narrative,
             value: narrative,
             valueKey: const ValueKey('desk-placement-narrative'),
-            onTap: () => context.go('/projects/${widget.projectId}'),
+            onTap: () {
+              final pn = projectName;
+              context.go(pn != null
+                  ? '/projects/${widget.projectId}'
+                      '?projectName=${Uri.encodeComponent(pn)}&tab=narrative'
+                  : '/projects/${widget.projectId}?tab=narrative');
+            },
           ),
           _BeatRow(
             projectId: widget.projectId,
@@ -367,7 +373,15 @@ class _UnplacedContextCard extends ConsumerWidget {
                 ? _narrativeLabel(
                     loc, detail?.narrativeStructureKey, detail?.narrativeVariant)
                 : loc.notInProject,
-            onTap: inProject ? () => context.go('/projects/$pid') : null,
+            onTap: inProject
+                ? () {
+                    final pn = projectName;
+                    context.go(pn != null
+                        ? '/projects/$pid'
+                            '?projectName=${Uri.encodeComponent(pn)}&tab=narrative'
+                        : '/projects/$pid?tab=narrative');
+                  }
+                : null,
           ),
           if (pid != null)
             _BeatRow(projectId: pid, documentId: documentId),

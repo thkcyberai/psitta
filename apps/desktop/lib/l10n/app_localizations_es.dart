@@ -1364,6 +1364,9 @@ class AppLocalizationsEs extends AppLocalizations {
       'Este libro aún no sigue una narrativa. Elige una en Blueprints → Estructura Narrativa y toca “Usar esta Estructura” para adjuntarla a este libro — tu Estructura de Libro no se modifica.';
 
   @override
+  String get narrChooseNarrative => 'Elegir una Estructura Narrativa';
+
+  @override
   String get rrActivity => 'Actividad';
 
   @override
