@@ -20,9 +20,13 @@ Future<ProjectCoverResult?> showProjectCoverPickerDialog({
   required String projectId,
   String? currentCoverDocumentId,
 }) async {
-  // Fetch project documents
+  // Fetch project documents. Invalidate first so a cover just changed in the
+  // Library (which saves to the backend but doesn't refresh this cached
+  // family) is reflected in the SAME session. Without this the picker showed
+  // "no documents with covers" until a re-login forced a refetch.
   List<Document> docs;
   try {
+    ref.invalidate(projectDocumentsProvider(projectId));
     final docsData = await ref.read(projectDocumentsProvider(projectId).future);
     docs = docsData;
   } catch (_) {
