@@ -698,6 +698,21 @@ class AppLocalizationsFr extends AppLocalizations {
   String get docMenuRemoveFromProject => 'Retirer du projet';
 
   @override
+  String get docMenuRead => 'Lire';
+
+  @override
+  String get docMenuDuplicate => 'Dupliquer';
+
+  @override
+  String get docMenuDetails => 'Détails';
+
+  @override
+  String get docMenuArchive => 'Archiver';
+
+  @override
+  String get docMenuDelete => 'Supprimer';
+
+  @override
   String get btnClose => 'Fermer';
 
   @override
@@ -921,6 +936,153 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get libReady => 'Prêt';
+
+  @override
+  String wlCreateError(String error) {
+    return 'Échec de la création : $error';
+  }
+
+  @override
+  String wlLoadError(String error) {
+    return 'Échec du chargement : $error';
+  }
+
+  @override
+  String get wlCoverUpdateError => 'Impossible de mettre à jour la couverture.';
+
+  @override
+  String get wlRenameFileTitle => 'Renommer le fichier';
+
+  @override
+  String get wlRenameError => 'Impossible de renommer le fichier.';
+
+  @override
+  String get wlArchived => 'Document archivé.';
+
+  @override
+  String get wlArchiveError => 'Impossible d’archiver le document.';
+
+  @override
+  String get wlTrashConfirmTitle => 'Déplacer vers la corbeille ?';
+
+  @override
+  String get wlMoveToTrash => 'Déplacer vers la corbeille';
+
+  @override
+  String get wlMovedToTrash => 'Déplacé vers la corbeille.';
+
+  @override
+  String get wlNoneRemoveProject => 'Aucun (retirer du projet)';
+
+  @override
+  String get wlProjectUpdateError => 'Impossible de mettre à jour le projet.';
+
+  @override
+  String get wlSaveAs => 'Enregistrer sous';
+
+  @override
+  String wlSaveError(String detail) {
+    return 'Impossible d’enregistrer le document — $detail';
+  }
+
+  @override
+  String get wlFmtWord => 'Document Word';
+
+  @override
+  String get wlFmtPlainText => 'Texte brut';
+
+  @override
+  String get wlFmtEpub => 'Livre EPUB';
+
+  @override
+  String get wlOriginal => '(original)';
+
+  @override
+  String wlDuplicated(String title) {
+    return '« $title » dupliqué';
+  }
+
+  @override
+  String get wlDuplicateError => 'Impossible de dupliquer le document.';
+
+  @override
+  String get wlAddQuote => 'Ajoutez votre citation';
+
+  @override
+  String get wlYourProfile => 'Votre profil';
+
+  @override
+  String get wlMyWritingNook => 'Mon Writing Nook';
+
+  @override
+  String get wlProjectFallback => 'Projet';
+
+  @override
+  String get wlImageTooLarge => 'Cette image est trop grande (max. 20 Mo).';
+
+  @override
+  String get wlPhotoUpdated => 'Photo de profil mise à jour.';
+
+  @override
+  String get wlPhotoError => 'Impossible de mettre à jour votre photo.';
+
+  @override
+  String get wlYourQuote => 'Votre citation';
+
+  @override
+  String get wlQuoteHint => 'Une phrase qui inspire votre écriture…';
+
+  @override
+  String get wlQuoteSaveError => 'Impossible d’enregistrer votre citation.';
+
+  @override
+  String get wlYourName => 'Votre nom';
+
+  @override
+  String get wlNameHint => 'Comment votre nom apparaît dans Psitta';
+
+  @override
+  String get wlNameSaveError => 'Impossible d’enregistrer votre nom.';
+
+  @override
+  String wlUploadError(String name) {
+    return 'Échec de l’envoi : $name';
+  }
+
+  @override
+  String get wlSaveAsMenu => 'Enregistrer sous…';
+
+  @override
+  String get wlDetailType => 'Type';
+
+  @override
+  String get wlDetailWordCount => 'Nombre de mots';
+
+  @override
+  String get wlDetailPages => 'Pages';
+
+  @override
+  String get wlDetailFirstUploaded => 'Importé le';
+
+  @override
+  String get wlDetailLastChanged => 'Dernière modification';
+
+  @override
+  String get wlCoverImageTooLarge =>
+      'Cette image est trop grande. Utilisez une image de moins de 20 Mo.';
+
+  @override
+  String get wlCoverUnsupportedType =>
+      'Type d’image non pris en charge. Utilisez JPEG, PNG ou GIF.';
+
+  @override
+  String get wlCoverUpdateRetry =>
+      'Impossible de mettre à jour la couverture. Réessayez.';
+
+  @override
+  String wlTrashConfirmBody(String title) {
+    return '« $title » sera déplacé vers la corbeille. Vous pourrez le restaurer plus tard.';
+  }
 
   @override
   String get blueprintsSubtitle =>

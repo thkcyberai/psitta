@@ -1320,6 +1320,36 @@ abstract class AppLocalizations {
   /// **'Remove from Project'**
   String get docMenuRemoveFromProject;
 
+  /// No description provided for @docMenuRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Read'**
+  String get docMenuRead;
+
+  /// No description provided for @docMenuDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicate'**
+  String get docMenuDuplicate;
+
+  /// No description provided for @docMenuDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'Details'**
+  String get docMenuDetails;
+
+  /// No description provided for @docMenuArchive.
+  ///
+  /// In en, this message translates to:
+  /// **'Archive'**
+  String get docMenuArchive;
+
+  /// No description provided for @docMenuDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get docMenuDelete;
+
   /// No description provided for @btnClose.
   ///
   /// In en, this message translates to:
@@ -1691,6 +1721,270 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ready'**
   String get libReady;
+
+  /// No description provided for @wlCreateError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to create: {error}'**
+  String wlCreateError(String error);
+
+  /// No description provided for @wlLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load: {error}'**
+  String wlLoadError(String error);
+
+  /// No description provided for @wlCoverUpdateError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t update the cover.'**
+  String get wlCoverUpdateError;
+
+  /// No description provided for @wlRenameFileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename file'**
+  String get wlRenameFileTitle;
+
+  /// No description provided for @wlRenameError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t rename the file.'**
+  String get wlRenameError;
+
+  /// No description provided for @wlArchived.
+  ///
+  /// In en, this message translates to:
+  /// **'Document archived.'**
+  String get wlArchived;
+
+  /// No description provided for @wlArchiveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t archive the document.'**
+  String get wlArchiveError;
+
+  /// No description provided for @wlTrashConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Trash?'**
+  String get wlTrashConfirmTitle;
+
+  /// No description provided for @wlMoveToTrash.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to Trash'**
+  String get wlMoveToTrash;
+
+  /// No description provided for @wlMovedToTrash.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved to Trash.'**
+  String get wlMovedToTrash;
+
+  /// No description provided for @wlNoneRemoveProject.
+  ///
+  /// In en, this message translates to:
+  /// **'None (remove from project)'**
+  String get wlNoneRemoveProject;
+
+  /// No description provided for @wlProjectUpdateError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t update the project.'**
+  String get wlProjectUpdateError;
+
+  /// No description provided for @wlSaveAs.
+  ///
+  /// In en, this message translates to:
+  /// **'Save As'**
+  String get wlSaveAs;
+
+  /// No description provided for @wlSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t save the document — {detail}'**
+  String wlSaveError(String detail);
+
+  /// No description provided for @wlFmtWord.
+  ///
+  /// In en, this message translates to:
+  /// **'Word document'**
+  String get wlFmtWord;
+
+  /// No description provided for @wlFmtPlainText.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain text'**
+  String get wlFmtPlainText;
+
+  /// No description provided for @wlFmtEpub.
+  ///
+  /// In en, this message translates to:
+  /// **'EPUB ebook'**
+  String get wlFmtEpub;
+
+  /// No description provided for @wlOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'(original)'**
+  String get wlOriginal;
+
+  /// No description provided for @wlDuplicated.
+  ///
+  /// In en, this message translates to:
+  /// **'Duplicated “{title}”'**
+  String wlDuplicated(String title);
+
+  /// No description provided for @wlDuplicateError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t duplicate the document.'**
+  String get wlDuplicateError;
+
+  /// No description provided for @wlAddQuote.
+  ///
+  /// In en, this message translates to:
+  /// **'Add your quote'**
+  String get wlAddQuote;
+
+  /// No description provided for @wlYourProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Profile'**
+  String get wlYourProfile;
+
+  /// No description provided for @wlMyWritingNook.
+  ///
+  /// In en, this message translates to:
+  /// **'My Writing Nook'**
+  String get wlMyWritingNook;
+
+  /// No description provided for @wlProjectFallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Project'**
+  String get wlProjectFallback;
+
+  /// No description provided for @wlImageTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'That image is too large (max 20 MB).'**
+  String get wlImageTooLarge;
+
+  /// No description provided for @wlPhotoUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile photo updated.'**
+  String get wlPhotoUpdated;
+
+  /// No description provided for @wlPhotoError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t update your photo.'**
+  String get wlPhotoError;
+
+  /// No description provided for @wlYourQuote.
+  ///
+  /// In en, this message translates to:
+  /// **'Your quote'**
+  String get wlYourQuote;
+
+  /// No description provided for @wlQuoteHint.
+  ///
+  /// In en, this message translates to:
+  /// **'A line that inspires your writing…'**
+  String get wlQuoteHint;
+
+  /// No description provided for @wlQuoteSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t save your quote.'**
+  String get wlQuoteSaveError;
+
+  /// No description provided for @wlYourName.
+  ///
+  /// In en, this message translates to:
+  /// **'Your name'**
+  String get wlYourName;
+
+  /// No description provided for @wlNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'How your name appears in Psitta'**
+  String get wlNameHint;
+
+  /// No description provided for @wlNameSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t save your name.'**
+  String get wlNameSaveError;
+
+  /// No description provided for @wlUploadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Upload failed: {name}'**
+  String wlUploadError(String name);
+
+  /// No description provided for @wlSaveAsMenu.
+  ///
+  /// In en, this message translates to:
+  /// **'Save As…'**
+  String get wlSaveAsMenu;
+
+  /// No description provided for @wlDetailType.
+  ///
+  /// In en, this message translates to:
+  /// **'Type'**
+  String get wlDetailType;
+
+  /// No description provided for @wlDetailWordCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Word count'**
+  String get wlDetailWordCount;
+
+  /// No description provided for @wlDetailPages.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages'**
+  String get wlDetailPages;
+
+  /// No description provided for @wlDetailFirstUploaded.
+  ///
+  /// In en, this message translates to:
+  /// **'First uploaded'**
+  String get wlDetailFirstUploaded;
+
+  /// No description provided for @wlDetailLastChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Last changed'**
+  String get wlDetailLastChanged;
+
+  /// No description provided for @wlCoverImageTooLarge.
+  ///
+  /// In en, this message translates to:
+  /// **'That image is too large. Please use an image under 20 MB.'**
+  String get wlCoverImageTooLarge;
+
+  /// No description provided for @wlCoverUnsupportedType.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported image type. Use JPEG, PNG, or GIF.'**
+  String get wlCoverUnsupportedType;
+
+  /// No description provided for @wlCoverUpdateRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t update the cover. Please try again.'**
+  String get wlCoverUpdateRetry;
+
+  /// No description provided for @wlTrashConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'“{title}” will be moved to Trash. You can restore it later.'**
+  String wlTrashConfirmBody(String title);
 
   /// No description provided for @blueprintsSubtitle.
   ///

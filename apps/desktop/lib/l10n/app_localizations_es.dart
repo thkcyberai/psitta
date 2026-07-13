@@ -695,6 +695,21 @@ class AppLocalizationsEs extends AppLocalizations {
   String get docMenuRemoveFromProject => 'Quitar del proyecto';
 
   @override
+  String get docMenuRead => 'Leer';
+
+  @override
+  String get docMenuDuplicate => 'Duplicar';
+
+  @override
+  String get docMenuDetails => 'Detalles';
+
+  @override
+  String get docMenuArchive => 'Archivar';
+
+  @override
+  String get docMenuDelete => 'Eliminar';
+
+  @override
   String get btnClose => 'Cerrar';
 
   @override
@@ -917,6 +932,153 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get libReady => 'Listo';
+
+  @override
+  String wlCreateError(String error) {
+    return 'Error al crear: $error';
+  }
+
+  @override
+  String wlLoadError(String error) {
+    return 'Error al cargar: $error';
+  }
+
+  @override
+  String get wlCoverUpdateError => 'No se pudo actualizar la portada.';
+
+  @override
+  String get wlRenameFileTitle => 'Cambiar nombre del archivo';
+
+  @override
+  String get wlRenameError => 'No se pudo cambiar el nombre del archivo.';
+
+  @override
+  String get wlArchived => 'Documento archivado.';
+
+  @override
+  String get wlArchiveError => 'No se pudo archivar el documento.';
+
+  @override
+  String get wlTrashConfirmTitle => '¿Mover a la papelera?';
+
+  @override
+  String get wlMoveToTrash => 'Mover a la papelera';
+
+  @override
+  String get wlMovedToTrash => 'Movido a la papelera.';
+
+  @override
+  String get wlNoneRemoveProject => 'Ninguno (quitar del proyecto)';
+
+  @override
+  String get wlProjectUpdateError => 'No se pudo actualizar el proyecto.';
+
+  @override
+  String get wlSaveAs => 'Guardar como';
+
+  @override
+  String wlSaveError(String detail) {
+    return 'No se pudo guardar el documento — $detail';
+  }
+
+  @override
+  String get wlFmtWord => 'Documento de Word';
+
+  @override
+  String get wlFmtPlainText => 'Texto sin formato';
+
+  @override
+  String get wlFmtEpub => 'Libro EPUB';
+
+  @override
+  String get wlOriginal => '(original)';
+
+  @override
+  String wlDuplicated(String title) {
+    return '“$title” duplicado';
+  }
+
+  @override
+  String get wlDuplicateError => 'No se pudo duplicar el documento.';
+
+  @override
+  String get wlAddQuote => 'Añade tu cita';
+
+  @override
+  String get wlYourProfile => 'Tu perfil';
+
+  @override
+  String get wlMyWritingNook => 'Mi Writing Nook';
+
+  @override
+  String get wlProjectFallback => 'Proyecto';
+
+  @override
+  String get wlImageTooLarge => 'Esa imagen es demasiado grande (máx. 20 MB).';
+
+  @override
+  String get wlPhotoUpdated => 'Foto de perfil actualizada.';
+
+  @override
+  String get wlPhotoError => 'No se pudo actualizar tu foto.';
+
+  @override
+  String get wlYourQuote => 'Tu cita';
+
+  @override
+  String get wlQuoteHint => 'Una frase que inspire tu escritura…';
+
+  @override
+  String get wlQuoteSaveError => 'No se pudo guardar tu cita.';
+
+  @override
+  String get wlYourName => 'Tu nombre';
+
+  @override
+  String get wlNameHint => 'Cómo aparece tu nombre en Psitta';
+
+  @override
+  String get wlNameSaveError => 'No se pudo guardar tu nombre.';
+
+  @override
+  String wlUploadError(String name) {
+    return 'Error al subir: $name';
+  }
+
+  @override
+  String get wlSaveAsMenu => 'Guardar como…';
+
+  @override
+  String get wlDetailType => 'Tipo';
+
+  @override
+  String get wlDetailWordCount => 'Recuento de palabras';
+
+  @override
+  String get wlDetailPages => 'Páginas';
+
+  @override
+  String get wlDetailFirstUploaded => 'Subido el';
+
+  @override
+  String get wlDetailLastChanged => 'Último cambio';
+
+  @override
+  String get wlCoverImageTooLarge =>
+      'Esa imagen es demasiado grande. Usa una imagen de menos de 20 MB.';
+
+  @override
+  String get wlCoverUnsupportedType =>
+      'Tipo de imagen no admitido. Usa JPEG, PNG o GIF.';
+
+  @override
+  String get wlCoverUpdateRetry =>
+      'No se pudo actualizar la portada. Inténtalo de nuevo.';
+
+  @override
+  String wlTrashConfirmBody(String title) {
+    return '“$title” se moverá a la papelera. Puedes restaurarlo más tarde.';
+  }
 
   @override
   String get blueprintsSubtitle =>

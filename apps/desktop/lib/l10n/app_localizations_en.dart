@@ -694,6 +694,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get docMenuRemoveFromProject => 'Remove from Project';
 
   @override
+  String get docMenuRead => 'Read';
+
+  @override
+  String get docMenuDuplicate => 'Duplicate';
+
+  @override
+  String get docMenuDetails => 'Details';
+
+  @override
+  String get docMenuArchive => 'Archive';
+
+  @override
+  String get docMenuDelete => 'Delete';
+
+  @override
   String get btnClose => 'Close';
 
   @override
@@ -914,6 +929,153 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get libReady => 'Ready';
+
+  @override
+  String wlCreateError(String error) {
+    return 'Failed to create: $error';
+  }
+
+  @override
+  String wlLoadError(String error) {
+    return 'Failed to load: $error';
+  }
+
+  @override
+  String get wlCoverUpdateError => 'Couldn’t update the cover.';
+
+  @override
+  String get wlRenameFileTitle => 'Rename file';
+
+  @override
+  String get wlRenameError => 'Couldn’t rename the file.';
+
+  @override
+  String get wlArchived => 'Document archived.';
+
+  @override
+  String get wlArchiveError => 'Couldn’t archive the document.';
+
+  @override
+  String get wlTrashConfirmTitle => 'Move to Trash?';
+
+  @override
+  String get wlMoveToTrash => 'Move to Trash';
+
+  @override
+  String get wlMovedToTrash => 'Moved to Trash.';
+
+  @override
+  String get wlNoneRemoveProject => 'None (remove from project)';
+
+  @override
+  String get wlProjectUpdateError => 'Couldn’t update the project.';
+
+  @override
+  String get wlSaveAs => 'Save As';
+
+  @override
+  String wlSaveError(String detail) {
+    return 'Couldn’t save the document — $detail';
+  }
+
+  @override
+  String get wlFmtWord => 'Word document';
+
+  @override
+  String get wlFmtPlainText => 'Plain text';
+
+  @override
+  String get wlFmtEpub => 'EPUB ebook';
+
+  @override
+  String get wlOriginal => '(original)';
+
+  @override
+  String wlDuplicated(String title) {
+    return 'Duplicated “$title”';
+  }
+
+  @override
+  String get wlDuplicateError => 'Couldn’t duplicate the document.';
+
+  @override
+  String get wlAddQuote => 'Add your quote';
+
+  @override
+  String get wlYourProfile => 'Your Profile';
+
+  @override
+  String get wlMyWritingNook => 'My Writing Nook';
+
+  @override
+  String get wlProjectFallback => 'Project';
+
+  @override
+  String get wlImageTooLarge => 'That image is too large (max 20 MB).';
+
+  @override
+  String get wlPhotoUpdated => 'Profile photo updated.';
+
+  @override
+  String get wlPhotoError => 'Couldn’t update your photo.';
+
+  @override
+  String get wlYourQuote => 'Your quote';
+
+  @override
+  String get wlQuoteHint => 'A line that inspires your writing…';
+
+  @override
+  String get wlQuoteSaveError => 'Couldn’t save your quote.';
+
+  @override
+  String get wlYourName => 'Your name';
+
+  @override
+  String get wlNameHint => 'How your name appears in Psitta';
+
+  @override
+  String get wlNameSaveError => 'Couldn’t save your name.';
+
+  @override
+  String wlUploadError(String name) {
+    return 'Upload failed: $name';
+  }
+
+  @override
+  String get wlSaveAsMenu => 'Save As…';
+
+  @override
+  String get wlDetailType => 'Type';
+
+  @override
+  String get wlDetailWordCount => 'Word count';
+
+  @override
+  String get wlDetailPages => 'Pages';
+
+  @override
+  String get wlDetailFirstUploaded => 'First uploaded';
+
+  @override
+  String get wlDetailLastChanged => 'Last changed';
+
+  @override
+  String get wlCoverImageTooLarge =>
+      'That image is too large. Please use an image under 20 MB.';
+
+  @override
+  String get wlCoverUnsupportedType =>
+      'Unsupported image type. Use JPEG, PNG, or GIF.';
+
+  @override
+  String get wlCoverUpdateRetry =>
+      'Couldn’t update the cover. Please try again.';
+
+  @override
+  String wlTrashConfirmBody(String title) {
+    return '“$title” will be moved to Trash. You can restore it later.';
+  }
 
   @override
   String get blueprintsSubtitle =>

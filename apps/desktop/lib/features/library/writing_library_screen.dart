@@ -119,6 +119,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   }
 
   Future<void> _uploadFiles(List<PlatformFile> files) async {
+    final loc = AppLocalizations.of(context);
     final cachedQuota = ref.read(quotaUsageProvider).valueOrNull;
     if (cachedQuota != null && cachedQuota.atLimit) {
       if (!mounted) return;
@@ -159,12 +160,12 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
           break;
         }
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: ${file.name}')),
+          SnackBar(content: Text(loc.wlUploadError(file.name))),
         );
       } catch (_) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Upload failed: ${file.name}')),
+            SnackBar(content: Text(loc.wlUploadError(file.name))),
           );
         }
       }
@@ -187,6 +188,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   }
 
   Future<void> _newBlank() async {
+    final loc = AppLocalizations.of(context);
     final cachedQuota = ref.read(quotaUsageProvider).valueOrNull;
     if (cachedQuota != null && cachedQuota.atLimit) {
       await showQuotaDialog(context, cachedQuota);
@@ -214,7 +216,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         return;
       }
       ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Failed to create: $e')));
+          .showSnackBar(SnackBar(content: Text(loc.wlCreateError('$e'))));
     }
   }
 
@@ -269,12 +271,13 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     return list;
   }
 
-  String _projectName(String? projectId, List<Project> projects) {
-    if (projectId == null) return 'My Writing Nook';
+  String _projectName(
+      AppLocalizations loc, String? projectId, List<Project> projects) {
+    if (projectId == null) return loc.wlMyWritingNook;
     for (final pr in projects) {
       if (pr.id == projectId) return pr.name;
     }
-    return 'Project';
+    return loc.wlProjectFallback;
   }
 
   bool _isWelcomeDoc(Document doc) =>
@@ -372,6 +375,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final tokens = PsittaTokens.of(context);
     final docsAsync = ref.watch(documentsProvider);
     final projects = ref.watch(projectsProvider).valueOrNull ?? const [];
@@ -390,7 +394,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
             final main = docsAsync.when(
               loading: () =>
                   const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Center(child: Text('Failed to load: $e')),
+              error: (e, _) => Center(child: Text(loc.wlLoadError('$e'))),
               data: (docs) => _buildMain(context, tokens, docs, projects),
             );
             if (!showRail) return main;
@@ -834,6 +838,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   }
 
   Widget _gridCard(Document doc, List<Project> projects) {
+    final loc = AppLocalizations.of(context);
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     final selected = _selectedDocId == doc.id;
@@ -907,7 +912,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                           fontWeight: FontWeight.w700,
                           color: _titleColor(doc, scheme))),
                   const SizedBox(height: 3),
-                  Text(_projectName(doc.projectId, projects),
+                  Text(_projectName(loc, doc.projectId, projects),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -927,6 +932,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   }
 
   Widget _list(List<Document> docs, List<Project> projects) {
+    final loc = AppLocalizations.of(context);
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     return Column(
@@ -969,7 +975,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                                 color: _titleColor(doc, scheme))),
-                        Text(_projectName(doc.projectId, projects),
+                        Text(_projectName(loc, doc.projectId, projects),
                             style: TextStyle(
                                 fontSize: 11,
                                 color: scheme.onSurfaceVariant)),
@@ -999,6 +1005,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   /// the menu opens next to the icon instead of at a fixed screen point).
   Widget _cardMenuButton(Document doc,
       {required Color iconColor, double iconSize = 16}) {
+    final loc = AppLocalizations.of(context);
     final tokens = PsittaTokens.of(context);
     final scheme = Theme.of(context).colorScheme;
     return PopupMenuButton<String>(
@@ -1012,16 +1019,20 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
         side: BorderSide(color: tokens.border),
       ),
       itemBuilder: (_) => [
-        _menuItem('read', Icons.headphones_outlined, 'Read', scheme),
-        _menuItem('rename', Icons.drive_file_rename_outline, 'Rename', scheme),
-        _menuItem('cover', Icons.image_outlined, 'Change cover', scheme),
-        _menuItem('project', Icons.folder_outlined, 'Add to Project', scheme),
-        _menuItem('duplicate', Icons.content_copy_outlined, 'Duplicate', scheme),
-        _menuItem('saveas', Icons.save_alt_outlined, 'Save As…', scheme),
-        _menuItem('details', Icons.info_outline, 'Details', scheme),
+        _menuItem('read', Icons.headphones_outlined, loc.docMenuRead, scheme),
+        _menuItem(
+            'rename', Icons.drive_file_rename_outline, loc.docMenuRename, scheme),
+        _menuItem(
+            'cover', Icons.image_outlined, loc.docMenuChangeCover, scheme),
+        _menuItem(
+            'project', Icons.folder_outlined, loc.docMenuAddToProject, scheme),
+        _menuItem('duplicate', Icons.content_copy_outlined, loc.docMenuDuplicate,
+            scheme),
+        _menuItem('saveas', Icons.save_alt_outlined, loc.wlSaveAsMenu, scheme),
+        _menuItem('details', Icons.info_outline, loc.docMenuDetails, scheme),
         const PopupMenuDivider(),
-        _menuItem('archive', Icons.archive_outlined, 'Archive', scheme),
-        _menuItem('delete', Icons.delete_outline, 'Delete', scheme,
+        _menuItem('archive', Icons.archive_outlined, loc.docMenuArchive, scheme),
+        _menuItem('delete', Icons.delete_outline, loc.docMenuDelete, scheme,
             danger: true),
       ],
       onSelected: (v) {
@@ -1067,6 +1078,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   }
 
   Future<void> _changeCover(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final result = await showCoverPickerDialog(
       context: context,
       currentCoverType: doc.coverType,
@@ -1101,16 +1113,16 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       if (!mounted) return;
       final code = e.response?.statusCode;
       final msg = code == 413
-          ? 'That image is too large. Please use an image under 20 MB.'
+          ? loc.wlCoverImageTooLarge
           : code == 415
-              ? 'Unsupported image type. Use JPEG, PNG, or GIF.'
-              : 'Couldn’t update the cover. Please try again.';
+              ? loc.wlCoverUnsupportedType
+              : loc.wlCoverUpdateRetry;
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(msg)));
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t update the cover.')),
+          SnackBar(content: Text(loc.wlCoverUpdateError)),
         );
       }
     }
@@ -1124,24 +1136,25 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       );
 
   Future<void> _rename(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final ctrl = TextEditingController(text: doc.title);
     final newTitle = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Rename file'),
+        title: Text(loc.wlRenameFileTitle),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Title'),
+          decoration: InputDecoration(labelText: loc.titleLabel),
           onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              child: Text(loc.btnCancel)),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('Rename')),
+              child: Text(loc.docMenuRename)),
         ],
       ),
     );
@@ -1158,47 +1171,48 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t rename the file.')),
+          SnackBar(content: Text(loc.wlRenameError)),
         );
       }
     }
   }
 
   Future<void> _archive(Document doc) async {
+    final loc = AppLocalizations.of(context);
     try {
       await ref.read(documentActionsProvider).archiveDocument(doc.id);
       ref.invalidate(documentsProvider);
       ref.invalidate(archivedDocumentsProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document archived.')),
+          SnackBar(content: Text(loc.wlArchived)),
         );
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t archive the document.')),
+          SnackBar(content: Text(loc.wlArchiveError)),
         );
       }
     }
   }
 
   Future<void> _delete(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Move to Trash?'),
-        content: Text(
-            '“${doc.title}” will be moved to Trash. You can restore it later.'),
+        title: Text(loc.wlTrashConfirmTitle),
+        content: Text(loc.wlTrashConfirmBody(doc.title)),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: Text(loc.btnCancel)),
           FilledButton(
             style: FilledButton.styleFrom(
                 backgroundColor: const Color(0xFFE5534B)),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Move to Trash'),
+            child: Text(loc.wlMoveToTrash),
           ),
         ],
       ),
@@ -1212,28 +1226,29 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       ref.invalidate(storageUsageProvider);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Moved to Trash.')),
+          SnackBar(content: Text(loc.wlMovedToTrash)),
         );
       }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t delete the document.')),
+          SnackBar(content: Text(loc.trashDeleteError)),
         );
       }
     }
   }
 
   Future<void> _addToProject(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final projects = ref.read(projectsProvider).valueOrNull ?? const [];
     final chosen = await showDialog<String?>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Add to Project'),
+        title: Text(loc.docMenuAddToProject),
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.pop(ctx, '__none__'),
-            child: const Text('None (remove from project)'),
+            child: Text(loc.wlNoneRemoveProject),
           ),
           for (final pr in projects)
             SimpleDialogOption(
@@ -1254,7 +1269,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t update the project.')),
+          SnackBar(content: Text(loc.wlProjectUpdateError)),
         );
       }
     }
@@ -1264,6 +1279,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   /// Converting a read-only source to its own format saves the original file;
   /// every other case renders the current content to the chosen format.
   Future<void> _saveAs(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final target = await _pickExportFormat(doc);
     if (target == null || !mounted) return;
     final repo = ref.read(documentRepositoryProvider);
@@ -1286,7 +1302,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       }
       if (!mounted) return;
       final savePath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Save As',
+        dialogTitle: loc.wlSaveAs,
         fileName: '${doc.title}.$target',
         type: FileType.custom,
         allowedExtensions: [target],
@@ -1295,7 +1311,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       await File(savePath).writeAsBytes(bytes);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved to $savePath')),
+          SnackBar(content: Text(loc.libSavedTo(savePath))),
         );
       }
     } catch (e) {
@@ -1307,7 +1323,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
       debugPrint('[SAVE_AS] failed: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Couldn’t save the document — $detail')),
+          SnackBar(content: Text(loc.wlSaveError(detail))),
         );
       }
     }
@@ -1317,13 +1333,14 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   /// ('docx'/'pdf'/'md'/'txt'/'epub') or null if cancelled. HTML is not a
   /// target. The source's own format is marked "(original)".
   Future<String?> _pickExportFormat(Document doc) async {
+    final loc = AppLocalizations.of(context);
     final src = doc.sourceType.toLowerCase();
-    const meta = <String, ({String label, IconData icon})>{
-      'docx': (label: 'Word document', icon: Icons.description_outlined),
+    final meta = <String, ({String label, IconData icon})>{
+      'docx': (label: loc.wlFmtWord, icon: Icons.description_outlined),
       'pdf': (label: 'PDF', icon: Icons.picture_as_pdf_outlined),
       'md': (label: 'Markdown', icon: Icons.tag),
-      'txt': (label: 'Plain text', icon: Icons.notes_outlined),
-      'epub': (label: 'EPUB ebook', icon: Icons.menu_book_outlined),
+      'txt': (label: loc.wlFmtPlainText, icon: Icons.notes_outlined),
+      'epub': (label: loc.wlFmtEpub, icon: Icons.menu_book_outlined),
     };
     // Source-aware targets: read-only files (PDF/EPUB) only save a copy or
     // extract to an editable format; editable docs export to every output.
@@ -1338,7 +1355,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
     return showDialog<String>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('Save As'),
+        title: Text(loc.wlSaveAs),
         children: [
           for (final t in targets)
             SimpleDialogOption(
@@ -1352,7 +1369,7 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                     Text(t.label),
                     if (t.ext == src) ...[
                       const SizedBox(width: 8),
-                      Text('(original)',
+                      Text(loc.wlOriginal,
                           style: TextStyle(
                               fontSize: 12,
                               color: scheme.onSurfaceVariant)),
@@ -1368,23 +1385,25 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
 
   /// Server-side copy of the document into the Library, then refresh the grid.
   Future<void> _duplicate(Document doc) async {
+    final loc = AppLocalizations.of(context);
     try {
       await ref.read(documentActionsProvider).duplicateDocument(doc.id);
       if (!mounted) return;
       ref.invalidate(documentsProvider);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Duplicated “${doc.title}”')),
+        SnackBar(content: Text(loc.wlDuplicated(doc.title))),
       );
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Couldn’t duplicate the document.')),
+          SnackBar(content: Text(loc.wlDuplicateError)),
         );
       }
     }
   }
 
   void _showDetails(Document doc) {
+    final loc = AppLocalizations.of(context);
     final scheme = Theme.of(context).colorScheme;
     String fmt(DateTime? d) => d == null ? '—' : _fmtDate(d);
     Widget row(String label, String value) => Padding(
@@ -1417,18 +1436,18 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              row('Type', doc.sourceType.toUpperCase()),
-              row('Word count', doc.wordCount?.toString() ?? '—'),
-              row('Pages', doc.pageCount?.toString() ?? '—'),
-              row('First uploaded', fmt(doc.createdAt)),
-              row('Last changed', fmt(doc.updatedAt)),
+              row(loc.wlDetailType, doc.sourceType.toUpperCase()),
+              row(loc.wlDetailWordCount, doc.wordCount?.toString() ?? '—'),
+              row(loc.wlDetailPages, doc.pageCount?.toString() ?? '—'),
+              row(loc.wlDetailFirstUploaded, fmt(doc.createdAt)),
+              row(loc.wlDetailLastChanged, fmt(doc.updatedAt)),
             ],
           ),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Close')),
+              child: Text(loc.btnClose)),
         ],
       ),
     );
@@ -1764,7 +1783,7 @@ class _RightRail extends ConsumerWidget {
                 children: [
                   Flexible(
                     child: Text(
-                      name.isEmpty ? 'Your Profile' : name,
+                      name.isEmpty ? loc.wlYourProfile : name,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                           fontSize: 14,
@@ -1813,7 +1832,7 @@ class _RightRail extends ConsumerWidget {
                         Icon(Icons.edit_outlined,
                             size: 12, color: scheme.onSurfaceVariant),
                         const SizedBox(width: 4),
-                        Text('Add your quote',
+                        Text(loc.wlAddQuote,
                             style: TextStyle(
                                 fontSize: 11.5,
                                 color: scheme.onSurfaceVariant)),
@@ -1827,6 +1846,7 @@ class _RightRail extends ConsumerWidget {
   }
 
   Future<void> _changePhoto(WidgetRef ref, BuildContext context) async {
+    final loc = AppLocalizations.of(context);
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['jpg', 'jpeg', 'png', 'gif'],
@@ -1839,8 +1859,8 @@ class _RightRail extends ConsumerWidget {
     final file = File(result.files.first.path!);
     if (await file.length() > 20 * 1024 * 1024) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('That image is too large (max 20 MB).')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(loc.wlImageTooLarge)));
       }
       return;
     }
@@ -1854,40 +1874,41 @@ class _RightRail extends ConsumerWidget {
       ref.invalidate(userProfileProvider);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profile photo updated.')));
+            SnackBar(content: Text(loc.wlPhotoUpdated)));
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Couldn’t update your photo.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(loc.wlPhotoError)));
       }
     }
   }
 
   Future<void> _editQuote(
       WidgetRef ref, BuildContext context, String current) async {
+    final loc = AppLocalizations.of(context);
     final ctrl = TextEditingController(text: current);
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Your quote'),
+        title: Text(loc.wlYourQuote),
         content: TextField(
           controller: ctrl,
           maxLength: 200,
           maxLines: 3,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'A line that inspires your writing…',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: loc.wlQuoteHint,
+            border: const OutlineInputBorder(),
           ),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              child: Text(loc.btnCancel)),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('Save')),
+              child: Text(loc.btnSave)),
         ],
       ),
     );
@@ -1899,36 +1920,37 @@ class _RightRail extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Couldn’t save your quote.')));
+            SnackBar(content: Text(loc.wlQuoteSaveError)));
       }
     }
   }
 
   Future<void> _editName(
       WidgetRef ref, BuildContext context, String current) async {
+    final loc = AppLocalizations.of(context);
     final ctrl = TextEditingController(text: current);
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Your name'),
+        title: Text(loc.wlYourName),
         content: TextField(
           controller: ctrl,
           maxLength: 100,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            hintText: 'How your name appears in Psitta',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: loc.wlNameHint,
+            border: const OutlineInputBorder(),
           ),
           onSubmitted: (_) => Navigator.pop(ctx, ctrl.text.trim()),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+              child: Text(loc.btnCancel)),
           FilledButton(
               onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('Save')),
+              child: Text(loc.btnSave)),
         ],
       ),
     );
@@ -1941,7 +1963,7 @@ class _RightRail extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Couldn’t save your name.')));
+            SnackBar(content: Text(loc.wlNameSaveError)));
       }
     }
   }

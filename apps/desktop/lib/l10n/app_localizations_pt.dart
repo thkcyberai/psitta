@@ -696,6 +696,21 @@ class AppLocalizationsPt extends AppLocalizations {
   String get docMenuRemoveFromProject => 'Remover do Projeto';
 
   @override
+  String get docMenuRead => 'Ler';
+
+  @override
+  String get docMenuDuplicate => 'Duplicar';
+
+  @override
+  String get docMenuDetails => 'Detalhes';
+
+  @override
+  String get docMenuArchive => 'Arquivar';
+
+  @override
+  String get docMenuDelete => 'Excluir';
+
+  @override
   String get btnClose => 'Fechar';
 
   @override
@@ -917,6 +932,153 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get libReady => 'Pronto';
+
+  @override
+  String wlCreateError(String error) {
+    return 'Falha ao criar: $error';
+  }
+
+  @override
+  String wlLoadError(String error) {
+    return 'Falha ao carregar: $error';
+  }
+
+  @override
+  String get wlCoverUpdateError => 'Não foi possível atualizar a capa.';
+
+  @override
+  String get wlRenameFileTitle => 'Renomear arquivo';
+
+  @override
+  String get wlRenameError => 'Não foi possível renomear o arquivo.';
+
+  @override
+  String get wlArchived => 'Documento arquivado.';
+
+  @override
+  String get wlArchiveError => 'Não foi possível arquivar o documento.';
+
+  @override
+  String get wlTrashConfirmTitle => 'Mover para a Lixeira?';
+
+  @override
+  String get wlMoveToTrash => 'Mover para a Lixeira';
+
+  @override
+  String get wlMovedToTrash => 'Movido para a Lixeira.';
+
+  @override
+  String get wlNoneRemoveProject => 'Nenhum (remover do projeto)';
+
+  @override
+  String get wlProjectUpdateError => 'Não foi possível atualizar o projeto.';
+
+  @override
+  String get wlSaveAs => 'Salvar como';
+
+  @override
+  String wlSaveError(String detail) {
+    return 'Não foi possível salvar o documento — $detail';
+  }
+
+  @override
+  String get wlFmtWord => 'Documento Word';
+
+  @override
+  String get wlFmtPlainText => 'Texto simples';
+
+  @override
+  String get wlFmtEpub => 'eBook EPUB';
+
+  @override
+  String get wlOriginal => '(original)';
+
+  @override
+  String wlDuplicated(String title) {
+    return '“$title” duplicado';
+  }
+
+  @override
+  String get wlDuplicateError => 'Não foi possível duplicar o documento.';
+
+  @override
+  String get wlAddQuote => 'Adicione sua citação';
+
+  @override
+  String get wlYourProfile => 'Seu perfil';
+
+  @override
+  String get wlMyWritingNook => 'Meu Writing Nook';
+
+  @override
+  String get wlProjectFallback => 'Projeto';
+
+  @override
+  String get wlImageTooLarge => 'Essa imagem é muito grande (máx. 20 MB).';
+
+  @override
+  String get wlPhotoUpdated => 'Foto de perfil atualizada.';
+
+  @override
+  String get wlPhotoError => 'Não foi possível atualizar sua foto.';
+
+  @override
+  String get wlYourQuote => 'Sua citação';
+
+  @override
+  String get wlQuoteHint => 'Uma frase que inspira sua escrita…';
+
+  @override
+  String get wlQuoteSaveError => 'Não foi possível salvar sua citação.';
+
+  @override
+  String get wlYourName => 'Seu nome';
+
+  @override
+  String get wlNameHint => 'Como seu nome aparece no Psitta';
+
+  @override
+  String get wlNameSaveError => 'Não foi possível salvar seu nome.';
+
+  @override
+  String wlUploadError(String name) {
+    return 'Falha no envio: $name';
+  }
+
+  @override
+  String get wlSaveAsMenu => 'Salvar como…';
+
+  @override
+  String get wlDetailType => 'Tipo';
+
+  @override
+  String get wlDetailWordCount => 'Contagem de palavras';
+
+  @override
+  String get wlDetailPages => 'Páginas';
+
+  @override
+  String get wlDetailFirstUploaded => 'Enviado em';
+
+  @override
+  String get wlDetailLastChanged => 'Última alteração';
+
+  @override
+  String get wlCoverImageTooLarge =>
+      'Essa imagem é muito grande. Use uma imagem com menos de 20 MB.';
+
+  @override
+  String get wlCoverUnsupportedType =>
+      'Tipo de imagem não suportado. Use JPEG, PNG ou GIF.';
+
+  @override
+  String get wlCoverUpdateRetry =>
+      'Não foi possível atualizar a capa. Tente novamente.';
+
+  @override
+  String wlTrashConfirmBody(String title) {
+    return '“$title” será movido para a Lixeira. Você pode restaurá-lo depois.';
+  }
 
   @override
   String get blueprintsSubtitle =>
