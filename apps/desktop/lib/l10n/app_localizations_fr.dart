@@ -1420,6 +1420,37 @@ class AppLocalizationsFr extends AppLocalizations {
   String get rrActivitySoon => 'Fil d’activité bientôt disponible';
 
   @override
+  String get tabOverview => 'Aperçu';
+
+  @override
+  String get pdsTabNarrative => 'Récit';
+
+  @override
+  String get pdsAddFiles => 'Ajouter des fichiers';
+
+  @override
+  String get projLoadError => 'Impossible de charger les projets.';
+
+  @override
+  String get projNameHint => 'Nom du projet';
+
+  @override
+  String projCreateError(String error) {
+    return 'Échec de la création du projet : $error';
+  }
+
+  @override
+  String projDocShort(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count docs',
+      one: '1 doc',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get blueprintsSubtitle =>
       'Concevez la structure de votre livre et la structure narrative.';
 

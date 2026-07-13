@@ -54,7 +54,7 @@ class ProjectsScreen extends ConsumerWidget {
             child: projectsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
-                child: Text('Couldn’t load projects.',
+                child: Text(loc.projLoadError,
                     style: TextStyle(color: scheme.onSurfaceVariant)),
               ),
               data: (projects) => projects.isEmpty
@@ -118,28 +118,29 @@ class ProjectsScreen extends ConsumerWidget {
 
   Future<void> _showCreateDialog(
       BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final controller = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('New Project'),
+        title: Text(loc.newProject),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Project name',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: loc.projNameHint,
+            border: const OutlineInputBorder(),
           ),
           onSubmitted: (_) => Navigator.of(ctx).pop(true),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Create'),
+            child: Text(loc.btnCreate),
           ),
         ],
       ),
@@ -152,7 +153,7 @@ class ProjectsScreen extends ConsumerWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to create project: $e')),
+            SnackBar(content: Text(loc.projCreateError('$e'))),
           );
         }
       }
@@ -196,6 +197,7 @@ class _ProjectCard extends ConsumerWidget {
 
   Widget _buildDefault(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -218,7 +220,7 @@ class _ProjectCard extends ConsumerWidget {
           ),
           const Spacer(),
           Text(
-            '${project.documentCount} document${project.documentCount == 1 ? '' : 's'}',
+            loc.storageDocs(project.documentCount),
             style: TextStyle(
                 fontSize: 12,
                 color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -229,6 +231,7 @@ class _ProjectCard extends ConsumerWidget {
   }
 
   Widget _buildWithCover(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -258,7 +261,7 @@ class _ProjectCard extends ConsumerWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${project.documentCount} doc${project.documentCount == 1 ? '' : 's'}',
+                      loc.projDocShort(project.documentCount),
                       style: TextStyle(
                           fontSize: 11,
                           color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -283,6 +286,7 @@ class _ProjectMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final loc = AppLocalizations.of(context);
     return PopupMenuButton<String>(
       icon: const Icon(Icons.more_vert, size: 18),
       onSelected: (value) async {
@@ -298,30 +302,30 @@ class _ProjectMenu extends ConsumerWidget {
             break;
         }
       },
-      itemBuilder: (_) => const [
+      itemBuilder: (_) => [
         PopupMenuItem(
           value: 'change_cover',
           child: Row(children: [
-            Icon(Icons.image_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Change Cover'),
+            const Icon(Icons.image_outlined, size: 18),
+            const SizedBox(width: 8),
+            Text(loc.docMenuChangeCover),
           ]),
         ),
         PopupMenuItem(
           value: 'rename',
           child: Row(children: [
-            Icon(Icons.edit_outlined, size: 18),
-            SizedBox(width: 8),
-            Text('Rename'),
+            const Icon(Icons.edit_outlined, size: 18),
+            const SizedBox(width: 8),
+            Text(loc.docMenuRename),
           ]),
         ),
-        PopupMenuDivider(),
+        const PopupMenuDivider(),
         PopupMenuItem(
           value: 'delete',
           child: Row(children: [
-            Icon(Icons.delete_outline, size: 18, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Delete', style: TextStyle(color: Colors.red)),
+            const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+            const SizedBox(width: 8),
+            Text(loc.docMenuDelete, style: const TextStyle(color: Colors.red)),
           ]),
         ),
       ],
@@ -344,7 +348,9 @@ class _ProjectMenu extends ConsumerWidget {
       } catch (e) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to update cover: $e')),
+            SnackBar(
+                content:
+                    Text(AppLocalizations.of(context).rrCoverError('$e'))),
           );
         }
       }
@@ -353,11 +359,12 @@ class _ProjectMenu extends ConsumerWidget {
 
   Future<void> _showRenameDialog(
       BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final controller = TextEditingController(text: project.name);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Rename Project'),
+        title: Text(loc.rrRenameTitle),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -368,11 +375,11 @@ class _ProjectMenu extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Rename'),
+            child: Text(loc.docMenuRename),
           ),
         ],
       ),
@@ -387,23 +394,22 @@ class _ProjectMenu extends ConsumerWidget {
 
   Future<void> _confirmDelete(
       BuildContext context, WidgetRef ref) async {
+    final loc = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Project?'),
-        content: Text(
-          'Delete "${project.name}"? Documents will not be deleted, just removed from the project.',
-        ),
+        title: Text(loc.rrDeleteTitle),
+        content: Text(loc.rrDeleteBody(project.name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            child: Text(loc.btnCancel),
           ),
           FilledButton(
             style:
                 FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+            child: Text(loc.docMenuDelete),
           ),
         ],
       ),

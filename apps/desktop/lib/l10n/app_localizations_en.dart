@@ -1411,6 +1411,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get rrActivitySoon => 'Activity feed coming soon';
 
   @override
+  String get tabOverview => 'Overview';
+
+  @override
+  String get pdsTabNarrative => 'Narrative';
+
+  @override
+  String get pdsAddFiles => 'Add files';
+
+  @override
+  String get projLoadError => 'Couldn’t load projects.';
+
+  @override
+  String get projNameHint => 'Project name';
+
+  @override
+  String projCreateError(String error) {
+    return 'Failed to create project: $error';
+  }
+
+  @override
+  String projDocShort(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count docs',
+      one: '1 doc',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get blueprintsSubtitle =>
       'Design the structure of your book, and the narrative structure.';
 

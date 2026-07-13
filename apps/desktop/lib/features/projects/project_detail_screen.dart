@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/theme/psitta_tokens.dart';
 import '../../data/providers/project_providers.dart';
+import '../../l10n/app_localizations.dart';
 import 'widgets/project_blueprints_tab.dart';
 import 'widgets/project_documents_tab.dart';
 import 'widgets/project_activity_feed.dart';
@@ -30,6 +31,7 @@ class ProjectDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tokens = PsittaTokens.of(context);
+    final loc = AppLocalizations.of(context);
 
     return DefaultTabController(
       length: 5,
@@ -39,15 +41,15 @@ class ProjectDetailScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _ProjectHeader(projectId: projectId, projectName: projectName),
-            const TabBar(
+            TabBar(
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               tabs: [
-                Tab(text: 'Overview'),
-                Tab(text: 'Documents'),
-                Tab(text: 'Book Structure'),
-                Tab(text: 'Narrative'),
-                Tab(text: 'Activity'),
+                Tab(text: loc.tabOverview),
+                Tab(text: loc.tabDocuments),
+                Tab(text: loc.tabBookStructure),
+                Tab(text: loc.pdsTabNarrative),
+                Tab(text: loc.rrActivity),
               ],
             ),
             Divider(height: 1, color: tokens.divider),
@@ -103,6 +105,7 @@ class _ProjectHeader extends ConsumerWidget {
       orElse: () => projectName,
     );
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final loc = AppLocalizations.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
@@ -110,7 +113,7 @@ class _ProjectHeader extends ConsumerWidget {
         children: [
           TextButton.icon(
             icon: const Icon(Icons.arrow_back, size: 16),
-            label: const Text('Projects'),
+            label: Text(loc.navProjects),
             onPressed: () => context.go('/projects'),
           ),
           Text(' / ', style: TextStyle(color: muted)),
@@ -125,7 +128,7 @@ class _ProjectHeader extends ConsumerWidget {
           const SizedBox(width: 12),
           FilledButton.icon(
             icon: const Icon(Icons.note_add_outlined, size: 16),
-            label: const Text('Add files'),
+            label: Text(loc.pdsAddFiles),
             onPressed: () =>
                 addDocumentsToProjectFlow(context, ref, projectId: projectId),
           ),

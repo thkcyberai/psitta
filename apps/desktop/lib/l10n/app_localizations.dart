@@ -2502,6 +2502,48 @@ abstract class AppLocalizations {
   /// **'Activity feed coming soon'**
   String get rrActivitySoon;
 
+  /// No description provided for @tabOverview.
+  ///
+  /// In en, this message translates to:
+  /// **'Overview'**
+  String get tabOverview;
+
+  /// No description provided for @pdsTabNarrative.
+  ///
+  /// In en, this message translates to:
+  /// **'Narrative'**
+  String get pdsTabNarrative;
+
+  /// No description provided for @pdsAddFiles.
+  ///
+  /// In en, this message translates to:
+  /// **'Add files'**
+  String get pdsAddFiles;
+
+  /// No description provided for @projLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t load projects.'**
+  String get projLoadError;
+
+  /// No description provided for @projNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Project name'**
+  String get projNameHint;
+
+  /// No description provided for @projCreateError.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to create project: {error}'**
+  String projCreateError(String error);
+
+  /// No description provided for @projDocShort.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 doc} other{{count} docs}}'**
+  String projDocShort(int count);
+
   /// No description provided for @blueprintsSubtitle.
   ///
   /// In en, this message translates to:
