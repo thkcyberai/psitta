@@ -34,6 +34,7 @@ class DocxDocumentViewport extends StatelessWidget {
     this.findMatchEnd,
     this.sentenceMode = false,
     this.sentenceCharBase = 0,
+    this.wordHighlightEnabled = true,
   });
 
   final PsittaDocument document;
@@ -64,6 +65,10 @@ class DocxDocumentViewport extends StatelessWidget {
   /// space. Forwarded straight to DocumentReadingView.
   final bool sentenceMode;
   final int sentenceCharBase;
+
+  /// Per-word (S.W.H) highlight toggle. When false, only the word highlight is
+  /// suppressed; the sentence tint stays. Forwarded to DocumentReadingView.
+  final bool wordHighlightEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -136,6 +141,7 @@ class DocxDocumentViewport extends StatelessWidget {
                         findMatchEnd: findMatchEnd,
                         sentenceMode: sentenceMode,
                         sentenceCharBase: sentenceCharBase,
+                        wordHighlightEnabled: wordHighlightEnabled,
                       ),
                       const SizedBox(height: 28),
                     ],
@@ -188,6 +194,7 @@ class _DocxPageSheet extends StatelessWidget {
     this.findMatchEnd,
     this.sentenceMode = false,
     this.sentenceCharBase = 0,
+    this.wordHighlightEnabled = true,
   });
 
   final DocxPageLayoutPage page;
@@ -206,6 +213,7 @@ class _DocxPageSheet extends StatelessWidget {
   final int? findMatchEnd;
   final bool sentenceMode;
   final int sentenceCharBase;
+  final bool wordHighlightEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -240,6 +248,7 @@ class _DocxPageSheet extends StatelessWidget {
                   findMatchEnd: findMatchEnd,
                   sentenceMode: sentenceMode,
                   sentenceCharBase: sentenceCharBase,
+                  wordHighlightEnabled: wordHighlightEnabled,
                 ),
               ),
             ),

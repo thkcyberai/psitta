@@ -3704,6 +3704,7 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
                     : (alignmentPayload ?? const {}),
                 sentenceMode: useSentenceHighlight,
                 sentenceCharBase: sentenceCharBase,
+                wordHighlightEnabled: swhEnabled,
                 onActiveSentenceChanged: _scrollFromSentence,
                 onActiveWordChanged: _onActiveWordChanged,
                 audioService: _audioService,

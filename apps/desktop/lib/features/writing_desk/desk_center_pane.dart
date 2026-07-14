@@ -29,6 +29,8 @@ import '../../data/services/preferences_service.dart'
         selectedVoiceIdProvider,
         selectedSpeedProvider,
         selectedVolumeProvider,
+        selectedSwhModeProvider,
+        SwhMode,
         storyCoachEnabledProvider,
         storyCoachMutedDocsProvider;
 import '../../features/editor/chunk_editor_provider.dart';
@@ -2071,6 +2073,11 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
         break;
       }
     }
+    // Honor the writer's Sync-Word-Highlight preference. When set to "Read
+    // without S.W.H" we keep the sentence-playlist wiring intact (so audio
+    // position mapping + auto-scroll stay correct) and ONLY suppress the visual
+    // highlight paint via [highlightEnabled] on the reading view.
+    final swhOn = ref.watch(selectedSwhModeProvider) == SwhMode.always;
     final useSentenceHighlight = activeBoundaries?.isNotEmpty ?? false;
     final activeSentenceIdx = useSentenceHighlight
         ? (ref.watch(activeSentenceIndexProvider).valueOrNull ?? 0)
@@ -2178,6 +2185,7 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
         isFetchingAlignment: isFetchingAlignment,
         sentenceMode: useSentenceHighlight,
         sentenceCharBase: sentenceCharBase,
+        wordHighlightEnabled: swhOn,
         onActiveSentenceChanged: _onActiveSentence,
         // Click a line (or its margin play icon) to jump the voice there.
         onSentenceTap: _seekToDocOffset,

@@ -78,10 +78,17 @@ class DocumentReadingView extends ConsumerStatefulWidget {
     this.findMatchEnd,
     this.sentenceMode = false,
     this.sentenceCharBase = 0,
+    this.wordHighlightEnabled = true,
   });
 
   final PsittaDocument document;
   final List<DocBlock>? visibleBlocks;
+
+  /// Sync-Word-Highlight (per-word) toggle. When false (writer chose "Read
+  /// without S.W.H"), the per-word highlight is not painted — but the
+  /// active-sentence tint and auto-scroll still follow the voice. Find-in-
+  /// document matches are unaffected.
+  final bool wordHighlightEnabled;
 
   /// Which chunk is currently playing (index into chunkMap).
   final int activeChunkIndex;
@@ -411,7 +418,9 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     // ── Resolve active word (document-level offset) ──
     int? activeWordDocOffset; // document-level char offset of active word start
     int? activeWordDocEnd;
-    final alignmentBlock = widget.alignmentPayload['alignment'];
+    final alignmentBlock = widget.wordHighlightEnabled
+        ? widget.alignmentPayload['alignment']
+        : null;
 
     if (alignmentBlock is Map) {
       final rawCharIdx = _charIndexAtMs(alignmentBlock, position.inMilliseconds);
