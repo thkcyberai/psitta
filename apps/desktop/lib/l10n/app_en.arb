@@ -139,10 +139,10 @@
     }
   },
   "conceptProject": "Project",
-  "conceptBlueprint": "Blueprint",
+  "conceptBlueprint": "Book Structure",
   "conceptPart": "Part",
   "conceptRole": "Role",
-  "conceptNarrative": "Narrative",
+  "conceptNarrative": "Narrative Structure",
   "conceptBeat": "Beat",
   "placedIn": "PLACED IN",
   "notInProject": "Not in a project",

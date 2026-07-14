@@ -237,6 +237,12 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
           ),
           const SizedBox(height: 10),
           _PlacedRow(
+            concept: DeskConcept.blueprint,
+            value: placement.blueprintName,
+            onTap: () => context.go('/blueprints'),
+          ),
+          const SizedBox(height: 10),
+          _PlacedRow(
             concept: DeskConcept.narrative,
             value: narrative,
             valueKey: const ValueKey('desk-placement-narrative'),
@@ -251,12 +257,6 @@ class _PlacementContextCardState extends ConsumerState<_PlacementContextCard> {
           _BeatRow(
             projectId: widget.projectId,
             documentId: widget.documentId,
-          ),
-          const SizedBox(height: 10),
-          _PlacedRow(
-            concept: DeskConcept.blueprint,
-            value: placement.blueprintName,
-            onTap: () => context.go('/blueprints'),
           ),
           const SizedBox(height: 10),
           _PlacedRow(
@@ -367,6 +367,15 @@ class _UnplacedContextCard extends ConsumerWidget {
                 : null,
           ),
           const SizedBox(height: 10),
+          // This file is not placed in any blueprint, so its Book Structure link
+          // is "Not assigned" — even when the PROJECT has adopted blueprints
+          // (those are project-level, not this file's). The project's
+          // blueprints still drive the placement guidance + action below.
+          _PlacedRow(
+            concept: DeskConcept.blueprint,
+            value: loc.notAssigned,
+          ),
+          const SizedBox(height: 10),
           _PlacedRow(
             concept: DeskConcept.narrative,
             value: inProject
@@ -385,15 +394,6 @@ class _UnplacedContextCard extends ConsumerWidget {
           ),
           if (pid != null)
             _BeatRow(projectId: pid, documentId: documentId),
-          const SizedBox(height: 10),
-          // This file is not placed in any blueprint, so its Blueprint link is
-          // "Not assigned" — even when the PROJECT has adopted blueprints
-          // (those are project-level, not this file's). The project's
-          // blueprints still drive the placement guidance + action below.
-          _PlacedRow(
-            concept: DeskConcept.blueprint,
-            value: loc.notAssigned,
-          ),
           const SizedBox(height: 10),
           _PlacedRow(
             concept: DeskConcept.part,

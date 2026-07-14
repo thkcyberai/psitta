@@ -37,10 +37,10 @@ extension DeskConceptStyle on DeskConcept {
   /// Human label per concept.
   String get label => switch (this) {
         DeskConcept.project => 'Project',
-        DeskConcept.blueprint => 'Blueprint',
+        DeskConcept.blueprint => 'Book Structure',
         DeskConcept.part => 'Part',
         DeskConcept.role => 'Role',
-        DeskConcept.narrative => 'Narrative',
+        DeskConcept.narrative => 'Narrative Structure',
         DeskConcept.beat => 'Beat',
       };
 }

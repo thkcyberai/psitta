@@ -687,7 +687,7 @@ abstract class AppLocalizations {
   /// No description provided for @conceptBlueprint.
   ///
   /// In en, this message translates to:
-  /// **'Blueprint'**
+  /// **'Book Structure'**
   String get conceptBlueprint;
 
   /// No description provided for @conceptPart.
@@ -705,7 +705,7 @@ abstract class AppLocalizations {
   /// No description provided for @conceptNarrative.
   ///
   /// In en, this message translates to:
-  /// **'Narrative'**
+  /// **'Narrative Structure'**
   String get conceptNarrative;
 
   /// No description provided for @conceptBeat.

@@ -336,7 +336,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get conceptProject => 'Projet';
 
   @override
-  String get conceptBlueprint => 'Structure';
+  String get conceptBlueprint => 'Structure du Livre';
 
   @override
   String get conceptPart => 'Partie';
@@ -345,7 +345,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get conceptRole => 'Rôle';
 
   @override
-  String get conceptNarrative => 'Récit';
+  String get conceptNarrative => 'Structure narrative';
 
   @override
   String get conceptBeat => 'Temps';
