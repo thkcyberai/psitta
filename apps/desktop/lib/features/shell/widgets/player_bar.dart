@@ -67,6 +67,14 @@ class PlayerBar extends ConsumerWidget {
         return null;
       },
     );
+    final voiceLanguage = ref.watch(voicesProvider).whenOrNull(
+      data: (voices) {
+        for (final v in voices) {
+          if (v.id == selectedVoiceId) return v.language;
+        }
+        return null;
+      },
+    );
     // Narrators for the CURRENT working language only (language-locked, same as
     // the Voices screen). Powers the inline narrator menu so the writer can
     // switch voice without leaving the reader.
@@ -169,12 +177,14 @@ class PlayerBar extends ConsumerWidget {
                       },
                       child: VoiceAvatar(
                         voiceName: voiceDisplayName,
+                        language: voiceLanguage,
                         size: 32,
                         variant: VoiceAvatarVariant.small,
                       ),
                     )
                   : VoiceAvatar(
                       voiceName: voiceDisplayName,
+                      language: voiceLanguage,
                       size: 32,
                       variant: VoiceAvatarVariant.small,
                     ),

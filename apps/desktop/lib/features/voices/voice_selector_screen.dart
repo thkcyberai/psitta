@@ -155,6 +155,9 @@ class _VoiceCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final loc = AppLocalizations.of(context);
+    // Language-tinted accent (falls back to theme glow for English/unknown),
+    // shared with the avatar ring so each card reads as its locale's color.
+    final accent = VoiceAvatar.languageAccent(language) ?? tokens.glow;
     final sub = [
       language,
       if (gender.isNotEmpty) _genderLabel(loc),
@@ -164,16 +167,16 @@ class _VoiceCard extends StatelessWidget {
       duration: const Duration(milliseconds: 140),
       decoration: BoxDecoration(
         color:
-            isSelected ? tokens.glow.withValues(alpha: 0.10) : tokens.surface2,
+            isSelected ? accent.withValues(alpha: 0.10) : tokens.surface2,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isSelected ? tokens.glow : tokens.border,
+          color: isSelected ? accent : tokens.border,
           width: isSelected ? 1.6 : 1,
         ),
         boxShadow: isSelected
             ? [
                 BoxShadow(
-                  color: tokens.glow.withValues(alpha: 0.18),
+                  color: accent.withValues(alpha: 0.18),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -186,10 +189,10 @@ class _VoiceCard extends StatelessWidget {
         children: [
           VoiceAvatar(
             voiceName: displayName,
+            language: language,
             size: 92,
             variant: VoiceAvatarVariant.big,
             ringWidth: isSelected ? 3 : 2,
-            ringColor: isSelected ? tokens.glow : null,
           ),
           const SizedBox(height: 10),
           Text(
@@ -227,7 +230,7 @@ class _VoiceCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration:
-                      BoxDecoration(color: tokens.glow, shape: BoxShape.circle),
+                      BoxDecoration(color: accent, shape: BoxShape.circle),
                   child: const Icon(Icons.check, size: 14, color: Colors.white),
                 ),
               ),

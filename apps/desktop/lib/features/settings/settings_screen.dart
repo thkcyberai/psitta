@@ -265,11 +265,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     return null;
                   },
                 );
+                final voiceLanguage = voicesAsync.whenOrNull(
+                  data: (voices) {
+                    for (final v in voices) {
+                      if (v.id == selectedId) return v.language;
+                    }
+                    return null;
+                  },
+                );
                 return ListTile(
                   leading: displayName == null
                       ? const SizedBox(width: 32, height: 32)
                       : VoiceAvatar(
                           voiceName: displayName,
+                          language: voiceLanguage,
                           size: 32,
                           variant: VoiceAvatarVariant.small,
                         ),

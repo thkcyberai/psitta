@@ -8,6 +8,7 @@ class VoiceAvatar extends StatelessWidget {
     super.key,
     required this.voiceName,
     required this.size,
+    this.language,
     this.variant = VoiceAvatarVariant.auto,
     this.ringWidth = 2.0,
     this.ringColor,
@@ -15,6 +16,10 @@ class VoiceAvatar extends StatelessWidget {
 
   final String voiceName;
   final double size;
+
+  /// Voice language tag (e.g. "pt-BR", "es-ES"). When [ringColor] is not
+  /// given, the ring is tinted by language so each locale is color-coded.
+  final String? language;
   final VoiceAvatarVariant variant;
   final double ringWidth;
   final Color? ringColor;
@@ -26,7 +31,8 @@ class VoiceAvatar extends StatelessWidget {
     final prefix = useBig ? 'big' : 'small';
     final assetPath =
         'assets/branding/voice_avatars/$prefix-${_assetSlug(voiceName)}.png';
-    final ring = ringColor ?? PsittaTokens.of(context).glow;
+    final ring =
+        ringColor ?? languageAccent(language) ?? PsittaTokens.of(context).glow;
 
     return Container(
       width: size,
@@ -50,6 +56,19 @@ class VoiceAvatar extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Per-language accent color so each locale's voices are color-coded
+  /// (avatar ring and card glow). Returns null for English/unknown, which
+  /// falls back to the theme glow.
+  static Color? languageAccent(String? language) {
+    if (language == null) return null;
+    final l = language.toLowerCase();
+    if (l.startsWith('pt-br')) return const Color(0xFF2E9954); // green
+    if (l.startsWith('pt-pt')) return const Color(0xFFEA7B1A); // orange
+    if (l.startsWith('es')) return const Color(0xFFD94339); // red
+    if (l.startsWith('fr')) return const Color(0xFF2053A4); // blue
+    return null;
   }
 
   /// Maps a voice display name to its asset file slug: lowercased with Latin
