@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:webview_windows/webview_windows.dart';
 
 import '../../data/services/auth_service.dart';
@@ -24,6 +25,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _controller = WebviewController();
   bool _isLoading = true;
   bool _isExchanging = false;
+  String _version = '';
 
   // PKCE parameters — generated once per login attempt.
   late final String _codeVerifier;
@@ -36,7 +38,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     _codeVerifier = AuthService.generateCodeVerifier();
     _codeChallenge = AuthService.generateCodeChallenge(_codeVerifier);
     _state = AuthService.generateState();
+    _loadVersion();
     _initWebView();
+  }
+
+  Future<void> _loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    if (mounted) setState(() => _version = info.version);
   }
 
   Future<void> _initWebView() async {
@@ -160,6 +168,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               child: ColoredBox(
                 color: Color(0x80FFFFFF),
                 child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
+
+          // App version — bottom-center, painted over the hosted-UI WebView.
+          if (_version.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 12,
+              child: IgnorePointer(
+                child: Center(
+                  child: Text(
+                    'v$_version',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.black.withValues(alpha: 0.45),
+                    ),
+                  ),
+                ),
               ),
             ),
         ],
