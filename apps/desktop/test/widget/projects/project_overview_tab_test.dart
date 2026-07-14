@@ -14,6 +14,7 @@ import 'package:psitta/data/providers/blueprint_providers.dart';
 import 'package:psitta/data/providers/project_providers.dart';
 import 'package:psitta/data/services/preferences_service.dart';
 import 'package:psitta/features/projects/widgets/project_overview_tab.dart';
+import 'package:psitta/l10n/app_localizations.dart';
 
 class MockBlueprintActions extends Mock implements BlueprintActions {}
 
@@ -121,6 +122,9 @@ Future<void> _pump(
       overrides: _base(extra: extra),
       child: MaterialApp(
         theme: theme ?? AppTheme.creatorStudioDark,
+        locale: const Locale('en'),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: const DefaultTabController(
           length: 4,
           child: Scaffold(body: ProjectOverviewTab(projectId: 'p1')),
