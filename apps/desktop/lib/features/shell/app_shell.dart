@@ -261,14 +261,24 @@ class _ContextHeader extends ConsumerWidget {
           : null;
 
       int? wordCount;
+      int? paragraphCount;
+      int? pageCount;
       if (documentId != null) {
-        final docAsync = ref.watch(deskDocumentProvider(documentId));
-        wordCount = docAsync.valueOrNull?.blocks
-            .map((b) => b.plainText)
-            .join(' ')
-            .split(RegExp(r'\s+'))
-            .where((t) => t.isNotEmpty)
-            .length;
+        final blocks =
+            ref.watch(deskDocumentProvider(documentId)).valueOrNull?.blocks;
+        if (blocks != null) {
+          wordCount = blocks
+              .map((b) => b.plainText)
+              .join(' ')
+              .split(RegExp(r'\s+'))
+              .where((t) => t.isNotEmpty)
+              .length;
+          // Paragraphs = non-empty content blocks.
+          paragraphCount =
+              blocks.where((b) => b.plainText.trim().isNotEmpty).length;
+          // Page estimate: ~250 words per standard manuscript page.
+          pageCount = wordCount == 0 ? 0 : (wordCount / 250).ceil();
+        }
       }
 
       // Breadcrumb segments: Project › Blueprint › Section › FileName. Project
@@ -394,11 +404,13 @@ class _ContextHeader extends ConsumerWidget {
             const SizedBox(width: 16),
             // Doc-specific right cluster — only on /writing-desk/:id
             if (documentId != null) ...[
-              // Word count
+              // Pages · paragraphs · words (pages + paragraphs before words)
               Text(
                 wordCount != null
-                    ? '${loc.wordCount} $wordCount'
-                    : '${loc.wordCount} —',
+                    ? '${loc.deskPagesCount(pageCount!)}  ·  '
+                        '${loc.deskParagraphsCount(paragraphCount!)}  ·  '
+                        '${loc.deskWordsCount(wordCount)}'
+                    : '—',
                 style: theme.textTheme.labelSmall
                     ?.copyWith(color: scheme.onSurfaceVariant),
               ),

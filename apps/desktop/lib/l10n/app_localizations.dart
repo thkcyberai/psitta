@@ -2418,6 +2418,24 @@ abstract class AppLocalizations {
   /// **'Choose a Narrative Structure'**
   String get narrChooseNarrative;
 
+  /// No description provided for @deskPagesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 page} other{{count} pages}}'**
+  String deskPagesCount(int count);
+
+  /// No description provided for @deskParagraphsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 paragraph} other{{count} paragraphs}}'**
+  String deskParagraphsCount(int count);
+
+  /// No description provided for @deskWordsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 word} other{{count} words}}'**
+  String deskWordsCount(int count);
+
   /// No description provided for @rrActivity.
   ///
   /// In en, this message translates to:

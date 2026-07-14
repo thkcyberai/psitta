@@ -1372,6 +1372,39 @@ class AppLocalizationsFr extends AppLocalizations {
   String get narrChooseNarrative => 'Choisir une Structure narrative';
 
   @override
+  String deskPagesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pages',
+      one: '1 page',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deskParagraphsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count paragraphes',
+      one: '1 paragraphe',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String deskWordsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count mots',
+      one: '1 mot',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get rrActivity => 'Activité';
 
   @override
