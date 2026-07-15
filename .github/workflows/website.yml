@@ -53,6 +53,12 @@ jobs:
 
       - name: Build website
         run: pnpm --filter website build
+        env:
+          # ── MAINTENANCE SWITCH ──────────────────────────────────────────
+          # "1" = deploy the site-wide maintenance page (every route).
+          # To restore the normal site: set this to "0" (or delete these two
+          # lines) and push to develop — CI redeploys automatically.
+          NEXT_PUBLIC_MAINTENANCE: "1"
 
       - name: Verify build output
         run: |

@@ -3,7 +3,12 @@ import { Inter } from "next/font/google";
 import Script from "next/script";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import Maintenance from "@/components/Maintenance";
 import "./globals.css";
+
+// Maintenance switch. Set NEXT_PUBLIC_MAINTENANCE=1 in the build env to serve
+// the maintenance page for EVERY route. Unset (or "0") for the normal site.
+const MAINTENANCE = process.env.NEXT_PUBLIC_MAINTENANCE === "1";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -105,9 +110,15 @@ export default function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body className="min-h-screen bg-paper antialiased font-sans">
-        <Header />
-        <main>{children}</main>
-        <Footer />
+        {MAINTENANCE ? (
+          <Maintenance />
+        ) : (
+          <>
+            <Header />
+            <main>{children}</main>
+            <Footer />
+          </>
+        )}
         <Script
           src="https://plausible.io/js/pa-z0olIWS0ivczftSMe2upb.js"
           strategy="afterInteractive"
