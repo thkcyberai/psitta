@@ -365,7 +365,9 @@ export default function Product() {
       <JsonLd data={softwareApplicationSchema} />
       <Container className="max-w-4xl">
         <h1 className="text-ink-primary text-center">
-          The complete studio for writing your book.
+          The complete studio{" "}
+          <br className="hidden sm:block" />
+          for writing your book.
         </h1>
         <p className="lead mt-4 text-center text-ink-muted max-w-2xl mx-auto">
           Draft in a real editor, shape your structure with Blueprints and
