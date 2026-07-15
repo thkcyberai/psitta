@@ -156,21 +156,34 @@ async def get_effective_plan(
     placeholder in ``users.email`` (Apr 27 Key Learning) — passing the
     JWT email avoids a benign allowlist miss in that window.
     """
-    # 1. Stripe — highest precedence
-    row = await db.execute(
-        text(
-            """
-            SELECT s.lookup_key, s.current_period_start,
-                   s.current_period_end, s.cancel_at_period_end
-            FROM subscriptions s
-            JOIN stripe_customers sc ON sc.id = s.stripe_customer_id
-            WHERE sc.user_id = :uid AND s.status = 'active'
-            ORDER BY s.created_at DESC LIMIT 1
-            """
-        ),
-        {"uid": str(user_id)},
-    )
-    sub = row.mappings().first()
+    # 1. Stripe — highest precedence. Each lookup below is SAVEPOINT-
+    # isolated (begin_nested) so a single query failure (schema drift,
+    # a missing table/column in an un-migrated environment) rolls back
+    # only its savepoint, logs, and falls through to the next tier —
+    # instead of poisoning the request transaction and 500-ing the whole
+    # /billing/status + /users/me/subscription path.
+    sub = None
+    try:
+        async with db.begin_nested():
+            row = await db.execute(
+                text(
+                    """
+                    SELECT s.lookup_key, s.current_period_start,
+                           s.current_period_end, s.cancel_at_period_end
+                    FROM subscriptions s
+                    JOIN stripe_customers sc ON sc.id = s.stripe_customer_id
+                    WHERE sc.user_id = :uid AND s.status = 'active'
+                    ORDER BY s.created_at DESC LIMIT 1
+                    """
+                ),
+                {"uid": str(user_id)},
+            )
+            sub = row.mappings().first()
+    except Exception as exc:
+        logger.error(
+            "plan.resolve_query_failed step=stripe user_id=%s: %s",
+            user_id, exc, exc_info=True,
+        )
     if sub:
         canonical = _canonicalize_lookup_key(sub["lookup_key"])
         return EffectivePlan(
@@ -183,18 +196,26 @@ async def get_effective_plan(
         )
 
     # 2. Dev/admin override
-    row = await db.execute(
-        text(
-            """
-            SELECT plan_id, current_period_start, current_period_end
-            FROM user_subscriptions
-            WHERE user_id = :uid AND status = 'active'
-            ORDER BY created_at DESC LIMIT 1
-            """
-        ),
-        {"uid": str(user_id)},
-    )
-    dev = row.mappings().first()
+    dev = None
+    try:
+        async with db.begin_nested():
+            row = await db.execute(
+                text(
+                    """
+                    SELECT plan_id, current_period_start, current_period_end
+                    FROM user_subscriptions
+                    WHERE user_id = :uid AND status = 'active'
+                    ORDER BY created_at DESC LIMIT 1
+                    """
+                ),
+                {"uid": str(user_id)},
+            )
+            dev = row.mappings().first()
+    except Exception as exc:
+        logger.error(
+            "plan.resolve_query_failed step=dev_override user_id=%s: %s",
+            user_id, exc, exc_info=True,
+        )
     if dev:
         canonical = _normalize_plan_id(dev["plan_id"])
         return EffectivePlan(
@@ -231,19 +252,27 @@ async def get_effective_plan(
     # users.email fallback fires; otherwise allowlist lookup is
     # silently skipped for every alpha tester whose JWT lacks the
     # claim. Discovered during T11.3b visual smoke.
-    if not email:
-        email = await _lookup_user_email(db, user_id)
-    if email:
-        entry = await check_allowlist_entitlement(db, email)
-        if entry:
-            return EffectivePlan(
-                plan_id=_normalize_plan_id(entry.plan_id),
-                raw_plan_id=entry.plan_id,
-                current_period_start=entry.granted_at,
-                current_period_end=entry.expires_at,
-                cancel_at_period_end=False,
-                source="tester_allowlist",
-            )
+    entry = None
+    try:
+        async with db.begin_nested():
+            if not email:
+                email = await _lookup_user_email(db, user_id)
+            if email:
+                entry = await check_allowlist_entitlement(db, email)
+    except Exception as exc:
+        logger.error(
+            "plan.resolve_query_failed step=allowlist user_id=%s: %s",
+            user_id, exc, exc_info=True,
+        )
+    if entry:
+        return EffectivePlan(
+            plan_id=_normalize_plan_id(entry.plan_id),
+            raw_plan_id=entry.plan_id,
+            current_period_start=entry.granted_at,
+            current_period_end=entry.expires_at,
+            cancel_at_period_end=False,
+            source="tester_allowlist",
+        )
 
     # 5. Free
     return EffectivePlan(

@@ -47,6 +47,22 @@ class _FakeResult:
         return self._row
 
 
+class _NoopSavepoint:
+    """No-op async context manager modelling AsyncSession.begin_nested().
+
+    get_effective_plan (reached here via check_llm_quota -> get_user_plan)
+    wraps each entitlement lookup in a SAVEPOINT so a failure can't poison
+    the request transaction. The fake session has no real transaction, so
+    its savepoint just runs the body.
+    """
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 class RecordingSession:
     """AsyncSession stand-in keyed by SQL substring matching.
 
@@ -58,6 +74,9 @@ class RecordingSession:
         self._result_map = result_map or {}
         self.calls: list[tuple[str, dict]] = []
         self.commit = AsyncMock()
+
+    def begin_nested(self):
+        return _NoopSavepoint()
 
     async def execute(self, stmt: Any, params: Any = None):
         sql = str(stmt)

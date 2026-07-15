@@ -450,7 +450,12 @@ async def get_billing_status(
         plan_name, billing_period = _parse_lookup_key(plan_state.raw_plan_id)
         status_value = "active"
         outcome = "found_active"
-    elif plan_state.source in ("dev_override", "tester_allowlist"):
+    elif plan_state.source in ("dev_override", "tester_allowlist", "reverse_trial"):
+        # reverse_trial carries the granted plan (writing_nook_pro) with an
+        # expires_at period end; report it as an active plan so the trial
+        # writer gets the full Writing Nook UI. Without this, the source
+        # fell into the else branch below and a live 14-day trial user was
+        # reported as plan="free" — showing them the Free interface.
         plan_name = plan_state.plan_id
         billing_period = None
         status_value = "active"
@@ -473,18 +478,29 @@ async def get_billing_status(
 
     # Audit — emitted on every code path including Free, with the
     # resolver source exposed in details for forensic filtering.
-    await audit_service.log_event(
-        db,
-        action="billing.status_checked",
-        resource_type="billing",
-        user_id=str(user_id),
-        details={
-            "plan": plan_name,
-            "outcome": outcome,
-            "source": plan_state.source,
-        },
-        ip_address=request.client.host if request.client else None,
-    )
+    # Audit writes are SAVEPOINT-isolated and best-effort: this endpoint
+    # must always return a valid status, so a failed audit INSERT can
+    # never poison the request transaction or 500 the response.
+    try:
+        async with db.begin_nested():
+            await audit_service.log_event(
+                db,
+                action="billing.status_checked",
+                resource_type="billing",
+                user_id=str(user_id),
+                details={
+                    "plan": plan_name,
+                    "outcome": outcome,
+                    "source": plan_state.source,
+                },
+                ip_address=request.client.host if request.client else None,
+            )
+    except Exception as exc:
+        logger.warning(
+            "billing.audit_failed",
+            action="billing.status_checked",
+            error=str(exc),
+        )
 
     # Tester allowlist resolution gets its own event so CloudWatch
     # alerts can fire on a single action filter ("alpha tester X
@@ -493,21 +509,29 @@ async def get_billing_status(
     # event provides natural surprise-expiry detection granularity
     # without flooding logs (no per-quota-check emission).
     if plan_state.source == "tester_allowlist":
-        await audit_service.log_event(
-            db,
-            action="tester.entitlement_resolved",
-            resource_type="billing",
-            user_id=str(user_id),
-            details={
-                "email": claims.email,
-                "expires_at": (
-                    plan_state.current_period_end.isoformat()
-                    if plan_state.current_period_end
-                    else None
-                ),
-            },
-            ip_address=request.client.host if request.client else None,
-        )
+        try:
+            async with db.begin_nested():
+                await audit_service.log_event(
+                    db,
+                    action="tester.entitlement_resolved",
+                    resource_type="billing",
+                    user_id=str(user_id),
+                    details={
+                        "email": claims.email,
+                        "expires_at": (
+                            plan_state.current_period_end.isoformat()
+                            if plan_state.current_period_end
+                            else None
+                        ),
+                    },
+                    ip_address=request.client.host if request.client else None,
+                )
+        except Exception as exc:
+            logger.warning(
+                "billing.audit_failed",
+                action="tester.entitlement_resolved",
+                error=str(exc),
+            )
 
     return BillingStatusResponse(
         plan=plan_name,

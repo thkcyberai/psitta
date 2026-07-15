@@ -70,22 +70,32 @@ async def check_trial_entitlement(
     None, so the resolver falls through to the next precedence rather
     than failing. Once the migration is applied this never triggers.
     """
+    # SAVEPOINT-isolate the read. Critical: if trial_grants is missing
+    # (migration 031 not yet applied) the SELECT raises UndefinedTable,
+    # which would poison the *outer* request transaction and make the
+    # NEXT query in get_effective_plan (and the endpoint's audit write)
+    # fail with InFailedSqlTransaction -> HTTP 500 -> the client's
+    # permanent "Plan status temporarily unavailable". Wrapping in
+    # begin_nested() rolls back only this savepoint on failure, leaving
+    # the outer transaction usable so resolution falls cleanly through
+    # to allowlist -> Free.
     try:
-        row = await db.execute(
-            text(
-                """
-                SELECT user_id, plan_id, granted_at, expires_at,
-                       activated_at, revoked_at
-                FROM trial_grants
-                WHERE user_id = :uid
-                  AND revoked_at IS NULL
-                  AND expires_at > NOW()
-                """
-            ),
-            {"uid": str(user_id)},
-        )
-        result = row.mappings().first()
-    except Exception as exc:  # fail-open to the next precedence step
+        async with db.begin_nested():
+            row = await db.execute(
+                text(
+                    """
+                    SELECT user_id, plan_id, granted_at, expires_at,
+                           activated_at, revoked_at
+                    FROM trial_grants
+                    WHERE user_id = :uid
+                      AND revoked_at IS NULL
+                      AND expires_at > NOW()
+                    """
+                ),
+                {"uid": str(user_id)},
+            )
+            result = row.mappings().first()
+    except Exception as exc:  # savepoint rollback keeps the outer txn clean
         logger.warning(
             "trial.check_failed", user_id=str(user_id), error=str(exc)
         )

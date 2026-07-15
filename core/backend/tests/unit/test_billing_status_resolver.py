@@ -44,11 +44,30 @@ class _FakeResult:
         return self._mapping
 
 
+class _NoopSavepoint:
+    """No-op async context manager modelling AsyncSession.begin_nested().
+
+    get_effective_plan and get_billing_status wrap entitlement lookups
+    and audit writes in SAVEPOINTs so a failure can't poison the request
+    transaction. The fake session has no real transaction, so its
+    savepoint just runs the body.
+    """
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+
 class RecordingSession:
     def __init__(self, result_map: dict[str, _FakeResult] | None = None):
         self._result_map = result_map or {}
         self.calls: list[tuple[str, dict]] = []
         self.commit = AsyncMock()
+
+    def begin_nested(self):
+        return _NoopSavepoint()
 
     async def execute(self, stmt: Any, params: Any = None):
         sql = str(stmt)
@@ -65,6 +84,7 @@ class RecordingSession:
 SQL_STRIPE = "JOIN stripe_customers"
 SQL_DEV = "FROM user_subscriptions"
 SQL_ALLOWLIST = "FROM tester_allowlist"
+SQL_TRIAL = "FROM trial_grants"
 
 
 def _now() -> datetime:
@@ -107,6 +127,20 @@ def _allowlist_row(
         "expires_at": expires_at or (_now() + timedelta(days=28)),
         "granted_by": "luis@psitta.ai",
         "notes": None,
+        "revoked_at": None,
+    }
+
+
+def _trial_row(
+    plan_id: str = "writing_nook_pro",
+    expires_at: datetime | None = None,
+) -> dict:
+    return {
+        "user_id": uuid4(),
+        "plan_id": plan_id,
+        "granted_at": _now() - timedelta(days=1),
+        "expires_at": expires_at or (_now() + timedelta(days=13)),
+        "activated_at": None,
         "revoked_at": None,
     }
 
@@ -247,3 +281,49 @@ async def test_billing_status_free_user_no_extra_audit():
 
     actions = [c["action"] for c in audit_calls]
     assert "tester.entitlement_resolved" not in actions
+
+
+@pytest.mark.asyncio
+async def test_billing_status_reverse_trial_reported_active():
+    """A reverse-trial user (no Stripe/dev, active trial_grant) must be
+    reported with plan='writing_nook_pro' and status='active' — NOT
+    plan='free'. Regression guard: the source='reverse_trial' branch was
+    missing from the response mapping, so a live 14-day trial user fell
+    into the else branch and was told they were on the Free plan, which
+    showed them the stripped Free interface instead of Writing Nook."""
+    user_id = uuid4()
+    expires = _now() + timedelta(days=13)
+    fake_db = RecordingSession({
+        SQL_TRIAL: _FakeResult(mapping=_trial_row(expires_at=expires)),
+    })
+
+    audit_calls: list[dict] = []
+
+    async def _capture_log(_db, **kwargs):
+        audit_calls.append(kwargs)
+
+    with patch.object(
+        billing.audit_service, "log_event", new=AsyncMock(side_effect=_capture_log)
+    ):
+        response = await get_billing_status(
+            request=_fake_request(),
+            user_id=user_id,
+            claims=_fake_claims(email="alice@example.com"),
+            db=fake_db,
+        )
+
+    assert response.source == "reverse_trial"
+    assert response.plan == "writing_nook_pro"
+    assert response.status == "active"
+    assert response.billing_period is None
+    assert response.current_period_end == expires.isoformat()
+
+    # Trial is not the allowlist path — no tester.entitlement_resolved.
+    actions = [c["action"] for c in audit_calls]
+    assert "billing.status_checked" in actions
+    assert "tester.entitlement_resolved" not in actions
+    status_checked = next(
+        c for c in audit_calls if c["action"] == "billing.status_checked"
+    )
+    assert status_checked["details"]["source"] == "reverse_trial"
+    assert status_checked["details"]["plan"] == "writing_nook_pro"
