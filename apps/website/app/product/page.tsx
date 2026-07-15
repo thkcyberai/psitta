@@ -5,9 +5,9 @@ import JsonLd from "@/components/seo/JsonLd";
 import CreativityWaitlistForm from "@/components/waitlist/CreativityWaitlistForm";
 
 export const metadata: Metadata = {
-  title: "Features — Read, Listen & Write",
+  title: "Features — Write, Structure, Hear It",
   description:
-    "Psitta reads your PDFs, Word docs, e-books and more aloud with synced word-level highlighting — then gives writers a full platform with Blueprints, Story-Coach, and writing analytics to finish their book. Free tier, Windows.",
+    "Psitta is the complete book-writing studio — draft in a real editor, structure with Blueprints and proven story frameworks, get honest AI insight with Summarize It and Story-Coach, and hear every line read back in a natural voice, all in your language. Free tier, Windows.",
 };
 
 const softwareApplicationSchema = {
@@ -365,12 +365,14 @@ export default function Product() {
       <JsonLd data={softwareApplicationSchema} />
       <Container className="max-w-4xl">
         <h1 className="text-ink-primary text-center">
-          Hear your words. Finish your book.
+          The complete studio for writing your book.
         </h1>
         <p className="lead mt-4 text-center text-ink-muted max-w-2xl mx-auto">
-          Psitta reads any document aloud so you can hear what you actually
-          wrote — then gives you a full writing platform to structure, draft,
-          and finish your book.
+          Draft in a real editor, shape your structure with Blueprints and
+          proven story frameworks, get honest AI insight, and hear every line
+          read back in a natural human voice — all in your own language. Psitta
+          brings your whole writing process into one place, so you actually
+          finish.
         </p>
 
         <div className="mt-16">
