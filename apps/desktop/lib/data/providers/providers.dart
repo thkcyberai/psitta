@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../api/api_client.dart';
+import '../../core/capabilities.dart';
 import '../../core/i18n/working_language.dart';
 import '../models/document.dart';
 import '../models/voice.dart';
@@ -36,8 +37,12 @@ ApiClient _buildApiClient(Ref ref) {
 void _invalidateAuthProviders(Ref ref) {
   // Fresh-fetch plan/quota state on next read. These drive Settings,
   // Change Plan, Library gating, and the quota banner — all of which
-  // misbehave when their cached error state isn't cleared.
+  // misbehave when their cached error state isn't cleared. The capability
+  // set is resolved from the same entitlement source, so it must refresh
+  // in lockstep — otherwise the UI could render stale capabilities after a
+  // plan change or token refresh.
   ref.invalidate(billingStatusProvider);
+  ref.invalidate(capabilitiesProvider);
   ref.invalidate(quotaUsageProvider);
 }
 
@@ -114,8 +119,7 @@ String displayNameFromProfile(Map<String, dynamic>? p) {
   final id = (p['id'] as String?)?.trim() ?? '';
   final dn = (p['display_name'] as String?)?.trim() ?? '';
   final email = (p['email'] as String?)?.trim() ?? '';
-  final emailPrefix =
-      email.contains('@') ? email.split('@').first.trim() : '';
+  final emailPrefix = email.contains('@') ? email.split('@').first.trim() : '';
   // Auto-provisioned rows store the Cognito sub (a UUID) as display_name —
   // prefer the email prefix over an id-like value, so it reads "luisaao".
   final looksLikeId = dn.isEmpty ||
@@ -233,9 +237,8 @@ class QuotaInfo {
 
   /// 0.0–1.0 fraction for progress-bar rendering. Zero for plans
   /// without EL access.
-  double get elFraction => elCharsLimit > 0
-      ? (elCharsUsed / elCharsLimit).clamp(0.0, 1.0)
-      : 0.0;
+  double get elFraction =>
+      elCharsLimit > 0 ? (elCharsUsed / elCharsLimit).clamp(0.0, 1.0) : 0.0;
 }
 
 DateTime _nextMonthStartUtc(DateTime nowUtc) {
@@ -369,8 +372,7 @@ class SentenceAlignmentKey {
   }
 
   @override
-  int get hashCode =>
-      Object.hash(documentId, chunkId, sentenceIndex, voiceId);
+  int get hashCode => Object.hash(documentId, chunkId, sentenceIndex, voiceId);
 }
 
 /// Fetch alignment for ONE sentence of a chunk (instant-highlight path).
