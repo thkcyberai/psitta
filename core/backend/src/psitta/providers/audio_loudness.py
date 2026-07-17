@@ -32,6 +32,17 @@ _TARGET_TP = -1.5
 _TARGET_LRA = 11.0
 _TIMEOUT_S = 30.0
 
+# Force a single output sample rate for EVERY cached clip. ElevenLabs renders at
+# 44.1 kHz (mp3_44100_128) while Edge renders at 24 kHz; when a per-sentence
+# playlist concatenates clips of different sample rates, just_audio must
+# reconfigure the decoder mid-stream and the transitioning clip stalls or is
+# skipped (the "reads 4 sentences then jumps" bug). Resampling here — the single
+# cache-write chokepoint every provider passes through — guarantees homogeneous
+# 44.1 kHz clips so the playlist concatenates seamlessly regardless of which
+# provider served each sentence. Resample is gain/rate only (no time-stretch),
+# so character-level SWH alignment timings stay valid.
+_TARGET_SR = 44100
+
 
 async def normalize_mp3(data: bytes, *, bitrate: str = "128k") -> bytes:
     """Return ``data`` loudness-normalized to the R128 target.
@@ -45,6 +56,7 @@ async def normalize_mp3(data: bytes, *, bitrate: str = "128k") -> bytes:
         "ffmpeg", "-hide_banner", "-loglevel", "error",
         "-i", "pipe:0",
         "-af", f"loudnorm=I={_TARGET_I}:TP={_TARGET_TP}:LRA={_TARGET_LRA}",
+        "-ar", str(_TARGET_SR),
         "-c:a", "libmp3lame", "-b:a", bitrate,
         "-f", "mp3", "pipe:1",
     ]

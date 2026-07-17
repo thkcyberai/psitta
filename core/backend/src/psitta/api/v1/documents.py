@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import re
@@ -2177,6 +2178,35 @@ async def get_chunk_alignment(
     return payload
 
 
+# ── Single-flight synthesis guard ──────────────────────────────────────────
+# Per-sentence cache-miss synthesis is triggered concurrently: the client
+# prefetches several sentences ahead AND retries slow requests, and the sibling
+# /audio and /alignment endpoints can miss the same sentence at once. Without
+# coordination every concurrent caller re-synthesizes the SAME sentence — this
+# burns ElevenLabs credits, double-counts the per-user char quota, and (the real
+# production failure) fans out enough parallel EL calls to trip the account
+# concurrency limit, whose 429s cascade into the Edge fallback and the retry
+# storm that surfaces to the user as "Plan status temporarily unavailable".
+#
+# A single-flight lock keyed on (sentence, voice) collapses the stampede: the
+# first caller synthesizes and writes the cache; the rest await the lock and
+# then read the freshly-cached clip. In-process and dependency-free (one uvicorn
+# worker), fail-safe (if the map is ever cleared, behaviour reverts to
+# uncoordinated synthesis — correct, just less efficient).
+_sentence_synth_locks: dict[str, asyncio.Lock] = {}
+_sentence_synth_guard = asyncio.Lock()
+
+
+async def _sentence_synth_lock(key: str) -> asyncio.Lock:
+    """Return the process-wide lock for one (sentence, voice) synthesis key."""
+    async with _sentence_synth_guard:
+        lock = _sentence_synth_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            _sentence_synth_locks[key] = lock
+        return lock
+
+
 async def _load_chunk_sentence(
     db: AsyncSession,
     document_id: UUID,
@@ -2270,49 +2300,73 @@ async def get_chunk_sentence_audio(
         sentence=sentence_index,
         voice_id=voice_id,
     )
-    from psitta.providers.tts_router import TTSRouter
 
-    tts = TTSRouter()
-    try:
-        audio_bytes, alignment, provider = (
-            await tts.synthesize_with_alignment_and_quota(
-                sentence_text, voice_id, user_id=user_id, db=db,
+    # Single-flight: collapse concurrent misses for this exact (sentence, voice)
+    # onto ONE synthesis. Prefetch + retries otherwise stampede the same clip.
+    lock = await _sentence_synth_lock(f"{seg_key}|{voice_id}")
+    async with lock:
+        # A caller that held the lock before us may have just cached this clip.
+        cached = await get_mp3(seg_key, voice_id)
+        if cached is not None:
+            logger.info(
+                "audio.sentence.cache_hit_after_wait",
+                chunk_id=str(chunk_id),
+                sentence=sentence_index,
+                voice_id=voice_id,
             )
-        )
-    except Exception as e:
-        logger.error("audio.sentence.synth_failed", error=str(e), voice_id=voice_id)
-        raise HTTPException(status_code=502, detail=f"TTS synthesis failed: {e}")
+            return FileResponse(
+                cached, media_type="audio/mpeg", filename=f"{seg_key}.mp3"
+            )
 
-    # One bill → mp3 + alignment sidecar, both keyed by the sentence. No
-    # audio_segments row is written for sentences: that table is keyed by
-    # (chunk_id, voice_id) and is only used by the chunk-level cache record;
-    # the file cache (local + S3) is sufficient to serve sentence audio.
-    local_path = await put_mp3(seg_key, voice_id, audio_bytes)
-    if alignment is not None and provider in {"elevenlabs", "edge"}:
-        await put_alignment(
-            seg_key,
-            voice_id,
-            {
-                "document_id": str(document_id),
-                "chunk_id": str(chunk_id),
-                "sentence_index": sentence_index,
-                "voice_id": voice_id,
-                "provider": provider,
-                "alignment": alignment,
-            },
+        from psitta.providers.tts_router import TTSRouter
+
+        tts = TTSRouter()
+        try:
+            audio_bytes, alignment, provider = (
+                await tts.synthesize_with_alignment_and_quota(
+                    sentence_text, voice_id, user_id=user_id, db=db,
+                )
+            )
+        except Exception as e:
+            logger.error(
+                "audio.sentence.synth_failed", error=str(e), voice_id=voice_id
+            )
+            raise HTTPException(
+                status_code=502, detail=f"TTS synthesis failed: {e}"
+            )
+
+        # One bill → mp3 + alignment sidecar, both keyed by the sentence. No
+        # audio_segments row is written for sentences: that table is keyed by
+        # (chunk_id, voice_id) and is only used by the chunk-level cache record;
+        # the file cache (local + S3) is sufficient to serve sentence audio.
+        local_path = await put_mp3(seg_key, voice_id, audio_bytes)
+        if alignment is not None and provider in {"elevenlabs", "edge"}:
+            await put_alignment(
+                seg_key,
+                voice_id,
+                {
+                    "document_id": str(document_id),
+                    "chunk_id": str(chunk_id),
+                    "sentence_index": sentence_index,
+                    "voice_id": voice_id,
+                    "provider": provider,
+                    "alignment": alignment,
+                },
+            )
+        # Persist the per-sentence EL char-quota increment applied inside
+        # synthesize_with_alignment_and_quota.
+        await db.commit()
+        logger.info(
+            "audio.sentence.synthesized",
+            chunk_id=str(chunk_id),
+            sentence=sentence_index,
+            voice_id=voice_id,
+            provider=provider,
+            size=len(audio_bytes),
         )
-    # Persist the per-sentence EL char-quota increment applied inside
-    # synthesize_with_alignment_and_quota.
-    await db.commit()
-    logger.info(
-        "audio.sentence.synthesized",
-        chunk_id=str(chunk_id),
-        sentence=sentence_index,
-        voice_id=voice_id,
-        provider=provider,
-        size=len(audio_bytes),
-    )
-    return FileResponse(local_path, media_type="audio/mpeg", filename=f"{seg_key}.mp3")
+        return FileResponse(
+            local_path, media_type="audio/mpeg", filename=f"{seg_key}.mp3"
+        )
 
 
 @router.get("/{document_id}/chunks/{chunk_id}/sentences/{sentence_index}/alignment")
@@ -2362,37 +2416,54 @@ async def get_chunk_sentence_alignment(
     sentence_text, source_type = await _load_chunk_sentence(
         db, document_id, chunk_id, user_id, sentence_index,
     )
-    from psitta.providers.tts_router import TTSRouter
 
-    tts = TTSRouter()
-    try:
-        audio_bytes, alignment, provider = (
-            await tts.synthesize_with_alignment_and_quota(
-                sentence_text, voice_id, user_id=user_id, db=db,
+    # Single-flight: share the (sentence, voice) lock with the /audio sibling so
+    # the two endpoints never synthesize the same clip concurrently.
+    lock = await _sentence_synth_lock(f"{seg_key}|{voice_id}")
+    async with lock:
+        cached = await get_alignment(seg_key, voice_id)
+        if cached is not None:
+            logger.info(
+                "audio.sentence.alignment_cache_hit_after_wait",
+                chunk_id=str(chunk_id),
+                sentence=sentence_index,
+                voice_id=voice_id,
             )
-        )
-    except Exception as e:
-        logger.error(
-            "audio.sentence.alignment_failed", error=str(e), voice_id=voice_id
-        )
-        raise HTTPException(status_code=502, detail=f"TTS alignment failed: {e}")
+            return cached
 
-    # Only ElevenLabs/Edge alignment is valid for the audio returned.
-    if provider not in {"elevenlabs", "edge"} and alignment is not None:
-        alignment = None
+        from psitta.providers.tts_router import TTSRouter
 
-    await put_mp3(seg_key, voice_id, audio_bytes)
-    payload = {
-        "document_id": str(document_id),
-        "chunk_id": str(chunk_id),
-        "sentence_index": sentence_index,
-        "voice_id": voice_id,
-        "provider": provider,
-        "alignment": alignment,
-    }
-    await put_alignment(seg_key, voice_id, payload)
-    await db.commit()
-    return payload
+        tts = TTSRouter()
+        try:
+            audio_bytes, alignment, provider = (
+                await tts.synthesize_with_alignment_and_quota(
+                    sentence_text, voice_id, user_id=user_id, db=db,
+                )
+            )
+        except Exception as e:
+            logger.error(
+                "audio.sentence.alignment_failed", error=str(e), voice_id=voice_id
+            )
+            raise HTTPException(
+                status_code=502, detail=f"TTS alignment failed: {e}"
+            )
+
+        # Only ElevenLabs/Edge alignment is valid for the audio returned.
+        if provider not in {"elevenlabs", "edge"} and alignment is not None:
+            alignment = None
+
+        await put_mp3(seg_key, voice_id, audio_bytes)
+        payload = {
+            "document_id": str(document_id),
+            "chunk_id": str(chunk_id),
+            "sentence_index": sentence_index,
+            "voice_id": voice_id,
+            "provider": provider,
+            "alignment": alignment,
+        }
+        await put_alignment(seg_key, voice_id, payload)
+        await db.commit()
+        return payload
 
 async def _invalidate_chunk_audio_cache(chunk_id: UUID, db: AsyncSession) -> None:
     """Delete all audio_segments rows for a chunk so next request re-synthesizes.

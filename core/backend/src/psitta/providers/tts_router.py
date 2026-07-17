@@ -12,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.config import Settings, get_settings
 from psitta.providers.tts_errors import TTSProviderError
+from psitta.providers.tts_router_maps import elevenlabs_to_azure
 
 logger = structlog.get_logger(__name__)
 
@@ -557,15 +558,23 @@ class TTSRouter:
     ) -> tuple[bytes, dict[str, Any]]:
         from psitta.providers.edge_alignment import expand
 
+        # Translate the requested voice to a catalog-verified Microsoft Neural
+        # voice of the SAME language + gender. Without this, an ElevenLabs voice
+        # id falling back to Edge (or any id outside Edge's 12-voice legacy map)
+        # silently becomes en-US-JennyNeural — wrong language and gender on the
+        # fallback clips. Native Microsoft ids pass through unchanged, so this is
+        # a no-op on the Edge-primary and azure-voice paths.
+        edge_voice_id = elevenlabs_to_azure(voice_id)
         audio, boundaries = await self._edge.synthesize_with_timestamps(
             text=text,
-            voice_id=voice_id,
+            voice_id=edge_voice_id,
         )
         alignment = expand(text, boundaries)
         logger.info(
             "tts_router.ok",
             provider="edge",
             voice_id=voice_id,
+            edge_voice_id=edge_voice_id,
             size=len(audio),
             char_count=len(text),
             boundaries=len(boundaries),
@@ -683,7 +692,6 @@ class TTSRouter:
             return audio
         if provider == "azure":
             from psitta.models.domain import ToneCategory
-            from psitta.providers.tts_router_maps import elevenlabs_to_azure
 
             azure_voice = elevenlabs_to_azure(voice_id)
             audio = await self._azure.synthesize(
@@ -702,15 +710,21 @@ class TTSRouter:
             )
             return audio
         if provider == "edge":
+            # Same-language/gender translation as the alignment path — keeps
+            # audio-only fallback clips on the correct voice instead of Jenny.
+            # Native Microsoft ids pass through unchanged (no-op for Edge
+            # primary / azure voices).
+            edge_voice_id = elevenlabs_to_azure(voice_id)
             audio = await self._edge.synthesize(
                 text=text,
-                voice_id=voice_id,
+                voice_id=edge_voice_id,
                 speed=speed,
             )
             logger.info(
                 "tts_router.ok",
                 provider="edge",
                 voice_id=voice_id,
+                edge_voice_id=edge_voice_id,
                 size=len(audio),
                 char_count=char_count,
             )
