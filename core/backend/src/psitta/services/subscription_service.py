@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from fastapi import HTTPException, status
 from sqlalchemy import text
@@ -338,52 +338,64 @@ async def get_monthly_doc_count(db: AsyncSession, user_id: UUID) -> int:
     return result[0] if result else 0
 
 
+async def get_total_doc_count(db: AsyncSession, user_id: UUID) -> int:
+    """Return the user's TOTAL document count — everything they own that
+    isn't in the trash (``status != 'deleted'``, i.e. active + archived).
+
+    This is the number the tiered document *ceiling* is measured against
+    (Free 10 / Reading Nook 50 / Writing Nook unlimited): a total cap, not
+    a per-month allowance. Deleting a document frees a slot automatically.
+    """
+    row = await db.execute(
+        text(
+            "SELECT COUNT(*) FROM documents "
+            "WHERE user_id = :uid AND status != 'deleted'"
+        ),
+        {"uid": str(user_id)},
+    )
+    result = row.fetchone()
+    return result[0] if result else 0
+
+
 async def check_and_increment_doc_quota(
     db: AsyncSession, user_id: UUID
 ) -> None:
-    """
-    Raises HTTP 402 if the user is at their monthly doc limit.
-    Otherwise atomically increments their counter.
+    """Enforce the plan's TOTAL document ceiling before a new document is
+    created. Raises HTTP 402 when the user already owns as many documents
+    as their plan allows (Free 10 / Reading Nook 50 / Writing Nook
+    unlimited; -1 = unlimited).
 
-    Reads docs_per_month from services/plan_limits.py via _normalize_plan_id
-    so legacy ENUM values (pro_monthly / pro_annual) map to canonical
-    PlanLimits entries (reading_nook_pro). Kills the dual-PLAN_LIMITS read
-    path that previously diverged for Stripe-paying users.
+    The ceiling is measured against the live document count — nothing is
+    incremented, so deleting a document frees a slot automatically. This
+    replaces the former per-calendar-month upload counter. (Function name
+    retained for call-site stability in documents.py.)
+
+    Reads the cap from services/plan_limits.py via _normalize_plan_id so
+    legacy ENUM values (pro_monthly / pro_annual) map to canonical
+    PlanLimits entries (reading_nook_pro).
     """
     raw_plan_id = await _get_active_plan_id(db, user_id)
     canonical_plan_id = _normalize_plan_id(raw_plan_id)
     limits = get_plan_limits(canonical_plan_id)
-    limit = limits.documents_per_month
-    current = await get_monthly_doc_count(db, user_id)
+    cap = limits.documents_per_month  # now a TOTAL ceiling; -1 = unlimited
+    if cap == -1:
+        return
 
-    if limit != -1 and current >= limit:
+    current = await get_total_doc_count(db, user_id)
+    if current >= cap:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
                 "error": "quota_exceeded",
                 "message": (
-                    f"Monthly document limit reached ({current}/{limit}). "
-                    "Upgrade to Pro for more documents."
+                    f"Document limit reached ({current}/{cap}). Upgrade your "
+                    "plan or remove a document to add a new one."
                 ),
                 "plan": canonical_plan_id,
                 "used": current,
-                "limit": limit,
+                "limit": cap,
             },
         )
-
-    # Upsert usage counter (id is required — generate for new rows)
-    ym = _current_year_month()
-    await db.execute(
-        text("""
-            INSERT INTO usage_counters (id, user_id, year_month, docs_uploaded, updated_at)
-            VALUES (:id, :uid, :ym, 1, NOW())
-            ON CONFLICT (user_id, year_month)
-            DO UPDATE SET docs_uploaded = usage_counters.docs_uploaded + 1,
-                          updated_at = NOW()
-        """),
-        {"id": str(uuid4()), "uid": str(user_id), "ym": ym},
-    )
-    await db.commit()
 
 
 async def check_voice_access(
@@ -634,7 +646,9 @@ async def set_plan_override(
 async def get_subscription_summary(db: AsyncSession, user_id: UUID) -> dict:
     """Return full subscription info for /users/me/subscription."""
     plan_info = await get_user_plan(db, user_id)
-    monthly_used = await get_monthly_doc_count(db, user_id)
+    # Document usage is a TOTAL count against the plan ceiling (Free 10 /
+    # Reading Nook 50 / Writing Nook unlimited), not a per-month tally.
+    total_used = await get_total_doc_count(db, user_id)
     limit = plan_info["limits"]["docs_per_month"]
 
     # ElevenLabs char usage for the current billing period (C.3 endpoint
@@ -665,9 +679,11 @@ async def get_subscription_summary(db: AsyncSession, user_id: UUID) -> dict:
         "plan_id": plan_info["plan_id"],
         "limits": plan_info["limits"],
         "usage": {
-            "docs_this_month": monthly_used,
+            # Key name kept for client compatibility; value is now the
+            # TOTAL documents owned, measured against the plan ceiling.
+            "docs_this_month": total_used,
             "docs_limit": limit,
-            "docs_remaining": max(0, limit - monthly_used) if limit != -1 else None,
+            "docs_remaining": max(0, limit - total_used) if limit != -1 else None,
             "el_chars_used": el_used,
             "el_chars_limit": el_limit,
             "el_chars_remaining": max(0, el_limit - el_used),

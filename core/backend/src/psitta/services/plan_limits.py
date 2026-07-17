@@ -93,7 +93,7 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         llm_tokens_per_period=0,
     ),
     "writing_nook_pro": PlanLimits(
-        documents_per_month=50,
+        documents_per_month=-1,  # unlimited — total document ceiling
         tts_minutes_per_month=600,
         audio_cache_days=90,
         voices="all",
@@ -106,7 +106,7 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
         llm_tokens_per_period=1_000_000,
     ),
     "creative_nook_pro": PlanLimits(
-        documents_per_month=50,
+        documents_per_month=-1,  # unlimited — total document ceiling
         tts_minutes_per_month=600,
         audio_cache_days=90,
         voices="all",

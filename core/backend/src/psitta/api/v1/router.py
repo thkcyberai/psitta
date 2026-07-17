@@ -11,7 +11,7 @@ Security: All routes except health checks require authentication
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from psitta.api.v1.auth import router as auth_router
 from psitta.api.v1.billing import router as billing_router
@@ -29,6 +29,7 @@ from psitta.api.v1.tts import router as tts_router
 from psitta.api.v1.users import router as users_router
 from psitta.api.v1.voices import router as voices_router
 from psitta.api.v1.waitlist import router as waitlist_router
+from psitta.dependencies import require_capability
 
 v1_router = APIRouter()
 
@@ -79,19 +80,25 @@ v1_router.include_router(
     projects_router,
 )
 
-# ── Blueprints ────────────────────────────────────────────────────────
+# ── Blueprints (Writing Nook studio — server-enforced capability) ─────
+# Book structures are a Writing Nook feature end to end. Enforcing the
+# capability at the router closes the leak for EVERY client, including old
+# field builds whose UI still exposes the button — the server refuses.
 v1_router.include_router(
     blueprints_router,
+    dependencies=[Depends(require_capability("blueprints"))],
 )
 
-# ── Project ↔ Blueprint adoption ──────────────────────────────────────
+# ── Project ↔ Blueprint adoption (Writing Nook only) ──────────────────
 v1_router.include_router(
     project_blueprints_router,
+    dependencies=[Depends(require_capability("blueprints"))],
 )
 
-# ── Document placement (Blueprint feature, /documents/{id}/placement) ──
+# ── Document placement (Blueprint feature — Writing Nook only) ─────────
 v1_router.include_router(
     placement_router,
+    dependencies=[Depends(require_capability("blueprints"))],
 )
 
 # ── Subscriptions ─────────────────────────────────────────────────────

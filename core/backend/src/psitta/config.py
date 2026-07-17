@@ -118,6 +118,15 @@ class Settings(BaseSettings):
     REVERSE_TRIAL_DAYS: int = 14
     REVERSE_TRIAL_PLAN_ID: str = "writing_nook_pro"
 
+    # ── Loops.so (GTM funnel lifecycle emails) ─────────────────────────
+    # Backend posts lifecycle events (signup, activated, trial_3_days_left,
+    # trial_ended, subscribed) to Loops, which fires the matching email
+    # sequence. Ships OFF: emission is a no-op until LOOPS_EVENTS_ENABLED
+    # is true AND LOOPS_API_KEY is set (both via env/secret). Every emit is
+    # best-effort and can never break the request that triggers it.
+    LOOPS_EVENTS_ENABLED: bool = False
+    LOOPS_API_KEY: str = ""
+
     # ── Rate Limiting ──────────────────────────────────────────────────
     # Global fallback tier — applies to any route that doesn't match a
     # specific tier below (PATCH, DELETE, cover upload, non-/documents

@@ -36,10 +36,34 @@ from psitta.dependencies import (
 from psitta.middleware.auth import TokenClaims
 from psitta.middleware.rbac import get_tier_limits
 from psitta.services import audit_service
+from psitta.services.capabilities import capability_response
+from psitta.services.subscription_service import get_effective_plan
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
 
 router = APIRouter()
+
+
+@router.get(
+    "/me/capabilities",
+    summary="Resolved capabilities + limits for the current user",
+    response_description="Capability list and numeric limits the client renders from",
+)
+async def get_my_capabilities(
+    user_id: UUID = Depends(get_current_user_id),
+    claims: TokenClaims = Depends(get_auth_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """Single source of truth the Flutter client renders from.
+
+    Resolves the user's plan through the SAME entitlement resolver the server
+    enforces with (``get_effective_plan``), then maps it to a capability set +
+    numeric limits (services/capabilities.py). The client must gate every
+    feature on these capabilities, never on a plan id — so a leak on the
+    client can't grant access the server denies.
+    """
+    plan = await get_effective_plan(db, user_id, email=claims.email)
+    return capability_response(plan.plan_id)
 
 
 @router.get(

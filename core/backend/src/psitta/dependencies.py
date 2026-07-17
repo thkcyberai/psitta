@@ -25,6 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from psitta.config import Settings, get_settings
 from psitta.middleware.auth import TokenClaims, get_current_user
+from psitta.services.capabilities import capabilities_for
+from psitta.services.loops_service import emit_event
+from psitta.services.subscription_service import get_effective_plan
 from psitta.services.trial_service import grant_reverse_trial
 
 logger: structlog.stdlib.BoundLogger = structlog.get_logger(__name__)
@@ -115,6 +118,17 @@ async def get_current_user_id(
         # can never raise or roll back the user row above, so provisioning
         # (and therefore first login) is never at risk.
         await grant_reverse_trial(db, new_id)
+        # GTM funnel: fire the Loops "signup" event (starts the Welcome
+        # sequence). Best-effort and a no-op unless Loops is configured;
+        # it can never block or break first login.
+        first_name = display_name.split()[0] if display_name else None
+        await emit_event(
+            email,
+            "signup",
+            user_id=new_id,
+            first_name=first_name,
+            contact_properties={"source": "app_signup"},
+        )
         return inserted[0]
 
     # ON CONFLICT fired -- another concurrent request inserted the
@@ -256,6 +270,44 @@ async def require_active_subscription(
             },
         )
     return user_plan
+
+
+# ── Capability enforcement (server-authoritative gating) ───────────────────
+def require_capability(capability: str):
+    """FastAPI dependency factory: 403 unless the current user's plan grants
+    ``capability``.
+
+    Server-authoritative — the client cannot bypass this even if its UI leaks
+    the feature to a lower tier (which is exactly what shipped builds do
+    today). Returns the resolved EffectivePlan on success so the route can
+    inspect plan details.
+
+    Always gate on a capability string, never on a plan id, so moving a
+    feature between plans is a one-line change in services/capabilities.py.
+    """
+
+    async def _dependency(
+        claims: TokenClaims = Depends(get_current_user),
+        user_id: UUID = Depends(get_current_user_id),
+        db: AsyncSession = Depends(get_db_session),
+    ):
+        plan = await get_effective_plan(db, user_id, email=claims.email)
+        if capability not in capabilities_for(plan.plan_id):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "capability_required",
+                    "capability": capability,
+                    "plan": plan.plan_id,
+                    "message": (
+                        f"This feature requires a plan that includes "
+                        f"'{capability}'."
+                    ),
+                },
+            )
+        return plan
+
+    return _dependency
 
 
 def _lookup_key_to_plan(lookup_key: str) -> str:
