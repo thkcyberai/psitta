@@ -2043,18 +2043,12 @@ async def get_chunk_alignment(
 
     from psitta.services.audio_cache import get_alignment, put_alignment, put_mp3, s3_key_mp3
 
-    # Non-ElevenLabs voices cannot produce alignment data.
-    # Skip synthesis entirely and cache a null-alignment payload.
-    if voice_id.startswith("en-") and voice_id.endswith("Neural"):
-        payload = {
-            "document_id": str(document_id),
-            "chunk_id": str(chunk_id),
-            "voice_id": voice_id,
-            "provider": "azure",
-            "alignment": None,
-        }
-        await put_alignment(str(chunk_id), voice_id, payload)
-        return payload
+    # NOTE: this used to short-circuit en-*Neural voices to a *cached*
+    # alignment=None, assuming native Azure. Edge serves the same voice IDs and
+    # DOES produce alignment (WordBoundary), so this dropped highlights on the
+    # Edge fallback — and cached the null so it stuck. Removed: fall through to
+    # cache + synthesis; the provider guard nulls alignment only for genuinely
+    # non-aligning providers.
 
     # Load chunk text — scoped to the authenticated user's documents.
     chunk_result = await db.execute(
@@ -2395,18 +2389,14 @@ async def get_chunk_sentence_alignment(
 
     seg_key = f"{chunk_id}_s{sentence_index}"
 
-    # Native English Azure voices cannot produce alignment — answer fast and
-    # do not synthesize (consistent with the chunk /alignment endpoint).
-    if voice_id.startswith("en-") and voice_id.endswith("Neural"):
-        return {
-            "document_id": str(document_id),
-            "chunk_id": str(chunk_id),
-            "sentence_index": sentence_index,
-            "voice_id": voice_id,
-            "provider": "azure",
-            "alignment": None,
-        }
-
+    # NOTE: this used to short-circuit every en-*Neural voice to
+    # alignment=None, assuming they were native Azure (which can't align). But
+    # Edge serves the SAME en-*Neural voice IDs and DOES produce word alignment
+    # (WordBoundary → edge_alignment). That short-circuit silently dropped all
+    # highlights whenever English fell back from ElevenLabs to Edge (e.g. when
+    # ElevenLabs credits run out). Removed: fall through to the cache (the
+    # /audio sibling writes the Edge alignment) and synthesis; the guard below
+    # nulls alignment only for genuinely non-aligning providers.
     cached = await get_alignment(seg_key, voice_id)
     if cached is not None:
         logger.info(
