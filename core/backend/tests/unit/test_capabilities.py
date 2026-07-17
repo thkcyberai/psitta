@@ -152,3 +152,29 @@ async def test_require_capability_reading_nook_denied_blueprints(monkeypatch):
             claims=SimpleNamespace(email="a@b.com"), user_id=uuid4(), db=None
         )
     assert exc.value.status_code == 403
+
+
+# ── Server-gated Writing-Nook-only surfaces (leak closure) ───────────────────
+# These four are enforced server-side with require_capability at the route /
+# router level, so a client leak can't reach them:
+#   scribbles_whispers -> notes router
+#   ai_summary         -> POST /documents/{id}/summarize
+#   story_coach        -> POST /projects/{id}/narrative/check
+#   structure_analysis -> POST /projects/{id}/narrative/analyze
+_WN_ONLY_GATED = [
+    "scribbles_whispers",
+    "ai_summary",
+    "story_coach",
+    "structure_analysis",
+]
+
+
+@pytest.mark.parametrize("capability", _WN_ONLY_GATED)
+def test_wn_only_features_denied_to_free_and_reading_nook(capability):
+    """Free and Reading Nook must NOT hold these capabilities; Writing Nook and
+    Creative Nook must. Guards the exact regression: if any of these leaked into
+    a lower tier's set, the server gate would wave the request through."""
+    assert capability not in capabilities_for("free")
+    assert capability not in capabilities_for("reading_nook_pro")
+    assert capability in capabilities_for("writing_nook_pro")
+    assert capability in capabilities_for("creative_nook_pro")

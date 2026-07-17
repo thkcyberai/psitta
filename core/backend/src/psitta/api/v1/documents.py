@@ -19,7 +19,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.dependencies import get_current_user_id, get_db_session
+from psitta.dependencies import (
+    get_current_user_id,
+    get_db_session,
+    require_capability,
+)
 from psitta.middleware.auth import TokenClaims
 from psitta.schemas.api import ChunkCreateRequest, ChunkResponse, ChunkUpdateRequest, ResynthesizeResponse
 from psitta.services import audit_service
@@ -3157,7 +3161,10 @@ async def _background_invalidate_and_resynthesize(
 # ── POST /{document_id}/summarize ─────────────────────────────────────────────
 
 
-@router.post("/{document_id}/summarize")
+@router.post(
+    "/{document_id}/summarize",
+    dependencies=[Depends(require_capability("ai_summary"))],
+)
 async def summarize_document(
     document_id: UUID,
     db: AsyncSession = Depends(get_db_session),

@@ -8,7 +8,11 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from psitta.dependencies import get_current_user_id, get_db_session
+from psitta.dependencies import (
+    get_current_user_id,
+    get_db_session,
+    require_capability,
+)
 from psitta.schemas.api import (
     ActivityEvent,
     DocumentBeatUpdate,
@@ -279,7 +283,11 @@ async def set_project_narrative(
     return await get_project(project_id=project_id, db=db, user_id=user_id)
 
 
-@router.post("/{project_id}/narrative/check", response_model=NarrativeCheckResponse)
+@router.post(
+    "/{project_id}/narrative/check",
+    response_model=NarrativeCheckResponse,
+    dependencies=[Depends(require_capability("story_coach"))],
+)
 async def check_project_narrative(
     project_id: str,
     data: NarrativeCheckRequest,
@@ -313,8 +321,11 @@ async def check_project_narrative(
     return NarrativeCheckResponse(**result)
 
 
-@router.post("/{project_id}/narrative/analyze",
-             response_model=StructureAnalysisResponse)
+@router.post(
+    "/{project_id}/narrative/analyze",
+    response_model=StructureAnalysisResponse,
+    dependencies=[Depends(require_capability("structure_analysis"))],
+)
 async def analyze_project_structure(
     project_id: str,
     db: AsyncSession = Depends(get_db_session),

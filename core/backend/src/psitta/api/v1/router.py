@@ -68,11 +68,16 @@ v1_router.include_router(
     tags=["users"],
 )
 
-# ── Scribbles (notes) ──────────────────────────────────────────────────
+# ── Scribbles (notes) — Writing Nook auxiliary tool, server-enforced ──
+# Scribbles are a Writing Nook feature; Free and Reading Nook have no
+# auxiliary writer tools. Enforcing the capability at the router closes the
+# leak for EVERY client (old field builds included) whose UI still exposes
+# the Scribbles panel — the server refuses regardless of what the client shows.
 v1_router.include_router(
     notes_router,
     prefix="/notes",
     tags=["notes"],
+    dependencies=[Depends(require_capability("scribbles_whispers"))],
 )
 
 # ── Projects ──────────────────────────────────────────────────────────
