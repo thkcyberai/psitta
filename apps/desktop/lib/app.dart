@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_quill/flutter_quill.dart' show FlutterQuillLocalizations;
+import 'package:flutter_quill/flutter_quill.dart'
+    show FlutterQuillLocalizations;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/plan_gate.dart';
 import 'core/routing/app_router.dart';
@@ -8,6 +9,7 @@ import 'core/theme/app_theme.dart';
 import 'data/providers/providers.dart';
 import 'data/services/preferences_service.dart';
 import 'l10n/app_localizations.dart';
+import 'widgets/update_gate.dart';
 
 /// Throttle window for resume-driven billing invalidation. Prevents
 /// /billing/status from being hammered when the user rapidly toggles
@@ -42,8 +44,7 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
   /// Wall-clock of the last resume that actually fired an invalidation.
   /// Initialised to the epoch so the first resume after launch always
   /// passes the throttle check.
-  DateTime _lastResumeInvalidation =
-      DateTime.fromMillisecondsSinceEpoch(0);
+  DateTime _lastResumeInvalidation = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -73,8 +74,7 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
     final now = DateTime.now();
-    if (now.difference(_lastResumeInvalidation) <
-        _resumeInvalidateThrottle) {
+    if (now.difference(_lastResumeInvalidation) < _resumeInvalidateThrottle) {
       return;
     }
     _lastResumeInvalidation = now;
@@ -111,9 +111,7 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
       if (!next.isFree) return;
       final currentSpeed = ref.read(selectedSpeedProvider);
       if (currentSpeed > kFreeMaxSpeed) {
-        ref
-            .read(selectedSpeedProvider.notifier)
-            .clampToCeiling(kFreeMaxSpeed);
+        ref.read(selectedSpeedProvider.notifier).clampToCeiling(kFreeMaxSpeed);
       }
       final currentSwh = ref.read(selectedSwhModeProvider);
       if (currentSwh == SwhMode.always) {
@@ -145,7 +143,12 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.noScaling,
           ),
-          child: child ?? const SizedBox.shrink(),
+          // Root-level enforcement of the server minimum-version floor.
+          // Fail-open: renders [child] normally unless /config explicitly
+          // requires an update (updateStatusProvider).
+          child: UpdateGate(
+            child: child ?? const SizedBox.shrink(),
+          ),
         );
       },
     );

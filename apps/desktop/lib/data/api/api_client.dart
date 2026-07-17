@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
+import '../../core/app_version.dart';
 import '../../core/constants.dart';
 import '../services/auth_service.dart';
 
@@ -61,6 +62,10 @@ class ApiClient {
         if (lang != null && lang.isNotEmpty) {
           options.headers['X-Psitta-Language'] = lang;
         }
+        // Client-version telemetry + control plane: every request carries the
+        // running app version so the backend can observe installed versions
+        // (and, with GET /config, enforce a minimum).
+        options.headers['X-Client-Version'] = clientVersion;
         handler.next(options);
       },
 
