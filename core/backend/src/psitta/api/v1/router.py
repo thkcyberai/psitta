@@ -17,6 +17,7 @@ from psitta.api.v1.auth import router as auth_router
 from psitta.api.v1.billing import router as billing_router
 from psitta.api.v1.blueprints import placement_router
 from psitta.api.v1.blueprints import router as blueprints_router
+from psitta.api.v1.config import router as config_router
 from psitta.api.v1.contact import router as contact_router
 from psitta.api.v1.documents import router as documents_router
 from psitta.api.v1.notes import router as notes_router
@@ -123,6 +124,15 @@ v1_router.include_router(
     tts_router,
     prefix="/tts",
     tags=["tts"],
+)
+
+# ── Client control-plane config (public) ──────────────────────────────
+# Unauthenticated: an outdated client must be able to learn it needs to
+# upgrade even with a stale token. Server-owned; changeable without a client
+# release (remote control plane / deploy != release).
+v1_router.include_router(
+    config_router,
+    tags=["config"],
 )
 
 # ── Contact form (public) ─────────────────────────────────────────────
