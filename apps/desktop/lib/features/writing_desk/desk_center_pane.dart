@@ -23,7 +23,9 @@ import '../../data/services/audio_service.dart'
     show
         audioServiceProvider,
         audioPlayingProvider,
-        activeSentenceIndexProvider;
+        activeSentenceIndexProvider,
+        sentencePlaybackContextProvider,
+        resolveHighlightSync;
 import '../../data/services/preferences_service.dart'
     show
         selectedVoiceIdProvider,
@@ -1963,8 +1965,15 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
         }
         if (chunkCharOffset >= start) sIdx = i;
       }
-      final currentIdx = ref.read(currentChunkIndexProvider);
-      if (currentIdx == targetIdx && audioService.hasSentencePlaylist) {
+      // Seek within the active playlist only when the AUDIO ENGINE itself is
+      // on the target chunk — the toolbar chunk model may disagree during a
+      // chunk hand-off and must never decide click-to-read. When the model
+      // drifted, repair it so the chapter label/scrubber stay truthful.
+      if (audioService.hasSentencePlaylist &&
+          audioService.currentPlaylistChunkId == chunkId) {
+        if (ref.read(currentChunkIndexProvider) != targetIdx) {
+          ref.read(currentChunkIndexProvider.notifier).state = targetIdx;
+        }
         await audioService.seekToSentence(sIdx);
       } else {
         ref.read(currentChunkIndexProvider.notifier).state = targetIdx;
@@ -2045,10 +2054,34 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
     final voiceId = ref.watch(selectedVoiceIdProvider);
     final audioService = ref.watch(audioServiceProvider);
 
+    // ── Highlight follows the AUDIO, never the toolbar chunk model ────────
+    // currentChunkIndexProvider advances the instant a chunk completes, while
+    // the audio engine's sentence state rolls over only once the next chunk's
+    // first clip has loaded. During that gap the two disagree — and pairing
+    // the model's chunk with the audio's sentence index used to leap the
+    // highlight (and the follow-scroll) a whole chunk down-document. Resolve
+    // every highlight input from the audio engine's atomic
+    // (chunkId, sentenceIndex) pair; the chunk model remains scrubber/skip/
+    // chapter-label state only.
+    final sentenceCtx =
+        ref.watch(sentencePlaybackContextProvider).valueOrNull;
+    final sync = resolveHighlightSync(
+      documentId: widget.documentId,
+      chunkIds: chunkIds,
+      modelChunkIndex: rawIndex,
+      fallbackSentenceIndex:
+          ref.watch(activeSentenceIndexProvider).valueOrNull ?? 0,
+      context: sentenceCtx,
+    );
+
     final chunkCount = widget.document.chunkMap.length;
-    final safeIndex = chunkCount == 0 ? 0 : rawIndex.clamp(0, chunkCount - 1);
+    final highlightIndex = sync.chunkIndex;
+    final safeIndex =
+        chunkCount == 0 ? 0 : highlightIndex.clamp(0, chunkCount - 1);
     final activeChunkId =
-        (rawIndex >= 0 && rawIndex < chunkIds.length) ? chunkIds[rawIndex] : '';
+        (highlightIndex >= 0 && highlightIndex < chunkIds.length)
+            ? chunkIds[highlightIndex]
+            : '';
 
     // ── Instant-highlight (sentence playlist) wiring ──────────────────────
     // Raw chunks carry sentence_boundaries; use them to (a) enable the
@@ -2079,9 +2112,9 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
     // highlight paint via [highlightEnabled] on the reading view.
     final swhOn = ref.watch(selectedSwhModeProvider) == SwhMode.always;
     final useSentenceHighlight = activeBoundaries?.isNotEmpty ?? false;
-    final activeSentenceIdx = useSentenceHighlight
-        ? (ref.watch(activeSentenceIndexProvider).valueOrNull ?? 0)
-        : 0;
+    // Same atomic pair as activeChunkId above — boundaries, alignment key and
+    // sentenceCharBase below therefore all describe the AUDIBLE sentence.
+    final activeSentenceIdx = useSentenceHighlight ? sync.sentenceIndex : 0;
 
     final sentenceAlignAsync = (useSentenceHighlight && activeChunkId.isNotEmpty)
         ? ref.watch(sentenceAlignmentProvider(SentenceAlignmentKey(

@@ -758,6 +758,14 @@ class AudioService {
 
   final StreamController<int> _sentenceIndexController =
       StreamController<int>.broadcast();
+
+  /// Atomic (documentId, chunkId, sentenceIndex) of the audible sentence —
+  /// see [SentencePlaybackContext]. Emitted at exactly the same points as
+  /// [_sentenceIndexController] so the pair can never be torn apart by
+  /// consumers. `null` = no sentence playlist is active.
+  SentencePlaybackContext? _currentSentenceContext;
+  final StreamController<SentencePlaybackContext?> _sentenceContextController =
+      StreamController<SentencePlaybackContext?>.broadcast();
   final StreamController<Duration> _chapterPositionController =
       StreamController<Duration>.broadcast();
   final StreamController<Duration?> _chapterDurationController =
@@ -787,7 +795,12 @@ class AudioService {
   int _plLastIndex = 0;
   Duration _plLastPos = Duration.zero;
   int _plRecoveries = 0;
-  static const int _kStallSeconds = 8;
+  // How long a clip may sit in loading/buffering before the watchdog treats it
+  // as DEAD and skips it. Raised from 8s: on slower synthesis/network a good
+  // sentence can legitimately take >8s to load, and skipping it drops content
+  // the writer wanted to hear (the "jumped sentences" bug). 30s only trips on a
+  // genuinely stuck clip; a merely-slow sentence now waits and then plays.
+  static const int _kStallSeconds = 30;
   static const int _kMaxRecoveries = 3;
 
   /// The authoritative current sentence index, tracked from the currentIndex
@@ -855,6 +868,41 @@ class AudioService {
 
   int get currentSentenceIndex => _liveSentenceIdx;
 
+  /// Which chunk's sentence playlist the audio engine is ACTUALLY playing
+  /// (null when no playlist is active). The toolbar chunk model may disagree
+  /// during a chunk hand-off; this is the authoritative value.
+  String? get currentPlaylistChunkId => _playlistChunkId;
+
+  /// Last emitted atomic sentence playback context (null when no sentence
+  /// playlist is active). Synchronous companion to [sentenceContextStream].
+  SentencePlaybackContext? get currentSentenceContext =>
+      _currentSentenceContext;
+
+  /// Atomic (documentId, chunkId, sentenceIndex) stream — emits alongside
+  /// [sentenceIndexStream] at every sentence change, and `null` when the
+  /// playlist is cleared. Consumers that map audio state into document
+  /// coordinates MUST use this pair rather than combining the sentence index
+  /// with any UI-owned chunk state.
+  Stream<SentencePlaybackContext?> get sentenceContextStream =>
+      _sentenceContextController.stream;
+
+  /// Emit the atomic context for [sentenceIndex] of the ACTIVE playlist.
+  /// No-op when no playlist is active (fields already cleared).
+  void _emitSentenceContext(int sentenceIndex) {
+    final doc = _playlistDocumentId;
+    final chunk = _playlistChunkId;
+    if (doc == null || chunk == null) return;
+    final ctx = SentencePlaybackContext(
+      documentId: doc,
+      chunkId: chunk,
+      sentenceIndex: sentenceIndex,
+    );
+    _currentSentenceContext = ctx;
+    if (!_sentenceContextController.isClosed) {
+      _sentenceContextController.add(ctx);
+    }
+  }
+
   Duration _cumulativeBefore(int index) {
     var total = Duration.zero;
     final n = _sentenceDurations.length;
@@ -907,6 +955,10 @@ class AudioService {
     _playlistVoiceId = null;
     _sentenceDurations = const [];
     _liveSentenceIdx = 0;
+    _currentSentenceContext = null;
+    if (!_sentenceContextController.isClosed) {
+      _sentenceContextController.add(null); // context invalidated
+    }
     if (!_sentenceActiveController.isClosed) {
       _sentenceActiveController.add(false);
     }
@@ -999,6 +1051,7 @@ class AudioService {
         if (idx == null) return;
         _liveSentenceIdx = idx; // authoritative current sentence
         _sentenceIndexController.add(idx);
+        _emitSentenceContext(idx);
         _emitChapterPosition();
         // Remember how far we've read so Play resumes here after a voice change
         // or leaving/returning to the reader.
@@ -1025,6 +1078,7 @@ class AudioService {
       _markLoadedSource(
           documentId: documentId, chunkId: chunkId, voiceId: voiceId);
       _sentenceIndexController.add(effectiveInitial);
+      _emitSentenceContext(effectiveInitial);
       _sentenceActiveController.add(true);
       _synthesizingController.add(false);
       if (autoplay) await _player.play();
@@ -1094,6 +1148,7 @@ class AudioService {
     }
     if (!_isLatest(token)) return;
     _sentenceIndexController.add(target);
+    _emitSentenceContext(target);
     _emitChapterPosition();
   }
 
@@ -1163,6 +1218,7 @@ class AudioService {
     try {
       await _player.seek(Duration.zero, index: idx + 1);
       _sentenceIndexController.add(idx + 1);
+      _emitSentenceContext(idx + 1);
       _plLastProgressAt = DateTime.now();
       if (!_player.playing) await _player.play();
     } catch (_) {
@@ -1176,6 +1232,7 @@ class AudioService {
     _teardownPlaylistSubs();
     _chunkCompletedController.close();
     _sentenceIndexController.close();
+    _sentenceContextController.close();
     _chapterPositionController.close();
     _chapterDurationController.close();
     _sentenceActiveController.close();
@@ -1191,6 +1248,127 @@ class AudioService {
   bool get isPlaying => _player.playing;
   Duration get position => _player.position;
   Duration? get duration => _player.duration;
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// Atomic sentence playback context.
+//
+// Psitta is a continuous sentence-by-sentence reader: the audible unit is a
+// sentence clip; chunks exist only for backend batching, transport, caching,
+// synthesis efficiency, and chapter-level progress/seek. AudioService already
+// tracks the playing pair as loose private fields (_playlistDocumentId /
+// _playlistChunkId / _playlistVoiceId / _liveSentenceIdx); this value type
+// snapshots them into ONE immutable value emitted together, so the highlight
+// pipeline can never tear the pair apart.
+//
+// The regression this prevents: the toolbar chunk model
+// (currentChunkIndexProvider) advances the instant a chunk completes, while
+// the audio engine's sentence state rolls over only after the next chunk's
+// first clip has loaded. A consumer combining "chunk from the UI model" with
+// "sentence index from the audio engine" pairs a chunk-N sentence index with
+// chunk-N+1 coordinates and leaps the highlight a whole chunk down-document.
+// ───────────────────────────────────────────────────────────────────────
+
+/// The atomic sentence playback context, owned exclusively by [AudioService].
+///
+/// Exposes the authoritative pair the highlight pipeline must never tear
+/// apart: which chunk's playlist the audio engine is actually playing
+/// ([chunkId] — INTERNAL LOOKUP METADATA ONLY, used to resolve
+/// `sentence_boundaries[sentenceIndex]` and the chunk's document offset,
+/// never an independent highlight driver) and the chunk-local
+/// [sentenceIndex] of the audible clip. [documentId] lets consumers reject a
+/// context that belongs to a different document. No generation token is
+/// carried: every emission site lives inside per-launch stream subscriptions
+/// that [AudioService.playChunkSentences] tears down before relaunching, so a
+/// stale launch cannot emit.
+@immutable
+class SentencePlaybackContext {
+  const SentencePlaybackContext({
+    required this.documentId,
+    required this.chunkId,
+    required this.sentenceIndex,
+  });
+
+  final String documentId;
+  final String chunkId;
+  final int sentenceIndex;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SentencePlaybackContext &&
+          other.documentId == documentId &&
+          other.chunkId == chunkId &&
+          other.sentenceIndex == sentenceIndex;
+
+  @override
+  int get hashCode => Object.hash(documentId, chunkId, sentenceIndex);
+
+  @override
+  String toString() =>
+      'SentencePlaybackContext(doc: $documentId, chunk: $chunkId, '
+      'sentence: $sentenceIndex)';
+}
+
+/// Resolved highlight coordinates for one frame: which chunk index (into the
+/// app's ordered chunk-id list / `PsittaDocument.chunkMap`) and which
+/// chunk-local sentence index the highlight pipeline must use.
+@immutable
+class HighlightSync {
+  const HighlightSync({
+    required this.chunkIndex,
+    required this.sentenceIndex,
+    required this.fromAudioContext,
+  });
+
+  final int chunkIndex;
+  final int sentenceIndex;
+
+  /// True when the pair came from the audio engine's atomic
+  /// [SentencePlaybackContext]; false when it fell back to the UI chunk model
+  /// (no active sentence playlist for this document).
+  final bool fromAudioContext;
+}
+
+/// Reconcile the UI chunk model with the audio engine's atomic sentence
+/// context.
+///
+/// Contract (the fix for the sentence/word highlight desync):
+///   1. While a sentence playlist for [documentId] is active, highlighting,
+///      scrolling, sentence selection and word timing follow the AUDIO's
+///      `(chunkId, sentenceIndex)` pair — the toolbar chunk model is ignored.
+///      During a chunk hand-off the highlight therefore stays on the last
+///      audible sentence until the next chunk's audio actually starts,
+///      instead of leaping a whole chunk ahead.
+///   2. When no context applies (nothing playing, different document, or the
+///      context's chunk is absent from [chunkIds] — e.g. the list was
+///      re-sliced by an edit), fall back to the chunk model + the raw
+///      sentence index stream: exactly the pre-fix behavior.
+///
+/// Pure function — no Riverpod, no widgets — so the reconciliation contract
+/// is unit-testable in isolation.
+HighlightSync resolveHighlightSync({
+  required String documentId,
+  required List<String> chunkIds,
+  required int modelChunkIndex,
+  required int fallbackSentenceIndex,
+  SentencePlaybackContext? context,
+}) {
+  if (context != null && context.documentId == documentId) {
+    final audioChunkIndex = chunkIds.indexOf(context.chunkId);
+    if (audioChunkIndex >= 0) {
+      return HighlightSync(
+        chunkIndex: audioChunkIndex,
+        sentenceIndex: context.sentenceIndex,
+        fromAudioContext: true,
+      );
+    }
+  }
+  return HighlightSync(
+    chunkIndex: modelChunkIndex,
+    sentenceIndex: fallbackSentenceIndex,
+    fromAudioContext: false,
+  );
 }
 
 /// Singleton audio service provider.
@@ -1240,6 +1418,17 @@ final isSynthesizingProvider = StreamProvider<bool>((ref) {
 final activeSentenceIndexProvider = StreamProvider<int>((ref) {
   final service = ref.watch(audioServiceProvider);
   return service.sentenceIndexStream;
+});
+
+/// The audio engine's atomic (documentId, chunkId, sentenceIndex) — see
+/// [SentencePlaybackContext]. `null` when no sentence playlist is active.
+/// The highlight pipeline resolves its chunk + sentence from THIS pair (via
+/// [resolveHighlightSync]); the toolbar chunk model never drives
+/// highlighting.
+final sentencePlaybackContextProvider =
+    StreamProvider<SentencePlaybackContext?>((ref) {
+  final service = ref.watch(audioServiceProvider);
+  return service.sentenceContextStream;
 });
 
 /// Chunk-level ("chapter") position, summed across sentence clips, for the

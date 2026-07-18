@@ -3378,44 +3378,70 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
         // (char times sentence-local) and shifts it into chunk space by the
         // sentence's start offset. Position is already sentence-local in
         // playlist mode, so audioPositionProvider drives the in-sentence sync.
+        // ── Highlight follows the AUDIO, never the toolbar chunk model ──
+        // Mirror of the Writing Desk fix: during a chunk hand-off the chunk
+        // model (currentChunkIndexProvider) leads the audio engine, so every
+        // sentence-highlight input below is resolved from the engine's atomic
+        // (chunkId, sentenceIndex) pair instead. Chunks stay scrubber/skip/
+        // chapter state only.
+        final sentenceCtx =
+            ref.watch(sentencePlaybackContextProvider).valueOrNull;
+        final highlightSync = resolveHighlightSync(
+          documentId: widget.documentId,
+          chunkIds: [
+            for (final c in chunks)
+              (((c as Map<String, dynamic>)['id']) ?? '').toString(),
+          ],
+          modelChunkIndex: currentIndex,
+          fallbackSentenceIndex:
+              ref.watch(activeSentenceIndexProvider).valueOrNull ?? 0,
+          context: sentenceCtx,
+        );
+        final highlightChunkIndex =
+            highlightSync.chunkIndex.clamp(0, chunks.length - 1);
+        final highlightChunk = chunks[highlightChunkIndex] as Map<String, dynamic>;
+        final highlightChunkId = (highlightChunk['id'] ?? '').toString();
+        final highlightBoundaries =
+            highlightChunk['sentence_boundaries'] as List<dynamic>?;
+
         final useSentenceHighlight = sentencePlaylistEnabled &&
             !isPdfDocument &&
-            (sentenceBoundaries?.isNotEmpty ?? false);
-        final activeSentenceIdx = useSentenceHighlight
-            ? (ref.watch(activeSentenceIndexProvider).valueOrNull ?? 0)
-            : 0;
-        final sentenceAlignAsync = (useSentenceHighlight && chunkId.isNotEmpty)
-            ? ref.watch(sentenceAlignmentProvider(SentenceAlignmentKey(
-                documentId: widget.documentId,
-                chunkId: chunkId,
-                sentenceIndex: activeSentenceIdx,
-                voiceId: voiceId,
-              )))
-            : const AsyncValue<Map<String, dynamic>>.data({});
+            (highlightBoundaries?.isNotEmpty ?? false);
+        final activeSentenceIdx =
+            useSentenceHighlight ? highlightSync.sentenceIndex : 0;
+        final sentenceAlignAsync =
+            (useSentenceHighlight && highlightChunkId.isNotEmpty)
+                ? ref.watch(sentenceAlignmentProvider(SentenceAlignmentKey(
+                    documentId: widget.documentId,
+                    chunkId: highlightChunkId,
+                    sentenceIndex: activeSentenceIdx,
+                    voiceId: voiceId,
+                  )))
+                : const AsyncValue<Map<String, dynamic>>.data({});
         final sentenceAlignPayload =
             sentenceAlignAsync.valueOrNull ?? const <String, dynamic>{};
         int sentenceCharBase = 0;
         if (useSentenceHighlight &&
-            sentenceBoundaries != null &&
+            highlightBoundaries != null &&
             activeSentenceIdx >= 0 &&
-            activeSentenceIdx < sentenceBoundaries.length) {
-          final b = sentenceBoundaries[activeSentenceIdx] as List<dynamic>;
+            activeSentenceIdx < highlightBoundaries.length) {
+          final b = highlightBoundaries[activeSentenceIdx] as List<dynamic>;
           if (b.isNotEmpty) sentenceCharBase = (b[0] as num).toInt();
         }
         // Prefetch the next couple of sentences' alignment (which also warms
         // their audio cache server-side) so the highlight — and gapless
         // playback — stay ahead of the reader. Dedup'd by the FutureProvider.
         if (useSentenceHighlight &&
-            sentenceBoundaries != null &&
-            chunkId.isNotEmpty) {
+            highlightBoundaries != null &&
+            highlightChunkId.isNotEmpty) {
           for (var k = 1; k <= 2; k++) {
             final ni = activeSentenceIdx + k;
-            if (ni >= 0 && ni < sentenceBoundaries.length) {
+            if (ni >= 0 && ni < highlightBoundaries.length) {
               unawaited(
                 ref
                     .read(sentenceAlignmentProvider(SentenceAlignmentKey(
                       documentId: widget.documentId,
-                      chunkId: chunkId,
+                      chunkId: highlightChunkId,
                       sentenceIndex: ni,
                       voiceId: voiceId,
                     )).future)
@@ -3698,7 +3724,11 @@ class _PlayerScreenState extends ConsumerState<PlayerScreen> {
               DocumentReadingView(
                 key: ValueKey('doc_${widget.documentId}_$voiceId'),
                 document: psittaDoc,
-                activeChunkIndex: currentIndex,
+                // Sentence mode: the chunk coordinate must belong to the same
+                // atomic audio context as sentenceCharBase + the alignment
+                // payload above — never the toolbar chunk model.
+                activeChunkIndex:
+                    useSentenceHighlight ? highlightChunkIndex : currentIndex,
                 alignmentPayload: useSentenceHighlight
                     ? sentenceAlignPayload
                     : (alignmentPayload ?? const {}),
