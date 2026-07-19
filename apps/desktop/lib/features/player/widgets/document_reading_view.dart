@@ -57,6 +57,37 @@ TextAlign _textAlignFor(String? alignment) {
 /// that have been assembled into the canonical model.
 final RegExp _kWordCharReDR = RegExp(r'[\p{L}\p{N}]', unicode: true);
 
+// Unicode-aware word-character test shared by the widget and the pure
+// [findWordAnchorIndex] helper: letters/digits plus apostrophes so accented
+// words and contractions stay whole.
+bool _isWordCharDR(String ch) =>
+    _kWordCharReDR.hasMatch(ch) || ch == "'" || ch == '’';
+
+/// Word-highlight continuity anchor (Speechify-style).
+///
+/// Alignment data timestamps EVERY character — including the whitespace and
+/// punctuation between words (see backend `edge_alignment._fill_range` gap
+/// fills; ElevenLabs does the same). Highlighting only the exact char under
+/// the audio cursor therefore made the word highlight strobe OFF during
+/// every inter-word gap and drop the final word when text ends in
+/// punctuation. This helper snaps the cursor BACKWARD to the nearest word
+/// character at or before [index], never below [floor] (the sentence start
+/// in sentence mode — the snap must not bleed into the previous sentence).
+/// Returns null when no word character exists in that range (e.g. before the
+/// sentence's first word), which callers treat as "no word highlight yet".
+@visibleForTesting
+int? findWordAnchorIndex(String text, int index, int floor) {
+  if (text.isEmpty) return null;
+  var i = index;
+  if (i >= text.length) i = text.length - 1;
+  final lo = floor < 0 ? 0 : floor;
+  if (i < lo) return null;
+  while (i > lo && !_isWordCharDR(text[i])) {
+    i--;
+  }
+  return _isWordCharDR(text[i]) ? i : null;
+}
+
 class DocumentReadingView extends ConsumerStatefulWidget {
   const DocumentReadingView({
     super.key,
@@ -222,6 +253,18 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     final doc = widget.document;
     if (doc.sentences.isEmpty) return null;
 
+    // D1 guard: in sentence mode, paint ONLY while a sentence playlist is
+    // actually active. After genuine document completion (stop() retires the
+    // playlist) the position stream, a cached alignment payload and a stale
+    // sentence index can still describe a sentence nobody is reading — which
+    // painted a phantom highlight on page 1 and dragged the follow-scroll to
+    // it. Nothing audible → nothing painted. A pause keeps its playlist, so
+    // the tint correctly persists while paused.
+    if (widget.sentenceMode &&
+        !(widget.audioService?.hasSentencePlaylist ?? false)) {
+      return null;
+    }
+
     // Get the active chunk's text range in document coordinates
     final chunkIdx = widget.activeChunkIndex.clamp(0, doc.chunkMap.length - 1);
     final chunk = doc.chunkMap[chunkIdx];
@@ -238,15 +281,25 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     }
 
     if (chunkCharOffset == null) {
-      // Suppress the whole-chunk duration-ratio guess in sentence mode: the
-      // position is sentence-local, so a chunk-wide ratio would point at the
-      // wrong sentence. Simply don't highlight until the alignment arrives.
-      if (widget.sentenceMode) return null;
-      if (total.inMilliseconds == 0) return null;
-      final ratio =
-          (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
-      chunkCharOffset =
-          (ratio * chunk.textLength).round().clamp(0, chunk.textLength - 1);
+      if (widget.sentenceMode) {
+        // Sentence mode never needs alignment to know WHICH sentence is
+        // active: sentenceCharBase comes from the audio engine's atomic
+        // context and already identifies the audible sentence. Tinting from
+        // the base alone makes the sentence light up the instant its clip
+        // becomes current — BEFORE the first word is spoken — and it can
+        // never blink off during the voice-onset + kHighlightDelayMs window
+        // at each clip start (chars before the first aligned char resolve
+        // to null). Word-level highlighting still waits for real alignment.
+        // (An inactive playlist already returned null above — D1 guard.)
+        chunkCharOffset = widget.sentenceCharBase;
+      } else {
+        // Whole-chunk mode: duration-ratio fallback (unchanged).
+        if (total.inMilliseconds == 0) return null;
+        final ratio =
+            (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
+        chunkCharOffset =
+            (ratio * chunk.textLength).round().clamp(0, chunk.textLength - 1);
+      }
     }
 
     final docOffset = chunk.textOffset +
@@ -418,7 +471,12 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
     // ── Resolve active word (document-level offset) ──
     int? activeWordDocOffset; // document-level char offset of active word start
     int? activeWordDocEnd;
-    final alignmentBlock = widget.wordHighlightEnabled
+    // D1 guard (same as the sentence tint): in sentence mode a retired
+    // playlist means nothing is audible — never paint a word from a cached
+    // alignment + reset position after document completion.
+    final wordPaintActive = !widget.sentenceMode ||
+        (widget.audioService?.hasSentencePlaylist ?? false);
+    final alignmentBlock = (widget.wordHighlightEnabled && wordPaintActive)
         ? widget.alignmentPayload['alignment']
         : null;
 
@@ -434,11 +492,18 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
         final chunk = doc.chunkMap[chunkIdx];
         final docCharIdx = chunk.textOffset + charIdx;
 
-        // Find the word boundaries around this character
+        // Find the word boundaries around this character. The cursor may sit
+        // on timestamped whitespace/punctuation between words — snap back to
+        // the nearest word char (floor-bounded at the sentence start in
+        // sentence mode) so the previous word stays lit through inter-word
+        // gaps and the final word survives a trailing ".", '"' or "…".
         final text = doc.plainText;
-        if (docCharIdx < text.length) {
-          int wStart = docCharIdx;
-          int wEnd = docCharIdx;
+        final snapFloor = chunk.textOffset +
+            (widget.sentenceMode ? widget.sentenceCharBase : 0);
+        final anchor = findWordAnchorIndex(text, docCharIdx, snapFloor);
+        if (anchor != null) {
+          int wStart = anchor;
+          int wEnd = anchor;
           // Expand to word boundaries
           while (wStart > 0 && _isWordChar(text[wStart - 1])) {
             wStart--;
@@ -901,8 +966,7 @@ class _DocumentReadingViewState extends ConsumerState<DocumentReadingView> {
 
   // Unicode-aware: accented letters (é, è, ç, ã, ñ, …) count as word chars so
   // word-boundary expansion doesn't stop mid-word on an accent.
-  bool _isWordChar(String ch) =>
-      _kWordCharReDR.hasMatch(ch) || ch == "'" || ch == '\u2019';
+  bool _isWordChar(String ch) => _isWordCharDR(ch);
 
   /// Snap-to-line CENTER y for the hovered sentence's FIRST visual line in
   /// block-local coordinates. Returns null when the sentence has no

@@ -60,6 +60,19 @@ class AudioService {
 
   int _requestSeq = 0;
 
+  /// Gate serializing every player-mutating operation chain — see
+  /// [AsyncOpGate]. One native mutation sequence at a time; queued ops start
+  /// only when the previous has fully settled.
+  final AsyncOpGate _playerOps = AsyncOpGate();
+
+  /// Bound on the first clip's native load (which may include a full
+  /// server-side synthesis on a cold voice — measured 9–15 s in QA). A hung
+  /// load past this bound fails the launch cleanly (spinner cleared,
+  /// playlist state cleared) instead of spinning forever. Note: a Dart
+  /// timeout cannot abort the native call itself — but combined with the
+  /// [_playerOps] gate it bounds how long any queued operation can wait.
+  static const Duration _kFirstClipLoadTimeout = Duration(seconds: 20);
+
   AudioPlayer get player => _player;
   Stream<bool> get synthesizingStream => _synthesizingController.stream;
 
@@ -137,8 +150,35 @@ class AudioService {
         volume: volume,
       );
     }
-    _sentenceActiveController.add(false);
-    final token = _nextToken();
+    final token = _nextToken(); // before enqueue — newer ops supersede (F3)
+    return _playerOps.run(() => _playChunkStreamingLocked(
+          token: token,
+          documentId: documentId,
+          chunkId: chunkId,
+          voiceId: voiceId,
+          speed: speed,
+          volume: volume,
+        ));
+  }
+
+  /// Body of [playChunkStreaming], run inside the [_playerOps] gate.
+  Future<bool> _playChunkStreamingLocked({
+    required int token,
+    required String documentId,
+    required String chunkId,
+    required String voiceId,
+    required double speed,
+    required double volume,
+  }) async {
+    if (!_isLatest(token)) return false; // superseded while queued
+    // Entering single-file playback: fully retire any previous sentence
+    // playlist. Leaving _playlistChunkId / _plStateSub alive here let a
+    // stale _onPlaylistState misread THIS chunk's completion as a playlist
+    // event (spurious recover / duplicate completion), and left a stale
+    // atomic context for the highlight resolver. _clearPlaylistState also
+    // emits sentenceActive=false and nulls the context.
+    await _teardownPlaylistSubs();
+    _clearPlaylistState();
     final cacheKey = '${chunkId}_$voiceId';
 
     try {
@@ -173,7 +213,7 @@ class AudioService {
         Uri.parse(_streamUrl(documentId, chunkId, voiceId)),
         headers: headers,
       );
-      await _player.setAudioSource(source);
+      await _player.setAudioSource(source).timeout(_kFirstClipLoadTimeout);
       if (!_isLatest(token)) {
         _synthesizingController.add(false);
         return false;
@@ -299,8 +339,35 @@ class AudioService {
         volume: volume,
       );
     }
-    _sentenceActiveController.add(false);
-    final token = _nextToken();
+    final token = _nextToken(); // before enqueue — newer ops supersede (F3)
+    return _playerOps.run(() => _playChunkLocked(
+          token: token,
+          documentId: documentId,
+          chunkId: chunkId,
+          voiceId: voiceId,
+          speed: speed,
+          volume: volume,
+        ));
+  }
+
+  /// Body of [playChunk], run inside the [_playerOps] gate.
+  Future<bool> _playChunkLocked({
+    required int token,
+    required String documentId,
+    required String chunkId,
+    required String voiceId,
+    required double speed,
+    required double volume,
+  }) async {
+    if (!_isLatest(token)) return false; // superseded while queued
+    // Entering single-file playback: fully retire any previous sentence
+    // playlist. Leaving _playlistChunkId / _plStateSub alive here let a
+    // stale _onPlaylistState misread THIS chunk's completion as a playlist
+    // event (spurious recover / duplicate completion), and left a stale
+    // atomic context for the highlight resolver. _clearPlaylistState also
+    // emits sentenceActive=false and nulls the context.
+    await _teardownPlaylistSubs();
+    _clearPlaylistState();
     final cacheKey = '${chunkId}_$voiceId';
     final stopwatch = Stopwatch()..start();
     _logPdfPerf(
@@ -436,8 +503,35 @@ class AudioService {
         autoplay: false,
       );
     }
-    _sentenceActiveController.add(false);
-    final token = _nextToken();
+    final token = _nextToken(); // before enqueue — newer ops supersede (F3)
+    return _playerOps.run(() => _prepareChunkLocked(
+          token: token,
+          documentId: documentId,
+          chunkId: chunkId,
+          voiceId: voiceId,
+          speed: speed,
+          volume: volume,
+        ));
+  }
+
+  /// Body of [prepareChunk], run inside the [_playerOps] gate.
+  Future<bool> _prepareChunkLocked({
+    required int token,
+    required String documentId,
+    required String chunkId,
+    required String voiceId,
+    required double speed,
+    required double volume,
+  }) async {
+    if (!_isLatest(token)) return false; // superseded while queued
+    // Entering single-file playback: fully retire any previous sentence
+    // playlist. Leaving _playlistChunkId / _plStateSub alive here let a
+    // stale _onPlaylistState misread THIS chunk's completion as a playlist
+    // event (spurious recover / duplicate completion), and left a stale
+    // atomic context for the highlight resolver. _clearPlaylistState also
+    // emits sentenceActive=false and nulls the context.
+    await _teardownPlaylistSubs();
+    _clearPlaylistState();
     final cacheKey = '${chunkId}_$voiceId';
     final stopwatch = Stopwatch()..start();
     _logPdfPerf(
@@ -531,7 +625,10 @@ class AudioService {
 
   Future<void> stop() async {
     _nextToken(); // invalidate any in-flight play/download UI ownership
-    await _player.stop();
+    // Native stop through the op gate (F3): never overlap an in-flight load.
+    await _playerOps.run(() async {
+      await _player.stop();
+    });
     _synthesizingController.add(false);
     _clearLoadedSource();
     await _teardownPlaylistSubs();
@@ -542,10 +639,13 @@ class AudioService {
   /// Use when switching voices or documents so next play loads fresh audio.
   Future<void> reset() async {
     _nextToken(); // invalidate in-flight work
-    try {
-      await _player.stop();
-      await _player.seek(Duration.zero);
-    } catch (_) {}
+    // Native stop/seek through the op gate (F3).
+    await _playerOps.run(() async {
+      try {
+        await _player.stop();
+        await _player.seek(Duration.zero);
+      } catch (_) {}
+    });
     _synthesizingController.add(false);
     _clearLoadedSource();
     await _teardownPlaylistSubs();
@@ -569,10 +669,19 @@ class AudioService {
       return;
     }
     final sentenceIdx = currentSentenceIndex; // authoritative (stream-tracked)
+    // F4: persist the captured position BEFORE attempting the relaunch. A
+    // cold-voice relaunch can fail or time out (QA measured 14–16 s for a
+    // narrator change); the catch path clears playlist state, and without
+    // this line the reader's position died with it. With it, the position
+    // survives ANY relaunch outcome: the next Play resumes from the resume
+    // map at exactly the captured sentence.
+    if (sentenceIdx > 0 && sentenceIdx < count) {
+      _resumeSentenceByChunk[chunk] = sentenceIdx;
+    }
     final wasPlaying = _player.playing;
     final speed = _player.speed;
     final volume = _player.volume;
-    await playChunkSentences(
+    final relaunched = await playChunkSentences(
       documentId: doc,
       chunkId: chunk,
       sentenceCount: count,
@@ -582,6 +691,10 @@ class AudioService {
       initialSentence: sentenceIdx,
       autoplay: wasPlaying,
     );
+    if (!relaunched) {
+      debugPrint('[SSP] voice change relaunch failed — position preserved '
+          '(chunk=$chunk sentence=$sentenceIdx); next Play resumes there');
+    }
   }
 
   /// User-switch reset: stops playback, zeroes position, and wipes
@@ -591,10 +704,12 @@ class AudioService {
   /// already revoked by the time this runs, so a flush would 401.
   Future<void> clearUserSession() async {
     _nextToken();
-    try {
-      await _player.stop();
-      await _player.seek(Duration.zero);
-    } catch (_) {}
+    await _playerOps.run(() async {
+      try {
+        await _player.stop();
+        await _player.seek(Duration.zero);
+      } catch (_) {}
+    });
     _synthesizingController.add(false);
     _clearLoadedSource();
     await _teardownPlaylistSubs();
@@ -655,10 +770,12 @@ class AudioService {
     required String voiceId,
   }) async {
     // 1. Stop player and clear its source so it releases the old file handle.
-    try {
-      await _player.stop();
-      await _player.setAudioSource(AudioSource.uri(Uri.dataFromString('')));
-    } catch (_) {}
+    await _playerOps.run(() async {
+      try {
+        await _player.stop();
+        await _player.setAudioSource(AudioSource.uri(Uri.dataFromString('')));
+      } catch (_) {}
+    });
     _clearLoadedSource();
 
     // 2. Clear specific cache key first
@@ -787,6 +904,14 @@ class AudioService {
   //   • recoveries are capped so a run of bad clips ends the chunk cleanly.
   int _playlistSentenceCount = 0;
   int _chunkCompleteSeq = 0;
+
+  /// Latched once a genuine end-of-chunk has been signalled for the ACTIVE
+  /// playlist launch. just_audio can deliver more than one
+  /// ProcessingState.completed event for a single completion (playing
+  /// true→false transitions); without the latch each event would emit a
+  /// distinct completion token and the toolbar would advance twice —
+  /// skipping a whole chapter. Reset by [playChunkSentences] per launch.
+  bool _chunkCompletionHandled = false;
   final StreamController<int> _chunkCompletedController =
       StreamController<int>.broadcast();
   StreamSubscription<PlayerState>? _plStateSub;
@@ -814,6 +939,15 @@ class AudioService {
   /// reader left off instead of restarting at sentence 0. Survives reset() and
   /// navigation; cleared on genuine chunk completion and on user switch.
   final Map<String, int> _resumeSentenceByChunk = {};
+
+  /// Drop the remembered resume point for [chunkId]. Called by AUTOMATIC
+  /// chunk advancement (the toolbar's chunk-completed hand-off) so entering
+  /// the next chapter always starts at its FIRST sentence — a stale resume
+  /// point left by an earlier partial listen must never make auto-advance
+  /// silently skip content. Explicit user actions (Play, click-to-read,
+  /// narrator change) keep their resume behavior untouched.
+  void clearResumeSentence(String chunkId) =>
+      _resumeSentenceByChunk.remove(chunkId);
 
   /// Emits an incrementing token when the active sentence playlist genuinely
   /// finishes its LAST sentence (so the toolbar can advance to the next
@@ -959,6 +1093,15 @@ class AudioService {
     if (!_sentenceContextController.isClosed) {
       _sentenceContextController.add(null); // context invalidated
     }
+    // D1: also reset the raw sentence-index stream. It retains its last
+    // emission (the final sentence of the last chunk after a document
+    // completes), and any consumer falling back to it while no playlist is
+    // active would resolve a sentence nobody is reading — the "phantom
+    // highlight on page 1 after the document ends" defect. Active sentence
+    // resets to 0 whenever the playlist retires.
+    if (!_sentenceIndexController.isClosed) {
+      _sentenceIndexController.add(0);
+    }
     if (!_sentenceActiveController.isClosed) {
       _sentenceActiveController.add(false);
     }
@@ -982,7 +1125,35 @@ class AudioService {
     bool autoplay = true,
   }) async {
     if (sentenceCount <= 0) return false;
+    // Token BEFORE enqueueing (F3): a newer launch supersedes any queued
+    // one, so a stale op skips itself at gate entry without native work.
     final token = _nextToken();
+    return _playerOps.run(() => _playChunkSentencesLocked(
+          token: token,
+          documentId: documentId,
+          chunkId: chunkId,
+          sentenceCount: sentenceCount,
+          voiceId: voiceId,
+          speed: speed,
+          volume: volume,
+          initialSentence: initialSentence,
+          autoplay: autoplay,
+        ));
+  }
+
+  /// Body of [playChunkSentences], run inside the [_playerOps] gate.
+  Future<bool> _playChunkSentencesLocked({
+    required int token,
+    required String documentId,
+    required String chunkId,
+    required int sentenceCount,
+    required String voiceId,
+    required double speed,
+    required double volume,
+    required int initialSentence,
+    required bool autoplay,
+  }) async {
+    if (!_isLatest(token)) return false; // superseded while queued
     // ignore: avoid_print
     print('[SSP] sentence playlist ENGAGED chunk=$chunkId '
         'sentences=$sentenceCount voice=$voiceId');
@@ -1031,12 +1202,36 @@ class AudioService {
         if (saved > 0 && saved < sentenceCount) effectiveInitial = saved;
       }
       _liveSentenceIdx = effectiveInitial.clamp(0, sentenceCount - 1);
+      _chunkCompletionHandled = false; // one genuine completion per launch
 
-      await _player.setAudioSource(
-        playlist,
-        initialIndex: effectiveInitial.clamp(0, sentenceCount - 1),
-        initialPosition: Duration.zero,
-      );
+      try {
+        await _player
+            .setAudioSource(
+              playlist,
+              initialIndex: effectiveInitial.clamp(0, sentenceCount - 1),
+              initialPosition: Duration.zero,
+            )
+            .timeout(_kFirstClipLoadTimeout);
+      } catch (e) {
+        // One bounded retry: a transient 502/timeout while fetching the
+        // first clip must not silently kill playback mid-document (observed
+        // in validation as a dead stop at a chunk hand-off — the watchdog
+        // is not armed yet during this launch window). A second failure
+        // falls through to the outer catch exactly as before.
+        debugPrint('[SSP] first clip load failed, retrying once: $e');
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        if (!_isLatest(token)) {
+          _synthesizingController.add(false);
+          return false;
+        }
+        await _player
+            .setAudioSource(
+              playlist,
+              initialIndex: effectiveInitial.clamp(0, sentenceCount - 1),
+              initialPosition: Duration.zero,
+            )
+            .timeout(_kFirstClipLoadTimeout);
+      }
       if (!_isLatest(token)) {
         _synthesizingController.add(false);
         return false;
@@ -1096,7 +1291,13 @@ class AudioService {
   /// chapter ms onto the sentence clip that contains it (via the cumulative
   /// duration table) and seeks to the in-sentence offset. Falls back to a plain
   /// seek when no playlist is active.
-  Future<void> seekChapter(Duration chapterPosition) async {
+  Future<void> seekChapter(Duration chapterPosition) =>
+      // Native seeks through the op gate (F3): scrubber drags can no longer
+      // overlap an in-flight launch's native load.
+      _playerOps.run(() => _seekChapterLocked(chapterPosition));
+
+  /// Body of [seekChapter], run inside the [_playerOps] gate.
+  Future<void> _seekChapterLocked(Duration chapterPosition) async {
     if (!hasSentencePlaylist || _sentenceDurations.isEmpty) {
       await _player.seek(chapterPosition);
       return;
@@ -1128,9 +1329,22 @@ class AudioService {
   /// clip, retrying briefly, so a SINGLE click is reliable.
   Future<void> seekToSentence(int index) async {
     if (!hasSentencePlaylist) return;
+    final token = _nextToken(); // before enqueue — newer ops supersede (F3)
+    return _playerOps.run(() => _seekToSentenceLocked(
+          token: token,
+          index: index,
+        ));
+  }
+
+  /// Body of [seekToSentence], run inside the [_playerOps] gate — a click
+  /// can no longer race a launch's native setAudioSource (the QA crash).
+  Future<void> _seekToSentenceLocked({
+    required int token,
+    required int index,
+  }) async {
+    if (!_isLatest(token) || !hasSentencePlaylist) return;
     final n = _sentenceDurations.length;
     final target = n > 0 ? index.clamp(0, n - 1) : 0;
-    final token = _nextToken();
 
     for (var attempt = 0; attempt < 4; attempt++) {
       if (!_isLatest(token) || !hasSentencePlaylist) return;
@@ -1159,6 +1373,8 @@ class AudioService {
     if (s.processingState != ProcessingState.completed) return;
     final idx = _player.currentIndex ?? 0;
     if (idx >= _playlistSentenceCount - 1) {
+      if (_chunkCompletionHandled) return; // dedupe repeated completed events
+      _chunkCompletionHandled = true;
       // Chunk finished — drop its resume point so replaying it starts fresh.
       final ch = _playlistChunkId;
       if (ch != null) _resumeSentenceByChunk.remove(ch);
@@ -1210,19 +1426,28 @@ class AudioService {
     if (idx >= _playlistSentenceCount - 1 || _plRecoveries > _kMaxRecoveries) {
       // At/near the end, or too many consecutive failures → end the chunk
       // cleanly and let the toolbar move on (no wedge, no silent stall).
-      if (!_chunkCompletedController.isClosed) {
+      if (!_chunkCompletionHandled && !_chunkCompletedController.isClosed) {
+        _chunkCompletionHandled = true;
         _chunkCompletedController.add(++_chunkCompleteSeq);
       }
       return;
     }
     try {
-      await _player.seek(Duration.zero, index: idx + 1);
+      // Native seek/play through the op gate (F3); re-check the playlist at
+      // execution time — it may have been replaced while queued.
+      final performed = await _playerOps.run(() async {
+        if (!hasSentencePlaylist) return false;
+        await _player.seek(Duration.zero, index: idx + 1);
+        if (!_player.playing) await _player.play();
+        return true;
+      });
+      if (!performed) return;
       _sentenceIndexController.add(idx + 1);
       _emitSentenceContext(idx + 1);
       _plLastProgressAt = DateTime.now();
-      if (!_player.playing) await _player.play();
     } catch (_) {
-      if (!_chunkCompletedController.isClosed) {
+      if (!_chunkCompletionHandled && !_chunkCompletedController.isClosed) {
+        _chunkCompletionHandled = true;
         _chunkCompletedController.add(++_chunkCompleteSeq);
       }
     }
@@ -1248,6 +1473,40 @@ class AudioService {
   bool get isPlaying => _player.playing;
   Duration get position => _player.position;
   Duration? get duration => _player.duration;
+}
+
+/// Serializes player-mutating operations.
+///
+/// just_audio_windows does not tolerate CONCURRENT native operations: a
+/// second stop()/setAudioSource() issued while a first load is still inside
+/// the native layer can crash the Windows app (observed in QA as a crash
+/// under rapid click-to-read during a cold synthesis). Psitta's request
+/// tokens cancel our own logic, but they cannot cancel a native call already
+/// in flight — so every launch/seek chain runs through this gate: one native
+/// mutation sequence at a time; a queued op starts only when the previous
+/// one has fully settled, and an op's error never leaks into the next.
+///
+/// Superseded ops stay cheap: callers take their request token BEFORE
+/// enqueueing and bail at gate entry when a newer op exists, so N rapid
+/// clicks execute as "finish the current native call (bounded by
+/// [AudioService._kFirstClipLoadTimeout]), skip the stale queued ops in
+/// microseconds each, run the newest".
+class AsyncOpGate {
+  Future<void> _chain = Future<void>.value();
+
+  /// Queue [op] behind all previously queued ops. Returns [op]'s own future;
+  /// an error in an earlier op never propagates into a later one.
+  Future<T> run<T>(Future<T> Function() op) {
+    final completer = Completer<T>();
+    _chain = _chain.then((_) async {
+      try {
+        completer.complete(await op());
+      } catch (e, st) {
+        completer.completeError(e, st);
+      }
+    });
+    return completer.future;
+  }
 }
 
 // ───────────────────────────────────────────────────────────────────────

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -115,14 +117,16 @@ class PlayerBar extends ConsumerWidget {
           state.playing == false) {
         final sentenceActive =
             ref.read(sentencePlaylistActiveProvider).valueOrNull ?? false;
-        if (!sentenceActive) _skipForward(ref, audioService);
+        if (!sentenceActive) {
+          _skipForward(ref, audioService, fromCompletion: true);
+        }
       }
     });
     // Sentence-playlist mode: advance only on a genuine end-of-chunk.
     ref.listen<AsyncValue<int>>(chunkCompletedProvider, (prev, next) {
       if (next.valueOrNull != null &&
           next.valueOrNull != prev?.valueOrNull) {
-        _skipForward(ref, audioService);
+        _skipForward(ref, audioService, fromCompletion: true);
       }
     });
 
@@ -494,12 +498,17 @@ class PlayerBar extends ConsumerWidget {
     );
   }
 
-  void _skipForward(WidgetRef ref, AudioService audioService) {
+  void _skipForward(WidgetRef ref, AudioService audioService,
+      {bool fromCompletion = false}) {
     final chunkIds = ref.read(activeChunkIdsProvider);
     final current = ref.read(currentChunkIndexProvider);
     if (current < chunkIds.length - 1) {
       final nextIdx = current + 1;
       ref.read(currentChunkIndexProvider.notifier).state = nextIdx;
+      // Advancing to the next chapter must always begin at its first
+      // sentence — clear any stale resume point left by an earlier partial
+      // listen so auto-advance can never silently skip content.
+      audioService.clearResumeSentence(chunkIds[nextIdx]);
       final docId = ref.read(activeDocumentIdProvider);
       if (docId != null) {
         final voiceId = ref.read(selectedVoiceIdProvider);
@@ -525,6 +534,16 @@ class PlayerBar extends ConsumerWidget {
           }
         });
       }
+    } else if (fromCompletion) {
+      // End of the document (F5): finish cleanly AND rewind the session so
+      // the next Play restarts the document — first chunk, first sentence,
+      // position zero. stop() clears the loaded source and playlist state
+      // (so Play launches chunk 0 fresh instead of resuming the completed
+      // final clip) and renders the ▶ icon; per-chunk resume points were
+      // already dropped as each chunk genuinely completed. The manual
+      // skip-next button at the last chapter intentionally does nothing.
+      unawaited(audioService.stop());
+      ref.read(currentChunkIndexProvider.notifier).state = 0;
     }
   }
 

@@ -2154,20 +2154,73 @@ class _DeskReadViewState extends ConsumerState<_DeskReadView> {
     // sentence's word-timings are already loaded when it begins. Warming
     // /alignment also warms that sentence's /audio server-side (shared
     // synthesis), so the clip doesn't stall at the boundary either.
+    // F2 warm discipline: the AUDIBLE sentence always has priority. Warms
+    // start only once audio is actually playing (before that, the backend
+    // belongs exclusively to the clip the user is waiting to hear — the QA
+    // round showed the warm stampede serializing the first audible clip
+    // behind its own helpers on a cold voice), and at most
+    // [kMaxInFlightWarms] warm fetches are in flight at a time. A candidate
+    // beyond the cap is picked up on a later rebuild when an earlier warm
+    // lands (its provider notifies and re-runs this build), so the window
+    // still fills ahead of the voice — just without the stampede.
+    final isAudioWarmingAllowed =
+        ref.watch(audioPlayingProvider).valueOrNull ?? false;
     if (useSentenceHighlight &&
         activeBoundaries != null &&
-        activeChunkId.isNotEmpty) {
+        activeChunkId.isNotEmpty &&
+        isAudioWarmingAllowed) {
       const kPrefetchWindow = 4;
+      const kMaxInFlightWarms = 2;
+      // Candidates in priority order: upcoming sentences of the audible
+      // chunk, spilling into the next chunk's opening near the boundary
+      // (alignment warming also synthesizes + caches the clip server-side —
+      // shared single-synthesis contract, so the hand-off becomes a cache
+      // hit instead of a 1–3 s cold synthesis). Plus (F6) the next
+      // chapter's very first sentence, always — so a manual Next-Chapter
+      // press mid-chunk is never fully cold either.
+      final nextIdx = highlightIndex + 1;
+      final nextChunkId = (nextIdx >= 0 && nextIdx < chunkIds.length)
+          ? chunkIds[nextIdx]
+          : '';
+      final nextCount =
+          nextChunkId.isEmpty ? 0 : (sentenceCounts[nextChunkId] ?? 0);
+      final warmCandidates = <SentenceAlignmentKey>[];
       for (var k = 1; k <= kPrefetchWindow; k++) {
         final ni = activeSentenceIdx + k;
-        if (ni >= 0 && ni < activeBoundaries.length) {
-          ref.watch(sentenceAlignmentProvider(SentenceAlignmentKey(
+        if (ni < activeBoundaries.length) {
+          warmCandidates.add(SentenceAlignmentKey(
             documentId: widget.documentId,
             chunkId: activeChunkId,
             sentenceIndex: ni,
             voiceId: voiceId,
-          )));
+          ));
+        } else {
+          final nj = ni - activeBoundaries.length;
+          if (nextChunkId.isNotEmpty && nj < nextCount) {
+            warmCandidates.add(SentenceAlignmentKey(
+              documentId: widget.documentId,
+              chunkId: nextChunkId,
+              sentenceIndex: nj,
+              voiceId: voiceId,
+            ));
+          }
         }
+      }
+      if (nextChunkId.isNotEmpty && nextCount > 0) {
+        warmCandidates.add(SentenceAlignmentKey(
+          documentId: widget.documentId,
+          chunkId: nextChunkId,
+          sentenceIndex: 0,
+          voiceId: voiceId,
+        )); // F6 — next chapter opener, deduped below near the boundary
+      }
+      var inFlightWarms = 0;
+      final seenWarmKeys = <SentenceAlignmentKey>{};
+      for (final key in warmCandidates) {
+        if (!seenWarmKeys.add(key)) continue;
+        final warm = ref.watch(sentenceAlignmentProvider(key));
+        if (warm.isLoading) inFlightWarms++;
+        if (inFlightWarms >= kMaxInFlightWarms) break;
       }
     }
 
