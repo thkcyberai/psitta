@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from functools import lru_cache
 
 import structlog
@@ -30,6 +31,62 @@ def _voice_provider(voice_id: str) -> str:
         if v["id"] == voice_id:
             return v.get("provider", "unknown")
     return "unknown"
+
+
+# ── ElevenLabs circuit breaker (TTS Perfection F1) ──────────────────────────
+# When ElevenLabs fails (provider-side credit exhaustion, outage, timeout),
+# every sentence-level synthesis still paid a doomed EL attempt before falling
+# back to Edge — a per-sentence latency tax measured at seconds in QA. The
+# breaker remembers the failure for a bounded cooldown and routes straight to
+# the existing fallback chain. It FAILS OPEN: once the cooldown elapses the
+# next request attempts ElevenLabs normally and, on success, closes the
+# breaker. Module-level so it spans the per-request TTSRouter instances; a
+# process restart naturally resets it. Entitlement, billing and quota
+# semantics are untouched — the breaker only skips a call that was about to
+# fail, and EL usage is still incremented only when EL actually serves.
+_EL_BREAKER_COOLDOWN_SECONDS = 120.0
+_el_breaker_open_until = 0.0
+_el_breaker_last_reason = ""
+
+
+def _el_breaker_should_skip(context: str) -> bool:
+    """True while the breaker is open (logs the bypass). When a previous
+    open period has elapsed, logs the retry and lets the request through."""
+    now = time.monotonic()
+    if now < _el_breaker_open_until:
+        logger.info(
+            "tts_router.el_breaker_bypass",
+            context=context,
+            remaining_seconds=round(_el_breaker_open_until - now, 1),
+            reason=_el_breaker_last_reason,
+        )
+        return True
+    if _el_breaker_open_until:
+        # Cooldown elapsed — fail open: this request retries ElevenLabs.
+        logger.info("tts_router.el_breaker_retry", context=context)
+    return False
+
+
+def _el_breaker_trip(reason: str) -> None:
+    global _el_breaker_open_until, _el_breaker_last_reason
+    _el_breaker_open_until = time.monotonic() + _EL_BREAKER_COOLDOWN_SECONDS
+    _el_breaker_last_reason = reason[:200]
+    logger.warning(
+        "tts_router.el_breaker_open",
+        cooldown_seconds=_EL_BREAKER_COOLDOWN_SECONDS,
+        reason=_el_breaker_last_reason,
+    )
+
+
+def _el_breaker_note_success() -> None:
+    global _el_breaker_open_until, _el_breaker_last_reason
+    if _el_breaker_open_until:
+        _el_breaker_open_until = 0.0
+        logger.info(
+            "tts_router.el_breaker_closed",
+            recovered_from=_el_breaker_last_reason,
+        )
+        _el_breaker_last_reason = ""
 
 
 class TTSRouter:
@@ -176,6 +233,16 @@ class TTSRouter:
         if provider is None:
             raise RuntimeError(f"No TTS provider configured (selected={primary})")
 
+        # F1: while the EL breaker is open, skip the doomed attempt entirely.
+        if primary == "elevenlabs" and _el_breaker_should_skip("synthesize"):
+            return await self._fallback_synthesize(
+                primary=primary,
+                text=text,
+                voice_id=voice_id,
+                speed=speed,
+                output_format=output_format,
+            )
+
         try:
             audio = await self._synthesize_with_provider(
                 provider=primary,
@@ -184,8 +251,12 @@ class TTSRouter:
                 speed=speed,
                 output_format=output_format,
             )
+            if primary == "elevenlabs":
+                _el_breaker_note_success()
             return audio, primary
         except TTSProviderError as e:
+            if primary == "elevenlabs":
+                _el_breaker_trip(f"synthesize:{e.status_code}:{e}")
             logger.warning(
                 "tts_router.primary_failed",
                 provider=primary,
@@ -228,7 +299,13 @@ class TTSRouter:
         if provider is None:
             raise RuntimeError(f"No TTS provider configured (selected={primary})")
 
-        if primary == "elevenlabs" and self._elevenlabs:
+        if (
+            primary == "elevenlabs"
+            and self._elevenlabs
+            # F1: while the EL breaker is open, skip the doomed attempt and
+            # fall straight through to the alignment-aware fallback chain.
+            and not _el_breaker_should_skip("with_alignment")
+        ):
             try:
                 audio, alignment = await self._elevenlabs.synthesize_with_timestamps(
                     text=text,
@@ -246,8 +323,10 @@ class TTSRouter:
                     char_count=len(text),
                     alignment="yes" if alignment else "no",
                 )
+                _el_breaker_note_success()
                 return audio, alignment, "elevenlabs"
             except TTSProviderError as e:
+                _el_breaker_trip(f"with_alignment:{e.status_code}:{e}")
                 logger.warning(
                     "tts_router.primary_failed",
                     provider="elevenlabs",
@@ -256,6 +335,7 @@ class TTSRouter:
                 )
                 # Fallback to audio-only path
             except Exception as e:
+                _el_breaker_trip(f"with_alignment:{e}")
                 logger.warning("tts_router.timestamps_failed", provider="elevenlabs", error=str(e))
 
         # Edge primary: capture WordBoundary chunks and expand to ElevenLabs
