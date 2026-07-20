@@ -5,7 +5,8 @@ and validates all requirements from the Half 1 spec:
 
   - check_llm_quota() returns (tokens_used, tokens_limit, period_start)
   - check_llm_quota() reads llm_tokens_per_period via get_plan_limits()
-  - Free → limit 0; Reading Nook → limit 0
+  - Free → limit 0; Reading Nook → grandfathered upward to Writing
+    Nook's 1,000,000 (A4 consolidation, DP-2)
   - Writing Nook → limit 1,000,000; Creative Nook → limit 2,000,000
   - Under-limit increments accumulate; at/over limit reports the cap
   - Period keying matches billing anniversary (subscriptions.period_start)
@@ -112,6 +113,7 @@ def _stripe_row(
     period_end = period_start + timedelta(days=period_length)
     return {
         "lookup_key": lookup_key,
+        "status": "active",
         "current_period_start": period_start,
         "current_period_end": period_end,
         "cancel_at_period_end": False,
@@ -127,8 +129,14 @@ class TestLlmPlanLimitValues:
     def test_free_llm_limit_is_zero(self):
         assert get_plan_limits("free").llm_tokens_per_period == 0
 
-    def test_reading_nook_llm_limit_is_zero(self):
-        assert get_plan_limits("reading_nook_pro").llm_tokens_per_period == 0
+    def test_reading_nook_grandfathers_to_writing_llm_limit(self):
+        # A4 consolidation: reading_nook_pro normalizes upward to
+        # writing_nook_pro (DP-2), so grandfathered Reading customers
+        # gain the full Writing Nook LLM allowance.
+        assert (
+            get_plan_limits("reading_nook_pro").llm_tokens_per_period
+            == 1_000_000
+        )
 
     def test_writing_nook_llm_limit_is_one_million(self):
         assert get_plan_limits("writing_nook_pro").llm_tokens_per_period == 1_000_000
@@ -144,9 +152,10 @@ class TestLlmPlanLimitValues:
         """writing_nook_pro is a direct PLAN_LIMITS key."""
         assert get_plan_limits("writing_nook_pro") is PLAN_LIMITS["writing_nook_pro"]
 
-    def test_legacy_pro_monthly_still_resolves_to_reading(self):
-        """Adding writing_nook_pro must not disturb legacy alias resolution."""
-        assert get_plan_limits("pro_monthly") is PLAN_LIMITS["reading_nook_pro"]
+    def test_legacy_pro_monthly_grandfathers_to_writing(self):
+        """A4 consolidation: the legacy Reading ENUM values resolve
+        upward to Writing Nook (DP-2)."""
+        assert get_plan_limits("pro_monthly") is PLAN_LIMITS["writing_nook_pro"]
 
 
 # ── 2. check_llm_quota — no counter row yet ───────────────────────────────────
@@ -161,6 +170,7 @@ async def test_check_llm_quota_no_row_returns_zero_used():
         SQL_STRIPE: _FakeResult(
             row={
                 "lookup_key": "writing_nook_pro_monthly",
+                "status": "active",
                 "current_period_start": period_start,
                 "current_period_end": period_start + timedelta(days=27),
                 "cancel_at_period_end": False,
@@ -185,6 +195,7 @@ async def test_check_llm_quota_existing_counter_row_returns_used():
         SQL_STRIPE: _FakeResult(
             row={
                 "lookup_key": "writing_nook_pro_monthly",
+                "status": "active",
                 "current_period_start": period_start,
                 "current_period_end": period_start + timedelta(days=20),
                 "cancel_at_period_end": False,
@@ -200,7 +211,7 @@ async def test_check_llm_quota_existing_counter_row_returns_used():
     assert ps == period_start
 
 
-# ── 3. check_llm_quota — limit 0 for Free / Reading Nook ─────────────────────
+# ── 3. check_llm_quota — Free limit 0 / Reading grandfathered upward ─────────
 
 
 @pytest.mark.asyncio
@@ -218,24 +229,29 @@ async def test_check_llm_quota_free_plan_limit_is_zero():
 
 
 @pytest.mark.asyncio
-async def test_check_llm_quota_reading_nook_limit_is_zero():
-    """Reading Nook: EL access but no LLM access (limit=0)."""
+async def test_check_llm_quota_reading_nook_grandfathers_to_writing():
+    """A4 consolidation: a historical Reading Nook Stripe subscription
+    now resolves to writing_nook_pro (DP-2 grandfathered upward), so
+    the customer receives the full Writing Nook LLM allowance instead
+    of the retired tier's limit=0."""
     user_id = uuid4()
     period_start = _now() - timedelta(days=2)
     db = RecordingSession({
         SQL_STRIPE: _FakeResult(
             row={
                 "lookup_key": "reading_nook_pro_monthly",
+                "status": "active",
                 "current_period_start": period_start,
                 "current_period_end": period_start + timedelta(days=28),
                 "cancel_at_period_end": False,
             }
         ),
+        SQL_LLM_READ: _FakeResult(row=None),
     })
 
     used, limit, _, _pe = await check_llm_quota(db, user_id)
 
-    assert limit == 0
+    assert limit == 1_000_000
     assert used == 0
 
 
@@ -248,6 +264,7 @@ async def test_check_llm_quota_creative_nook_limit_is_two_million():
         SQL_STRIPE: _FakeResult(
             row={
                 "lookup_key": "creative_nook_pro_monthly",
+                "status": "active",
                 "current_period_start": period_start,
                 "current_period_end": period_start + timedelta(days=29),
                 "cancel_at_period_end": False,
@@ -277,6 +294,7 @@ async def test_check_llm_quota_at_limit_reports_cap():
         SQL_STRIPE: _FakeResult(
             row={
                 "lookup_key": "writing_nook_pro_annual",
+                "status": "active",
                 "current_period_start": period_start,
                 "current_period_end": period_start + timedelta(days=360),
                 "cancel_at_period_end": False,
@@ -301,6 +319,7 @@ async def test_check_llm_quota_over_limit_reports_true_consumed():
         SQL_STRIPE: _FakeResult(
             row={
                 "lookup_key": "writing_nook_pro_monthly",
+                "status": "active",
                 "current_period_start": period_start,
                 "current_period_end": period_start + timedelta(days=28),
                 "cancel_at_period_end": False,
@@ -328,6 +347,7 @@ async def test_check_llm_quota_passes_billing_anniversary_period_start_to_query(
         SQL_STRIPE: _FakeResult(
             row={
                 "lookup_key": "writing_nook_pro_annual",
+                "status": "active",
                 "current_period_start": period_start,
                 "current_period_end": period_start + timedelta(days=365),
                 "cancel_at_period_end": False,

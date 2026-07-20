@@ -129,9 +129,19 @@ PLAN_LIMITS: dict[str, PlanLimits] = {
 # retained on the Stripe side) onto the canonical PLAN_LIMITS keys.
 # Keep in sync with billing_handlers._LOOKUP_KEY_TO_PLAN_ID (write
 # side) and api/v1/billing._PLAN_NAME_ALIASES (parse boundary).
+#
+# A4 product consolidation (2026-07-20): Reading Nook is discontinued
+# and every historical Reading entitlement is grandfathered UPWARD to
+# Writing Nook (DP-2) — pro_monthly / pro_annual (the legacy ENUM
+# values the webhook wrote for Reading subs) and reading_nook_pro
+# itself all resolve to writing_nook_pro. The map is single-lookup,
+# not recursive, so each reading-shaped key points directly at the
+# final canonical plan. The reading_nook_pro PLAN_LIMITS entry remains
+# until Phase B cleanup but is no longer reachable via normalization.
 _LEGACY_PLAN_ID_ALIASES: dict[str, str] = {
-    "pro_monthly": "reading_nook_pro",
-    "pro_annual": "reading_nook_pro",
+    "pro_monthly": "writing_nook_pro",
+    "pro_annual": "writing_nook_pro",
+    "reading_nook_pro": "writing_nook_pro",
     "creative_pro_monthly": "creative_nook_pro",
     "creative_pro_annual": "creative_nook_pro",
     "creativity_nook_pro": "creative_nook_pro",
@@ -147,7 +157,7 @@ def _normalize_plan_id(plan: str) -> str:
     how to handle unknowns).
     """
     cleaned = plan.strip().lower()
-    # Explicit legacy aliases win (e.g. pro_monthly -> reading_nook_pro).
+    # Explicit legacy aliases win (e.g. pro_monthly -> writing_nook_pro).
     if cleaned in _LEGACY_PLAN_ID_ALIASES:
         return _LEGACY_PLAN_ID_ALIASES[cleaned]
     # Otherwise strip the Stripe billing-period suffix so period-suffixed

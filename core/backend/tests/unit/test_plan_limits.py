@@ -1,12 +1,13 @@
 """Unit tests for services/plan_limits.py.
 
 Locks in the get_plan_limits() resolver behavior:
-  * Canonical PLAN_LIMITS keys ('free', 'reading_nook_pro',
+  * Canonical PLAN_LIMITS keys ('free', 'writing_nook_pro',
     'creative_nook_pro') resolve directly.
-  * Legacy Postgres plan_id ENUM values ('pro_monthly', 'pro_annual')
-    written by the Stripe webhook handler resolve to the matching
-    Reading Nook Pro PlanLimits — paying customers must NOT silently
-    downgrade to Free.
+  * A4 product consolidation (2026-07-20, DP-2 grandfathering):
+    Reading Nook is discontinued — 'reading_nook_pro' and the legacy
+    Postgres ENUM values ('pro_monthly', 'pro_annual') the webhook
+    wrote for Reading subs all resolve UPWARD to Writing Nook Pro.
+    Historical customers must NOT silently downgrade to Free.
   * Forward-compat 'creative_pro_monthly' / 'creative_pro_annual'
     values resolve to Creative Nook Pro.
   * The legacy 'creativity_nook_pro' prefix (preserved on the Stripe
@@ -37,9 +38,28 @@ class TestCanonicalKeys:
     def test_canonical_free(self):
         assert get_plan_limits("free") is PLAN_LIMITS["free"]
 
-    def test_canonical_reading_nook_pro(self):
+    def test_canonical_writing_nook_pro(self):
         assert (
-            get_plan_limits("reading_nook_pro") is PLAN_LIMITS["reading_nook_pro"]
+            get_plan_limits("writing_nook_pro") is PLAN_LIMITS["writing_nook_pro"]
+        )
+
+    def test_reading_nook_pro_grandfathers_to_writing_nook_pro(self):
+        # A4: reading_nook_pro is no longer a reachable canonical key —
+        # normalization routes it upward to Writing Nook (DP-2).
+        assert (
+            get_plan_limits("reading_nook_pro") is PLAN_LIMITS["writing_nook_pro"]
+        )
+        assert _normalize_plan_id("reading_nook_pro") == "writing_nook_pro"
+
+    def test_reading_lookup_keys_grandfather_to_writing_nook_pro(self):
+        # Period-suffixed Stripe lookup_keys for the retired product.
+        assert (
+            get_plan_limits("reading_nook_pro_monthly")
+            is PLAN_LIMITS["writing_nook_pro"]
+        )
+        assert (
+            get_plan_limits("reading_nook_pro_annual")
+            is PLAN_LIMITS["writing_nook_pro"]
         )
 
     def test_canonical_creative_nook_pro(self):
@@ -50,16 +70,17 @@ class TestCanonicalKeys:
 
 class TestLegacyEnumAliases:
     """Postgres user_subscriptions.plan_id is an ENUM
-    (free|pro_monthly|pro_annual). The webhook handler writes
-    'pro_monthly' or 'pro_annual'. Both must resolve to Reading Nook
-    Pro PlanLimits — without this, Item C (per-user EL quota
-    tracking) would silently downgrade every paying customer."""
+    (free|pro_monthly|pro_annual|...). The webhook handler wrote
+    'pro_monthly' or 'pro_annual' for Reading Nook subs. A4: both now
+    grandfather UPWARD to Writing Nook Pro PlanLimits (DP-2) — without
+    an alias, historical paying customers would silently downgrade to
+    Free."""
 
-    def test_legacy_pro_monthly_maps_to_reading_nook_pro(self):
-        assert get_plan_limits("pro_monthly") is PLAN_LIMITS["reading_nook_pro"]
+    def test_legacy_pro_monthly_maps_to_writing_nook_pro(self):
+        assert get_plan_limits("pro_monthly") is PLAN_LIMITS["writing_nook_pro"]
 
-    def test_legacy_pro_annual_maps_to_reading_nook_pro(self):
-        assert get_plan_limits("pro_annual") is PLAN_LIMITS["reading_nook_pro"]
+    def test_legacy_pro_annual_maps_to_writing_nook_pro(self):
+        assert get_plan_limits("pro_annual") is PLAN_LIMITS["writing_nook_pro"]
 
 
 class TestCreativeAliases:
@@ -89,8 +110,8 @@ class TestNormalization:
     def test_whitespace_and_case_normalization(self):
         # Resolver must absorb upstream string drift (hand-typed
         # overrides, accidental casing) without surfacing it as a miss.
-        assert get_plan_limits(" Pro_Monthly ") is PLAN_LIMITS["reading_nook_pro"]
-        assert _normalize_plan_id(" Pro_Monthly ") == "reading_nook_pro"
+        assert get_plan_limits(" Pro_Monthly ") is PLAN_LIMITS["writing_nook_pro"]
+        assert _normalize_plan_id(" Pro_Monthly ") == "writing_nook_pro"
 
 
 class TestUnknownPlanId:

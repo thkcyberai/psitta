@@ -325,3 +325,154 @@ async def test_handle_subscription_deleted_cancels_user_subscription():
         f"stripe_subscription_id. All calls: {fake_db.calls}"
     )
     assert user_subs_cancel_calls[0][1]["sub_id"] == stripe_sub_id
+
+
+# ── A4 trialing contract (14-day Stripe Checkout trial) ─────────────────
+
+
+@pytest.mark.asyncio
+async def test_handle_checkout_session_completed_mirrors_trialing_status(
+    fake_settings,
+):
+    """A trial Checkout completes with the Stripe subscription in
+    status='trialing'. The user_subscriptions mirror row must carry
+    'trialing' — NOT a hardcoded 'active' — so every reader of the
+    mirror table sees the true trial state. (The resolver treats both
+    as entitled, so the user still gets full Writing Nook.)
+
+    Also pins that the prior-row cancel UPDATE includes 'trialing' rows
+    in its WHERE, preserving the one-live-row-per-user invariant across
+    trials."""
+    sc_internal_id = "44444444-4444-4444-4444-444444444444"
+    psitta_user_id = "55555555-5555-5555-5555-555555555555"
+    stripe_sub_id = "sub_test_trialing"
+
+    fake_db = RecordingSession(
+        {"FROM stripe_customers": _FakeResult(row=(sc_internal_id,))},
+    )
+
+    event = {
+        "id": "evt_test_trialing",
+        "data": {
+            "object": {
+                "id": "cs_test_trialing",
+                "customer": "cus_test_trialing",
+                "subscription": stripe_sub_id,
+                "metadata": {
+                    "psitta_user_id": psitta_user_id,
+                    "lookup_key": "writing_nook_pro_monthly",
+                },
+            }
+        },
+    }
+
+    sub_dict = _make_stripe_sub_dict(
+        stripe_sub_id,
+        lookup_key="writing_nook_pro_monthly",
+        status="trialing",
+    )
+    with patch.object(
+        billing_handlers, "get_settings", return_value=fake_settings
+    ), patch.object(
+        billing_handlers.stripe.Subscription,
+        "retrieve",
+        return_value=MagicMock(),
+    ), patch.object(
+        billing_handlers, "stripe_obj_to_dict", return_value=sub_dict
+    ), patch.object(
+        billing_handlers.audit_service,
+        "log_event",
+        new=AsyncMock(return_value=None),
+    ):
+        await handle_checkout_session_completed(event, fake_db)
+
+    # subscriptions INSERT carries the raw Stripe status.
+    subs_inserts = [
+        (sql, params)
+        for sql, params in fake_db.calls
+        if "INSERT INTO subscriptions" in sql
+    ]
+    assert len(subs_inserts) == 1
+    assert subs_inserts[0][1]["status"] == "trialing"
+
+    # user_subscriptions mirror INSERT carries the mapped status.
+    mirror_inserts = [
+        (sql, params)
+        for sql, params in fake_db.calls
+        if "INSERT INTO user_subscriptions" in sql
+    ]
+    assert len(mirror_inserts) == 1
+    mirror_params = mirror_inserts[0][1]
+    assert mirror_params["status"] == "trialing"
+    assert mirror_params["plan_id"] == "writing_nook_pro"
+    assert mirror_params["uid"] == psitta_user_id
+
+    # Prior-row cancel must sweep BOTH 'active' and 'trialing' rows.
+    cancel_prior = [
+        sql
+        for sql, _ in fake_db.calls
+        if "UPDATE user_subscriptions" in sql and "WHERE user_id" in sql
+    ]
+    assert len(cancel_prior) == 1
+    assert "'trialing'" in cancel_prior[0]
+    assert "'active'" in cancel_prior[0]
+
+
+@pytest.mark.asyncio
+async def test_handle_checkout_session_completed_active_still_mirrors_active(
+    fake_settings,
+):
+    """Guard against over-rotation: a non-trial checkout (no trial —
+    e.g. a re-subscribe after Stripe suppresses a second trial) must
+    still mirror status='active' exactly as before A4."""
+    sc_internal_id = "66666666-6666-6666-6666-666666666666"
+    psitta_user_id = "77777777-7777-7777-7777-777777777777"
+    stripe_sub_id = "sub_test_still_active"
+
+    fake_db = RecordingSession(
+        {"FROM stripe_customers": _FakeResult(row=(sc_internal_id,))},
+    )
+
+    event = {
+        "id": "evt_test_still_active",
+        "data": {
+            "object": {
+                "id": "cs_test_still_active",
+                "customer": "cus_test_still_active",
+                "subscription": stripe_sub_id,
+                "metadata": {
+                    "psitta_user_id": psitta_user_id,
+                    "lookup_key": "writing_nook_pro_annual",
+                },
+            }
+        },
+    }
+
+    sub_dict = _make_stripe_sub_dict(
+        stripe_sub_id,
+        lookup_key="writing_nook_pro_annual",
+        status="active",
+    )
+    with patch.object(
+        billing_handlers, "get_settings", return_value=fake_settings
+    ), patch.object(
+        billing_handlers.stripe.Subscription,
+        "retrieve",
+        return_value=MagicMock(),
+    ), patch.object(
+        billing_handlers, "stripe_obj_to_dict", return_value=sub_dict
+    ), patch.object(
+        billing_handlers.audit_service,
+        "log_event",
+        new=AsyncMock(return_value=None),
+    ):
+        await handle_checkout_session_completed(event, fake_db)
+
+    mirror_inserts = [
+        params
+        for sql, params in fake_db.calls
+        if "INSERT INTO user_subscriptions" in sql
+    ]
+    assert len(mirror_inserts) == 1
+    assert mirror_inserts[0]["status"] == "active"
+    assert mirror_inserts[0]["plan_id"] == "writing_nook_pro"

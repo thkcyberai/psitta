@@ -35,18 +35,20 @@ def test_free_has_only_read_aloud():
     assert CAP_BLUEPRINTS not in caps
 
 
-def test_reading_nook_has_premium_reading_but_no_studio():
+def test_reading_nook_grandfathers_to_writing_nook_capabilities():
+    # A4 product consolidation: Reading Nook is discontinued and every
+    # historical Reading entitlement is grandfathered UPWARD (DP-2) —
+    # capabilities_for normalizes reading_nook_pro to writing_nook_pro,
+    # so grandfathered customers receive the full studio.
+    assert capabilities_for("reading_nook_pro") == capabilities_for(
+        "writing_nook_pro"
+    )
     caps = capabilities_for("reading_nook_pro")
-    # Premium reading tier: voices, SWH, languages, edit — but no studio.
     assert CAP_READ_ALOUD in caps
     assert CAP_PREMIUM_VOICES in caps
     assert CAP_SWH in caps
-    assert "languages" in caps
-    assert "edit_document" in caps
-    assert CAP_WRITING_DESK not in caps
-    assert CAP_BLUEPRINTS not in caps
-    assert "structure_analysis" not in caps
-    assert "ai_summary" not in caps
+    assert CAP_WRITING_DESK in caps
+    assert CAP_BLUEPRINTS in caps
 
 
 def test_writing_nook_has_full_studio():
@@ -72,9 +74,13 @@ def test_unknown_and_none_fail_closed_to_free():
 
 
 def test_legacy_plan_ids_normalize():
-    # pro_monthly / pro_annual are the stored Reading Nook shapes.
+    # pro_monthly / pro_annual are the stored Reading Nook shapes; A4
+    # grandfathers both (and reading_nook_pro itself) onto Writing Nook.
     assert capabilities_for("pro_monthly") == capabilities_for(
-        "reading_nook_pro"
+        "writing_nook_pro"
+    )
+    assert capabilities_for("pro_annual") == capabilities_for(
+        "writing_nook_pro"
     )
     # creativity_nook_pro (legacy Stripe prefix) → creative_nook_pro caps.
     assert capabilities_for("creativity_nook_pro") == capabilities_for(
@@ -137,9 +143,13 @@ async def test_require_capability_denies_with_403_when_absent(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_require_capability_reading_nook_denied_blueprints(monkeypatch):
-    """Reading Nook is Pro but must NOT reach blueprints — proves we gate on
-    capability, not on 'is this a paid plan'."""
+async def test_require_capability_grandfathered_reading_reaches_blueprints(
+    monkeypatch,
+):
+    """A4 consolidation: a grandfathered Reading Nook entitlement
+    normalizes to Writing Nook, so the studio gates OPEN for it. (The
+    gate-on-capability-not-on-paid-plan property is still proven by the
+    free-plan denial test above.)"""
     async def fake_resolve(db, user_id, email=None):
         return SimpleNamespace(plan_id="reading_nook_pro")
 
@@ -147,11 +157,10 @@ async def test_require_capability_reading_nook_denied_blueprints(monkeypatch):
         "psitta.dependencies.get_effective_plan", fake_resolve
     )
     dep = require_capability(CAP_BLUEPRINTS)
-    with pytest.raises(HTTPException) as exc:
-        await dep(
-            claims=SimpleNamespace(email="a@b.com"), user_id=uuid4(), db=None
-        )
-    assert exc.value.status_code == 403
+    plan = await dep(
+        claims=SimpleNamespace(email="a@b.com"), user_id=uuid4(), db=None
+    )
+    assert plan.plan_id == "reading_nook_pro"
 
 
 # ── Server-gated Writing-Nook-only surfaces (leak closure) ───────────────────
@@ -170,11 +179,15 @@ _WN_ONLY_GATED = [
 
 
 @pytest.mark.parametrize("capability", _WN_ONLY_GATED)
-def test_wn_only_features_denied_to_free_and_reading_nook(capability):
-    """Free and Reading Nook must NOT hold these capabilities; Writing Nook and
-    Creative Nook must. Guards the exact regression: if any of these leaked into
-    a lower tier's set, the server gate would wave the request through."""
+def test_wn_only_features_denied_to_free(capability):
+    """Free must NOT hold these capabilities; Writing Nook and Creative
+    Nook must — and (A4) grandfathered Reading Nook entitlements do too,
+    because they normalize to Writing Nook. Guards the exact regression:
+    if any of these leaked into Free's set, the server gate would wave
+    the request through."""
     assert capability not in capabilities_for("free")
-    assert capability not in capabilities_for("reading_nook_pro")
     assert capability in capabilities_for("writing_nook_pro")
     assert capability in capabilities_for("creative_nook_pro")
+    # DP-2 grandfathering: reading-shaped ids receive the full studio.
+    assert capability in capabilities_for("reading_nook_pro")
+    assert capability in capabilities_for("pro_monthly")

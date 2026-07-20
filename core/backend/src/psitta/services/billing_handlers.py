@@ -225,16 +225,24 @@ async def handle_checkout_session_completed(
             stripe_subscription_id=stripe_subscription_id,
         )
     else:
-        # Cancel any prior active row -- one user, one active sub at
+        # A4: mirror the REAL Stripe status. A trial checkout arrives
+        # with sub.status == 'trialing' — hardcoding 'active' here would
+        # lie to every user_subscriptions reader about trial state. The
+        # mapper's fail-open None (unknown future Stripe status) falls
+        # back to 'active' so a checkout that Stripe accepted is never
+        # mirrored as less than entitled.
+        mirror_status = _stripe_status_to_us_status(sub["status"]) or "active"
+        # Cancel any prior entitled row -- one user, one live sub at
         # a time. Mirrors subscription_service.set_plan_override's
-        # established pattern (subscription_service.py:217-225).
+        # established pattern. 'trialing' rows are included: they are
+        # entitled rows and must not survive as duplicates.
         await db.execute(
             text(
                 "UPDATE user_subscriptions SET "
                 "  status = 'cancelled', "
                 "  cancelled_at = NOW(), "
                 "  updated_at = NOW() "
-                "WHERE user_id = :uid AND status = 'active'"
+                "WHERE user_id = :uid AND status IN ('active', 'trialing')"
             ),
             {"uid": user_id},
         )
@@ -245,13 +253,14 @@ async def handle_checkout_session_completed(
                 " current_period_start, current_period_end, "
                 " stripe_subscription_id, stripe_customer_id) "
                 "VALUES "
-                "(:uid, :plan_id, 'active', NOW(), "
+                "(:uid, :plan_id, :status, NOW(), "
                 " :period_start, :period_end, "
                 " :stripe_sub_id, :stripe_customer_id)"
             ),
             {
                 "uid": user_id,
                 "plan_id": plan_id_value,
+                "status": mirror_status,
                 "period_start": period_start,
                 "period_end": period_end,
                 "stripe_sub_id": stripe_subscription_id,
@@ -262,7 +271,7 @@ async def handle_checkout_session_completed(
             "user_subscription.upserted",
             user_id=user_id,
             plan_id=plan_id_value,
-            status="active",
+            status=mirror_status,
             stripe_subscription_id=stripe_subscription_id,
         )
 

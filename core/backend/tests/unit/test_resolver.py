@@ -1,11 +1,16 @@
 """Unit tests for subscription_service.get_effective_plan resolver.
 
 Verifies the 5-step entitlement resolution chain:
-  1. Stripe (subscriptions ⋈ stripe_customers, status='active')
-  2. dev_override (user_subscriptions, status='active')
+  1. Stripe (subscriptions ⋈ stripe_customers,
+     status IN ('active','trialing') — A4 trialing contract)
+  2. dev_override (user_subscriptions, status IN ('active','trialing'))
   3. reverse_trial (trial_grants — GTM 14-day Writing Nook on signup)
   4. tester_allowlist (Item 11 — Pattern 3 Internal Alpha pathway)
   5. free
+
+A4 product consolidation: Reading Nook is discontinued; reading-shaped
+plan ids (reading_nook_pro_monthly, pro_monthly, reading_nook_pro)
+grandfather UPWARD to writing_nook_pro (DP-2).
 
 Plus precedence rules: Stripe > dev_override > reverse_trial >
 allowlist > free, and the email-fallback path (resolver fetches
@@ -114,13 +119,15 @@ SQL_USER_EMAIL = "FROM users WHERE id"
 
 
 def _stripe_row(
-    lookup_key: str = "reading_nook_pro_monthly",
+    lookup_key: str = "writing_nook_pro_monthly",
     period_start: datetime | None = None,
     period_end: datetime | None = None,
     cancel_at_period_end: bool = False,
+    status: str = "active",
 ) -> dict:
     return {
         "lookup_key": lookup_key,
+        "status": status,
         "current_period_start": period_start or (_now() - timedelta(days=5)),
         "current_period_end": period_end or (_now() + timedelta(days=25)),
         "cancel_at_period_end": cancel_at_period_end,
@@ -131,9 +138,11 @@ def _dev_row(
     plan_id: str = "pro_monthly",
     period_start: datetime | None = None,
     period_end: datetime | None = None,
+    status: str = "active",
 ) -> dict:
     return {
         "plan_id": plan_id,
+        "status": status,
         "current_period_start": period_start or (_now() - timedelta(days=10)),
         "current_period_end": period_end or (_now() + timedelta(days=20)),
     }
@@ -184,8 +193,9 @@ async def test_source_stripe():
 
     assert isinstance(plan, EffectivePlan)
     assert plan.source == "stripe"
-    assert plan.plan_id == "reading_nook_pro"
-    assert plan.raw_plan_id == "reading_nook_pro_monthly"
+    assert plan.plan_id == "writing_nook_pro"
+    assert plan.raw_plan_id == "writing_nook_pro_monthly"
+    assert plan.status == "active"
     assert plan.current_period_start is not None
     assert plan.current_period_end is not None
     # Stripe path stops the chain — dev_override and allowlist must NOT
@@ -208,9 +218,11 @@ async def test_source_dev_override():
     plan = await get_effective_plan(db, user_id, email="alice@example.com")
 
     assert plan.source == "dev_override"
-    # Legacy 'pro_monthly' ENUM normalizes to canonical 'reading_nook_pro'.
-    assert plan.plan_id == "reading_nook_pro"
+    # Legacy 'pro_monthly' ENUM grandfathers upward to 'writing_nook_pro'
+    # (A4 consolidation, DP-2).
+    assert plan.plan_id == "writing_nook_pro"
     assert plan.raw_plan_id == "pro_monthly"
+    assert plan.status == "active"
     assert plan.current_period_start is not None
     # Allowlist must NOT be queried when dev_override hits.
     sqls = [c[0] for c in db.calls]
@@ -236,7 +248,9 @@ async def test_source_tester_allowlist():
     plan = await get_effective_plan(db, user_id, email="Alice@Example.com")
 
     assert plan.source == "tester_allowlist"
-    assert plan.plan_id == "reading_nook_pro"
+    # Historical allowlist rows carry 'reading_nook_pro'; normalization
+    # grandfathers them upward to Writing Nook (A4, DP-2).
+    assert plan.plan_id == "writing_nook_pro"
     # Allowlist period uses granted_at + expires_at directly.
     assert plan.current_period_start == granted
     assert plan.current_period_end == expires
@@ -515,3 +529,84 @@ async def test_stripe_creativity_lookup_key_normalizes_to_creative():
     assert plan.plan_id == "creative_nook_pro"
     assert plan.raw_plan_id == "creativity_nook_pro_annual"
     assert plan.source == "stripe"
+
+
+@pytest.mark.asyncio
+async def test_stripe_reading_lookup_key_grandfathers_to_writing():
+    """A4 consolidation: a historical Reading Nook Stripe subscription
+    resolves as writing_nook_pro (DP-2 grandfathered upward) while
+    raw_plan_id preserves the original lookup_key for audit trails."""
+    user_id = uuid4()
+    db = RecordingSession({
+        SQL_STRIPE: _FakeResult(
+            mapping=_stripe_row(lookup_key="reading_nook_pro_monthly"),
+        ),
+    })
+
+    plan = await get_effective_plan(db, user_id)
+
+    assert plan.plan_id == "writing_nook_pro"
+    assert plan.raw_plan_id == "reading_nook_pro_monthly"
+    assert plan.source == "stripe"
+
+
+# ── A4 trialing contract (14-day Stripe Checkout trial) ─────────────────
+
+
+@pytest.mark.asyncio
+async def test_stripe_trialing_subscription_is_entitled():
+    """A subscription inside the 14-day Stripe trial has
+    status='trialing' — the resolver must treat it as fully entitled
+    (return it, not fall through to Free) and surface the status so
+    /billing/status can report 'trialing' to the client."""
+    user_id = uuid4()
+    db = RecordingSession({
+        SQL_STRIPE: _FakeResult(mapping=_stripe_row(status="trialing")),
+    })
+
+    plan = await get_effective_plan(db, user_id, email="alice@example.com")
+
+    assert plan.source == "stripe"
+    assert plan.plan_id == "writing_nook_pro"
+    assert plan.status == "trialing"
+    # Trialing short-circuits exactly like active — nothing below runs.
+    sqls = [c[0] for c in db.calls]
+    assert not any(SQL_DEV in s for s in sqls)
+    assert not any(SQL_ALLOWLIST in s for s in sqls)
+
+
+@pytest.mark.asyncio
+async def test_stripe_query_accepts_trialing_status():
+    """The Stripe-tier SQL must select on status IN ('active',
+    'trialing') — pinning the predicate guards against a regression to
+    the pre-A4 status = 'active' filter that locked trial users out."""
+    user_id = uuid4()
+    db = RecordingSession({
+        SQL_STRIPE: _FakeResult(mapping=_stripe_row(status="trialing")),
+    })
+
+    await get_effective_plan(db, user_id, email="alice@example.com")
+
+    stripe_sqls = [sql for sql, _ in db.calls if SQL_STRIPE in sql]
+    assert stripe_sqls
+    assert "'trialing'" in stripe_sqls[0]
+    assert "'active'" in stripe_sqls[0]
+
+
+@pytest.mark.asyncio
+async def test_dev_override_trialing_mirror_row_is_entitled():
+    """The webhook mirrors Stripe trial subs into user_subscriptions
+    with status='trialing'. If the subscriptions-table row is missing
+    (webhook race), the mirror row must still entitle the user."""
+    user_id = uuid4()
+    db = RecordingSession({
+        SQL_DEV: _FakeResult(
+            mapping=_dev_row(plan_id="writing_nook_pro", status="trialing")
+        ),
+    })
+
+    plan = await get_effective_plan(db, user_id, email="alice@example.com")
+
+    assert plan.source == "dev_override"
+    assert plan.plan_id == "writing_nook_pro"
+    assert plan.status == "trialing"

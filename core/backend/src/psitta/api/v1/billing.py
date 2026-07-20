@@ -49,14 +49,23 @@ router = APIRouter()
 
 # ── Constants ────────────────────────────────────────────────────────────
 
+# A4 product consolidation (2026-07-20): Writing Nook is the only
+# purchasable product. Reading Nook is discontinued (existing subs are
+# grandfathered upward via the reading→writing aliases in plan_limits /
+# _PLAN_NAME_ALIASES / subscription_service); Creative Nook is
+# roadmap-only ("Coming Soon") and gets no checkout path until it ships.
 VALID_LOOKUP_KEYS: frozenset[str] = frozenset({
-    "reading_nook_pro_monthly",
-    "reading_nook_pro_annual",
     "writing_nook_pro_monthly",
     "writing_nook_pro_annual",
-    "creativity_nook_pro_monthly",
-    "creativity_nook_pro_annual",
 })
+
+# Stripe-native free trial applied to every new Checkout session,
+# code-level so the trial length is deterministic and reviewable here
+# rather than hidden in per-price Dashboard config. This is the single
+# trial source of truth — the signup-time reverse trial is disabled
+# (config.REVERSE_TRIAL_ENABLED now defaults False) so a new writer
+# can't stack 14 signup days on top of 14 checkout days.
+TRIAL_PERIOD_DAYS = 14
 
 _FREE_STATUS = {
     "plan": "free",
@@ -118,6 +127,13 @@ class BillingStatusResponse(BaseModel):
     plan_limits.py canonical values for the resolved plan. Clients use
     these to size quota progress bars without a second endpoint call.
     0 means no access for that resource type on this plan.
+
+    ``status`` (A4 trialing contract): for ``source == "stripe"`` this
+    is ``"active"`` or ``"trialing"`` — BOTH mean entitled. A user
+    inside the 14-day Stripe trial reports ``trialing`` with
+    ``current_period_end`` = the trial end, which clients may use for
+    "N days left" messaging. Clients MUST gate Pro features on
+    ``status in ("active", "trialing")``, never ``== "active"`` alone.
     """
 
     plan: str
@@ -168,7 +184,8 @@ async def create_checkout_session(  # noqa: PLR0912, PLR0915 -- numbered steps 1
         text(
             "SELECT s.id FROM subscriptions s "
             "JOIN stripe_customers sc ON sc.id = s.stripe_customer_id "
-            "WHERE sc.user_id = :user_id AND s.status = 'active' "
+            "WHERE sc.user_id = :user_id "
+            "  AND s.status IN ('active', 'trialing') "
             "LIMIT 1"
         ),
         {"user_id": user_id},
@@ -255,10 +272,15 @@ async def create_checkout_session(  # noqa: PLR0912, PLR0915 -- numbered steps 1
     # Skip when customer_row is None: a Stripe Customer that was just
     # created in step 4 cannot have any subscriptions yet, so the API
     # round-trip is wasted on every brand-new signup.
+    # A4: with the 14-day trial, an entitled subscription may be in
+    # status 'trialing' — Stripe's status="active" filter does NOT
+    # return trialing subs, so a mid-trial user could have opened a
+    # second Checkout and started a second (trialing) subscription.
+    # List with status="all" and block on any live entitled status.
     if customer_row is not None:
         try:
-            active_subs = stripe.Subscription.list(
-                customer=stripe_customer_id, status="active", limit=1
+            all_subs = stripe.Subscription.list(
+                customer=stripe_customer_id, status="all", limit=10
             )
         except stripe.StripeError as exc:
             logger.error("billing.stripe_active_sub_check_failed", error=str(exc))
@@ -266,12 +288,15 @@ async def create_checkout_session(  # noqa: PLR0912, PLR0915 -- numbered steps 1
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="Payment provider error. Please try again later.",
             ) from exc
-        if active_subs.data:
+        active_subs_data = [
+            s for s in all_subs.data if s.status in ("active", "trialing")
+        ]
+        if active_subs_data:
             logger.warning(
                 "billing.duplicate_subscription_blocked",
                 user_id=str(user_id),
                 stripe_customer_id=stripe_customer_id,
-                existing_stripe_subscription_id=active_subs.data[0].id,
+                existing_stripe_subscription_id=active_subs_data[0].id,
             )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -304,6 +329,11 @@ async def create_checkout_session(  # noqa: PLR0912, PLR0915 -- numbered steps 1
             mode="subscription",
             customer=stripe_customer_id,
             line_items=[{"price": price_id, "quantity": 1}],
+            # A4: every new subscription starts with the 14-day free
+            # trial (card collected up front; first charge at trial
+            # end). Webhooks deliver status='trialing', which the whole
+            # entitlement chain now treats as entitled.
+            subscription_data={"trial_period_days": TRIAL_PERIOD_DAYS},
             success_url="https://psitta.ai/billing/success/?session_id={CHECKOUT_SESSION_ID}",
             cancel_url="https://psitta.ai/billing/cancel/",
             metadata={
@@ -448,8 +478,17 @@ async def get_billing_status(
     # cadence label.
     if plan_state.source == "stripe":
         plan_name, billing_period = _parse_lookup_key(plan_state.raw_plan_id)
-        status_value = "active"
-        outcome = "found_active"
+        # A4 trialing contract: report the real subscription status —
+        # 'active' or 'trialing' (the only two statuses the resolver
+        # accepts). Both mean ENTITLED; the desktop plan gate accepts
+        # both (A2's client half). Anything else stays 'active' as a
+        # defensive default (the resolver never returns other values).
+        status_value = (
+            "trialing" if plan_state.status == "trialing" else "active"
+        )
+        outcome = (
+            "found_trialing" if status_value == "trialing" else "found_active"
+        )
     elif plan_state.source in ("dev_override", "tester_allowlist", "reverse_trial"):
         # reverse_trial carries the granted plan (writing_nook_pro) with an
         # expires_at period end; report it as an active plan so the trial
@@ -671,6 +710,11 @@ async def stripe_webhook(
 # alias table is applied at the parse boundary.
 _PLAN_NAME_ALIASES: dict[str, str] = {
     "creativity_nook_pro": "creative_nook_pro",
+    # A4 product consolidation: historical Reading Nook subscriptions
+    # are grandfathered UPWARD to Writing Nook (DP-2). The Stripe row
+    # keeps its original lookup_key; every read-side surface reports
+    # writing_nook_pro so the client renders the one remaining product.
+    "reading_nook_pro": "writing_nook_pro",
 }
 
 
@@ -680,8 +724,10 @@ def _parse_lookup_key(lookup_key: str) -> tuple[str, str]:
     The Stripe-side lookup keys still use ``creativity_nook_pro_*``,
     but the returned plan name is normalised to the internal identifier
     (``creative_nook_pro``) used by PLAN_LIMITS and the Flutter client.
+    Discontinued Reading Nook keys normalise upward to Writing Nook
+    (A4 consolidation, DP-2 grandfathering).
 
-    "reading_nook_pro_monthly"   → ("reading_nook_pro", "monthly")
+    "reading_nook_pro_monthly"   → ("writing_nook_pro", "monthly")
     "creativity_nook_pro_annual" → ("creative_nook_pro", "annual")
     """
     if lookup_key.endswith("_monthly"):

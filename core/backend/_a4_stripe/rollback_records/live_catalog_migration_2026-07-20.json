@@ -1,0 +1,80 @@
+{
+  "record_type": "stripe_catalog_migration_rollback_record",
+  "stripe_account": "acct_1TMg53RR4reQqKCb",
+  "mode": "live",
+  "migration_completed_at": "2026-07-20T19:12:00+00:00",
+  "initiative": "A4 Writing Nook Product Consolidation",
+  "note": "Complete rollback record for the 2026-07-20 live catalog migration (archive-only; nothing deleted; only the product/price objects and default-price pointers listed below were modified). Restore with: .venv/Scripts/python _a4_stripe/stripe_rollback.py --key-file _a4_stripe/key.txt --record _a4_stripe/rollback_records/live_catalog_migration_2026-07-20.json",
+  "archived": [
+    {
+      "kind": "price",
+      "id": "price_1ToCpkRR4reQqKCbZ1A7UF0S",
+      "label": "creativity_nook_pro_annual (Creativity Nook Pro)",
+      "previous_active": true
+    },
+    {
+      "kind": "price",
+      "id": "price_1ToCo4RR4reQqKCbAlBNnFyu",
+      "label": "creativity_nook_pro_monthly (Creativity Nook Pro)",
+      "previous_active": true
+    },
+    {
+      "kind": "price",
+      "id": "price_1ToCmLRR4reQqKCbpP7Pawda",
+      "label": "reading_nook_pro_annual (Psitta Reading Nook)",
+      "previous_active": true
+    },
+    {
+      "kind": "price",
+      "id": "price_1TW56URR4reQqKCbSP8MxtOz",
+      "label": "(no lookup key) (Creativity Nook Pro)",
+      "previous_active": true
+    },
+    {
+      "kind": "price",
+      "id": "price_1TW56URR4reQqKCb55BwncfU",
+      "label": "reading_nook_pro_monthly (Reading Nook Pro)",
+      "previous_active": true
+    },
+    {
+      "kind": "price",
+      "id": "price_1TW56TRR4reQqKCbyplBVUwO",
+      "label": "(no lookup key) (Reading Nook Pro)",
+      "previous_active": true
+    },
+    {
+      "kind": "product",
+      "id": "prod_UnoPXGFfXCnSwZ",
+      "label": "Psitta Creative Nook",
+      "previous_active": true
+    },
+    {
+      "kind": "product",
+      "id": "prod_UnoPnFzEU3BjP1",
+      "label": "Psitta Reading Nook",
+      "previous_active": true
+    },
+    {
+      "kind": "product",
+      "id": "prod_ULNsiG7n6GFTVN",
+      "label": "Creativity Nook Pro",
+      "previous_active": true
+    },
+    {
+      "kind": "product",
+      "id": "prod_ULNkI5zxUnV59d",
+      "label": "Reading Nook Pro",
+      "previous_active": true
+    }
+  ],
+  "default_price_changes": [
+    {
+      "product": "prod_ULNsiG7n6GFTVN",
+      "previous_default_price": "price_1TW56URR4reQqKCbSP8MxtOz"
+    },
+    {
+      "product": "prod_ULNkI5zxUnV59d",
+      "previous_default_price": "price_1TW56URR4reQqKCb55BwncfU"
+    }
+  ]
+}

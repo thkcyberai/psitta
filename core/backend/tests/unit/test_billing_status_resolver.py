@@ -105,11 +105,13 @@ def _fake_claims(email: str = "alice@example.com"):
 
 
 def _stripe_row(
-    lookup_key: str = "reading_nook_pro_monthly",
+    lookup_key: str = "writing_nook_pro_monthly",
     period_end: datetime | None = None,
+    status: str = "active",
 ) -> dict:
     return {
         "lookup_key": lookup_key,
+        "status": status,
         "current_period_start": _now() - timedelta(days=5),
         "current_period_end": period_end or (_now() + timedelta(days=25)),
         "cancel_at_period_end": False,
@@ -179,7 +181,9 @@ async def test_billing_status_allowlist_hit():
         )
 
     assert response.source == "tester_allowlist"
-    assert response.plan == "reading_nook_pro"
+    # A4: historical reading_nook_pro allowlist rows are grandfathered
+    # upward to Writing Nook in every read-side surface.
+    assert response.plan == "writing_nook_pro"
     assert response.billing_period is None
     assert response.status == "active"
     assert response.cancel_at_period_end is False
@@ -197,7 +201,7 @@ async def test_billing_status_allowlist_hit():
         c for c in audit_calls if c["action"] == "billing.status_checked"
     )
     assert status_checked["details"]["source"] == "tester_allowlist"
-    assert status_checked["details"]["plan"] == "reading_nook_pro"
+    assert status_checked["details"]["plan"] == "writing_nook_pro"
 
     # tester.entitlement_resolved details include email and expires_at.
     resolved = next(
@@ -235,7 +239,7 @@ async def test_billing_status_stripe_wins_over_allowlist():
         )
 
     assert response.source == "stripe"
-    assert response.plan == "reading_nook_pro"
+    assert response.plan == "writing_nook_pro"
     assert response.billing_period == "monthly"
     assert response.status == "active"
 
@@ -327,3 +331,79 @@ async def test_billing_status_reverse_trial_reported_active():
     )
     assert status_checked["details"]["source"] == "reverse_trial"
     assert status_checked["details"]["plan"] == "writing_nook_pro"
+
+
+# ── A4 trialing contract (14-day Stripe Checkout trial) ─────────────────
+
+
+@pytest.mark.asyncio
+async def test_billing_status_stripe_trialing_reported_as_trialing():
+    """LAUNCH-CRITICAL (A4): a subscription inside the 14-day Stripe
+    trial must be reported as plan='writing_nook_pro' with
+    status='trialing' — an entitled state the client gates on with
+    status in ('active', 'trialing'). Pre-A4 the resolver's
+    status='active' SQL filter missed trialing rows entirely and the
+    user was reported plan='free': every Pro gate closed on day one of
+    their paid-card trial."""
+    user_id = uuid4()
+    trial_end = _now() + timedelta(days=14)
+    fake_db = RecordingSession({
+        SQL_STRIPE: _FakeResult(
+            mapping=_stripe_row(status="trialing", period_end=trial_end)
+        ),
+    })
+
+    audit_calls: list[dict] = []
+
+    async def _capture_log(_db, **kwargs):
+        audit_calls.append(kwargs)
+
+    with patch.object(
+        billing.audit_service, "log_event", new=AsyncMock(side_effect=_capture_log)
+    ):
+        response = await get_billing_status(
+            request=_fake_request(),
+            user_id=user_id,
+            claims=_fake_claims(email="alice@example.com"),
+            db=fake_db,
+        )
+
+    assert response.source == "stripe"
+    assert response.plan == "writing_nook_pro"
+    assert response.status == "trialing"
+    assert response.billing_period == "monthly"
+    # Trial-end surfaces as current_period_end → drives "N days left".
+    assert response.current_period_end == trial_end.isoformat()
+    # Full Writing Nook quota during the trial, not Free quota.
+    assert response.el_chars_per_period > 0
+
+    status_checked = next(
+        c for c in audit_calls if c["action"] == "billing.status_checked"
+    )
+    assert status_checked["details"]["outcome"] == "found_trialing"
+
+
+@pytest.mark.asyncio
+async def test_billing_status_stripe_reading_key_grandfathers_to_writing():
+    """A4 consolidation: a historical Reading Nook Stripe subscription
+    reports plan='writing_nook_pro' (DP-2 grandfathered upward) so the
+    one-product client renders it correctly."""
+    user_id = uuid4()
+    fake_db = RecordingSession({
+        SQL_STRIPE: _FakeResult(
+            mapping=_stripe_row(lookup_key="reading_nook_pro_annual")
+        ),
+    })
+
+    with patch.object(billing.audit_service, "log_event", new=AsyncMock()):
+        response = await get_billing_status(
+            request=_fake_request(),
+            user_id=user_id,
+            claims=_fake_claims(email="alice@example.com"),
+            db=fake_db,
+        )
+
+    assert response.source == "stripe"
+    assert response.plan == "writing_nook_pro"
+    assert response.billing_period == "annual"
+    assert response.status == "active"

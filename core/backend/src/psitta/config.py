@@ -113,8 +113,17 @@ class Settings(BaseSettings):
     # On genuine new-user signup, grant full Writing Nook for a fixed
     # window, then lazy-downgrade to Free (no cron — the resolver drops
     # the trial when expires_at passes, mirroring tester_allowlist).
-    # REVERSE_TRIAL_ENABLED=false is an instant env-var kill switch.
-    REVERSE_TRIAL_ENABLED: bool = True
+    #
+    # A4 (2026-07-20): DISABLED BY DEFAULT. The Stripe-native 14-day
+    # Checkout trial (billing.TRIAL_PERIOD_DAYS) is now the single
+    # trial source of truth — leaving both on would hand every new
+    # writer 14 signup days PLUS 14 checkout days. Existing trial_grants
+    # rows stay honored by the resolver until they lazily expire.
+    # Setting REVERSE_TRIAL_ENABLED=true in the environment re-enables
+    # signup grants (deliberate override only). ⚠ Operator: verify the
+    # ECS task definition does NOT export REVERSE_TRIAL_ENABLED=true,
+    # which would silently override this default.
+    REVERSE_TRIAL_ENABLED: bool = False
     REVERSE_TRIAL_DAYS: int = 14
     REVERSE_TRIAL_PLAN_ID: str = "writing_nook_pro"
 

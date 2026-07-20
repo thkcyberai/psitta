@@ -100,19 +100,29 @@ class EffectivePlan:
     current_period_end: datetime | None
     cancel_at_period_end: bool
     source: str
+    # A4 trialing contract: the subscription status backing this
+    # entitlement — 'active' or 'trialing' for stripe/dev_override rows
+    # (both ENTITLED; a 14-day Stripe trial reports 'trialing').
+    # Non-subscription sources (reverse_trial, tester_allowlist, free)
+    # keep the default. Defaulted so pre-A4 constructors stay valid.
+    status: str = "active"
 
 
 def _canonicalize_lookup_key(lookup_key: str) -> str:
     """Strip Stripe billing-period suffix and normalize legacy prefix.
 
-    Stripe lookup_keys look like ``reading_nook_pro_monthly`` or
-    ``creativity_nook_pro_annual``. We need ``reading_nook_pro`` /
-    ``creative_nook_pro`` (canonical PLAN_LIMITS keys). Mirrors the
-    parse done in ``api/v1/billing._parse_lookup_key`` but kept local
-    here to avoid a service → API import.
+    Stripe lookup_keys look like ``writing_nook_pro_monthly`` or
+    ``creativity_nook_pro_annual``. We need canonical PLAN_LIMITS keys.
+    Discontinued Reading Nook keys normalise UPWARD to
+    ``writing_nook_pro`` (A4 consolidation, DP-2 grandfathering).
+    Mirrors the parse done in ``api/v1/billing._parse_lookup_key`` but
+    kept local here to avoid a service → API import.
     """
     base = lookup_key.removesuffix("_monthly").removesuffix("_annual")
-    return {"creativity_nook_pro": "creative_nook_pro"}.get(base, base)
+    return {
+        "creativity_nook_pro": "creative_nook_pro",
+        "reading_nook_pro": "writing_nook_pro",
+    }.get(base, base)
 
 
 async def _lookup_user_email(db: AsyncSession, user_id: UUID) -> str | None:
@@ -134,9 +144,11 @@ async def get_effective_plan(
 
     Resolution order (highest precedence first):
       1. ``subscriptions`` ⋈ ``stripe_customers`` — real Stripe-paying
-         customer. Only ``status='active'`` rows.
+         customer. ``status IN ('active', 'trialing')`` rows — a
+         14-day-trial subscription is fully entitled (A4 contract).
       2. ``user_subscriptions`` (dev/admin override via
-         ``set_plan_override``). Only ``status='active'`` rows.
+         ``set_plan_override``, plus the webhook mirror rows). Same
+         ``status IN ('active', 'trialing')`` acceptance.
       3. ``trial_grants`` (GTM reverse trial — Writing Nook granted on
          signup). Active = ``revoked_at IS NULL AND expires_at > NOW()``.
          Lazy expiry drops the writer to Free automatically.
@@ -168,11 +180,12 @@ async def get_effective_plan(
             row = await db.execute(
                 text(
                     """
-                    SELECT s.lookup_key, s.current_period_start,
+                    SELECT s.lookup_key, s.status, s.current_period_start,
                            s.current_period_end, s.cancel_at_period_end
                     FROM subscriptions s
                     JOIN stripe_customers sc ON sc.id = s.stripe_customer_id
-                    WHERE sc.user_id = :uid AND s.status = 'active'
+                    WHERE sc.user_id = :uid
+                      AND s.status IN ('active', 'trialing')
                     ORDER BY s.created_at DESC LIMIT 1
                     """
                 ),
@@ -193,6 +206,7 @@ async def get_effective_plan(
             current_period_end=sub["current_period_end"],
             cancel_at_period_end=bool(sub["cancel_at_period_end"]),
             source="stripe",
+            status=sub["status"],
         )
 
     # 2. Dev/admin override
@@ -202,9 +216,10 @@ async def get_effective_plan(
             row = await db.execute(
                 text(
                     """
-                    SELECT plan_id, current_period_start, current_period_end
+                    SELECT plan_id, status, current_period_start,
+                           current_period_end
                     FROM user_subscriptions
-                    WHERE user_id = :uid AND status = 'active'
+                    WHERE user_id = :uid AND status IN ('active', 'trialing')
                     ORDER BY created_at DESC LIMIT 1
                     """
                 ),
@@ -225,6 +240,7 @@ async def get_effective_plan(
             current_period_end=dev["current_period_end"],
             cancel_at_period_end=False,
             source="dev_override",
+            status=dev["status"],
         )
 
     # 3. Reverse trial (GTM Phase 1) — time-boxed Writing Nook granted on
@@ -618,12 +634,14 @@ async def set_plan_override(
             detail=f"Unknown plan_id '{plan_id}'. Valid: {sorted(_STORABLE_PLAN_IDS)}",
         )
 
-    # Cancel existing active subscriptions
+    # Cancel existing live subscriptions ('trialing' included — A4:
+    # trial mirror rows are entitled rows and must not survive as
+    # duplicates when an admin overrides the plan).
     await db.execute(
         text("""
             UPDATE user_subscriptions
             SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
-            WHERE user_id = :uid AND status = 'active'
+            WHERE user_id = :uid AND status IN ('active', 'trialing')
         """),
         {"uid": str(user_id)},
     )
@@ -662,7 +680,7 @@ async def get_subscription_summary(db: AsyncSession, user_id: UUID) -> dict:
             SELECT id, plan_id, status, started_at, current_period_start,
                    current_period_end, stripe_subscription_id
             FROM user_subscriptions
-            WHERE user_id = :uid AND status = 'active'
+            WHERE user_id = :uid AND status IN ('active', 'trialing')
             ORDER BY created_at DESC LIMIT 1
         """),
         {"uid": str(user_id)},
