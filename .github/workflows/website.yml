@@ -56,9 +56,11 @@ jobs:
         env:
           # ── MAINTENANCE SWITCH ──────────────────────────────────────────
           # "1" = deploy the site-wide maintenance page (every route).
-          # To restore the normal site: set this to "0" (or delete these two
-          # lines) and push to develop — CI redeploys automatically.
-          NEXT_PUBLIC_MAINTENANCE: "1"
+          # "0" = normal public site.
+          # Phase 3 (2026-07-20): maintenance lifted after the Writing Nook
+          # product consolidation was verified — set to "1" and push to
+          # develop to re-enable the maintenance page.
+          NEXT_PUBLIC_MAINTENANCE: "0"
 
       - name: Verify build output
         run: |

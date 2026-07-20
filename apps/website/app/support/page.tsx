@@ -42,7 +42,7 @@ const faqs: Faq[] = [
   {
     q: "What happens when I run out of premium voice characters?",
     a: [
-      "Reading Nook Pro includes 150,000 premium voice characters per billing period. When you reach the limit, Psitta automatically switches to standard voices for the rest of the period — playback never interrupts. Your character allowance resets at the start of your next billing cycle.",
+      "Writing Nook includes 250,000 premium voice characters per billing period. When you reach the limit, Psitta automatically switches to standard voices for the rest of the period — playback never interrupts. Your character allowance resets at the start of your next billing cycle.",
     ],
   },
   {

@@ -43,25 +43,10 @@ const softwareApplicationSchema = {
   offers: [
     {
       "@type": "Offer",
-      name: "Reading Nook Free",
+      name: "Psitta Free",
       price: "0",
       priceCurrency: "USD",
-      description: "Free tier with 10 documents per month and Edge TTS voices",
-    },
-    {
-      "@type": "Offer",
-      name: "Reading Nook Pro (monthly)",
-      price: "14.99",
-      priceCurrency: "USD",
-      description:
-        "Premium voices, word-level highlighting, and 50 documents per month",
-    },
-    {
-      "@type": "Offer",
-      name: "Reading Nook Pro (annual)",
-      price: "152",
-      priceCurrency: "USD",
-      description: "Annual Reading Nook Pro — saves ~15% vs monthly",
+      description: "Free tier with 10 documents per month and standard voices",
     },
     {
       "@type": "Offer",
@@ -69,7 +54,7 @@ const softwareApplicationSchema = {
       price: "17.99",
       priceCurrency: "USD",
       description:
-        "Full Writing Desk, Blueprints & 25+ structures, Story-Coach, Structure Analyzer, and writing analytics",
+        "14-day free trial. Full Writing Desk, Blueprints & 25+ structures, Story-Coach, Structure Analyzer, premium voices with word-level highlighting, and writing analytics",
     },
     {
       "@type": "Offer",

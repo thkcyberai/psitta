@@ -22,25 +22,10 @@ const softwareApplicationSchema = {
   offers: [
     {
       "@type": "Offer",
-      name: "Reading Nook Free",
+      name: "Psitta Free",
       price: "0",
       priceCurrency: "USD",
-      description: "Free tier with 10 documents per month and Edge TTS voices",
-    },
-    {
-      "@type": "Offer",
-      name: "Reading Nook Pro (monthly)",
-      price: "14.99",
-      priceCurrency: "USD",
-      description:
-        "Premium voices, word-level highlighting, and 50 documents per month",
-    },
-    {
-      "@type": "Offer",
-      name: "Reading Nook Pro (annual)",
-      price: "152",
-      priceCurrency: "USD",
-      description: "Annual Reading Nook Pro — saves ~15% vs monthly",
+      description: "Free tier with 10 documents per month and standard voices",
     },
     {
       "@type": "Offer",
@@ -48,7 +33,7 @@ const softwareApplicationSchema = {
       price: "17.99",
       priceCurrency: "USD",
       description:
-        "Everything in Reading Nook plus the full Writing Desk, Blueprints, Story-Coach, and writing analytics",
+        "14-day free trial. Full Writing Desk, Blueprints, Story-Coach, premium voices with word-level highlighting, and writing analytics",
     },
     {
       "@type": "Offer",
@@ -379,18 +364,19 @@ export default function Product() {
 
         <div className="mt-16">
           <h2 className="text-2xl font-bold text-ink-primary">
-            Reading Nook
+            Read &amp; Listen
           </h2>
           <p className="mt-2 text-ink-body leading-relaxed max-w-xl">
             Listen to your documents with pixel-accurate highlighting and
-            premium neural voices. Free and Pro tiers available.
+            premium neural voices. Listening is free — premium voices and
+            word-level highlighting come with Writing Nook.
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 items-start">
             <div className="flex justify-center">
               <img
                 src="/brand/reading-nook-illustration_blended.png"
-                alt="Reading Nook — parrot reading a book with highlighted text and sound waves"
+                alt="Psitta reading a book aloud with highlighted text and sound waves"
                 width={480}
                 height={480}
                 className="w-72 sm:w-80 lg:w-96 h-auto rounded-3xl bg-[#FAFAF7] mix-blend-multiply"
@@ -418,7 +404,7 @@ export default function Product() {
             </span>
           </div>
           <p className="mt-2 text-ink-body leading-relaxed max-w-xl">
-            Everything in Reading Nook, plus a full writing platform — structure
+            A complete writing platform with a 14-day free trial — structure
             your book, write with Psitta reading every line back to you, and
             finish with an AI coach that keeps you on track.
           </p>

@@ -5,8 +5,10 @@ import Button from "@/components/ui/Button";
 import CreativityWaitlistForm from "@/components/waitlist/CreativityWaitlistForm";
 
 // Mirrors the desktop app's Plans screen (plan_selection_screen.dart):
-// a Monthly/Annual toggle (Save 15% on Annual) driving four tier cards
-// with identical copy, prices, and feature lists.
+// a Monthly/Annual toggle (Save 15% on Annual) driving three tier cards
+// with identical copy, prices, and feature lists. Writing Nook is the
+// only purchasable product (14-day free trial); Creative Nook is a
+// Coming Soon marketing placeholder (waitlist only — no checkout).
 
 type FeatureState = "active" | "excluded" | "coming" | "header";
 
@@ -50,46 +52,23 @@ const FREE: Tier = {
   cta: { label: "Download for free", href: "/download" },
 };
 
-const READING: Tier = {
-  tierName: "Reading Nook",
-  title: "Read. Refine.",
-  monthly: { amount: "$14.99/mo", subtitle: "Billed monthly" },
-  annual: {
-    amount: "$152/yr",
-    subtitle: "$12.67/mo billed annually",
-    savings: "Save 15%",
-  },
-  features: [
-    { label: "Listening & revision", state: "header" },
-    { label: "Premium natural voices" },
-    { label: "Word & sentence highlighting" },
-    { label: "Playback speed up to 4×" },
-    { label: "Documents", state: "header" },
-    { label: "Edit & download branded DOCX" },
-    { label: "50 documents per month" },
-    { label: "Archive documents" },
-    { label: "150k premium-voice characters / month" },
-    { label: "Priority support" },
-    { label: "Writing platform & AI tools", state: "excluded" },
-  ],
-  cta: { label: "Get Reading Nook", href: "/download" },
-};
-
 const WRITING: Tier = {
   tierName: "Writing Nook",
   title: "Write. Structure. Finish.",
-  monthly: { amount: "$17.99/mo", subtitle: "Billed monthly" },
+  monthly: {
+    amount: "$17.99/mo",
+    subtitle: "14-day free trial, then billed monthly",
+  },
   annual: {
     amount: "$183/yr",
-    subtitle: "$15.25/mo billed annually",
+    subtitle: "14-day free trial · $15.25/mo billed annually",
     savings: "Save 15%",
   },
   popular: true,
   features: [
-    { label: "Everything in Reading Nook, plus", state: "header" },
     { label: "Writing workspace", state: "header" },
     { label: "Full Writing Desk" },
-    { label: "Unlimited projects" },
+    { label: "Unlimited projects & documents" },
     { label: "Book development", state: "header" },
     { label: "Blueprints & 25+ Narrative Structures" },
     { label: "Scene Mapping & Progress Tracking" },
@@ -97,10 +76,15 @@ const WRITING: Tier = {
     { label: "Story-Coach — live drift nudges" },
     { label: "Structure Analyzer" },
     { label: "1M AI tokens / month" },
+    { label: "Listening & revision", state: "header" },
+    { label: "Premium natural voices" },
+    { label: "Word & sentence highlighting" },
+    { label: "Playback speed up to 4×" },
+    { label: "Edit & download branded DOCX" },
     { label: "250k premium-voice characters / month" },
-    { label: "Writing analytics" },
+    { label: "Writing analytics & priority support" },
   ],
-  cta: { label: "Get Writing Nook", href: "/download" },
+  cta: { label: "Start your 14-day free trial", href: "/download" },
 };
 
 const CREATIVE: Tier = {
@@ -128,7 +112,7 @@ const CREATIVE: Tier = {
   ],
 };
 
-const TIERS: Tier[] = [FREE, READING, WRITING, CREATIVE];
+const TIERS: Tier[] = [FREE, WRITING, CREATIVE];
 
 function CheckIcon() {
   return (
@@ -339,15 +323,15 @@ export default function PricingTiers() {
         </div>
       </div>
 
-      <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {TIERS.map((tier) => (
           <TierCard key={tier.tierName} tier={tier} isAnnual={isAnnual} />
         ))}
       </div>
 
       <p className="mt-8 text-center text-sm text-ink-muted">
-        Download free for Windows. Upgrade to any tier from inside the app —
-        cancel anytime.
+        Download free for Windows. Start your 14-day Writing Nook free trial
+        from inside the app — cancel anytime.
       </p>
     </div>
   );

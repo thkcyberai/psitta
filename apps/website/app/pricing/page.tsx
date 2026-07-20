@@ -5,7 +5,7 @@ import PricingTiers from "@/components/pricing/PricingTiers";
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Start free, then choose your Nook: Reading ($14.99/mo), Writing ($17.99/mo), or Creative ($29.99/mo — coming soon). Billed monthly or annually, ~15% off yearly.",
+    "Start free, then upgrade to Writing Nook — 14-day free trial, $17.99/mo or $183/yr (~15% off yearly). Creative Nook coming soon.",
 };
 
 export default function Pricing() {
