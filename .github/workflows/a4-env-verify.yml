@@ -1,0 +1,136 @@
+name: A4 Env Verify
+
+# Read-only production environment verification (A4).
+# GREEN = every production invariant below PASSED (not merely displayed).
+# Never updates ECS, never deploys, never modifies secrets,
+# never prints a secret value (defensive masking throughout).
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  id-token: write   # OIDC federation (same as release.yml)
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECS_CLUSTER: psitta-cluster
+  ECS_SERVICE: psitta-api
+  SECRET_ID: psitta/prod/app-secrets
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: production   # existing protected environment (release.yml uses it); rules unchanged
+    steps:
+      - name: Configure AWS credentials (OIDC, read-only usage)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::808765744063:role/github-actions-psitta
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: ECS service + PRIMARY deployment invariants
+        id: svc
+        run: |
+          set -euo pipefail
+          SVC=$(aws ecs describe-services \
+            --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query "services[0].{td:taskDefinition,status:status,desired:desiredCount,running:runningCount,primary:deployments[?status=='PRIMARY']|[0].{td:taskDefinition,rollout:rolloutState,running:runningCount,desired:desiredCount}}" \
+            --output json)
+          echo "$SVC"
+          STATUS=$(echo "$SVC"   | jq -r '.status')
+          TD=$(echo "$SVC"       | jq -r '.td')
+          DESIRED=$(echo "$SVC"  | jq -r '.desired')
+          RUNNING=$(echo "$SVC"  | jq -r '.running')
+          P_TD=$(echo "$SVC"     | jq -r '.primary.td')
+          P_ROLL=$(echo "$SVC"   | jq -r '.primary.rollout')
+          [ "$STATUS" = "ACTIVE" ]      || { echo "FAIL: service status=$STATUS (expected ACTIVE)"; exit 1; }
+          [ "$RUNNING" = "$DESIRED" ]   || { echo "FAIL: runningCount=$RUNNING != desiredCount=$DESIRED"; exit 1; }
+          [ "$P_ROLL" = "COMPLETED" ]   || { echo "FAIL: PRIMARY rolloutState=$P_ROLL (expected COMPLETED)"; exit 1; }
+          [ "$P_TD" = "$TD" ]           || { echo "FAIL: PRIMARY deployment td=$P_TD != service td=$TD"; exit 1; }
+          echo "PASS: service ACTIVE, $RUNNING/$DESIRED running, PRIMARY COMPLETED on the service task definition"
+          echo "td_arn=$TD" >> "$GITHUB_OUTPUT"
+
+      - name: Task definition — revision + environment NAMES + flag check
+        id: td
+        run: |
+          set -euo pipefail
+          norm_bool() {  # -> "true" | "false" | exit 1 on unrecognized
+            local v; v=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+            case "$v" in
+              true|1|yes|on) echo true ;;
+              false|0|no|off|"") echo false ;;
+              *) echo "FAIL: unrecognized boolean value for REVERSE_TRIAL_ENABLED" >&2; exit 1 ;;
+            esac
+          }
+          TD='${{ steps.svc.outputs.td_arn }}'
+          FAM_REV=$(aws ecs describe-task-definition --task-definition "$TD" \
+            --query "taskDefinition.{family:family,revision:revision}" --output json)
+          echo "$FAM_REV"
+          echo "family=$(echo "$FAM_REV" | jq -r .family)"   >> "$GITHUB_OUTPUT"
+          echo "revision=$(echo "$FAM_REV" | jq -r .revision)" >> "$GITHUB_OUTPUT"
+          echo "Plain environment variable NAMES:"
+          aws ecs describe-task-definition --task-definition "$TD" \
+            --query "taskDefinition.containerDefinitions[0].environment[*].name" --output json
+          echo "Secret-sourced variable NAMES:"
+          aws ecs describe-task-definition --task-definition "$TD" \
+            --query "taskDefinition.containerDefinitions[0].secrets[*].name" --output json
+          RT_ENV=$(aws ecs describe-task-definition --task-definition "$TD" \
+            --query "taskDefinition.containerDefinitions[0].environment[?name=='REVERSE_TRIAL_ENABLED'].value | [0]" \
+            --output text)
+          if [ "$RT_ENV" = "None" ]; then
+            echo "PASS: REVERSE_TRIAL_ENABLED absent from task-def env (code default False applies)"
+          else
+            EFF=$(norm_bool "$RT_ENV")
+            [ "$EFF" = "false" ] || { echo "FAIL: REVERSE_TRIAL_ENABLED=true in task-def env"; exit 1; }
+            echo "PASS: REVERSE_TRIAL_ENABLED present in task-def env, effective=false"
+          fi
+
+      - name: Secrets Manager — key NAMES + invariants (values masked)
+        run: |
+          set -euo pipefail
+          norm_bool() {
+            local v; v=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+            case "$v" in
+              true|1|yes|on) echo true ;;
+              false|0|no|off|"") echo false ;;
+              *) echo "FAIL: unrecognized boolean value for REVERSE_TRIAL_ENABLED" >&2; exit 1 ;;
+            esac
+          }
+          SECRET_JSON=$(aws secretsmanager get-secret-value \
+            --secret-id "$SECRET_ID" --query SecretString --output text)
+          echo "::add-mask::$SECRET_JSON"
+          while IFS= read -r v; do
+            [ -n "$v" ] && echo "::add-mask::$v"
+          done < <(printf '%s' "$SECRET_JSON" | jq -r 'to_entries[].value | tostring')
+          echo "APP_SECRETS key NAMES:"
+          printf '%s' "$SECRET_JSON" | jq -r 'keys | sort | .[]'
+          printf '%s' "$SECRET_JSON" | jq -e 'has("STRIPE_SECRET_KEY_TEST")' >/dev/null \
+            || { echo "FAIL: STRIPE_SECRET_KEY_TEST absent from APP_SECRETS"; exit 1; }
+          KEYVAL=$(printf '%s' "$SECRET_JSON" | jq -r '.STRIPE_SECRET_KEY_TEST')
+          case "$KEYVAL" in
+            sk_live_*|rk_live_*) echo "PASS: Stripe key field present, classified LIVE-mode" ;;
+            sk_test_*|rk_test_*) echo "FAIL: Stripe key in production is a TEST-mode key"; exit 1 ;;
+            *) echo "FAIL: Stripe key format unrecognized"; exit 1 ;;
+          esac
+          RT_RAW=$(printf '%s' "$SECRET_JSON" | jq -r 'if has("REVERSE_TRIAL_ENABLED") then (.REVERSE_TRIAL_ENABLED|tostring) else "__ABSENT__" end')
+          if [ "$RT_RAW" = "__ABSENT__" ]; then
+            echo "PASS: REVERSE_TRIAL_ENABLED absent from APP_SECRETS (code default False applies)"
+          else
+            EFF=$(norm_bool "$RT_RAW")
+            [ "$EFF" = "false" ] || { echo "FAIL: REVERSE_TRIAL_ENABLED=true in APP_SECRETS"; exit 1; }
+            echo "PASS: REVERSE_TRIAL_ENABLED present in APP_SECRETS, effective=false"
+          fi
+
+      - name: Final summary (runs only if every assertion passed)
+        run: |
+          set -euo pipefail
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          echo "A4 ENV VERIFY: PASS"
+          echo "  aws_account:            $ACCOUNT"
+          echo "  ecs:                    $ECS_CLUSTER / $ECS_SERVICE"
+          echo "  task_definition:        ${{ steps.td.outputs.family }}:${{ steps.td.outputs.revision }}"
+          echo "  service:                ACTIVE, PRIMARY rollout COMPLETED, running==desired"
+          echo "  reverse_trial_enabled:  safely absent/false everywhere"
+          echo "  stripe_key_field:       present, classified LIVE-mode"
+          echo "  secret_values:          not displayed (masked defensively)"
