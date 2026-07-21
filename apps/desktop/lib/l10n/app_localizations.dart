@@ -4206,6 +4206,12 @@ abstract class AppLocalizations {
   /// **'On the waitlist ✓'**
   String get planOnWaitlist;
 
+  /// No description provided for @planTrial14.
+  ///
+  /// In en, this message translates to:
+  /// **'14-day free trial'**
+  String get planTrial14;
+
   /// No description provided for @perMonth.
   ///
   /// In en, this message translates to:
@@ -5127,7 +5133,7 @@ abstract class AppLocalizations {
   /// No description provided for @setSwhProGate.
   ///
   /// In en, this message translates to:
-  /// **'Available with Reading Nook Pro'**
+  /// **'Available with Writing Nook Pro'**
   String get setSwhProGate;
 
   /// No description provided for @setSwhReadWith.

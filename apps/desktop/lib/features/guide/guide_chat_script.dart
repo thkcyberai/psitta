@@ -247,11 +247,11 @@ const Map<String, GuideNode> _kGuideEn = {
   ),
   'plans': GuideNode(
     'Psitta has three tiers:\n'
-        '• Free — listen with basic voices, 10 docs a month.\n'
-        '• Reading Nook — premium voices, highlighting, edit & download, 50 '
-        'docs.\n'
-        '• Writing Nook — everything plus the writing platform (Desk, '
-        'Blueprints, Narrative, Story-Coach, Analyzer) and 1M AI tokens.\n'
+        '• Free — listen with standard voices, 10 docs a month.\n'
+        '• Writing Nook — the full writing platform (Desk, Blueprints, '
+        'Narrative, Story-Coach, Analyzer), premium voices with '
+        'highlighting, edit & download, 50 docs, and 1M AI tokens. '
+        'Starts with a 14-day free trial.\n'
         '• Creative Nook — coming soon; adds a creative studio.\n'
         'Manage anytime under Plans in the sidebar.',
     [
@@ -477,12 +477,11 @@ const Map<String, GuideNode> _kGuidePt = {
   ),
   'plans': GuideNode(
     "O Psitta tem três níveis:\n"
-        "• Grátis — ouça com vozes básicas, 10 documentos por mês.\n"
-        "• Reading Nook — vozes premium, destaque, editar e baixar, 50 "
-        "documentos.\n"
-        "• Writing Nook — tudo isso mais a plataforma de escrita (Escrivaninha, "
-        "Estruturas, Narrativa, Coach de Enredo, Analisador) e 1M de tokens de "
-        "IA.\n"
+        "• Grátis — ouça com vozes padrão, 10 documentos por mês.\n"
+        "• Writing Nook — a plataforma completa de escrita (Escrivaninha, "
+        "Estruturas, Narrativa, Coach de Enredo, Analisador), vozes premium "
+        "com destaque, editar e baixar, 50 documentos e 1M de tokens de IA. "
+        "Começa com um teste grátis de 14 dias.\n"
         "• Creative Nook — em breve; adiciona um estúdio criativo.\n"
         "Gerencie a qualquer momento em Planos, na barra lateral.",
     [
@@ -708,12 +707,11 @@ const Map<String, GuideNode> _kGuideEs = {
   ),
   'plans': GuideNode(
     "Psitta tiene tres niveles:\n"
-        "• Gratis — escucha con voces básicas, 10 documentos al mes.\n"
-        "• Reading Nook — voces premium, resaltado, editar y descargar, 50 "
-        "documentos.\n"
-        "• Writing Nook — todo lo anterior más la plataforma de escritura "
-        "(Escritorio, Estructuras, Narrativa, Entrenador de Historia, "
-        "Analizador) y 1M de tokens de IA.\n"
+        "• Gratis — escucha con voces estándar, 10 documentos al mes.\n"
+        "• Writing Nook — la plataforma de escritura completa (Escritorio, "
+        "Estructuras, Narrativa, Entrenador de Historia, Analizador), voces "
+        "premium con resaltado, editar y descargar, 50 documentos y 1M de "
+        "tokens de IA. Empieza con una prueba gratis de 14 días.\n"
         "• Creative Nook — próximamente; añade un estudio creativo.\n"
         "Gestiónalo cuando quieras en Planes, en la barra lateral.",
     [
@@ -945,12 +943,11 @@ const Map<String, GuideNode> _kGuideFr = {
   ),
   'plans': GuideNode(
     "Psitta a trois niveaux :\n"
-        "• Gratuit — écoutez avec des voix de base, 10 documents par mois.\n"
-        "• Reading Nook — voix premium, surlignage, édition et téléchargement, "
-        "50 documents.\n"
-        "• Writing Nook — tout cela plus la plateforme d'écriture (Bureau "
-        "d'écriture, Structures, Récit, Coach d'Histoire, Analyseur) et 1M de "
-        "tokens d'IA.\n"
+        "• Gratuit — écoutez avec des voix standard, 10 documents par mois.\n"
+        "• Writing Nook — la plateforme d'écriture complète (Bureau "
+        "d'écriture, Structures, Récit, Coach d'Histoire, Analyseur), voix "
+        "premium avec surlignage, édition et téléchargement, 50 documents et "
+        "1M de tokens d'IA. Commence par un essai gratuit de 14 jours.\n"
         "• Creative Nook — bientôt disponible ; ajoute un studio créatif.\n"
         "Gérez à tout moment dans Formules, dans la barre latérale.",
     [

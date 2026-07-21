@@ -84,7 +84,10 @@ class _BrandHeader extends StatelessWidget {
           if (!isCollapsed) ...[
             const SizedBox(width: 12),
             Text(
-              'The Reading Nook',
+              // Legacy shell brand header (unreachable after the Phase 1
+              // one-shell consolidation; renamed defensively — Reading Nook
+              // is no longer a product name).
+              'Psitta',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.onSurface.withOpacity(0.92),

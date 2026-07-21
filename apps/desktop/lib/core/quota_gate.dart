@@ -22,13 +22,14 @@ final quotaBannerDismissedProvider =
 
 const Map<String, String> _kPlanDisplayNames = {
   'free': 'Free',
-  'pro_monthly': 'Reading Nook Pro',
-  'pro_annual': 'Reading Nook Pro',
-  // Forward-compat: the `/billing/status` endpoint uses different plan
-  // strings (`reading_nook_pro`, `creative_nook_pro`) — include them so
-  // the dialog renders a human name even if the call site ever passes a
-  // QuotaInfo derived from billing status instead of subscription summary.
-  'reading_nook_pro': 'Reading Nook Pro',
+  // Product consolidation (Phase 1): legacy/grandfathered plan IDs keep
+  // their keys for compatibility with historical subscriptions, but ALL
+  // paid legacy tiers now display as Writing Nook Pro — Reading Nook is
+  // no longer a customer-facing product name.
+  'pro_monthly': 'Writing Nook Pro',
+  'pro_annual': 'Writing Nook Pro',
+  'reading_nook_pro': 'Writing Nook Pro',
+  'writing_nook_pro': 'Writing Nook Pro',
   'creative_nook_pro': 'Creative Nook Pro',
 };
 

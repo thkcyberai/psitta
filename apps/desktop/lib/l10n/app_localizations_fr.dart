@@ -2449,6 +2449,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get planOnWaitlist => 'Sur la liste d\'attente ✓';
 
   @override
+  String get planTrial14 => 'Essai gratuit de 14 jours';
+
+  @override
   String get perMonth => '/mois';
 
   @override
@@ -2985,7 +2988,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Forfait Free limité à 2,0x. Passez à la version supérieure pour jusqu\'à 4,0x.';
 
   @override
-  String get setSwhProGate => 'Disponible avec Reading Nook Pro';
+  String get setSwhProGate => 'Disponible avec Writing Nook Pro';
 
   @override
   String get setSwhReadWith => 'Lire avec S.W.H';

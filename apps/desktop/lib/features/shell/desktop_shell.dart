@@ -6,7 +6,6 @@ import 'package:path/path.dart' as p;
 import '../../core/constants.dart';
 import '../../data/services/pdf_text_extractor.dart';
 import '../../core/keyboard/shortcuts.dart';
-import '../../core/plan_gate.dart';
 import '../../data/providers/providers.dart';
 import '../../data/services/audio_service.dart';
 import '../../data/services/preferences_service.dart';
@@ -36,8 +35,12 @@ class DesktopShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final isCollapsed = ref.watch(sidebarCollapsedProvider);
     final isEditing = ref.watch(isInlineEditingProvider);
-    final isWritingShell =
-        ref.watch(planStatusProvider).plan == 'writing_nook_pro';
+    // Product consolidation (Phase 1): ONE shell for everyone. Writing Nook
+    // is the only product, so every tier — Free, trialing, and paid — gets
+    // the Writing shell; plan gates inside the shell control feature access.
+    // The legacy Reading shell is no longer reachable (quarantined for
+    // removal in a later cleanup phase).
+    const isWritingShell = true;
 
     // When editing, remove playback shortcuts so keys (Space, arrows)
     // propagate naturally to the focused TextField.

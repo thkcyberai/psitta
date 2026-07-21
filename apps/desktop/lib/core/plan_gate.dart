@@ -176,7 +176,7 @@ int countDocumentsThisMonth(Iterable<Document> docs) {
 Future<void> showUpgradePrompt(
   BuildContext context, {
   required String featureName,
-  String requiredPlan = 'Reading Nook Pro',
+  String requiredPlan = 'Writing Nook Pro',
   String? message,
 }) async {
   await showDialog<void>(
@@ -211,7 +211,7 @@ Future<void> showUpgradePrompt(
 void showUpgradeSnackbar(
   BuildContext context, {
   required String featureName,
-  String requiredPlan = 'Reading Nook Pro',
+  String requiredPlan = 'Writing Nook Pro',
 }) {
   ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
@@ -239,7 +239,7 @@ Future<void> showUploadLimitPrompt(
       title: const Text('Monthly upload limit reached'),
       content: Text(
         "You've uploaded $used of $limit documents this month on the Free "
-        'plan. Upgrade to Reading Nook Pro for $kProMonthlyDocLimit '
+        'plan. Upgrade to Writing Nook Pro for $kProMonthlyDocLimit '
         'documents per month.',
       ),
       actions: [

@@ -14,14 +14,16 @@ import '../../l10n/app_localizations.dart';
 /// Plan selection screen — accessible from the sidebar "Plans" entry and
 /// Settings > Change Plan.
 ///
-/// Shows four tiers (Free, Reading Nook, Writing Nook, Creative Nook). The two
-/// purchasable Pro cards (Reading + Writing) expose the shared monthly/annual
-/// toggle that drives the Stripe lookup_key sent to /billing/checkout-session.
-/// On success the checkout URL opens in the system browser (Stripe-hosted) and
-/// the screen polls /billing/status until the webhook activates the plan.
+/// Shows three tiers (Free, Writing Nook, Creative Nook). Writing Nook is the
+/// only purchasable product — every new subscription starts with a 14-day
+/// Stripe-native free trial. The monthly/annual toggle drives the Stripe
+/// lookup_key sent to /billing/checkout-session. On success the checkout URL
+/// opens in the system browser (Stripe-hosted) and the screen polls
+/// /billing/status until the webhook activates the plan (status 'active' OR
+/// 'trialing' — both are entitled).
 ///
-/// Tier ranks gate the CTAs: a user can only upgrade to a higher tier; a tier
-/// they already get (via a higher plan) shows "Included".
+/// Creative Nook is a Coming Soon marketing placeholder: waitlist only, no
+/// checkout, no billing. Tier ranks gate the CTAs.
 class PlanSelectionScreen extends ConsumerStatefulWidget {
   const PlanSelectionScreen({super.key});
 
@@ -34,8 +36,8 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
   bool _isAnnual = false;
   bool _isSubmitting = false;
 
-  /// Which paid tier's checkout is in flight ('reading_nook_pro' /
-  /// 'writing_nook_pro'), so only that card shows a spinner.
+  /// Which paid tier's checkout is in flight ('writing_nook_pro' — the only
+  /// purchasable tier), so only that card shows a spinner.
   String _checkoutBase = '';
 
   // Creative Nook waitlist state. The Creative card is gated as "Coming Soon";
@@ -53,6 +55,9 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
   static const Duration _pollInterval = Duration(seconds: 3);
 
   /// Tier ordering used to gate upgrade/downgrade affordances.
+  /// 'reading_nook_pro' is retained for backward compatibility only (a
+  /// grandfathered historical plan id — the backend normally reports it as
+  /// writing_nook_pro); it has no card of its own.
   static const Map<String, int> _rank = {
     'free': 0,
     'reading_nook_pro': 1,
@@ -191,10 +196,10 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         final data = response.data as Map<String, dynamic>;
         final plan = data['plan'] as String?;
         final status = data['status'] as String?;
-        if ((plan == 'reading_nook_pro' ||
-                plan == 'writing_nook_pro' ||
-                plan == 'creative_nook_pro') &&
-            status == 'active') {
+        // A4 trialing contract: a 14-day-trial subscription reports
+        // status 'trialing' — it is fully entitled, exactly like 'active'.
+        if ((plan == 'writing_nook_pro' || plan == 'creative_nook_pro') &&
+            (status == 'active' || status == 'trialing')) {
           timer.cancel();
           ref.invalidate(billingStatusProvider);
           _showSnack(AppLocalizations.of(context).planActiveWelcome);
@@ -340,13 +345,11 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
               ),
               const SizedBox(height: 28),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 1320),
+                constraints: const BoxConstraints(maxWidth: 1020),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(child: _freeCard(currentRank)),
-                    const SizedBox(width: 18),
-                    Expanded(child: _readingCard(currentRank)),
                     const SizedBox(width: 18),
                     Expanded(child: _writingCard(currentRank)),
                     const SizedBox(width: 18),
@@ -388,47 +391,6 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
     );
   }
 
-  Widget _readingCard(int currentRank) {
-    const rank = 1;
-    final isCurrent = currentRank == rank;
-    final included = currentRank > rank; // already get it via a higher plan
-    final canUpgrade = currentRank >= 0 && currentRank < rank;
-    final loc = AppLocalizations.of(context);
-    return _PlanCard(
-      tierName: 'Reading Nook',
-      title: loc.planTaglineReadRefine,
-      price: _isAnnual ? '\$152${loc.perYear}' : '\$14.99${loc.perMonth}',
-      priceSubtitle: _isAnnual
-          ? loc.billedAnnuallyAt('\$12.67${loc.perMonth}')
-          : loc.billedMonthly,
-      savingsLabel: _isAnnual ? loc.billingSave15 : null,
-      features: [
-        _PlanFeature.header(loc.featHdrListening),
-        _PlanFeature(loc.featPremiumNatural),
-        _PlanFeature(loc.featWordSentence),
-        _PlanFeature(loc.featPlayback4x),
-        _PlanFeature.header(loc.featHdrDocuments),
-        _PlanFeature(loc.featBrandedDocx),
-        _PlanFeature(loc.feat50Docs),
-        _PlanFeature(loc.featArchive),
-        _PlanFeature(loc.feat150k),
-        _PlanFeature(loc.featPriority),
-        _PlanFeature(loc.featWritingPlatform, included: false),
-      ],
-      isCurrent: isCurrent,
-      buttonLabel: isCurrent
-          ? loc.planCurrent
-          : included
-              ? loc.planIncluded
-              : loc.planChooseReading,
-      isPrimary: false,
-      isLoading: _isSubmitting && _checkoutBase == 'reading_nook_pro',
-      onPressed: (canUpgrade && !_isSubmitting)
-          ? () => _startCheckout('reading_nook_pro')
-          : null,
-    );
-  }
-
   Widget _writingCard(int currentRank) {
     const rank = 2;
     final isCurrent = currentRank == rank;
@@ -440,12 +402,11 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
       title: loc.planTaglineWrite,
       price: _isAnnual ? '\$183${loc.perYear}' : '\$17.99${loc.perMonth}',
       priceSubtitle: _isAnnual
-          ? loc.billedAnnuallyAt('\$15.25${loc.perMonth}')
-          : loc.billedMonthly,
+          ? '${loc.planTrial14} · ${loc.billedAnnuallyAt('\$15.25${loc.perMonth}')}'
+          : '${loc.planTrial14} · ${loc.billedMonthly}',
       savingsLabel: _isAnnual ? loc.billingSave15 : null,
       popular: true,
       features: [
-        _PlanFeature.header(loc.featHdrEverythingReading),
         _PlanFeature.header(loc.featHdrWorkspace),
         _PlanFeature(loc.featFullDesk),
         _PlanFeature(loc.featUnlimitedProjects),
@@ -456,8 +417,14 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         _PlanFeature(loc.featStoryCoachDrift),
         _PlanFeature(loc.featureStructureAnalyzer),
         _PlanFeature(loc.feat1MTokens),
+        _PlanFeature.header(loc.featHdrListening),
+        _PlanFeature(loc.featPremiumNatural),
+        _PlanFeature(loc.featWordSentence),
+        _PlanFeature(loc.featPlayback4x),
+        _PlanFeature(loc.featBrandedDocx),
         _PlanFeature(loc.feat250k),
         _PlanFeature(loc.featWritingAnalytics),
+        _PlanFeature(loc.featPriority),
       ],
       isCurrent: isCurrent,
       buttonLabel: isCurrent
