@@ -13,6 +13,7 @@ import 'package:path/path.dart' as p;
 
 import '../../l10n/app_localizations.dart';
 import '../../core/constants.dart';
+import '../../core/capabilities.dart';
 import '../../core/plan_gate.dart';
 import '../../core/quota_gate.dart';
 import '../../core/theme/colors.dart';
@@ -118,13 +119,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
   }
 
-  /// Preflight check against the monthly upload limit for the current plan.
+  /// Preflight check against the monthly upload limit for the current
+  /// entitlement (PAC-2B: server-resolved `limits.doc_cap`, -1 = unlimited).
   /// The backend is authoritative (returns 402 on limit exceeded), but the
   /// preflight gives nicer UX and steers the user to the Change Plan screen.
   /// Returns `true` if the upload should proceed.
   Future<bool> _canAcceptUploads(int incoming) async {
-    final plan = ref.read(planStatusProvider);
-    final limit = monthlyDocLimitFor(plan);
+    final caps = ref.read(capabilitiesSnapshotProvider);
+    if (caps.isUnlimitedDocs) return true;
+    final limit = caps.docCap;
     final docs = ref.read(documentsProvider).valueOrNull ?? const [];
     final used = countDocumentsThisMonth(docs);
     if (used + incoming <= limit) return true;
@@ -226,9 +229,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final swhEnabled = swhMode == SwhMode.always;
     await _primePlaybackSession(doc);
     if (!mounted) return;
-    final isWritingShell =
-        ref.read(planStatusProvider).plan == 'writing_nook_pro';
-    if (isWritingShell) {
+    // PAC-2B: destination predicate is the writing_desk capability
+    // (previously a plan-id string check). Same two destinations —
+    // universal desk routing is PAC-3, not this phase.
+    final hasWritingDesk =
+        ref.read(capabilitiesSnapshotProvider).has(Capability.writingDesk);
+    if (hasWritingDesk) {
       context.go('/writing-desk/${doc.id}');
     } else {
       final swhParam = swhEnabled ? '1' : '0';
@@ -691,16 +697,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final tokens = PsittaTokens.of(context);
     final documentsAsync = ref.watch(documentsProvider);
     final projectsAsync = ref.watch(projectsProvider);
-    // Use planStatusProvider (not billingStatusProvider directly) so a
-    // billing-endpoint error surfaces as PlanStatus.unavailable rather
-    // than collapsing to Free. isProTier fails closed for both Free AND
-    // Unavailable (so Pro-only actions stay disabled during transient
-    // outages), but isPlanUnavailable lets us show a recoverable
-    // "refresh Settings" tooltip instead of a misleading "Upgrade to
-    // Pro" tooltip to an already-paying user.
-    final planStatus = ref.watch(planStatusProvider);
-    final isProTier = planStatus.isPro;
-    final isPlanUnavailable = planStatus.isUnavailable;
+    // PAC-2B: entitlement renders from the server-resolved capability
+    // set. isProTier (edit_document capability) fails closed for both
+    // Free AND Unavailable (so Pro-only actions stay disabled during
+    // transient outages), but isPlanUnavailable — true only while the
+    // capabilities endpoint is loading/errored, never for a resolved
+    // Free payload — lets us show a recoverable "refresh Settings"
+    // tooltip instead of a misleading "Upgrade to Pro" tooltip to an
+    // already-paying user.
+    final caps = ref.watch(capabilitiesSnapshotProvider);
+    final isProTier = caps.has(Capability.editDocument);
+    final isPlanUnavailable = caps.isUnavailable;
 
     // C.4 — fire one-shot premium-voices toast when the quota refresh
     // pushes the user into elAtLimit. The helper guards on a
@@ -1000,11 +1007,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                                       },
                                       onRead: () {
                                         _primePlaybackSession(doc);
-                                        final isWritingShell = ref
-                                                .read(planStatusProvider)
-                                                .plan ==
-                                            'writing_nook_pro';
-                                        if (isWritingShell) {
+                                        // PAC-2B: capability predicate,
+                                        // same destinations (see
+                                        // _listenToDocument).
+                                        final hasWritingDesk = ref
+                                            .read(
+                                                capabilitiesSnapshotProvider)
+                                            .has(Capability.writingDesk);
+                                        if (hasWritingDesk) {
                                           context.go(
                                               '/writing-desk/${doc.id}');
                                         } else {
