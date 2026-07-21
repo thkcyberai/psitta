@@ -138,8 +138,9 @@ export default function Home() {
           </h1>
 
           <p className="mt-6 max-w-2xl mx-auto text-ink-muted">
-            Meet Maya — she&apos;ll let you know more about how Psitta helps you
-            structure, draft, and finish your book.
+            Psitta is the writing platform for people finishing books —
+            structure it, draft it, and hear every line read back until
+            it&apos;s done. Meet Maya for the two-minute tour.
           </p>
 
           <div className="mt-6 mx-auto max-w-4xl overflow-hidden rounded-2xl border border-edge-subtle bg-paper-surface shadow-sm">
@@ -177,7 +178,7 @@ export default function Home() {
               Writing Nook
             </p>
             <h2 className="mt-2 text-ink-primary">
-              Everything you need to finish the book
+              How Writing Nook helps you finish your book
             </h2>
             <p className="lead mt-4 text-ink-muted">
               A full writing platform — not just a reader. Structure it, draft

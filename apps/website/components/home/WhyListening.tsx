@@ -8,11 +8,15 @@ export default function WhyListening() {
           Your ear catches what your eye misses
         </h2>
         <p className="lead mt-6 text-ink-body leading-relaxed">
-          Reading silently, your brain auto-corrects. It fills in missing words,
-          smooths over clumsy transitions, and skips right past that sentence
-          you rewrote three times but never finished fixing. Listening breaks
-          the spell. When you hear your writing spoken aloud, every stumble
-          becomes obvious — and the fix usually follows within seconds.
+          Professional writers don&apos;t catch a manuscript&apos;s flaws by
+          rereading it — they catch them by hearing it. Read silently and your
+          brain auto-corrects: it fills in missing words, smooths clumsy
+          transitions, and skips right past the sentence you rewrote three
+          times. Hear your chapter read back and every stumble announces
+          itself — and the fix usually follows within seconds. Psitta builds
+          that into your writing routine: listen, fix, move on. Revision stops
+          being the wall between you and a finished book, and becomes the
+          fastest part of your day.
         </p>
       </Container>
     </section>
