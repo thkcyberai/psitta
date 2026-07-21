@@ -13,6 +13,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 
 import '../../core/constants.dart';
+import '../../core/capabilities.dart';
 import '../../core/plan_gate.dart';
 import '../../core/quota_gate.dart';
 import '../../core/theme/psitta_tokens.dart';
@@ -31,16 +32,22 @@ import 'library_screen.dart' show LibraryScreen, librarySearchFocusProvider;
 
 /// Route selector for `/library`.
 ///
-/// The Writing Nook tier gets the remodeled [WritingLibraryScreen]; every other
-/// tier (notably the Reading Nook) keeps the original [LibraryScreen] untouched.
+/// PAC-2B: dispatched on the `writing_desk` capability (previously a
+/// plan-id string check). Entitled users get the remodeled
+/// [WritingLibraryScreen]; Explore users keep the original
+/// [LibraryScreen] untouched until the PAC-3 one-library consolidation.
+/// Fails closed: while capabilities are loading/errored the Free
+/// baseline (no writing_desk) renders the legacy library.
 class LibraryRoute extends ConsumerWidget {
   const LibraryRoute({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isWriting =
-        ref.watch(planStatusProvider).plan == 'writing_nook_pro';
-    return isWriting ? const WritingLibraryScreen() : const LibraryScreen();
+    final hasWritingDesk =
+        ref.watch(hasCapabilityProvider(Capability.writingDesk));
+    return hasWritingDesk
+        ? const WritingLibraryScreen()
+        : const LibraryScreen();
   }
 }
 
@@ -96,9 +103,11 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
   }
 
   // ── Upload (mirrors LibraryScreen behaviour) ────────────────────────────────
+  // PAC-2B: server-resolved `limits.doc_cap` (-1 = unlimited).
   Future<bool> _canAcceptUploads(int incoming) async {
-    final plan = ref.read(planStatusProvider);
-    final limit = monthlyDocLimitFor(plan);
+    final caps = ref.read(capabilitiesSnapshotProvider);
+    if (caps.isUnlimitedDocs) return true;
+    final limit = caps.docCap;
     final docs = ref.read(documentsProvider).valueOrNull ?? const [];
     final used = countDocumentsThisMonth(docs);
     if (used + incoming <= limit) return true;
@@ -404,7 +413,11 @@ class _WritingLibraryScreenState extends ConsumerState<WritingLibraryScreen> {
                 Expanded(child: main),
                 _RightRail(
                   tokens: tokens,
-                  isPro: ref.watch(planStatusProvider).isPro,
+                  // PAC-2B: display state from the capability payload —
+                  // 'free' plan renders the Free badge; any resolved paid
+                  // plan renders Pro. Fails closed to Free while loading.
+                  isPaidPlan:
+                      ref.watch(capabilitiesSnapshotProvider).plan != 'free',
                   onSoon: _soon,
                 ),
               ],
@@ -1639,12 +1652,12 @@ class _Chip extends StatelessWidget {
 class _RightRail extends ConsumerWidget {
   const _RightRail({
     required this.tokens,
-    required this.isPro,
+    required this.isPaidPlan,
     required this.onSoon,
   });
 
   final PsittaTokens tokens;
-  final bool isPro;
+  final bool isPaidPlan;
   final void Function(String) onSoon;
 
   @override
@@ -1806,7 +1819,7 @@ class _RightRail extends ConsumerWidget {
               color: tokens.glow.withOpacity(0.16),
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Text(isPro ? loc.proPlan : loc.freePlan,
+            child: Text(isPaidPlan ? loc.proPlan : loc.freePlan,
                 style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
