@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/plan_gate.dart';
+import '../../core/capabilities.dart';
+// plan_gate is retained ONLY for showUpgradeSnackbar (replaced by
+// UpgradeExperience in PAC-4). Entitlement itself is capability-gated.
+import '../../core/plan_gate.dart' show showUpgradeSnackbar;
 import '../../core/i18n/working_language.dart';
 import '../../l10n/app_localizations.dart';
 import '../../core/theme/psitta_tokens.dart';
@@ -22,7 +25,10 @@ class VoiceSelectorScreen extends ConsumerWidget {
     final loc = AppLocalizations.of(context);
     final voicesAsync = ref.watch(voicesProvider);
     final selectedId = ref.watch(selectedVoiceIdProvider);
-    final isPro = ref.watch(isProUserProvider);
+    // PAC-2B: entitlement via the server-resolved capability set (fails
+    // closed to the Free baseline while loading/errored) — never a plan id.
+    final hasPremiumVoices =
+        ref.watch(hasCapabilityProvider(Capability.premiumVoices));
     // Voices are language-locked: only the current working language's voices
     // are offered, so a writer can never pick (or narrate with) a voice from
     // another language. Exact BCP-47 match keeps pt-BR and pt-PT separate.
@@ -81,7 +87,8 @@ class VoiceSelectorScreen extends ConsumerWidget {
                   itemBuilder: (context, i) {
                     final v = voices[i];
                     final isSelected = v.id == selectedId;
-                    final isLocked = !isPro && v.tier == 'premium';
+                    final isLocked =
+                        !hasPremiumVoices && v.tier == 'premium';
                     return _VoiceCard(
                       displayName: v.displayName,
                       language: v.language,
