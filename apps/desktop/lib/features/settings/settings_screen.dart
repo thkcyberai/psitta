@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/capabilities.dart';
 import '../../core/plan_gate.dart';
 import '../../core/quota_gate.dart';
 import '../../data/providers/providers.dart';
@@ -105,12 +106,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final loc = AppLocalizations.of(context);
     final selectedTheme = ref.watch(selectedThemeNameProvider);
     final swhMode = ref.watch(selectedSwhModeProvider);
-    final isPro = ref.watch(isProUserProvider);
-    // Writing-Nook-only settings (Story-Coach, Writing Nook guide) are gated on
-    // this so they never appear in the Reading/Free experience (1.0.9.0 parity).
-    final isWritingNook =
-        ref.watch(planStatusProvider).plan == 'writing_nook_pro';
-    final maxSpeed = isPro ? kProMaxSpeed : kFreeMaxSpeed;
+    // PAC-2B: every entitlement decision below renders from the
+    // server-resolved capability set. Fails closed to the Free baseline
+    // while loading or errored — premium settings lock and the speed
+    // ceiling clamps to Free, exactly as the legacy Unavailable state
+    // behaved.
+    final caps = ref.watch(capabilitiesSnapshotProvider);
+    final hasSwh = caps.has(Capability.swh);
+    final hasStoryCoach = caps.has(Capability.storyCoach);
+    final hasWritingDesk = caps.has(Capability.writingDesk);
+    final maxSpeed = caps.maxPlaybackSpeed;
     final availableSpeeds =
         SpeedPreferenceNotifier.speeds.where((s) => s <= maxSpeed).toList();
     final currentSpeed = ref.watch(selectedSpeedProvider);
@@ -293,7 +298,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               }),
               ListTile(
                 title: Text(loc.setPlaybackSpeed),
-                subtitle: isPro
+                subtitle: maxSpeed >= kProMaxSpeed
                     ? null
                     : Text(
                         loc.setSpeedFreeLimit,
@@ -320,7 +325,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             icon: Icons.subtitles_outlined,
             title: loc.setSecSwh,
             children: [
-              if (!isPro)
+              if (!hasSwh)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                   child: Row(
@@ -351,7 +356,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 value: SwhMode.always,
                 groupValue: swhMode,
-                onChanged: isPro
+                onChanged: hasSwh
                     ? (v) =>
                         ref.read(selectedSwhModeProvider.notifier).select(v!)
                     : null,
@@ -360,15 +365,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: Text(loc.setSwhReadWithout),
                 value: SwhMode.never,
                 groupValue: swhMode,
-                onChanged: isPro
+                onChanged: hasSwh
                     ? (v) =>
                         ref.read(selectedSwhModeProvider.notifier).select(v!)
                     : null,
               ),
             ],
           ),
-          // Writing-Nook-only — hidden entirely for Reading/Free (1.0.9.0 parity).
-          if (isWritingNook) ...[
+          // PAC-2B: each card gated on its own capability (individually
+          // locked, per the platform principles) — previously one
+          // plan == 'writing_nook_pro' check hid both.
+          if (hasStoryCoach)
             _SettingsCard(
               icon: Icons.auto_stories_outlined,
               title: loc.setSecStoryCoach,
@@ -386,6 +393,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
+          if (hasWritingDesk)
             _SettingsCard(
               icon: Icons.support_agent,
               title: loc.setSecHelpGuide,
@@ -402,7 +410,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-          ],
           _SettingsCard(
             icon: Icons.sd_storage_outlined,
             title: loc.setSecStorage,
@@ -447,9 +454,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.only(top: 8, bottom: 16),
             child: Center(
               child: Text(
-                // Tier-aware label: Writing shows the real build version;
-                // Free/Reading pin to v1.1.0 (kept on the Reading line).
-                isWritingNook
+                // Tier-aware label: the Writing experience shows the real
+                // build version; Free pins to v1.1.0 (kept on that line).
+                hasWritingDesk
                     ? (_appVersion.isEmpty ? 'Psitta' : 'Psitta v$_appVersion')
                     : 'Psitta v1.1.0',
                 style: theme.textTheme.bodySmall?.copyWith(
