@@ -84,8 +84,22 @@ class PlanStatus {
   /// Mirrors plan_limits.py `llm_tokens_per_period`.
   final int llmTokensPerPeriod;
 
+  /// Subscription statuses that grant entitlement on the client.
+  ///
+  /// Mirrors the backend resolver contract (A4): `status IN ('active',
+  /// 'trialing')` is entitled. Everything else — canceled, past_due,
+  /// incomplete, incomplete_expired, unpaid, paused, none — is denied.
+  ///
+  /// PAC-2A surgical fix (2026-07-20): previously only 'active' was
+  /// accepted here, so a Stripe trial subscriber passed backend gates and
+  /// `plan == 'writing_nook_pro'` string checks but failed every isPro
+  /// gate — a mixed Free/Pro interface during the trial. Temporary
+  /// compatibility shim: PAC-2B replaces this legacy isPro path with
+  /// server-resolved capabilities.
+  static const Set<String> entitledStatuses = {'active', 'trialing'};
+
   bool get isPro =>
-      !isUnavailable && plan != 'free' && status == 'active';
+      !isUnavailable && plan != 'free' && entitledStatuses.contains(status);
   bool get isFree => !isUnavailable && plan == 'free';
 
   /// True when entitlement was resolved via the alpha tester allowlist
@@ -100,10 +114,13 @@ class PlanStatus {
   /// surfaces that require a live Stripe customer record — Customer
   /// Portal, payment-method updates, invoice history — because those
   /// would 502 for non-Stripe sources (KL 2026-05-22b).
+  /// PAC-2A: accepts 'trialing' alongside 'active' — a trialing customer
+  /// has a live Stripe subscription and MUST be able to reach the
+  /// Customer Portal (e.g. to cancel before the trial converts).
   bool get isStripeSubscribed =>
       !isUnavailable &&
       plan != 'free' &&
-      status == 'active' &&
+      entitledStatuses.contains(status) &&
       source == 'stripe';
 
   static const free = PlanStatus(plan: 'free', status: 'none');
