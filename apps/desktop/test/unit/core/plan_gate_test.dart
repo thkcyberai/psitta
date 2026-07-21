@@ -12,6 +12,12 @@
 // These tests guard the temporary compatibility shim until PAC-2B replaces
 // legacy isPro gating with server-resolved capabilities.
 
+// PAC-2B commit 6: PlanStatus.isPro is @Deprecated with zero production
+// consumers — these tests intentionally keep exercising it as the guard
+// on the /billing/status entitlement contract until PAC-6 removes
+// PlanStatus gating wholesale.
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:psitta/core/plan_gate.dart';
 
@@ -127,17 +133,17 @@ void main() {
     });
   });
 
-  group('Numeric limits follow entitlement', () {
-    test('trialing subscriber gets Pro doc limit and speed ceiling', () {
-      const s = PlanStatus(plan: 'writing_nook_pro', status: 'trialing');
-      expect(monthlyDocLimitFor(s), kProMonthlyDocLimit);
-      expect(maxSpeedFor(s), kProMaxSpeed);
+  group('Plan limit constants (PAC-2B: runtime limits now come from the '
+      'capability payload; these constants back prompt copy and the '
+      'confirmed-Free clamp, mirroring backend plan_limits)', () {
+    test('Pro ceilings are preserved', () {
+      expect(kProMonthlyDocLimit, 50);
+      expect(kProMaxSpeed, 4.0);
     });
 
-    test('canceled subscriber falls back to Free limits', () {
-      const s = PlanStatus(plan: 'writing_nook_pro', status: 'canceled');
-      expect(monthlyDocLimitFor(s), kFreeMonthlyDocLimit);
-      expect(maxSpeedFor(s), kFreeMaxSpeed);
+    test('Free ceilings are preserved', () {
+      expect(kFreeMonthlyDocLimit, 10);
+      expect(kFreeMaxSpeed, 2.0);
     });
   });
 }

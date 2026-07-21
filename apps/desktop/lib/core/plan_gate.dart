@@ -98,6 +98,14 @@ class PlanStatus {
   /// server-resolved capabilities.
   static const Set<String> entitledStatuses = {'active', 'trialing'};
 
+  /// PAC-2B: legacy feature gating is retired — zero production
+  /// consumers remain. Gate on server-resolved capabilities instead
+  /// (core/capabilities.dart: hasCapabilityProvider / CapabilityGate).
+  /// Kept, with its contract tests, purely as the guard on the
+  /// /billing/status entitlement contract until PlanStatus gating is
+  /// removed wholesale in PAC-6.
+  @Deprecated('Gate on capabilities (core/capabilities.dart); '
+      'removal scheduled with PlanStatus retirement in PAC-6')
   bool get isPro =>
       !isUnavailable && plan != 'free' && entitledStatuses.contains(status);
   bool get isFree => !isUnavailable && plan == 'free';
@@ -134,11 +142,11 @@ class PlanStatus {
 /// Resolved plan for the current user.
 ///
 /// Resolves to [PlanStatus.unavailable] while billing is loading OR
-/// errored — distinct from [PlanStatus.free]. Callers that need "Pro
-/// gate, fail-closed" behavior can check [isProUserProvider] which
-/// correctly returns false for both Free AND Unavailable states; callers
-/// that need to distinguish (e.g. show a retry affordance instead of an
-/// upgrade CTA) should check [PlanStatus.isUnavailable].
+/// errored — distinct from [PlanStatus.free]. PAC-2B: feature gating
+/// no longer reads this — gate on server-resolved capabilities
+/// (core/capabilities.dart). Remaining consumers are billing surfaces:
+/// [PlanStatus.isStripeSubscribed] (Customer Portal), the app.dart
+/// confirmed-Free downgrade clamp, and plan-selection checkout UI.
 final planStatusProvider = Provider.autoDispose<PlanStatus>((ref) {
   final billing = ref.watch(billingStatusProvider);
   return billing.when(
@@ -148,14 +156,16 @@ final planStatusProvider = Provider.autoDispose<PlanStatus>((ref) {
   );
 });
 
-/// Convenience boolean: true when the user has any active paid plan.
-/// Returns false for both Free AND Unavailable — i.e. "not confirmed
-/// Pro" — so Pro-only features fail closed during transient outages.
-final isProUserProvider = Provider.autoDispose<bool>((ref) {
-  return ref.watch(planStatusProvider).isPro;
-});
+// PAC-2B: isProUserProvider, monthlyDocLimitFor and maxSpeedFor are
+// DELETED. Entitlement is gated on server-resolved capabilities
+// (core/capabilities.dart); numeric limits come from the capability
+// payload (`limits.doc_cap`, `limits.max_playback_speed`).
 
-// ── Per-plan numeric limits ──────────────────────────────────────────────
+// ── Per-plan numeric limit constants ─────────────────────────────────────
+// Retained: showUploadLimitPrompt copy (kProMonthlyDocLimit), the
+// Settings speed-subtitle threshold (kProMaxSpeed), and the app.dart
+// confirmed-Free downgrade clamp (kFreeMaxSpeed) still reference them.
+// They mirror backend plan_limits and are pinned by plan_gate_test.
 
 /// Monthly document upload limits by plan.
 const int kFreeMonthlyDocLimit = 10;
@@ -164,12 +174,6 @@ const int kProMonthlyDocLimit = 50;
 /// Playback speed ceilings by plan.
 const double kFreeMaxSpeed = 2.0;
 const double kProMaxSpeed = 4.0;
-
-int monthlyDocLimitFor(PlanStatus plan) =>
-    plan.isPro ? kProMonthlyDocLimit : kFreeMonthlyDocLimit;
-
-double maxSpeedFor(PlanStatus plan) =>
-    plan.isPro ? kProMaxSpeed : kFreeMaxSpeed;
 
 /// Returns the number of documents whose [Document.createdAt] falls in the
 /// current calendar month (local time). Used to preflight the upload
