@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppInstaller xmlns="http://schemas.microsoft.com/appx/appinstaller/2018"
+              Version="2.0.0.0"
+              Uri="https://download.psitta.ai/psitta.appinstaller">
+  <MainPackage Name="com.factiai.psitta"
+               Publisher="CN=Facti AI LLC, O=Facti AI LLC, L=Colorado Springs, S=Colorado, C=US"
+               Version="2.0.0.0"
+               ProcessorArchitecture="x64"
+               Uri="https://download.psitta.ai/releases/2.0.0.0/psitta.msix" />
+  <UpdateSettings>
+    <OnLaunch HoursBetweenUpdateChecks="24"
+              UpdateBlocksActivation="false"
+              ShowPrompt="false" />
+  </UpdateSettings>
+</AppInstaller>

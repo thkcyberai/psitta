@@ -454,11 +454,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             padding: const EdgeInsets.only(top: 8, bottom: 16),
             child: Center(
               child: Text(
-                // Tier-aware label: the Writing experience shows the real
-                // build version; Free pins to v1.1.0 (kept on that line).
-                hasWritingDesk
-                    ? (_appVersion.isEmpty ? 'Psitta' : 'Psitta v$_appVersion')
-                    : 'Psitta v1.1.0',
+                // One platform, one version: every tier shows the real
+                // build version (the 2.0.0 release removed the v1.1.0 pin).
+                _appVersion.isEmpty ? 'Psitta' : 'Psitta v$_appVersion',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
