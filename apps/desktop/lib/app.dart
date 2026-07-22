@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_quill/flutter_quill.dart'
     show FlutterQuillLocalizations;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/capabilities.dart';
 import 'core/plan_gate.dart';
 import 'core/routing/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -117,6 +118,26 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
       if (currentSwh == SwhMode.always) {
         ref.read(selectedSwhModeProvider.notifier).select(SwhMode.never);
       }
+    });
+
+    // RB-01 (Fix B): keep the capability chain warm for the app's whole
+    // lifetime — the same architectural pattern as the billing chain
+    // above (whose persistent planStatusProvider listener keeps
+    // billingStatusProvider alive app-wide). capabilitiesProvider is a
+    // FutureProvider.autoDispose: without a persistent listener it is
+    // disposed whenever no screen happens to watch it, and any
+    // event-handler `ref.read(capabilitiesSnapshotProvider)` then sees a
+    // cold re-creation in AsyncLoading — i.e. the fail-closed Free
+    // baseline — which routed fully entitled users to the legacy Player
+    // from Project Documents (RB-01). This subscription is the fix: it
+    // keeps the resolved capability set cached across screens while
+    // preserving fail-closed semantics during genuine loading/error and
+    // the auth-refresh invalidation chain (_invalidateAuthProviders →
+    // ref.invalidate(capabilitiesProvider) simply refetches under this
+    // live subscription).
+    ref.listen<AsyncValue<Capabilities>>(capabilitiesProvider, (prev, next) {
+      // Intentionally empty — the persistent subscription itself is the
+      // fix (provider lifetime), not any side effect.
     });
 
     return MaterialApp.router(
