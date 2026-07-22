@@ -4,13 +4,14 @@ import { useState } from "react";
 import Button from "@/components/ui/Button";
 import CreativityWaitlistForm from "@/components/waitlist/CreativityWaitlistForm";
 
-// Mirrors the desktop app's Plans screen (plan_selection_screen.dart):
-// a Monthly/Annual toggle (Save 15% on Annual) driving three tier cards
-// with identical copy, prices, and feature lists. Writing Nook is the
-// only purchasable product (14-day free trial); Creative Nook is a
-// Coming Soon marketing placeholder (waitlist only — no checkout).
+// WA-4 platform alignment: there is ONE product — Writing Nook. Card 1 is
+// the Explore STATE of Writing Nook (what you can already do + what's
+// locked and waiting), card 2 is the unlocked Writing Nook (14-day free
+// trial), card 3 is Creative Nook, Coming Soon (waitlist only — no
+// checkout). Mirrors the desktop Plans screen and the Product page's
+// capability groups.
 
-type FeatureState = "active" | "excluded" | "coming" | "header";
+type FeatureState = "active" | "excluded" | "coming" | "header" | "locked";
 
 type Feature = {
   label: string;
@@ -35,19 +36,28 @@ type Tier = {
   waitlist?: boolean;
 };
 
-const FREE: Tier = {
-  tierName: "Free",
-  title: "Read",
+const EXPLORE: Tier = {
+  tierName: "Writing Nook",
+  title: "Explore",
   monthly: { amount: "$0", subtitle: "Free forever" },
   annual: { amount: "$0", subtitle: "Free forever" },
   features: [
-    { label: "Listen to your documents" },
-    { label: "Basic voices" },
-    { label: "10 documents per month" },
-    { label: "Premium voices", state: "excluded" },
-    { label: "Word-by-word highlighting", state: "excluded" },
-    { label: "Writing Desk & Blueprints", state: "excluded" },
-    { label: "Story-Coach & AI tools", state: "excluded" },
+    // What the writer can already accomplish — inside Writing Nook.
+    { label: "Create writing projects" },
+    { label: "Organize your manuscript" },
+    { label: "Listen to your writing" },
+    // Everything waiting to unlock.
+    { label: "Waiting for you", state: "header" },
+    { label: "Blueprints", state: "locked" },
+    { label: "Story-Coach", state: "locked" },
+    { label: "Structure Analyzer", state: "locked" },
+    { label: "AI writing", state: "locked" },
+    { label: "Premium voices", state: "locked" },
+    { label: "Word & sentence highlighting", state: "locked" },
+    // Implementation limits last — facts, not the story.
+    { label: "Technical limits", state: "header" },
+    { label: "10 documents per month", state: "excluded" },
+    { label: "Standard voices", state: "excluded" },
   ],
   cta: { label: "Download for free", href: "/download" },
 };
@@ -66,23 +76,27 @@ const WRITING: Tier = {
   },
   popular: true,
   features: [
-    { label: "Writing workspace", state: "header" },
+    { label: "Writing Workspace", state: "header" },
     { label: "Full Writing Desk" },
-    { label: "Unlimited projects & documents" },
-    { label: "Book development", state: "header" },
+    { label: "Distraction-free daily writing" },
+    { label: "Story Development", state: "header" },
     { label: "Blueprints & 25+ Narrative Structures" },
     { label: "Scene Mapping & Progress Tracking" },
-    { label: "AI writing intelligence", state: "header" },
+    { label: "AI Writing Intelligence", state: "header" },
     { label: "Story-Coach — live drift nudges" },
     { label: "Structure Analyzer" },
-    { label: "1M AI tokens / month" },
-    { label: "Listening & revision", state: "header" },
-    { label: "Premium natural voices" },
+    { label: "AI assistance — 1M AI tokens / month" },
+    { label: "Writing analytics & priority support" },
+    { label: "Reading & Revision", state: "header" },
+    { label: "Premium natural voices — 250k characters / month" },
     { label: "Word & sentence highlighting" },
     { label: "Playback speed up to 4×" },
     { label: "Edit & download branded DOCX" },
-    { label: "250k premium-voice characters / month" },
-    { label: "Writing analytics & priority support" },
+    { label: "Project Organization", state: "header" },
+    { label: "Unlimited projects" },
+    { label: "Document Library & manuscript organization" },
+    { label: "Native Desktop", state: "header" },
+    { label: "Native Windows app — fast, keyboard-driven, offline-friendly" },
   ],
   cta: { label: "Start your 14-day free trial", href: "/download" },
 };
@@ -112,7 +126,7 @@ const CREATIVE: Tier = {
   ],
 };
 
-const TIERS: Tier[] = [FREE, WRITING, CREATIVE];
+const TIERS: Tier[] = [EXPLORE, WRITING, CREATIVE];
 
 function CheckIcon() {
   return (
@@ -173,6 +187,26 @@ function ClockIcon() {
   );
 }
 
+function LockIcon() {
+  return (
+    <svg
+      width={16}
+      height={16}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      className="mt-0.5 shrink-0 text-ink-muted"
+    >
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </svg>
+  );
+}
+
 function FeatureRow({ feature }: { feature: Feature }) {
   const state = feature.state ?? "active";
 
@@ -190,6 +224,14 @@ function FeatureRow({ feature }: { feature: Feature }) {
       <li className="flex items-start gap-3">
         <DashIcon />
         <span className="text-sm text-ink-muted/70">{feature.label}</span>
+      </li>
+    );
+  }
+  if (state === "locked") {
+    return (
+      <li className="flex items-start gap-3">
+        <LockIcon />
+        <span className="text-sm text-ink-muted">{feature.label}</span>
       </li>
     );
   }
@@ -324,8 +366,10 @@ export default function PricingTiers() {
       </div>
 
       <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {/* key = title: two cards now legitimately share the "Writing Nook"
+            tierName (the product), so tierName is no longer unique. */}
         {TIERS.map((tier) => (
-          <TierCard key={tier.tierName} tier={tier} isAnnual={isAnnual} />
+          <TierCard key={tier.title} tier={tier} isAnnual={isAnnual} />
         ))}
       </div>
 
