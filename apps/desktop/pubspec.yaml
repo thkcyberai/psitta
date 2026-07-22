@@ -1,5 +1,5 @@
 name: psitta
-description: "Ultra-natural document narration. Listen to any document."
+description: "Write, organize, hear, and refine your book — all in one place."
 publish_to: "none"
 version: 2.0.0+0
 
@@ -96,7 +96,7 @@ msix_config:
   publisher_display_name: Facti AI LLC
   identity_name: com.factiai.psitta
   msix_version: 2.0.0.0
-  description: "Reading to Listening - ultra-natural document narration"
+  description: "Write, organize, hear, and refine your book — all in one place."
   publisher: "CN=Facti AI LLC, O=Facti AI LLC, L=Colorado Springs, S=Colorado, C=US"
   sign_msix: false
   logo_path: assets/branding/psitta-bird-tight.png
