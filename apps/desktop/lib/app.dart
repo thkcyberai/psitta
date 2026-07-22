@@ -85,6 +85,12 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
     );
     ref.invalidate(billingStatusProvider);
     ref.invalidate(quotaUsageProvider);
+    // Recover capabilities in lockstep with billing (mirrors
+    // providers._invalidateAuthProviders). Without this, a stale
+    // cold-start AsyncError on capabilitiesProvider is never cleared
+    // once 401s stop, so the capability snapshot stays fail-closed to
+    // Free while billing already shows Pro.
+    ref.invalidate(capabilitiesProvider);
   }
 
   @override
