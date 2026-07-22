@@ -463,11 +463,11 @@ export default function Product() {
           for writing your book.
         </h1>
         <p className="lead mt-4 text-center text-ink-muted max-w-2xl mx-auto">
-          Draft in a real editor, shape your structure with Blueprints and
-          proven story frameworks, get honest AI insight, and hear every line
-          read back in a natural human voice — all in your own language. Psitta
-          brings your whole writing process into one place, so you actually
-          finish.
+          Whether you&apos;re starting from a blank page or bringing an
+          existing manuscript, Psitta helps you shape your story with
+          Blueprints and proven story frameworks, get honest AI insight, and
+          hear every line read back in a natural human voice — all in your own
+          language. Everything you need to finish your book, in one place.
         </p>
 
         {/* ── Section 1 — Writing Nook (the product) ─────────────────────── */}
