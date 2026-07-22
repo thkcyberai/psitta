@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 export const metadata: Metadata = {
   title: "Support",
   description:
-    "FAQs covering install, voices, document handling, and account setup — plus a direct line to the team behind Psitta when you need a person.",
+    "FAQs covering install, Writing Nook, trials and subscriptions, document handling, and troubleshooting — plus a direct line to the team behind Psitta when you need a person.",
 };
 
 type Faq = {
@@ -40,9 +40,29 @@ const faqs: Faq[] = [
     ],
   },
   {
-    q: "What happens when I run out of premium voice characters?",
+    q: "What is included in Writing Nook?",
     a: [
-      "Writing Nook includes 250,000 premium voice characters per billing period. When you reach the limit, Psitta automatically switches to standard voices for the rest of the period — playback never interrupts. Your character allowance resets at the start of your next billing cycle.",
+      "Writing Nook is the complete Psitta platform: the full Writing Desk, unlimited projects, Blueprints with 25+ narrative structures, scene mapping and progress tracking, Story-Coach, the Structure Analyzer, AI assistance, and writing analytics — plus Reading & Revision with premium natural voices, word-level highlighting, and playback up to 4×.",
+      "Each billing period includes 250,000 premium voice characters and a generous AI allowance. If you use up the premium voice allowance, Psitta switches to standard voices for the rest of the period — playback never interrupts — and everything resets at your next billing cycle.",
+    ],
+  },
+  {
+    q: "What happens after my Writing Nook trial ends?",
+    a: [
+      "Your 14-day trial includes everything in Writing Nook. When it ends, your subscription starts on the plan you chose at checkout — nothing changes in the app, you just keep writing.",
+      "If you cancel before the trial ends (Settings → Manage Subscription), you won't be charged. You can keep writing on the free experience: your documents and projects stay exactly where they are, listening continues with standard voices, and the premium capabilities simply lock until you subscribe again.",
+    ],
+  },
+  {
+    q: "How do upgrades work?",
+    a: [
+      "Everything starts inside the app. Create your free account, and when you're ready, start your 14-day Writing Nook free trial from the Plans screen — checkout is handled securely by Stripe. You can switch between monthly and annual, or cancel, at any time from Settings → Manage Subscription.",
+    ],
+  },
+  {
+    q: "What is Creative Nook?",
+    a: [
+      "Creative Nook is coming soon. It builds on everything in Writing Nook and adds a full Creative Studio — inside the same Psitta application, no separate app. It isn't purchasable yet; you can join the waitlist on the pricing page and we'll email you when it launches.",
     ],
   },
   {

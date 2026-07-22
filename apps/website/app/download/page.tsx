@@ -6,7 +6,7 @@ import NewsletterForm from "@/components/NewsletterForm";
 export const metadata: Metadata = {
   title: "Download Psitta for Windows",
   description:
-    "Psitta is the complete book-writing studio — draft, structure, get honest AI insight, and hear your words in a natural human voice, all in your own language. Install free for Windows 10/11.",
+    "Psitta is the writing platform for people finishing books — draft, structure, get honest AI insight, and hear your words in a natural human voice, all in your own language. Install free for Windows 10/11.",
 };
 
 const valuePoints: Array<{ title: string; body: string }> = [
@@ -32,7 +32,7 @@ const valuePoints: Array<{ title: string; body: string }> = [
   },
   {
     title: "In your language, start to finish.",
-    body: "English, Portuguese, Spanish, French — one flag click switches the entire studio. Already have a draft? Bring your Word or PDF manuscript in and get the full studio on work you've started.",
+    body: "English, Portuguese, Spanish, French — one flag click switches the entire platform. Already have a draft? Bring your Word or PDF manuscript in and get the full Writing Nook on work you've started.",
   },
 ];
 
@@ -62,16 +62,16 @@ export default function Download() {
           Write it. Shape it. Hear it come to life.
         </h1>
         <p className="lead mx-auto mt-5 max-w-2xl text-center text-ink-muted">
-          Psitta is the complete book-writing studio — draft, structure, get
-          honest AI insight, and hear your words in a natural human voice, all
-          in your own language. Everything you need to finish a book you&apos;re
-          proud of, in one place.
+          Psitta is the writing platform for people finishing books — draft,
+          structure, get honest AI insight, and hear your words in a natural
+          human voice, all in your own language. Everything you need to finish
+          a book you&apos;re proud of, in one place.
         </p>
 
         {/* Download card */}
         <div className="mt-12 rounded-2xl border border-edge-subtle p-8 text-center md:p-12">
           <p className="text-sm font-medium text-psitta-600">
-            The complete writing studio for authors — Windows desktop
+            The professional writing platform for authors — Windows desktop
           </p>
 
           <Button
@@ -84,8 +84,8 @@ export default function Download() {
           </Button>
 
           <p className="mx-auto mt-4 max-w-md text-xs text-ink-muted">
-            Start with the full Writing Nook studio free for 14 days — no card
-            until you subscribe. Auto-updates as new versions ship.
+            Start with the full Writing Nook experience free for 14 days — no
+            card until you subscribe. Auto-updates as new versions ship.
           </p>
         </div>
 
@@ -106,17 +106,17 @@ export default function Download() {
         {/* Conversion block */}
         <div className="mt-20 rounded-2xl border border-edge-subtle bg-paper-subtle p-8 text-center md:p-12">
           <h2 className="text-xl font-semibold text-ink-primary">
-            Keep the studio that finishes your book.
+            Keep the platform that finishes your book.
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-ink-body">
-            Your 14 days open the whole studio — the Writing Desk, Blueprints,
-            narrative frameworks, Summarize It, Story-Coach, and read-aloud, all
-            working together on your book. That&apos;s the Writing Nook: the
-            complete studio serious authors subscribe to, because finishing a
-            better book is worth more than another blank document.
+            Your 14-day trial opens the complete Writing Nook — the Writing
+            Desk, Blueprints, narrative frameworks, Summarize It, Story-Coach,
+            and Reading &amp; Revision, all working together on your book. One
+            platform, every stage of your manuscript — so the book you&apos;re
+            proud of actually gets finished.
           </p>
           <Button href="/pricing" variant="primary" size="md" className="mt-6">
-            See plans and subscribe
+            See everything included in Writing Nook
           </Button>
         </div>
 
