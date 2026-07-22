@@ -685,6 +685,38 @@
   "planNotifyLaunch": "Prévenez-moi au lancement",
   "planOnWaitlist": "Sur la liste d'attente ✓",
   "planTrial14": "Essai gratuit de 14 jours",
+  "planTitleExplore": "Explorez",
+  "planFreeForever": "Gratuit pour toujours",
+  "planWaitingForYou": "Ce qui vous attend",
+  "planTechnicalLimits": "Limites techniques",
+  "planCurrentExperience": "Votre expérience actuelle",
+  "planTrialActive": "Essai actif",
+  "planDaysRemaining": "{days} jours restants",
+  "@planDaysRemaining": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "planEndsOn": "Se termine le {date}",
+  "@planEndsOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "planActiveSubscription": "Abonnement actif",
+  "planStartTrial": "Commencez votre essai gratuit de 14 jours",
+  "lockBlueprints": "Blueprints",
+  "lockStoryCoach": "Coach d'intrigue",
+  "planExploreCreateProjects": "Créez des projets d'écriture",
+  "planExploreOrganize": "Organisez votre manuscrit",
+  "planExploreListen": "Écoutez votre texte",
+  "featNativeApp": "Application Windows native — rapide, pilotée au clavier, compatible hors ligne",
+  "featHdrProjectOrg": "Organisation des projets",
+  "featHdrNativeDesktop": "Bureau natif",
   "perMonth": "/mois",
   "perYear": "/an",
   "billedMonthly": "Facturé mensuellement",
@@ -707,13 +739,13 @@
   "planPaymentProcessing": "Paiement en cours. Votre forfait sera mis à jour sous peu.",
   "planActiveWelcome": "Votre forfait est actif. Bienvenue !",
   "featListen": "Écoutez vos documents",
-  "featBasicVoices": "Voix de base",
+  "featBasicVoices": "Voix standard",
   "feat10Docs": "10 documents par mois",
   "featPremiumVoices": "Voix premium",
   "featWordByWord": "Surlignage mot à mot",
   "featDeskBlueprints": "Bureau d'écriture et Blueprints",
   "featStoryCoachTools": "Coach d'intrigue et outils d'IA",
-  "featHdrListening": "Écoute et révision",
+  "featHdrListening": "Lecture et révision",
   "featPremiumNatural": "Voix naturelles premium",
   "featWordSentence": "Surlignage des mots et des phrases",
   "featPlayback4x": "Vitesse de lecture jusqu'à 4×",
@@ -728,7 +760,7 @@
   "featHdrWorkspace": "Espace d'écriture",
   "featFullDesk": "Bureau d'écriture complet",
   "featUnlimitedProjects": "Projets illimités",
-  "featHdrBookDev": "Développement du livre",
+  "featHdrBookDev": "Développement de l'histoire",
   "featBlueprints25": "Blueprints et plus de 25 Structures narratives",
   "featSceneProgress": "Carte des scènes et suivi de la progression",
   "featHdrAiIntel": "Intelligence d'écriture par IA",

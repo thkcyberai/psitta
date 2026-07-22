@@ -201,22 +201,52 @@
   "trashSubtitle": "Deleted documents are kept here. Restore them to your Library, or delete them permanently.",
   "trashEmpty": "Trash is empty",
   "trashRestored": "Restored “{title}”",
-  "@trashRestored": {"placeholders": {"title": {"type": "String"}}},
+  "@trashRestored": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "trashRestoreError": "Couldn’t restore the document.",
   "trashDeleteForeverQ": "Delete forever?",
   "trashDeleteForeverBody": "“{title}” will be permanently deleted. This can’t be undone.",
-  "@trashDeleteForeverBody": {"placeholders": {"title": {"type": "String"}}},
+  "@trashDeleteForeverBody": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "btnDeleteForever": "Delete forever",
   "trashDeletedForever": "Deleted “{title}” forever",
-  "@trashDeletedForever": {"placeholders": {"title": {"type": "String"}}},
+  "@trashDeletedForever": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "trashDeleteError": "Couldn’t delete the document.",
   "trashEmptyQ": "Empty Trash?",
   "trashEmptyBody": "{count, plural, =1{1 document in Trash will be permanently deleted. This can’t be undone.} other{All {count} documents in Trash will be permanently deleted. This can’t be undone.}}",
-  "@trashEmptyBody": {"placeholders": {"count": {"type": "int"}}},
+  "@trashEmptyBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "btnDeleteAll": "Delete all",
   "trashEmptied": "Trash emptied",
   "trashEmptiedPartial": "{count, plural, =1{Emptied — 1 item couldn’t be deleted} other{Emptied — {count} items couldn’t be deleted}}",
-  "@trashEmptiedPartial": {"placeholders": {"count": {"type": "int"}}},
+  "@trashEmptiedPartial": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "trashLoadError": "Couldn’t load Trash.",
   "emptyTrash": "Empty Trash ({count})",
   "@emptyTrash": {
@@ -240,10 +270,22 @@
   "btnApply": "Apply",
   "btnDiscard": "Discard",
   "archiveUnarchived": "Unarchived “{title}”",
-  "@archiveUnarchived": {"placeholders": {"title": {"type": "String"}}},
+  "@archiveUnarchived": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "archiveUnarchiveError": "Couldn’t unarchive the document.",
   "archiveMovedToTrash": "Moved “{title}” to Trash",
-  "@archiveMovedToTrash": {"placeholders": {"title": {"type": "String"}}},
+  "@archiveMovedToTrash": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "archiveMoveError": "Couldn’t move the document.",
   "archiveLoadError": "Couldn’t load the Archive.",
   "scribbleSaveError": "Couldn’t save the scribble.",
@@ -288,23 +330,77 @@
   "libNewSheet": "New Sheet",
   "libListen": "Listen",
   "libCreateSheetError": "Failed to create sheet: {error}",
-  "@libCreateSheetError": {"placeholders": {"error": {"type": "String"}}},
+  "@libCreateSheetError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "libDeleteError": "Delete failed: {error}",
-  "@libDeleteError": {"placeholders": {"error": {"type": "String"}}},
+  "@libDeleteError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "libArchiveError": "Failed to archive: {error}",
-  "@libArchiveError": {"placeholders": {"error": {"type": "String"}}},
+  "@libArchiveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "libSavedTo": "Saved to {folder}",
-  "@libSavedTo": {"placeholders": {"folder": {"type": "String"}}},
+  "@libSavedTo": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
   "libExportError": "Export failed: {error}",
-  "@libExportError": {"placeholders": {"error": {"type": "String"}}},
+  "@libExportError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "libAssignProjectError": "Failed to assign project: {error}",
-  "@libAssignProjectError": {"placeholders": {"error": {"type": "String"}}},
+  "@libAssignProjectError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "libRemoveProjectError": "Failed to remove from project: {error}",
-  "@libRemoveProjectError": {"placeholders": {"error": {"type": "String"}}},
+  "@libRemoveProjectError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "libCoverUpdateError": "Failed to update cover: {error}",
-  "@libCoverUpdateError": {"placeholders": {"error": {"type": "String"}}},
+  "@libCoverUpdateError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "libUpdateError": "Update failed: {error}",
-  "@libUpdateError": {"placeholders": {"error": {"type": "String"}}},
+  "@libUpdateError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "libViewDetails": "View Details",
   "libOpen": "Open",
   "libEditText": "Edit Text",
@@ -318,15 +414,45 @@
   "libDetailStatus": "Status",
   "libDetailDocId": "Document ID",
   "libWordsValue": "{count, plural, =1{1 word} other{{count} words}}",
-  "@libWordsValue": {"placeholders": {"count": {"type": "int"}}},
+  "@libWordsValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "libUploadFailed": "Upload failed: {name}",
-  "@libUploadFailed": {"placeholders": {"name": {"type": "String"}}},
+  "@libUploadFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "libDeleteConfirm": "Delete “{title}”?",
-  "@libDeleteConfirm": {"placeholders": {"title": {"type": "String"}}},
+  "@libDeleteConfirm": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "libRegenConfirmBody": "This will clear the cached audio for all chunks of {title} and re-synthesize using the current voice settings. This may take several minutes.",
-  "@libRegenConfirmBody": {"placeholders": {"title": {"type": "String"}}},
+  "@libRegenConfirmBody": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "libRegenQueuedBody": "Audio regeneration has been queued for {title}. The new audio will be available within a few minutes.",
-  "@libRegenQueuedBody": {"placeholders": {"title": {"type": "String"}}},
+  "@libRegenQueuedBody": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "libSaveDocument": "Save Document",
   "libExportUnavailable": "Export unavailable for this document.",
   "libNoProjectsMsg": "No projects yet. Create one in the Projects section.",
@@ -348,9 +474,21 @@
   "libDetails": "Details",
   "libReady": "Ready",
   "wlCreateError": "Failed to create: {error}",
-  "@wlCreateError": {"placeholders": {"error": {"type": "String"}}},
+  "@wlCreateError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "wlLoadError": "Failed to load: {error}",
-  "@wlLoadError": {"placeholders": {"error": {"type": "String"}}},
+  "@wlLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "wlCoverUpdateError": "Couldn’t update the cover.",
   "wlRenameFileTitle": "Rename file",
   "wlRenameError": "Couldn’t rename the file.",
@@ -363,13 +501,25 @@
   "wlProjectUpdateError": "Couldn’t update the project.",
   "wlSaveAs": "Save As",
   "wlSaveError": "Couldn’t save the document — {detail}",
-  "@wlSaveError": {"placeholders": {"detail": {"type": "String"}}},
+  "@wlSaveError": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "wlFmtWord": "Word document",
   "wlFmtPlainText": "Plain text",
   "wlFmtEpub": "EPUB ebook",
   "wlOriginal": "(original)",
   "wlDuplicated": "Duplicated “{title}”",
-  "@wlDuplicated": {"placeholders": {"title": {"type": "String"}}},
+  "@wlDuplicated": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "wlDuplicateError": "Couldn’t duplicate the document.",
   "wlAddQuote": "Add your quote",
   "wlYourProfile": "Your Profile",
@@ -385,7 +535,13 @@
   "wlNameHint": "How your name appears in Psitta",
   "wlNameSaveError": "Couldn’t save your name.",
   "wlUploadError": "Upload failed: {name}",
-  "@wlUploadError": {"placeholders": {"name": {"type": "String"}}},
+  "@wlUploadError": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "wlSaveAsMenu": "Save As…",
   "wlDetailType": "Type",
   "wlDetailWordCount": "Word count",
@@ -396,7 +552,13 @@
   "wlCoverUnsupportedType": "Unsupported image type. Use JPEG, PNG, or GIF.",
   "wlCoverUpdateRetry": "Couldn’t update the cover. Please try again.",
   "wlTrashConfirmBody": "“{title}” will be moved to Trash. You can restore it later.",
-  "@wlTrashConfirmBody": {"placeholders": {"title": {"type": "String"}}},
+  "@wlTrashConfirmBody": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "pcpTitle": "Project Cover",
   "pcpLoadError": "Failed to load project documents",
   "pcpNoDocsTitle": "No documents with covers",
@@ -404,23 +566,65 @@
   "pcpRemoveCover": "Remove Cover",
   "addDocsTitle": "Add files to this project",
   "addDocsLoadError": "Failed to load files: {error}",
-  "@addDocsLoadError": {"placeholders": {"error": {"type": "String"}}},
+  "@addDocsLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "addDocsAllInProject": "All your files are already in this project.",
   "addDocsAdded": "{count, plural, =1{Added 1 file to the project.} other{Added {count} files to the project.}}",
-  "@addDocsAdded": {"placeholders": {"count": {"type": "int"}}},
+  "@addDocsAdded": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "addDocsAddError": "Could not add files: {error}",
-  "@addDocsAddError": {"placeholders": {"error": {"type": "String"}}},
+  "@addDocsAddError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "addDocsMovesFrom": "moves from another project",
   "addDocsAddCount": "Add {count}",
-  "@addDocsAddCount": {"placeholders": {"count": {"type": "int"}}},
+  "@addDocsAddCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "adoptBpLoadError": "Failed to load Book Structures: {error}",
-  "@adoptBpLoadError": {"placeholders": {"error": {"type": "String"}}},
+  "@adoptBpLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "adoptBpNoneToAdd": "No Book Structures to add. Create one in the Blueprints sector first.",
   "adoptBpTitle": "Choose a Book Structure",
   "adoptBpTabMine": "My Book Structures ({count})",
-  "@adoptBpTabMine": {"placeholders": {"count": {"type": "int"}}},
+  "@adoptBpTabMine": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "adoptBpTabTemplates": "Templates ({count})",
-  "@adoptBpTabTemplates": {"placeholders": {"count": {"type": "int"}}},
+  "@adoptBpTabTemplates": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "adoptBpEmptyMine": "No Book Structures of your own yet.\nCreate one in the Blueprints sector, or start from a template.",
   "adoptBpEmptyTemplates": "No templates available.",
   "actLoading": "Loading activity…",
@@ -437,7 +641,13 @@
   "bpTabHeader": "Book Structures in this Project",
   "bpTabUseStructure": "Use a Book Structure",
   "bpTabError": "Error: {error}",
-  "@bpTabError": {"placeholders": {"error": {"type": "String"}}},
+  "@bpTabError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "bpTabEmpty": "No Book Structures in this project yet. Add one to structure your work.",
   "bpTabYourBook": "Your Book",
   "bpTabYourBookDesc": "Files placed into the primary Book Structure, section by section. Click a file to open it in the Writing Desk.",
@@ -445,12 +655,30 @@
   "tipMore": "More",
   "bpRemoveTitle": "Remove from Project?",
   "bpRemoveBody": "Remove “{name}” from this project? The Book Structure itself is not deleted.",
-  "@bpRemoveBody": {"placeholders": {"name": {"type": "String"}}},
+  "@bpRemoveBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "btnRemove": "Remove",
   "ovStatInStructures": "In Book Structures",
   "ovStatArchived": "Archived",
   "ovSummary": "{total, plural, =1{{inBlueprints} of 1 document in Book Structures · {unassigned} not in Book Structures} other{{inBlueprints} of {total} documents in Book Structures · {unassigned} not in Book Structures}}",
-  "@ovSummary": {"placeholders": {"total": {"type": "int"}, "inBlueprints": {"type": "int"}, "unassigned": {"type": "int"}}},
+  "@ovSummary": {
+    "placeholders": {
+      "total": {
+        "type": "int"
+      },
+      "inBlueprints": {
+        "type": "int"
+      },
+      "unassigned": {
+        "type": "int"
+      }
+    }
+  },
   "ovRecentDocs": "Recent Documents",
   "ovViewAllDocs": "View all Documents",
   "ovNoDocs": "No documents yet",
@@ -463,36 +691,108 @@
   "pdtOpenInDesk": "Open in Writing Desk",
   "pdtRenameTitle": "Rename Document",
   "pdtRenameError": "Failed to rename: {error}",
-  "@pdtRenameError": {"placeholders": {"error": {"type": "String"}}},
+  "@pdtRenameError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "pdtLoadProjectsError": "Failed to load projects: {error}",
-  "@pdtLoadProjectsError": {"placeholders": {"error": {"type": "String"}}},
+  "@pdtLoadProjectsError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "pdtNoOtherProjects": "No other projects available. Create another project first.",
   "pdtMoveError": "Failed to move document: {error}",
-  "@pdtMoveError": {"placeholders": {"error": {"type": "String"}}},
+  "@pdtMoveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "pdtRemoveBody": "Remove “{title}” from “{project}”? The document will remain in your Library.",
-  "@pdtRemoveBody": {"placeholders": {"title": {"type": "String"}, "project": {"type": "String"}}},
+  "@pdtRemoveBody": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "project": {
+        "type": "String"
+      }
+    }
+  },
   "pdtRemoveError": "Failed to remove document: {error}",
-  "@pdtRemoveError": {"placeholders": {"error": {"type": "String"}}},
+  "@pdtRemoveError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "narrLoadError": "Could not load the narrative: {error}",
-  "@narrLoadError": {"placeholders": {"error": {"type": "String"}}},
+  "@narrLoadError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "narrFallbackName": "Narrative",
   "narrFollows": "This book follows",
   "narrBeatsChosen": "{count, plural, =1{1 beat chosen. Change this in Blueprints → Narrative Structure.} other{{count} beats chosen. Change this in Blueprints → Narrative Structure.}}",
-  "@narrBeatsChosen": {"placeholders": {"count": {"type": "int"}}},
+  "@narrBeatsChosen": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "narrYourBeats": "YOUR BEATS",
   "narrAnalyzeTitle": "Analyze structure",
   "narrAnalyzeDesc": "AI checks your writing against each beat · Present / Thin / Missing",
   "narrSceneMapEmpty": "Map each file to the beat it covers.",
   "narrScenesCovered": "{covered} of {total} beats covered · tap to map your scenes",
-  "@narrScenesCovered": {"placeholders": {"covered": {"type": "int"}, "total": {"type": "int"}}},
+  "@narrScenesCovered": {
+    "placeholders": {
+      "covered": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "narrEmptyBody": "This book doesn’t follow a narrative yet. Choose one in Blueprints → Narrative Structure and tap “Use this Structure” to attach it to this book — your Book Structure stays untouched.",
   "narrChooseNarrative": "Choose a Narrative Structure",
   "deskPagesCount": "{count, plural, =1{1 page} other{{count} pages}}",
-  "@deskPagesCount": {"placeholders": {"count": {"type": "int"}}},
+  "@deskPagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "deskParagraphsCount": "{count, plural, =1{1 paragraph} other{{count} paragraphs}}",
-  "@deskParagraphsCount": {"placeholders": {"count": {"type": "int"}}},
+  "@deskParagraphsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "deskWordsCount": "{count, plural, =1{1 word} other{{count} words}}",
-  "@deskWordsCount": {"placeholders": {"count": {"type": "int"}}},
+  "@deskWordsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "rrActivity": "Activity",
   "rrAboutTitle": "About this Project",
   "rrLoadError": "Could not load details",
@@ -504,12 +804,30 @@
   "rrActionsTitle": "Project Actions",
   "rrRenameTitle": "Rename Project",
   "rrCoverError": "Failed to update cover: {error}",
-  "@rrCoverError": {"placeholders": {"error": {"type": "String"}}},
+  "@rrCoverError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "rrDeleteTitle": "Delete Project?",
   "rrDeleteBody": "Delete “{name}”? Documents will not be deleted, just removed from the project.",
-  "@rrDeleteBody": {"placeholders": {"name": {"type": "String"}}},
+  "@rrDeleteBody": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "rrDeleteError": "Failed to delete project: {error}",
-  "@rrDeleteError": {"placeholders": {"error": {"type": "String"}}},
+  "@rrDeleteError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "rrActivitySoon": "Activity feed coming soon",
   "tabOverview": "Overview",
   "pdsTabNarrative": "Narrative",
@@ -517,17 +835,41 @@
   "projLoadError": "Couldn’t load projects.",
   "projNameHint": "Project name",
   "projCreateError": "Failed to create project: {error}",
-  "@projCreateError": {"placeholders": {"error": {"type": "String"}}},
+  "@projCreateError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "projDocShort": "{count, plural, =1{1 doc} other{{count} docs}}",
-  "@projDocShort": {"placeholders": {"count": {"type": "int"}}},
+  "@projDocShort": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "summErrorGenerate": "Couldn’t generate a summary. Please try again.",
   "summLoading": "Summarizing…",
   "summReSummarize": "Re-summarize",
   "summRemaining": "{count, plural, =1{About 1 summary left this month} other{About {count} summaries left this month}}",
-  "@summRemaining": {"placeholders": {"count": {"type": "int"}}},
+  "@summRemaining": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "summResetFallback": "your next billing anniversary",
   "summQuotaExhausted": "Monthly summaries used up.\nResets on {date}.",
-  "@summQuotaExhausted": {"placeholders": {"date": {"type": "String"}}},
+  "@summQuotaExhausted": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
   "summUpgrade": "Upgrade to Writing Nook",
   "summTryAgain": "Try again",
   "pnFilesTooltip": "Files to place into a section",
@@ -539,7 +881,16 @@
   "pnUnassignedDocs": "Unassigned documents",
   "pnBlueprintProgress": "BLUEPRINT PROGRESS",
   "pnSectionsWithContent": "{done} / {total} sections with content",
-  "@pnSectionsWithContent": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "@pnSectionsWithContent": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "pnSectionActions": "Section actions",
   "pnAddSubsection": "Add subsection",
   "pnRenameSection": "Rename Section",
@@ -553,7 +904,13 @@
   "dcpNotSet": "Not set",
   "dcpStep1": "Step 1 — choose a Book Structure for your book. Then you can place this file in one of its sections.",
   "dcpStep2": "Step 2 — this file isn’t in a section yet. Place it in a {names} section to finish.",
-  "@dcpStep2": {"placeholders": {"names": {"type": "String"}}},
+  "@dcpStep2": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
   "dcpPlaceInSection": "Place in a section",
   "dcpPlaceInSectionTitle": "Place in a Section",
   "dcpActions": "Actions",
@@ -567,13 +924,31 @@
   "dcpRemovePlacementBody": "Remove this document from the section? The document itself is not deleted.",
   "dcpSaveDocument": "Save Document",
   "dcpExportFailed": "Export failed: {detail}",
-  "@dcpExportFailed": {"placeholders": {"detail": {"type": "String"}}},
+  "@dcpExportFailed": {
+    "placeholders": {
+      "detail": {
+        "type": "String"
+      }
+    }
+  },
   "dcpDownloadFailed": "Download failed: {error}",
-  "@dcpDownloadFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@dcpDownloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "dcpDeleteDocTitle": "Delete document?",
   "dcpDeleteDocBody": "This document will be permanently deleted and cannot be recovered.",
   "dcpDeleteFailed": "Delete failed: {error}",
-  "@dcpDeleteFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@dcpDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "dcpMoveToSectionTitle": "Move to Section",
   "dcpWhichBeat": "Which beat does this file cover?",
   "dcNoDocOpen": "No document open",
@@ -582,7 +957,16 @@
   "dcExpandSheet": "Expand sheet",
   "dcNoResults": "No results",
   "dcResultCount": "{index} of {total}",
-  "@dcResultCount": {"placeholders": {"index": {"type": "int"}, "total": {"type": "int"}}},
+  "@dcResultCount": {
+    "placeholders": {
+      "index": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "dcFind": "Find",
   "dcMatchCase": "Match case",
   "dcPrevious": "Previous",
@@ -594,7 +978,13 @@
   "dcReplaceAll": "Replace all",
   "dcStoryCoach": "STORY-COACH",
   "dcReadsLike": "Reads like: {beat}",
-  "@dcReadsLike": {"placeholders": {"beat": {"type": "String"}}},
+  "@dcReadsLike": {
+    "placeholders": {
+      "beat": {
+        "type": "String"
+      }
+    }
+  },
   "dcMuteHere": "Mute here",
   "dcGotIt": "Got it",
   "dcStartWriting": "Start writing…",
@@ -607,10 +997,22 @@
   "dcNoSuggestions": "No suggestions",
   "dcDocLimit": "Document limit reached for this month — upgrade in Settings.",
   "dcCreateDocError": "Could not create document: {error}",
-  "@dcCreateDocError": {"placeholders": {"error": {"type": "String"}}},
+  "@dcCreateDocError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "dcNoProjectsYet": "No projects yet — create one first.",
   "dcAddToProjectError": "Could not add to project: {error}",
-  "@dcAddToProjectError": {"placeholders": {"error": {"type": "String"}}},
+  "@dcAddToProjectError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "dcProjectNameExample": "e.g. My Memoir",
   "blueprintsSubtitle": "Design the structure of your book, and the narrative structure.",
   "newBookStructure": "New Book Structure",
@@ -933,6 +1335,38 @@
   "planNotifyLaunch": "Notify me when it launches",
   "planOnWaitlist": "On the waitlist ✓",
   "planTrial14": "14-day free trial",
+  "planTitleExplore": "Explore",
+  "planFreeForever": "Free forever",
+  "planWaitingForYou": "Waiting for you",
+  "planTechnicalLimits": "Technical limits",
+  "planCurrentExperience": "Your current experience",
+  "planTrialActive": "Trial active",
+  "planDaysRemaining": "{days} days remaining",
+  "@planDaysRemaining": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "planEndsOn": "Ends {date}",
+  "@planEndsOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "planActiveSubscription": "Active subscription",
+  "planStartTrial": "Start your 14-day free trial",
+  "lockBlueprints": "Blueprints",
+  "lockStoryCoach": "Story-Coach",
+  "planExploreCreateProjects": "Create writing projects",
+  "planExploreOrganize": "Organize your manuscript",
+  "planExploreListen": "Listen to your writing",
+  "featNativeApp": "Native Windows app — fast, keyboard-driven, offline-friendly",
+  "featHdrProjectOrg": "Project Organization",
+  "featHdrNativeDesktop": "Native Desktop",
   "perMonth": "/mo",
   "perYear": "/yr",
   "billedMonthly": "Billed monthly",
@@ -955,13 +1389,13 @@
   "planPaymentProcessing": "Payment processing. Your plan will update shortly.",
   "planActiveWelcome": "Your plan is active. Welcome!",
   "featListen": "Listen to your documents",
-  "featBasicVoices": "Basic voices",
+  "featBasicVoices": "Standard voices",
   "feat10Docs": "10 documents per month",
   "featPremiumVoices": "Premium voices",
   "featWordByWord": "Word-by-word highlighting",
   "featDeskBlueprints": "Writing Desk & Blueprints",
   "featStoryCoachTools": "Story-Coach & AI tools",
-  "featHdrListening": "Listening & revision",
+  "featHdrListening": "Reading & Revision",
   "featPremiumNatural": "Premium natural voices",
   "featWordSentence": "Word & sentence highlighting",
   "featPlayback4x": "Playback speed up to 4×",
@@ -973,13 +1407,13 @@
   "featPriority": "Priority support",
   "featWritingPlatform": "Writing platform & AI tools",
   "featHdrEverythingReading": "Everything in Reading Nook, plus",
-  "featHdrWorkspace": "Writing workspace",
+  "featHdrWorkspace": "Writing Workspace",
   "featFullDesk": "Full Writing Desk",
   "featUnlimitedProjects": "Unlimited projects",
-  "featHdrBookDev": "Book development",
+  "featHdrBookDev": "Story Development",
   "featBlueprints25": "Blueprints & 25+ Narrative Structures",
   "featSceneProgress": "Scene Mapping & Progress Tracking",
-  "featHdrAiIntel": "AI writing intelligence",
+  "featHdrAiIntel": "AI Writing Intelligence",
   "featStoryCoachDrift": "Story-Coach — live drift nudges",
   "feat1MTokens": "1M AI tokens / month",
   "feat250k": "250k premium-voice characters / month",

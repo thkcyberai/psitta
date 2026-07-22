@@ -2447,6 +2447,65 @@ class AppLocalizationsPt extends AppLocalizations {
   String get planTrial14 => 'Teste grátis de 14 dias';
 
   @override
+  String get planTitleExplore => 'Explore';
+
+  @override
+  String get planFreeForever => 'Grátis para sempre';
+
+  @override
+  String get planWaitingForYou => 'Esperando por você';
+
+  @override
+  String get planTechnicalLimits => 'Limites técnicos';
+
+  @override
+  String get planCurrentExperience => 'Sua experiência atual';
+
+  @override
+  String get planTrialActive => 'Teste ativo';
+
+  @override
+  String planDaysRemaining(String days) {
+    return '$days dias restantes';
+  }
+
+  @override
+  String planEndsOn(String date) {
+    return 'Termina em $date';
+  }
+
+  @override
+  String get planActiveSubscription => 'Assinatura ativa';
+
+  @override
+  String get planStartTrial => 'Comece seu teste grátis de 14 dias';
+
+  @override
+  String get lockBlueprints => 'Blueprints';
+
+  @override
+  String get lockStoryCoach => 'Coach de Enredo';
+
+  @override
+  String get planExploreCreateProjects => 'Crie projetos de escrita';
+
+  @override
+  String get planExploreOrganize => 'Organize seu manuscrito';
+
+  @override
+  String get planExploreListen => 'Ouça sua escrita';
+
+  @override
+  String get featNativeApp =>
+      'Aplicativo nativo do Windows — rápido, com atalhos de teclado e amigável offline';
+
+  @override
+  String get featHdrProjectOrg => 'Organização de projetos';
+
+  @override
+  String get featHdrNativeDesktop => 'Desktop nativo';
+
+  @override
   String get perMonth => '/mês';
 
   @override
@@ -2523,7 +2582,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get featListen => 'Ouça seus documentos';
 
   @override
-  String get featBasicVoices => 'Vozes básicas';
+  String get featBasicVoices => 'Vozes padrão';
 
   @override
   String get feat10Docs => '10 documentos por mês';
@@ -2541,7 +2600,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get featStoryCoachTools => 'Coach de Enredo e ferramentas de IA';
 
   @override
-  String get featHdrListening => 'Audição e revisão';
+  String get featHdrListening => 'Leitura e revisão';
 
   @override
   String get featPremiumNatural => 'Vozes naturais premium';
@@ -2586,7 +2645,7 @@ class AppLocalizationsPt extends AppLocalizations {
   String get featUnlimitedProjects => 'Projetos ilimitados';
 
   @override
-  String get featHdrBookDev => 'Desenvolvimento do livro';
+  String get featHdrBookDev => 'Desenvolvimento da história';
 
   @override
   String get featBlueprints25 =>

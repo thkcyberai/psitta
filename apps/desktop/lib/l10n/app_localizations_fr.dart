@@ -2452,6 +2452,65 @@ class AppLocalizationsFr extends AppLocalizations {
   String get planTrial14 => 'Essai gratuit de 14 jours';
 
   @override
+  String get planTitleExplore => 'Explorez';
+
+  @override
+  String get planFreeForever => 'Gratuit pour toujours';
+
+  @override
+  String get planWaitingForYou => 'Ce qui vous attend';
+
+  @override
+  String get planTechnicalLimits => 'Limites techniques';
+
+  @override
+  String get planCurrentExperience => 'Votre expérience actuelle';
+
+  @override
+  String get planTrialActive => 'Essai actif';
+
+  @override
+  String planDaysRemaining(String days) {
+    return '$days jours restants';
+  }
+
+  @override
+  String planEndsOn(String date) {
+    return 'Se termine le $date';
+  }
+
+  @override
+  String get planActiveSubscription => 'Abonnement actif';
+
+  @override
+  String get planStartTrial => 'Commencez votre essai gratuit de 14 jours';
+
+  @override
+  String get lockBlueprints => 'Blueprints';
+
+  @override
+  String get lockStoryCoach => 'Coach d\'intrigue';
+
+  @override
+  String get planExploreCreateProjects => 'Créez des projets d\'écriture';
+
+  @override
+  String get planExploreOrganize => 'Organisez votre manuscrit';
+
+  @override
+  String get planExploreListen => 'Écoutez votre texte';
+
+  @override
+  String get featNativeApp =>
+      'Application Windows native — rapide, pilotée au clavier, compatible hors ligne';
+
+  @override
+  String get featHdrProjectOrg => 'Organisation des projets';
+
+  @override
+  String get featHdrNativeDesktop => 'Bureau natif';
+
+  @override
   String get perMonth => '/mois';
 
   @override
@@ -2528,7 +2587,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get featListen => 'Écoutez vos documents';
 
   @override
-  String get featBasicVoices => 'Voix de base';
+  String get featBasicVoices => 'Voix standard';
 
   @override
   String get feat10Docs => '10 documents par mois';
@@ -2546,7 +2605,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get featStoryCoachTools => 'Coach d\'intrigue et outils d\'IA';
 
   @override
-  String get featHdrListening => 'Écoute et révision';
+  String get featHdrListening => 'Lecture et révision';
 
   @override
   String get featPremiumNatural => 'Voix naturelles premium';
@@ -2591,7 +2650,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get featUnlimitedProjects => 'Projets illimités';
 
   @override
-  String get featHdrBookDev => 'Développement du livre';
+  String get featHdrBookDev => 'Développement de l\'histoire';
 
   @override
   String get featBlueprints25 =>

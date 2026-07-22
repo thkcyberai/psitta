@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/quota_gate.dart' show formatResetDate;
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
 import '../../l10n/app_localizations.dart';
@@ -14,13 +15,18 @@ import '../../l10n/app_localizations.dart';
 /// Plan selection screen — accessible from the sidebar "Plans" entry and
 /// Settings > Change Plan.
 ///
-/// Shows three tiers (Free, Writing Nook, Creative Nook). Writing Nook is the
-/// only purchasable product — every new subscription starts with a 14-day
-/// Stripe-native free trial. The monthly/annual toggle drives the Stripe
-/// lookup_key sent to /billing/checkout-session. On success the checkout URL
-/// opens in the system browser (Stripe-hosted) and the screen polls
-/// /billing/status until the webhook activates the plan (status 'active' OR
-/// 'trialing' — both are entitled).
+/// PAC-3 platform alignment: ONE product — Writing Nook — presented in
+/// states. Card 1 is Writing Nook / Explore (what a writer can already do,
+/// then the locked capabilities waiting, then technical limits). Card 2 is
+/// the full Writing Nook: trial CTA in Explore state; a "Trial active —
+/// N days remaining" banner + Manage subscription while trialing; an
+/// "Active subscription" banner + Manage subscription for subscribers.
+/// Every new subscription starts with a 14-day Stripe-native free trial.
+/// The monthly/annual toggle drives the Stripe lookup_key sent to
+/// /billing/checkout-session. On success the checkout URL opens in the
+/// system browser (Stripe-hosted) and the screen polls /billing/status
+/// until the webhook activates the plan (status 'active' OR 'trialing' —
+/// both are entitled).
 ///
 /// Creative Nook is a Coming Soon marketing placeholder: waitlist only, no
 /// checkout, no billing. Tier ranks gate the CTAs.
@@ -229,6 +235,69 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
     );
   }
 
+  // ── Stripe Customer Portal (PAC-3) ────────────────────────────────────
+  // Ported verbatim from Settings' _ManageSubscriptionTile (same endpoint,
+  // same error mapping, same invalidate-on-return) so Trial/Subscriber
+  // states get a live "Manage subscription" action instead of a dead
+  // "Current Plan" button. No new backend endpoint.
+  bool _isLaunchingPortal = false;
+
+  Future<void> _openPortal() async {
+    setState(() => _isLaunchingPortal = true);
+    final api = ref.read(apiClientProvider);
+    // use_build_context_synchronously: capture the localization bundle
+    // BEFORE any await — the only context read this method needs. All
+    // post-await UI goes through _showSnack, which itself guards on
+    // `mounted`.
+    final loc = AppLocalizations.of(context);
+    try {
+      final response = await api.dio.post('/billing/portal-session');
+      final data = response.data as Map<String, dynamic>;
+      final url = data['url'] as String?;
+      if (url == null) {
+        _showSnack(loc.manageNoUrl);
+        return;
+      }
+      final launched = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        _showSnack(loc.planCouldNotOpenBrowser);
+        return;
+      }
+      ref.invalidate(billingStatusProvider);
+      _showSnack(
+        loc.manageBrowserMsg,
+        durationSeconds: 5,
+      );
+    } on DioException catch (e) {
+      _handlePortalError(e);
+    } catch (_) {
+      _showSnack(loc.planConnectionError);
+    } finally {
+      if (mounted) setState(() => _isLaunchingPortal = false);
+    }
+  }
+
+  void _handlePortalError(DioException e) {
+    final status = e.response?.statusCode;
+    switch (status) {
+      case 404:
+        _showSnack(AppLocalizations.of(context).manageNoSubscription);
+      case 502:
+        _showSnack(AppLocalizations.of(context).managePortalUnavailable);
+      default:
+        if (e.type == DioExceptionType.connectionError ||
+            e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout) {
+          _showSnack(AppLocalizations.of(context).planConnectionError);
+        } else {
+          _showSnack(AppLocalizations.of(context).managePortalError);
+        }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -239,13 +308,33 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
     final statusHasError = statusAsync.hasError;
     final statusIsLoading = statusAsync.isLoading;
     final statusReady = !statusHasError && !statusIsLoading;
-    final currentPlan = statusAsync.whenOrNull(
-          data: (data) => data['plan'] as String?,
-        ) ??
-        'free';
+    final billingData = statusAsync.whenOrNull(data: (data) => data);
+    final currentPlan = (billingData?['plan'] as String?) ?? 'free';
     // -1 while loading/error so no card is marked current and the CTAs stay in
     // their default state (mirrors the prior false-on-loading guard).
     final currentRank = statusReady ? (_rank[currentPlan] ?? 0) : -1;
+
+    // ── PAC-3 user-state derivation (A4 contract: /billing/status reports
+    // the real Stripe status; trialing is fully entitled). Everything below
+    // is display state — enforcement stays server-side.
+    final subStatus = (billingData?['status'] as String?) ?? 'none';
+    final isTrialing =
+        statusReady && currentPlan != 'free' && subStatus == 'trialing';
+    final isActiveSub =
+        statusReady && currentPlan != 'free' && subStatus == 'active';
+    // Manage-subscription requires a real Stripe record (KL 2026-05-22b:
+    // allowlist/override users have none — the portal call would 502).
+    final isStripeSource = (billingData?['source'] as String?) == 'stripe';
+    DateTime? periodEnd;
+    final periodEndRaw = billingData?['current_period_end'] as String?;
+    if (periodEndRaw != null && periodEndRaw.isNotEmpty) {
+      periodEnd = DateTime.tryParse(periodEndRaw);
+    }
+    // Ceil to whole days, floored at 0 — "1 day remaining" until the hour
+    // it actually ends.
+    final int trialDaysRemaining = periodEnd == null
+        ? 0
+        : (periodEnd.difference(DateTime.now()).inHours / 24).ceil().clamp(0, 999);
 
     return Scaffold(
       body: Center(
@@ -349,9 +438,18 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(child: _freeCard(currentRank)),
+                    Expanded(child: _exploreCard(currentRank)),
                     const SizedBox(width: 18),
-                    Expanded(child: _writingCard(currentRank)),
+                    Expanded(
+                      child: _writingCard(
+                        currentRank,
+                        isTrialing: isTrialing,
+                        isActiveSub: isActiveSub,
+                        isStripeSource: isStripeSource,
+                        trialDaysRemaining: trialDaysRemaining,
+                        periodEnd: periodEnd,
+                      ),
+                    ),
                     const SizedBox(width: 18),
                     Expanded(child: _creativeCard()),
                   ],
@@ -366,37 +464,104 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
 
   // ── Cards ──────────────────────────────────────────────────────────────────
 
-  Widget _freeCard(int currentRank) {
+  /// PAC-3: Writing Nook / Explore — the same product, in its free state.
+  /// Outcomes first, then the capabilities waiting to unlock, then the
+  /// technical limits (never leading with limitations).
+  Widget _exploreCard(int currentRank) {
     final loc = AppLocalizations.of(context);
     final isCurrent = currentRank == 0;
     return _PlanCard(
-      tierName: 'Free',
-      title: loc.planTaglineRead,
+      tierName: 'Writing Nook',
+      title: loc.planTitleExplore,
       price: '\$0',
-      priceSubtitle: '',
+      priceSubtitle: loc.planFreeForever,
       features: [
-        _PlanFeature(loc.featListen),
-        _PlanFeature(loc.featBasicVoices),
-        _PlanFeature(loc.feat10Docs),
-        _PlanFeature(loc.featPremiumVoices, included: false),
-        _PlanFeature(loc.featWordByWord, included: false),
-        _PlanFeature(loc.featDeskBlueprints, included: false),
-        _PlanFeature(loc.featStoryCoachTools, included: false),
+        _PlanFeature(loc.planExploreCreateProjects),
+        _PlanFeature(loc.planExploreOrganize),
+        _PlanFeature(loc.planExploreListen),
+        _PlanFeature.header(loc.planWaitingForYou),
+        _PlanFeature.locked(loc.lockBlueprints),
+        _PlanFeature.locked(loc.lockStoryCoach),
+        _PlanFeature.locked(loc.featureStructureAnalyzer),
+        _PlanFeature.locked(loc.featHdrAiIntel),
+        _PlanFeature.locked(loc.featPremiumVoices),
+        _PlanFeature.locked(loc.featWordSentence),
+        _PlanFeature.header(loc.planTechnicalLimits),
+        _PlanFeature(loc.feat10Docs, included: false),
+        _PlanFeature(loc.featBasicVoices, included: false),
       ],
       isCurrent: isCurrent,
-      buttonLabel: isCurrent ? loc.planCurrent : loc.planGetStarted,
+      buttonLabel:
+          isCurrent ? loc.planCurrentExperience : loc.planIncluded,
       isPrimary: false,
       isLoading: false,
       onPressed: null,
     );
   }
 
-  Widget _writingCard(int currentRank) {
+  Widget _writingCard(
+    int currentRank, {
+    required bool isTrialing,
+    required bool isActiveSub,
+    required bool isStripeSource,
+    required int trialDaysRemaining,
+    required DateTime? periodEnd,
+  }) {
     const rank = 2;
     final isCurrent = currentRank == rank;
     final included = currentRank > rank;
     final canUpgrade = currentRank >= 0 && currentRank < rank;
     final loc = AppLocalizations.of(context);
+    final entitled = isTrialing || isActiveSub;
+
+    // PAC-3 state banner: Trial → days remaining + end date; Subscriber →
+    // active confirmation. Same card in every state — only this banner and
+    // the button change.
+    Widget? statusBanner;
+    if (isTrialing) {
+      // Null/unparseable current_period_end → plain "Trial active" (no
+      // misleading "0 days remaining"); expired-but-still-trialing edge
+      // clamps at 0 via trialDaysRemaining.
+      statusBanner = _StateBanner(
+        icon: Icons.timelapse,
+        text: periodEnd == null
+            ? loc.planTrialActive
+            : '${loc.planTrialActive} — '
+                '${loc.planDaysRemaining('$trialDaysRemaining')}'
+                ' · ${loc.planEndsOn(formatResetDate(periodEnd))}',
+      );
+    } else if (isActiveSub && isCurrent) {
+      statusBanner = _StateBanner(
+        icon: Icons.check_circle_outline,
+        text: loc.planActiveSubscription,
+      );
+    }
+
+    // Button logic per state:
+    //   Explore  → Start your 14-day free trial (existing checkout flow)
+    //   Trial /
+    //   Active   → Manage subscription (existing Stripe portal flow) when a
+    //              real Stripe record exists; otherwise the current-plan
+    //              affordance (allowlist/override users have no portal).
+    //   Included (creative, future) → muted "Included".
+    final String buttonLabel;
+    VoidCallback? onPressed;
+    if (entitled && isCurrent && isStripeSource) {
+      buttonLabel = loc.manageTitle;
+      onPressed = _isLaunchingPortal ? null : _openPortal;
+    } else if (isCurrent) {
+      buttonLabel = loc.planCurrent;
+      onPressed = null;
+    } else if (included) {
+      buttonLabel = loc.planIncluded;
+      onPressed = null;
+    } else {
+      buttonLabel = loc.planStartTrial;
+      onPressed = (canUpgrade && !_isSubmitting)
+          ? () => _startCheckout('writing_nook_pro')
+          : null;
+    }
+
     return _PlanCard(
       tierName: 'Writing Nook',
       title: loc.planTaglineWrite,
@@ -406,10 +571,12 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
           : '${loc.planTrial14} · ${loc.billedMonthly}',
       savingsLabel: _isAnnual ? loc.billingSave15 : null,
       popular: true,
+      statusBanner: statusBanner,
+      // Six capability groups — the approved platform vocabulary, mirroring
+      // the website Pricing page (WA-4).
       features: [
         _PlanFeature.header(loc.featHdrWorkspace),
         _PlanFeature(loc.featFullDesk),
-        _PlanFeature(loc.featUnlimitedProjects),
         _PlanFeature.header(loc.featHdrBookDev),
         _PlanFeature(loc.featBlueprints25),
         _PlanFeature(loc.featSceneProgress),
@@ -417,26 +584,25 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         _PlanFeature(loc.featStoryCoachDrift),
         _PlanFeature(loc.featureStructureAnalyzer),
         _PlanFeature(loc.feat1MTokens),
+        _PlanFeature(loc.featWritingAnalytics),
+        _PlanFeature(loc.featPriority),
         _PlanFeature.header(loc.featHdrListening),
         _PlanFeature(loc.featPremiumNatural),
         _PlanFeature(loc.featWordSentence),
         _PlanFeature(loc.featPlayback4x),
         _PlanFeature(loc.featBrandedDocx),
         _PlanFeature(loc.feat250k),
-        _PlanFeature(loc.featWritingAnalytics),
-        _PlanFeature(loc.featPriority),
+        _PlanFeature.header(loc.featHdrProjectOrg),
+        _PlanFeature(loc.featUnlimitedProjects),
+        _PlanFeature.header(loc.featHdrNativeDesktop),
+        _PlanFeature(loc.featNativeApp),
       ],
       isCurrent: isCurrent,
-      buttonLabel: isCurrent
-          ? loc.planCurrent
-          : included
-              ? loc.planIncluded
-              : loc.planUpgradeFinish,
+      buttonLabel: buttonLabel,
       isPrimary: true,
-      isLoading: _isSubmitting && _checkoutBase == 'writing_nook_pro',
-      onPressed: (canUpgrade && !_isSubmitting)
-          ? () => _startCheckout('writing_nook_pro')
-          : null,
+      isLoading: (_isSubmitting && _checkoutBase == 'writing_nook_pro') ||
+          _isLaunchingPortal,
+      onPressed: onPressed,
     );
   }
 
@@ -591,6 +757,7 @@ class _PlanCard extends StatelessWidget {
     this.savingsLabel,
     this.comingSoon = false,
     this.popular = false,
+    this.statusBanner,
     this.onPressed,
   });
 
@@ -606,6 +773,10 @@ class _PlanCard extends StatelessWidget {
   final String? savingsLabel;
   final bool comingSoon;
   final bool popular;
+
+  /// PAC-3: optional user-state banner (Trial active / Active subscription)
+  /// rendered between the price block and the feature list.
+  final Widget? statusBanner;
   final VoidCallback? onPressed;
 
   @override
@@ -703,6 +874,10 @@ class _PlanCard extends StatelessWidget {
                   ),
                 ),
             ],
+            if (statusBanner != null) ...[
+              const SizedBox(height: 14),
+              statusBanner!,
+            ],
             const SizedBox(height: 20),
             ...features.map((f) => _FeatureRow(feature: f)),
             const SizedBox(height: 20),
@@ -717,9 +892,28 @@ class _PlanCard extends StatelessWidget {
   }
 
   Widget _buildButton(ThemeData theme, ColorScheme cs) {
-    // Current plan: a solid, clearly-visible accent button (disabled but
-    // styled with the primary color + a check) so it stands out instead of
-    // fading into a muted disabled state.
+    // PAC-3: an ACTIONABLE current card (Trial/Subscriber → Manage
+    // subscription via the Stripe portal) renders a live outlined button —
+    // never a dead "Current Plan".
+    if (isCurrent && onPressed != null) {
+      return OutlinedButton.icon(
+        onPressed: onPressed,
+        icon: isLoading
+            ? SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: cs.primary,
+                ),
+              )
+            : const Icon(Icons.open_in_new, size: 16),
+        label: Text(buttonLabel),
+      );
+    }
+    // Current plan with no action: a solid, clearly-visible accent button
+    // (disabled but styled with the primary color + a check) so it stands
+    // out instead of fading into a muted disabled state.
     if (isCurrent) {
       return FilledButton.icon(
         onPressed: null,
@@ -766,17 +960,29 @@ class _PlanFeature {
     this.label, {
     this.included = true,
     this.comingSoon = false,
-  }) : isHeader = false;
+  })  : isHeader = false,
+        isLocked = false;
 
   const _PlanFeature.header(this.label)
       : included = true,
         comingSoon = false,
-        isHeader = true;
+        isHeader = true,
+        isLocked = false;
+
+  /// PAC-3: a capability that exists and is waiting to unlock — rendered
+  /// with a lock icon (anticipation), distinct from `included: false`
+  /// (a plain factual limit, rendered with a dash).
+  const _PlanFeature.locked(this.label)
+      : included = false,
+        comingSoon = false,
+        isHeader = false,
+        isLocked = true;
 
   final String label;
   final bool included;
   final bool comingSoon;
   final bool isHeader;
+  final bool isLocked;
 }
 
 class _FeatureRow extends StatelessWidget {
@@ -808,7 +1014,12 @@ class _FeatureRow extends StatelessWidget {
     final Color? textColor;
     final FontStyle fontStyle;
 
-    if (feature.comingSoon) {
+    if (feature.isLocked) {
+      icon = Icons.lock_outline;
+      iconColor = cs.onSurfaceVariant.withValues(alpha: 0.75);
+      textColor = cs.onSurfaceVariant;
+      fontStyle = FontStyle.normal;
+    } else if (feature.comingSoon) {
       icon = Icons.schedule;
       iconColor = cs.onSurfaceVariant.withValues(alpha: 0.75);
       textColor = cs.onSurfaceVariant;
@@ -838,6 +1049,44 @@ class _FeatureRow extends StatelessWidget {
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: textColor,
                 fontStyle: fontStyle,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// PAC-3: compact state banner (Trial active / Active subscription) shown
+/// inside the Writing Nook card — primary-container tone, icon + one line.
+class _StateBanner extends StatelessWidget {
+  const _StateBanner({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.primaryContainer,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: cs.onPrimaryContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: cs.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),

@@ -4212,6 +4212,114 @@ abstract class AppLocalizations {
   /// **'14-day free trial'**
   String get planTrial14;
 
+  /// No description provided for @planTitleExplore.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore'**
+  String get planTitleExplore;
+
+  /// No description provided for @planFreeForever.
+  ///
+  /// In en, this message translates to:
+  /// **'Free forever'**
+  String get planFreeForever;
+
+  /// No description provided for @planWaitingForYou.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for you'**
+  String get planWaitingForYou;
+
+  /// No description provided for @planTechnicalLimits.
+  ///
+  /// In en, this message translates to:
+  /// **'Technical limits'**
+  String get planTechnicalLimits;
+
+  /// No description provided for @planCurrentExperience.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current experience'**
+  String get planCurrentExperience;
+
+  /// No description provided for @planTrialActive.
+  ///
+  /// In en, this message translates to:
+  /// **'Trial active'**
+  String get planTrialActive;
+
+  /// No description provided for @planDaysRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{days} days remaining'**
+  String planDaysRemaining(String days);
+
+  /// No description provided for @planEndsOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Ends {date}'**
+  String planEndsOn(String date);
+
+  /// No description provided for @planActiveSubscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Active subscription'**
+  String get planActiveSubscription;
+
+  /// No description provided for @planStartTrial.
+  ///
+  /// In en, this message translates to:
+  /// **'Start your 14-day free trial'**
+  String get planStartTrial;
+
+  /// No description provided for @lockBlueprints.
+  ///
+  /// In en, this message translates to:
+  /// **'Blueprints'**
+  String get lockBlueprints;
+
+  /// No description provided for @lockStoryCoach.
+  ///
+  /// In en, this message translates to:
+  /// **'Story-Coach'**
+  String get lockStoryCoach;
+
+  /// No description provided for @planExploreCreateProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Create writing projects'**
+  String get planExploreCreateProjects;
+
+  /// No description provided for @planExploreOrganize.
+  ///
+  /// In en, this message translates to:
+  /// **'Organize your manuscript'**
+  String get planExploreOrganize;
+
+  /// No description provided for @planExploreListen.
+  ///
+  /// In en, this message translates to:
+  /// **'Listen to your writing'**
+  String get planExploreListen;
+
+  /// No description provided for @featNativeApp.
+  ///
+  /// In en, this message translates to:
+  /// **'Native Windows app — fast, keyboard-driven, offline-friendly'**
+  String get featNativeApp;
+
+  /// No description provided for @featHdrProjectOrg.
+  ///
+  /// In en, this message translates to:
+  /// **'Project Organization'**
+  String get featHdrProjectOrg;
+
+  /// No description provided for @featHdrNativeDesktop.
+  ///
+  /// In en, this message translates to:
+  /// **'Native Desktop'**
+  String get featHdrNativeDesktop;
+
   /// No description provided for @perMonth.
   ///
   /// In en, this message translates to:
@@ -4347,7 +4455,7 @@ abstract class AppLocalizations {
   /// No description provided for @featBasicVoices.
   ///
   /// In en, this message translates to:
-  /// **'Basic voices'**
+  /// **'Standard voices'**
   String get featBasicVoices;
 
   /// No description provided for @feat10Docs.
@@ -4383,7 +4491,7 @@ abstract class AppLocalizations {
   /// No description provided for @featHdrListening.
   ///
   /// In en, this message translates to:
-  /// **'Listening & revision'**
+  /// **'Reading & Revision'**
   String get featHdrListening;
 
   /// No description provided for @featPremiumNatural.
@@ -4455,7 +4563,7 @@ abstract class AppLocalizations {
   /// No description provided for @featHdrWorkspace.
   ///
   /// In en, this message translates to:
-  /// **'Writing workspace'**
+  /// **'Writing Workspace'**
   String get featHdrWorkspace;
 
   /// No description provided for @featFullDesk.
@@ -4473,7 +4581,7 @@ abstract class AppLocalizations {
   /// No description provided for @featHdrBookDev.
   ///
   /// In en, this message translates to:
-  /// **'Book development'**
+  /// **'Story Development'**
   String get featHdrBookDev;
 
   /// No description provided for @featBlueprints25.
@@ -4491,7 +4599,7 @@ abstract class AppLocalizations {
   /// No description provided for @featHdrAiIntel.
   ///
   /// In en, this message translates to:
-  /// **'AI writing intelligence'**
+  /// **'AI Writing Intelligence'**
   String get featHdrAiIntel;
 
   /// No description provided for @featStoryCoachDrift.

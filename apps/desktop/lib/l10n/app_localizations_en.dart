@@ -2437,6 +2437,65 @@ class AppLocalizationsEn extends AppLocalizations {
   String get planTrial14 => '14-day free trial';
 
   @override
+  String get planTitleExplore => 'Explore';
+
+  @override
+  String get planFreeForever => 'Free forever';
+
+  @override
+  String get planWaitingForYou => 'Waiting for you';
+
+  @override
+  String get planTechnicalLimits => 'Technical limits';
+
+  @override
+  String get planCurrentExperience => 'Your current experience';
+
+  @override
+  String get planTrialActive => 'Trial active';
+
+  @override
+  String planDaysRemaining(String days) {
+    return '$days days remaining';
+  }
+
+  @override
+  String planEndsOn(String date) {
+    return 'Ends $date';
+  }
+
+  @override
+  String get planActiveSubscription => 'Active subscription';
+
+  @override
+  String get planStartTrial => 'Start your 14-day free trial';
+
+  @override
+  String get lockBlueprints => 'Blueprints';
+
+  @override
+  String get lockStoryCoach => 'Story-Coach';
+
+  @override
+  String get planExploreCreateProjects => 'Create writing projects';
+
+  @override
+  String get planExploreOrganize => 'Organize your manuscript';
+
+  @override
+  String get planExploreListen => 'Listen to your writing';
+
+  @override
+  String get featNativeApp =>
+      'Native Windows app — fast, keyboard-driven, offline-friendly';
+
+  @override
+  String get featHdrProjectOrg => 'Project Organization';
+
+  @override
+  String get featHdrNativeDesktop => 'Native Desktop';
+
+  @override
   String get perMonth => '/mo';
 
   @override
@@ -2512,7 +2571,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get featListen => 'Listen to your documents';
 
   @override
-  String get featBasicVoices => 'Basic voices';
+  String get featBasicVoices => 'Standard voices';
 
   @override
   String get feat10Docs => '10 documents per month';
@@ -2530,7 +2589,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get featStoryCoachTools => 'Story-Coach & AI tools';
 
   @override
-  String get featHdrListening => 'Listening & revision';
+  String get featHdrListening => 'Reading & Revision';
 
   @override
   String get featPremiumNatural => 'Premium natural voices';
@@ -2566,7 +2625,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get featHdrEverythingReading => 'Everything in Reading Nook, plus';
 
   @override
-  String get featHdrWorkspace => 'Writing workspace';
+  String get featHdrWorkspace => 'Writing Workspace';
 
   @override
   String get featFullDesk => 'Full Writing Desk';
@@ -2575,7 +2634,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get featUnlimitedProjects => 'Unlimited projects';
 
   @override
-  String get featHdrBookDev => 'Book development';
+  String get featHdrBookDev => 'Story Development';
 
   @override
   String get featBlueprints25 => 'Blueprints & 25+ Narrative Structures';
@@ -2584,7 +2643,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get featSceneProgress => 'Scene Mapping & Progress Tracking';
 
   @override
-  String get featHdrAiIntel => 'AI writing intelligence';
+  String get featHdrAiIntel => 'AI Writing Intelligence';
 
   @override
   String get featStoryCoachDrift => 'Story-Coach — live drift nudges';

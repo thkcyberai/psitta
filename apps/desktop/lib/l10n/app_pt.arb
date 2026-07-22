@@ -685,6 +685,38 @@
   "planNotifyLaunch": "Avise-me no lançamento",
   "planOnWaitlist": "Na lista de espera ✓",
   "planTrial14": "Teste grátis de 14 dias",
+  "planTitleExplore": "Explore",
+  "planFreeForever": "Grátis para sempre",
+  "planWaitingForYou": "Esperando por você",
+  "planTechnicalLimits": "Limites técnicos",
+  "planCurrentExperience": "Sua experiência atual",
+  "planTrialActive": "Teste ativo",
+  "planDaysRemaining": "{days} dias restantes",
+  "@planDaysRemaining": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "planEndsOn": "Termina em {date}",
+  "@planEndsOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "planActiveSubscription": "Assinatura ativa",
+  "planStartTrial": "Comece seu teste grátis de 14 dias",
+  "lockBlueprints": "Blueprints",
+  "lockStoryCoach": "Coach de Enredo",
+  "planExploreCreateProjects": "Crie projetos de escrita",
+  "planExploreOrganize": "Organize seu manuscrito",
+  "planExploreListen": "Ouça sua escrita",
+  "featNativeApp": "Aplicativo nativo do Windows — rápido, com atalhos de teclado e amigável offline",
+  "featHdrProjectOrg": "Organização de projetos",
+  "featHdrNativeDesktop": "Desktop nativo",
   "perMonth": "/mês",
   "perYear": "/ano",
   "billedMonthly": "Cobrado mensalmente",
@@ -707,13 +739,13 @@
   "planPaymentProcessing": "Pagamento em processamento. Seu plano será atualizado em breve.",
   "planActiveWelcome": "Seu plano está ativo. Bem-vindo!",
   "featListen": "Ouça seus documentos",
-  "featBasicVoices": "Vozes básicas",
+  "featBasicVoices": "Vozes padrão",
   "feat10Docs": "10 documentos por mês",
   "featPremiumVoices": "Vozes premium",
   "featWordByWord": "Destaque palavra por palavra",
   "featDeskBlueprints": "Escrivaninha e Blueprints",
   "featStoryCoachTools": "Coach de Enredo e ferramentas de IA",
-  "featHdrListening": "Audição e revisão",
+  "featHdrListening": "Leitura e revisão",
   "featPremiumNatural": "Vozes naturais premium",
   "featWordSentence": "Destaque de palavras e frases",
   "featPlayback4x": "Velocidade de reprodução até 4×",
@@ -728,7 +760,7 @@
   "featHdrWorkspace": "Espaço de escrita",
   "featFullDesk": "Escrivaninha completa",
   "featUnlimitedProjects": "Projetos ilimitados",
-  "featHdrBookDev": "Desenvolvimento do livro",
+  "featHdrBookDev": "Desenvolvimento da história",
   "featBlueprints25": "Blueprints e mais de 25 Estruturas narrativas",
   "featSceneProgress": "Mapa de Cenas e Acompanhamento de Progresso",
   "featHdrAiIntel": "Inteligência de escrita com IA",

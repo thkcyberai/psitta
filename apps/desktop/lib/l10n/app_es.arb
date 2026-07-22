@@ -685,6 +685,38 @@
   "planNotifyLaunch": "Avísame cuando se lance",
   "planOnWaitlist": "En la lista de espera ✓",
   "planTrial14": "Prueba gratis de 14 días",
+  "planTitleExplore": "Explora",
+  "planFreeForever": "Gratis para siempre",
+  "planWaitingForYou": "Esperándote",
+  "planTechnicalLimits": "Límites técnicos",
+  "planCurrentExperience": "Tu experiencia actual",
+  "planTrialActive": "Prueba activa",
+  "planDaysRemaining": "{days} días restantes",
+  "@planDaysRemaining": {
+    "placeholders": {
+      "days": {
+        "type": "String"
+      }
+    }
+  },
+  "planEndsOn": "Termina el {date}",
+  "@planEndsOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "planActiveSubscription": "Suscripción activa",
+  "planStartTrial": "Empieza tu prueba gratis de 14 días",
+  "lockBlueprints": "Blueprints",
+  "lockStoryCoach": "Coach de Trama",
+  "planExploreCreateProjects": "Crea proyectos de escritura",
+  "planExploreOrganize": "Organiza tu manuscrito",
+  "planExploreListen": "Escucha tu escritura",
+  "featNativeApp": "Aplicación nativa de Windows — rápida, con atajos de teclado y amigable sin conexión",
+  "featHdrProjectOrg": "Organización de proyectos",
+  "featHdrNativeDesktop": "Escritorio nativo",
   "perMonth": "/mes",
   "perYear": "/año",
   "billedMonthly": "Facturado mensualmente",
@@ -707,13 +739,13 @@
   "planPaymentProcessing": "Procesando el pago. Tu plan se actualizará en breve.",
   "planActiveWelcome": "Tu plan está activo. ¡Bienvenido!",
   "featListen": "Escucha tus documentos",
-  "featBasicVoices": "Voces básicas",
+  "featBasicVoices": "Voces estándar",
   "feat10Docs": "10 documentos al mes",
   "featPremiumVoices": "Voces premium",
   "featWordByWord": "Resaltado palabra por palabra",
   "featDeskBlueprints": "Escritorio y Blueprints",
   "featStoryCoachTools": "Coach de Trama y herramientas de IA",
-  "featHdrListening": "Escucha y revisión",
+  "featHdrListening": "Lectura y revisión",
   "featPremiumNatural": "Voces naturales premium",
   "featWordSentence": "Resaltado de palabras y frases",
   "featPlayback4x": "Velocidad de reproducción hasta 4×",
@@ -728,7 +760,7 @@
   "featHdrWorkspace": "Espacio de escritura",
   "featFullDesk": "Escritorio completo",
   "featUnlimitedProjects": "Proyectos ilimitados",
-  "featHdrBookDev": "Desarrollo del libro",
+  "featHdrBookDev": "Desarrollo de la historia",
   "featBlueprints25": "Blueprints y más de 25 Estructuras narrativas",
   "featSceneProgress": "Mapa de Escenas y Seguimiento del Progreso",
   "featHdrAiIntel": "Inteligencia de escritura con IA",
