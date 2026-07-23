@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../../core/app_version.dart';
 import '../../core/constants.dart';
 import '../services/auth_service.dart';
@@ -109,11 +110,16 @@ class ApiClient {
       },
     ));
 
-    _dio.interceptors.add(LogInterceptor(
-      requestBody: true,
-      responseBody: true,
-      logPrint: (msg) => developer.log('$msg', name: 'API'),
-    ));
+    // Verbose request/response logging is DEBUG-ONLY. Release builds add no
+    // logging interceptor, so no Authorization header, bearer token, or
+    // request/response body is ever written to logs in production.
+    if (kDebugMode) {
+      _dio.interceptors.add(LogInterceptor(
+        requestBody: true,
+        responseBody: true,
+        logPrint: (msg) => developer.log('$msg', name: 'API'),
+      ));
+    }
   }
 
   // Extras key for loop-break sentinel on retried requests.

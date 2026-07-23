@@ -79,10 +79,6 @@ class _PsittaAppState extends ConsumerState<PsittaApp>
       return;
     }
     _lastResumeInvalidation = now;
-    debugPrint(
-      '[BILLING] billing_state.invalidate_on_resume '
-      'at ${now.toIso8601String()}',
-    );
     ref.invalidate(billingStatusProvider);
     ref.invalidate(quotaUsageProvider);
     // Recover capabilities in lockstep with billing (mirrors

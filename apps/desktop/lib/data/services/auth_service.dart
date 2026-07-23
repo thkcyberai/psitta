@@ -129,27 +129,6 @@ class AuthService {
         throw Exception('No access_token in token response');
       }
 
-      // Debug: log JWT claims to verify issuer, audience, and scope
-      try {
-        final claims = JwtDecoder.decode(accessToken);
-        debugPrint('[AUTH] === ACCESS TOKEN CLAIMS ===');
-        debugPrint('[AUTH] iss: ${claims['iss']}');
-        debugPrint('[AUTH] aud: ${claims['aud']}');
-        debugPrint('[AUTH] client_id: ${claims['client_id']}');
-        debugPrint('[AUTH] sub: ${claims['sub']}');
-        debugPrint('[AUTH] scope: ${claims['scope']}');
-        debugPrint('[AUTH] exp: ${claims['exp']}');
-        if (idToken != null) {
-          final idClaims = JwtDecoder.decode(idToken);
-          debugPrint('[AUTH] === ID TOKEN CLAIMS ===');
-          debugPrint('[AUTH] iss: ${idClaims['iss']}');
-          debugPrint('[AUTH] name: ${idClaims['name']}');
-          debugPrint('[AUTH] email: ${idClaims['email']}');
-        }
-      } catch (e) {
-        debugPrint('[AUTH] JWT decode debug failed: $e');
-      }
-
       await _storage.write(key: _accessTokenKey, value: accessToken);
       if (idToken      != null) await _storage.write(key: _idTokenKey,      value: idToken);
       if (refreshToken != null) await _storage.write(key: _refreshTokenKey, value: refreshToken);
