@@ -645,7 +645,10 @@ class _SubscriptionTile extends ConsumerWidget {
         leading: const Icon(Icons.error_outline, color: Colors.orange),
         title: Text(loc.subStatusUnavailable),
         subtitle: Text(loc.subTapRetry),
-        onTap: () => ref.invalidate(billingStatusProvider),
+        onTap: () {
+          ref.invalidate(billingStatusProvider);
+          ref.invalidate(capabilitiesProvider);
+        },
       ),
       data: (data) {
         final planStatus = PlanStatus.fromMap(data);
@@ -845,6 +848,7 @@ class _ManageSubscriptionTileState
       }
 
       ref.invalidate(billingStatusProvider);
+      ref.invalidate(capabilitiesProvider);
 
       _showSnack(
         AppLocalizations.of(context).manageBrowserMsg,

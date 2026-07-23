@@ -10,6 +10,7 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_windows/webview_windows.dart';
 
+import '../../core/capabilities.dart';
 import '../../core/state/now_reading.dart';
 import '../../features/shell/widgets/player_bar.dart';
 import '../../widgets/document_cover.dart';
@@ -433,6 +434,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   /// here will reintroduce the leak.
   void _invalidateUserScopedFetches() {
     _ref.invalidate(billingStatusProvider);
+    _ref.invalidate(capabilitiesProvider);
     _ref.invalidate(quotaUsageProvider);
     _ref.invalidate(projectsProvider);
     _ref.invalidate(documentsProvider);

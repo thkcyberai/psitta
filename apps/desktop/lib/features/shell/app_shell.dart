@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/capabilities.dart';
 import '../../core/constants.dart';
 import '../../core/i18n/working_language.dart';
 import '../../l10n/app_localizations.dart';
@@ -56,6 +57,7 @@ void _refreshAllData(WidgetRef ref) {
   ref.invalidate(projectsProvider);
   ref.invalidate(quotaUsageProvider);
   ref.invalidate(billingStatusProvider);
+  ref.invalidate(capabilitiesProvider);
   ref.invalidate(userProfileProvider);
   ref.invalidate(storageUsageProvider);
   ref.invalidate(trashedDocumentsProvider);

@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/capabilities.dart';
 import '../../core/quota_gate.dart' show formatResetDate;
 import '../../data/providers/providers.dart';
 import '../../data/services/auth_service.dart';
@@ -208,6 +209,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
             (status == 'active' || status == 'trialing')) {
           timer.cancel();
           ref.invalidate(billingStatusProvider);
+          ref.invalidate(capabilitiesProvider);
           _showSnack(AppLocalizations.of(context).planActiveWelcome);
           return;
         }
@@ -267,6 +269,7 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
         return;
       }
       ref.invalidate(billingStatusProvider);
+      ref.invalidate(capabilitiesProvider);
       _showSnack(
         loc.manageBrowserMsg,
         durationSeconds: 5,
@@ -395,8 +398,10 @@ class _PlanSelectionScreenState extends ConsumerState<PlanSelectionScreen> {
                         style: TextButton.styleFrom(
                           foregroundColor: cs.onErrorContainer,
                         ),
-                        onPressed: () =>
-                            ref.invalidate(billingStatusProvider),
+                        onPressed: () {
+                          ref.invalidate(billingStatusProvider);
+                          ref.invalidate(capabilitiesProvider);
+                        },
                         child: Text(loc.actionRetry),
                       ),
                     ],
